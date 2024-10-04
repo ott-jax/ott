@@ -23,6 +23,7 @@ import numpy as np
 from ott.geometry import costs, segment
 from ott.problems.linear import barycenter_problem
 from ott.solvers.linear import continuous_barycenter as cb
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.tools.gaussian_mixture import gaussian_mixture
 
 means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
@@ -85,7 +86,11 @@ class TestBarycenter:
 
     # Define solver
     threshold = 1e-3
-    solver = cb.FreeWassersteinBarycenter(rank=rank, threshold=threshold)
+    if rank > 0:
+      linear_solver = sinkhorn_lr.LRSinkhorn(rank=rank, threshold=threshold)
+    else:
+      linear_solver = sinkhorn.Sinkhorn(threshold=threshold)
+    solver = cb.FreeWassersteinBarycenter(linear_solver)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 
@@ -134,7 +139,8 @@ class TestBarycenter:
         bar_prob = barycenter_problem.FreeBarycenterProblem(
             y, b, epsilon=1e-1, num_per_segment=num_per_segment
         )
-      solver = cb.FreeWassersteinBarycenter(threshold=threshold)
+      linear_solver = sinkhorn.Sinkhorn(threshold=threshold)
+      solver = cb.FreeWassersteinBarycenter(linear_solver)
       return solver(bar_prob)
 
     rngs = jax.random.split(rng, 20)
@@ -173,7 +179,7 @@ class TestBarycenter:
       self,
       rng: jax.Array,
   ):
-    lse_mode = True,
+    lse_mode = True
     epsilon = 1e-1
     jit = True,
     num_measures = 2
@@ -229,7 +235,8 @@ class TestBarycenter:
     assert bar_p.max_measure_size == seg_y.shape[1]
     assert bar_p.ndim == seg_y.shape[2]
 
-    solver = cb.FreeWassersteinBarycenter(lse_mode=lse_mode)
+    linear_solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
+    solver = cb.FreeWassersteinBarycenter(linear_solver)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 
@@ -346,7 +353,8 @@ class TestBarycenter:
     assert bar_p.num_measures == num_measures
     assert bar_p.ndim == ys.shape[-1]
 
-    solver = cb.FreeWassersteinBarycenter(lse_mode=True)
+    linear_solver = sinkhorn.Sinkhorn(lse_mode=True)
+    solver = cb.FreeWassersteinBarycenter(linear_solver)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 

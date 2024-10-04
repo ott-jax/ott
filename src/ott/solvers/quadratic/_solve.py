@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 import jax.numpy as jnp
 
 from ott.geometry import geometry
 from ott.problems.quadratic import quadratic_costs, quadratic_problem
+from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein as gw
 from ott.solvers.quadratic import gromov_wasserstein_lr as lrgw
 
@@ -35,6 +36,7 @@ def solve(
     loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
     gw_unbalanced_correction: bool = True,
     rank: int = -1,
+    linear_solver_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> Union[gw.GWOutput, lrgw.LRGWOutput]:
   """Solve quadratic regularized OT problem using a Gromov-Wasserstein solver.
@@ -62,6 +64,8 @@ def solve(
       in the inner loop. Only used when ``rank = -1``.
     rank: Rank constraint on the coupling to minimize the quadratic OT problem
       :cite:`scetbon:22`. If :math:`-1`, no rank constraint is used.
+    linear_solver_kwargs: Keyword arguments for
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`, if ``rank > 0``.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein` or
       :class:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`,
@@ -84,8 +88,11 @@ def solve(
   )
 
   if rank > 0:
-    solver = lrgw.LRGromovWasserstein(rank=rank, **kwargs)
+    solver = lrgw.LRGromovWasserstein(rank, **kwargs)
   else:
-    solver = gw.GromovWasserstein(rank=rank, **kwargs)
+    if linear_solver_kwargs is None:
+      linear_solver_kwargs = {}
+    linear_solver = sinkhorn.Sinkhorn(**linear_solver_kwargs)
+    solver = gw.GromovWasserstein(linear_solver, **kwargs)
 
   return solver(prob)

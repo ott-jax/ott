@@ -53,14 +53,14 @@ class FreeBarycenterState(NamedTuple):
 
   def update(
       self, iteration: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
-      linear_ot_solver: Any, store_errors: bool
+      linear_solver: Any, store_errors: bool
   ) -> "FreeBarycenterState":
     """Update the state of the solver.
 
     Args:
       iteration: the current iteration of the outer loop.
       bar_prob: the barycenter problem.
-      linear_ot_solver: the linear OT solver to use.
+      linear_solver: the linear OT solver to use.
       store_errors: whether to store the errors of the inner loop.
 
     Returns:
@@ -72,18 +72,16 @@ class FreeBarycenterState(NamedTuple):
     def solve_linear_ot(
         a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
     ):
-      out = linear_ot_solver(
-          linear_problem.LinearProblem(
-              pointcloud.PointCloud(
-                  x,
-                  y,
-                  src_mask=a > 0.0,
-                  tgt_mask=b > 0.0,
-                  cost_fn=bar_prob.cost_fn,
-                  epsilon=bar_prob.epsilon
-              ), a, b
-          )
+      geom = pointcloud.PointCloud(
+          x,
+          y,
+          src_mask=a > 0.0,
+          tgt_mask=b > 0.0,
+          cost_fn=bar_prob.cost_fn,
+          epsilon=bar_prob.epsilon
       )
+      prob = linear_problem.LinearProblem(geom, a=a, b=b)
+      out = linear_solver(prob)
       return (
           out.reg_ot_cost, out.converged, out.matrix,
           out.errors if store_errors else None
@@ -177,8 +175,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
     num_iter = self.max_iterations
     if self.store_inner_errors:
       errors = -jnp.ones((
-          num_iter, bar_prob.num_measures,
-          self.linear_ot_solver.outer_iterations
+          num_iter, bar_prob.num_measures, self.linear_solver.outer_iterations
       ))
     else:
       errors = None
@@ -217,7 +214,7 @@ def iterations(
     del compute_error  # Always assumed True
     solver, bar_prob = constants
     return state.update(
-        iteration, bar_prob, solver.linear_ot_solver, solver.store_inner_errors
+        iteration, bar_prob, solver.linear_solver, solver.store_inner_errors
     )
 
   state = fixed_point_loop.fixpoint_iter(

@@ -21,6 +21,8 @@ import numpy as np
 
 from ott.geometry import pointcloud
 from ott.problems.quadratic import gw_barycenter as gwb
+from ott.solvers.linear import sinkhorn
+from ott.solvers.quadratic import gromov_wasserstein
 from ott.solvers.quadratic import gw_barycenter as gwb_solver
 
 
@@ -101,9 +103,11 @@ class TestGWBarycenter:
     assert problem_pc.ndim == self.ndim
     assert problem_cost.ndim is None
 
-    solver = jax.jit(
-        gwb_solver.GromovWassersteinBarycenter(), static_argnames="bar_size"
-    )
+    linear_solver = sinkhorn.Sinkhorn()
+    quadratic_solver = gromov_wasserstein.GromovWasserstein(linear_solver)
+    solver = gwb_solver.GromovWassersteinBarycenter(quadratic_solver)
+    solver = jax.jit(solver, static_argnames=["bar_size"])
+
     out_pc = solver(problem_pc, bar_size=bar_size)
     out_cost = solver(problem_cost, bar_size=bar_size)
 
@@ -151,8 +155,12 @@ class TestGWBarycenter:
       assert prob.ndim == self.ndim
       assert prob.ndim_fused == self.ndim_f
 
+      linear_solver = sinkhorn.Sinkhorn()
+      quadratic_solver = gromov_wasserstein.GromovWasserstein(
+          linear_solver, epsilon=epsilon, store_inner_errors=True
+      )
       solver = gwb_solver.GromovWassersteinBarycenter(
-          store_inner_errors=True, epsilon=epsilon
+          quadratic_solver, store_inner_errors=True
       )
 
       x_init = jax.random.normal(rng, (bar_size, self.ndim_f))
