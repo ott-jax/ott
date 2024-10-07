@@ -1001,7 +1001,7 @@ class Sinkhorn:
             parallel_dual_updates=self.parallel_dual_updates,
             recenter=self.recenter_potentials
         )[0],
-        lambda *_: jnp.array(jnp.inf, dtype=state.errors.dtype),
+        lambda *_: jnp.array(jnp.inf, dtype=ot_prob.dtype),
         state,
         ot_prob,
     )
