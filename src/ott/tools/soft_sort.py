@@ -214,7 +214,7 @@ def _ranks(
     num_targets = target_weights.shape[0]
   a = jnp.ones((num_points,)) / num_points
   ot = transport_for_sort(inputs, a, target_weights, **kwargs)
-  out = 1.0 / a * ot.apply(jnp.arange(num_targets), axis=1)
+  out = 1.0 / a * ot.apply(jnp.arange(num_targets, dtype=inputs.dtype), axis=1)
   out *= (num_points - 1.0) / (num_targets - 1.0)
   return jnp.reshape(out, inputs.shape)
 
