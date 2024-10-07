@@ -676,3 +676,22 @@ class TestSinkhorn:
         num_iterations
         for _ in range(1, num_iterations // inner_iterations + 1)
     ]
+
+  @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16])
+  def test_sinkhorn_dtype(self, dtype: jnp.ndarray):
+    x = self.x.astype(dtype)
+    y = self.y.astype(dtype)
+    geom = pointcloud.PointCloud(x, y, epsilon=jnp.array(1e-1, dtype=dtype))
+
+    out = linear.solve(geom, threshold=1e-2)
+
+    assert out.f.dtype == dtype
+    assert out.g.dtype == dtype
+    assert out.errors.dtype == dtype
+    assert out.matrix.dtype == dtype
+    assert out.reg_ot_cost.dtype == dtype
+    assert out.ent_reg_cost.dtype == dtype
+    assert out.kl_reg_cost.dtype == dtype
+    assert out.primal_cost.dtype == dtype
+    assert out.dual_cost.dtype == dtype
+    assert out.transport_mass.dtype == dtype
