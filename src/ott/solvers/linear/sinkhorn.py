@@ -1001,7 +1001,7 @@ class Sinkhorn:
             parallel_dual_updates=self.parallel_dual_updates,
             recenter=self.recenter_potentials
         )[0],
-        lambda *_: jnp.inf,
+        lambda *_: jnp.array(jnp.inf, dtype=state.errors.dtype),
         state,
         ot_prob,
     )
@@ -1044,7 +1044,8 @@ class Sinkhorn:
                                                                jnp.ndarray]
   ) -> SinkhornState:
     """Return the initial state of the loop."""
-    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)))
+    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)),
+                       dtype=ot_prob.dtype)
     state = SinkhornState(init, errors=errors)
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 

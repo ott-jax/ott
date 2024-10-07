@@ -273,7 +273,7 @@ class SortingInitializer(DefaultInitializer):
     modified_cost = cost_matrix - jnp.diag(cost_matrix)[None, :]
 
     n = cost_matrix.shape[0]
-    init_f = jnp.zeros(n) if init_f is None else init_f
+    init_f = jnp.zeros(n, dtype=ot_prob.dtype) if init_f is None else init_f
 
     f_potential = self._init_sorting_dual(modified_cost, init_f)
     f_potential = f_potential - jnp.mean(f_potential)
