@@ -43,20 +43,24 @@ class SinkhornDivergenceOutput:  # noqa: D101
   Args:
     divergence: value of the Sinkhorn divergence
     geoms: three geometries describing the Sinkhorn divergence, of respective
-      sizes :math:`n\times m, n\times n, m\times m`.
-    a: vector of marginal weights for first set.
-    b: vector of marginal weights for second set.
-    potentials: three pairs of potential vectors, of sizes
-      :math:`(n,n), (n,m), (m,m)`. Used when the solver used to compute the
-      divergence was vanilla Sinkhorn.
+      sizes ``[n, m], [n, n], [m, m]`` if their cost or kernel matrices where
+      instantiated.
+    a: first ``[n,]`` vector of marginal weights.
+    b: second ``[m,]`` vector of marginal weights for second.
+    potentials: three pairs of dual potential vectors, of sizes
+      ``[n,], [m,]``, ``[n,], [n,]``, ``[m,], [m,]``, returned when the call
+      to the :func:`~ott.solvers.linear.solve` solver to compute the divergence
+      relies on a vanilla :class:`~ott.solver.linear.sinkhorn.Sinkhorn` solver.
     factors: three triplets of matrices, of sizes
-      :math:`((n,r), (m,r), (r,)), ((n,r),(n,r,), (r,)), ((m,r),(m,r,), (r,))`.
-      These are only returned when the solver used to compute the divergence was
-      low-rank Sinkhorn.
-    converged: triplet of bools indicating the convergence on each of the three
-      problems run to compute the divergence.
-    n_iters: number of iterations that were run for each of the three
-      computations
+      ``([n, rank], [m, rank], [rank,])``, ``([n, rank], [n, rank], [rank,])``
+      and ``([m, rank], [m, rank], [rank,])``, returned when the call
+      to the :func:`~ott.solvers.linear.solve` solver to compute the divergence
+      relies on a low-rank :class:`~ott.solver.linear.sinkhorn_lr.LRSinkhorn`
+      solver.
+    converged: triplet of booleans indicating the convergence of each of the
+      three problems run to compute the divergence.
+    n_iters: number of iterations keeping track of compute effort needed to
+      complete each of the three terms in the divergence.
   """
   divergence: float
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
@@ -79,7 +83,7 @@ class SinkhornDivergenceOutput:  # noqa: D101
     to Equation 8 in :cite:`pooladian:22`.
     """
     assert not self.is_low_rank, \
-      "Dual potentials are not available for low-rank."
+      "Dual potentials not available: divergence computed with low-rank solver."
     geom_xy, *_ = self.geoms
     prob_xy = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
