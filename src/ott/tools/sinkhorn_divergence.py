@@ -34,6 +34,30 @@ Factors = Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
 
 @utils.register_pytree_node
 class SinkhornDivergenceOutput:  # noqa: D101
+  r"""Holds the outputs of a call to :func:`sinkhorn_divergence`.
+
+  Objects of this class contain both solutions and problem definition of a
+  two or three regularized OT problem instantiated when computing a Sinkhorn
+  divergence between two probability distributions.
+
+  Args:
+    divergence: value of the Sinkhorn divergence
+    geoms: three geometries describing the Sinkhorn divergence, of respective
+      sizes :math:`n\times m, n\times n, m\times m`.
+    a: vector of marginal weights for first set.
+    b: vector of marginal weights for second set.
+    potentials: three pairs of potential vectors, of sizes
+      :math:`(n,n), (n,m), (m,m)`. Used when the solver used to compute the
+      divergence was vanilla Sinkhorn.
+    factors: three triplets of matrices, of sizes
+      :math:`((n,r), (m,r), (r,)), ((n,r),(n,r,), (r,)), ((m,r),(m,r,), (r,))`.
+      These are only returned when the solver used to compute the divergence was
+      low-rank Sinkhorn.
+    converged: triplet of bools indicating the convergence on each of the three
+      problems run to compute the divergence.
+    n_iters: number of iterations that were run for each of the three
+      computations
+  """
   divergence: float
   geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
   a: jnp.ndarray
@@ -46,7 +70,14 @@ class SinkhornDivergenceOutput:  # noqa: D101
   n_iters: Tuple[int, int, int]
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
-    """Return dual estimators :cite:`pooladian:22`, eq. 8."""
+    """Return dual potential functions, :cite:`pooladian:22`.
+
+    Using vectors stored in ``potentials``, instantiate a
+    :class:`~ott.problems.linear.potentials.EntropicPotentials` object that will
+    provide approximations to optimal dual potential functions for the dual
+    OT problem defined for the geometry stored in ``geoms[0]``. These correspond
+    to Equation 8 in :cite:`pooladian:22`.
+    """
     assert not self.is_low_rank, \
       "Dual potentials are not available for low-rank."
     geom_xy, *_ = self.geoms
@@ -81,7 +112,7 @@ def sinkhorn_divergence(
     *args: Any,
     a: Optional[jnp.ndarray] = None,
     b: Optional[jnp.ndarray] = None,
-    sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
+    solve_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = True,
@@ -98,10 +129,10 @@ def sinkhorn_divergence(
       match that of `b` to converge.
     b: the weight of each target point. The sum of all elements of `b` must
       match that of `a` to converge.
-    sinkhorn_kwargs: keywords arguments for
-      :func:`~ott.solvers.linear.solve` that is called twice
-      if ``static_b = True`` else 3 times.
-    static_b: if True, divergence of measure `b` against itself is **not**
+    solve_kwargs: keywords arguments for
+      :func:`~ott.solvers.linear.solve` that is called either twice
+      if ``static_b == True`` or three times when ``static_b == False``.
+    static_b: if ``True``, divergence of measure `b` against itself is **not**
       computed.
     share_epsilon: if True, enforces that the same epsilon regularizer is shared
       for all 2 or 3 terms of the Sinkhorn divergence. In that case, the epsilon
@@ -136,7 +167,7 @@ def sinkhorn_divergence(
       a=a,
       b=b,
       symmetric_sinkhorn=symmetric_sinkhorn,
-      **sinkhorn_kwargs
+      **solve_kwargs
   )
   return out.divergence, out
 
@@ -247,7 +278,7 @@ def segment_sinkhorn_divergence(
     num_per_segment_y: Optional[Tuple[int, ...]] = None,
     weights_x: Optional[jnp.ndarray] = None,
     weights_y: Optional[jnp.ndarray] = None,
-    sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
+    solve_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = False,
@@ -298,7 +329,7 @@ def segment_sinkhorn_divergence(
       order as `x`.
     weights_y: Weights of each input points, arranged in the same segmented
       order as `y`.
-    sinkhorn_kwargs: Optionally a dict containing the keywords arguments for
+    solve_kwargs: Optionally a dict containing the keywords arguments for
       calls to the `sinkhorn` function, called three times to evaluate for each
       segment the Sinkhorn regularized OT cost between `x`/`y`, `x`/`x`, and
       `y`/`y` (except when `static_b` is `True`, in which case `y`/`y` is not
@@ -342,7 +373,7 @@ def segment_sinkhorn_divergence(
         padded_y,
         a=padded_weight_x,
         b=padded_weight_y,
-        sinkhorn_kwargs=sinkhorn_kwargs,
+        solve_kwargs=solve_kwargs,
         static_b=static_b,
         share_epsilon=share_epsilon,
         symmetric_sinkhorn=symmetric_sinkhorn,

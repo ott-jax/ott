@@ -59,7 +59,7 @@ class TestSinkhornDivergence:
           a=self._a,
           b=self._b,
           epsilon=epsilon,
-          sinkhorn_kwargs={"rank": rank},
+          solve_kwargs={"rank": rank},
       )
 
     is_low_rank = rank > 0
@@ -113,7 +113,7 @@ class TestSinkhornDivergence:
         x,
         cost_fn=cost_fn,
         epsilon=1e-1,
-        sinkhorn_kwargs={
+        solve_kwargs={
             "inner_iterations": 1,
             "threshold": 1e-5,
             "rank": rank,
@@ -139,7 +139,7 @@ class TestSinkhornDivergence:
         cloud_b,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs={"threshold": 1e-2},
+        solve_kwargs={"threshold": 1e-2},
     )
     assert div > 0.0
     assert len(out.potentials) == 3
@@ -156,7 +156,7 @@ class TestSinkhornDivergence:
         cloud_b,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs={"threshold": 1e-2},
+        solve_kwargs={"threshold": 1e-2},
         share_epsilon=False
     )
     assert jnp.abs(out.geoms[0].epsilon - out.geoms[1].epsilon) > 0
@@ -171,7 +171,7 @@ class TestSinkhornDivergence:
         cloud_a,
         cloud_b,
         epsilon=0.1,
-        sinkhorn_kwargs={
+        solve_kwargs={
             "threshold": 1e-2,
             "tau_a": 0.8,
             "tau_b": 0.9
@@ -199,7 +199,7 @@ class TestSinkhornDivergence:
         epsilon=0.1,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs={"threshold": 1e-2},
+        solve_kwargs={"threshold": 1e-2},
     )
     assert div > 0.0
     assert len(out.potentials) == 3
@@ -213,7 +213,7 @@ class TestSinkhornDivergence:
         epsilon=0.1,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs={"threshold": 1e-2},
+        solve_kwargs={"threshold": 1e-2},
     )
     assert div > 0.0
     assert len(out.potentials) == 3
@@ -226,7 +226,7 @@ class TestSinkhornDivergence:
         epsilon=0.1,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs={"threshold": 1e-2},
+        solve_kwargs={"threshold": 1e-2},
     )
     assert div > 0.0
     assert len(out.potentials) == 3
@@ -239,14 +239,14 @@ class TestSinkhornDivergence:
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
     geom_kwargs = {"epsilon": 0.01}
-    sinkhorn_kwargs = {"threshold": 1e-2}
+    solve_kwargs = {"threshold": 1e-2}
     true_divergence, _ = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
         y,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs=sinkhorn_kwargs,
+        solve_kwargs=solve_kwargs,
         **geom_kwargs
     )
 
@@ -282,7 +282,7 @@ class TestSinkhornDivergence:
         indices_are_sorted=False,
         weights_x=a_copied,
         weights_y=b_copied,
-        sinkhorn_kwargs=sinkhorn_kwargs,
+        solve_kwargs=solve_kwargs,
         **geom_kwargs
     )
 
@@ -376,7 +376,7 @@ class TestSinkhornDivergence:
 
   # yapf: disable
   @pytest.mark.fast.with_args(
-      "sinkhorn_kwargs,epsilon", [
+      "solve_kwargs,epsilon", [
           ({"anderson": acceleration.AndersonAcceleration(memory=3)}, 1e-2),
           ({"anderson": acceleration.AndersonAcceleration(memory=6)}, None),
           ({"momentum": acceleration.Momentum(start=30)}, None),
@@ -386,16 +386,16 @@ class TestSinkhornDivergence:
   )
   # yapf: enable
   def test_euclidean_momentum_params(
-      self, sinkhorn_kwargs: Dict[str, Any], epsilon: Optional[float]
+      self, solve_kwargs: Dict[str, Any], epsilon: Optional[float]
   ):
-    # check if sinkhorn divergence sinkhorn_kwargs parameters used for
+    # check if sinkhorn divergence solve_kwargs parameters used for
     # momentum/Anderson are properly overridden for the symmetric (x,x) and
     # (y,y) parts.
     rngs = jax.random.split(self.rng, 2)
     threshold = 3.2e-3
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    sinkhorn_kwargs["threshold"] = threshold
+    solve_kwargs["threshold"] = threshold
 
     div, out = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
@@ -404,7 +404,7 @@ class TestSinkhornDivergence:
         epsilon=epsilon,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs=sinkhorn_kwargs,
+        solve_kwargs=solve_kwargs,
     )
     assert div > 0.0
     assert threshold > out.errors[0][-1]
@@ -436,7 +436,7 @@ class TestSinkhornDivergenceGrad:
         epsilon=1.0,
         a=self._a,
         b=self._b,
-        sinkhorn_kwargs={"threshold": 0.05}
+        solve_kwargs={"threshold": 0.05}
     )
 
     delta = jax.random.normal(rngs[2], x.shape)
