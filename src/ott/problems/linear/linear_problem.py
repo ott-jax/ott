@@ -64,14 +64,18 @@ class LinearProblem:
   @property
   def a(self) -> jnp.ndarray:
     """First marginal."""
-    num_a = self.geom.shape[0]
-    return jnp.ones((num_a,)) / num_a if self._a is None else self._a
+    if self._a is not None:
+      return self._a
+    n, _ = self.geom.shape
+    return jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
 
   @property
   def b(self) -> jnp.ndarray:
     """Second marginal."""
-    num_b = self.geom.shape[1]
-    return jnp.ones((num_b,)) / num_b if self._b is None else self._b
+    if self._b is not None:
+      return self._b
+    _, m = self.geom.shape
+    return jnp.full((m,), fill_value=1.0 / m, dtype=self.dtype)
 
   @property
   def is_balanced(self) -> bool:
@@ -92,6 +96,11 @@ class LinearProblem:
   def epsilon(self) -> float:
     """Entropic regularization."""
     return self.geom.epsilon
+
+  @property
+  def dtype(self) -> jnp.dtype:
+    """The data type of the geometry."""
+    return self.geom.dtype
 
   def get_transport_functions(
       self, lse_mode: bool

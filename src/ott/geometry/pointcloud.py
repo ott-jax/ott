@@ -588,10 +588,14 @@ class PointCloud(geometry.Geometry):
     n, m = self.shape
     nx = jnp.sum(self.x ** 2, axis=1, keepdims=True)
     ny = jnp.sum(self.y ** 2, axis=1, keepdims=True)
-    cost_1 = jnp.concatenate((nx, jnp.ones((n, 1)), -jnp.sqrt(2.0) * self.x),
-                             axis=1)
-    cost_2 = jnp.concatenate((jnp.ones((m, 1)), ny, jnp.sqrt(2.0) * self.y),
-                             axis=1)
+    cost_1 = jnp.concatenate(
+        (nx, jnp.ones((n, 1), dtype=self.dtype), -(2.0 ** 0.5) * self.x),
+        axis=1,
+    )
+    cost_2 = jnp.concatenate(
+        (jnp.ones((m, 1), dtype=self.dtype), ny, (2.0 ** 0.5) * self.y),
+        axis=1,
+    )
 
     return low_rank.LRCGeometry(
         cost_1=cost_1,

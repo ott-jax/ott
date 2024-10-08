@@ -49,7 +49,7 @@ class TestSegmentSinkhorn:
     geom = pointcloud.PointCloud(x, y, **geom_kwargs)
     prob = linear_problem.LinearProblem(geom, a=self._a, b=self._b)
     solver = sinkhorn.Sinkhorn(**sinkhorn_kwargs)
-    true_reg_ot_cost = solver(prob).reg_ot_cost
+    true_cost = solver(prob).reg_ot_cost
 
     if shuffle:
       # Now, shuffle the order of both arrays, but
@@ -73,7 +73,7 @@ class TestSegmentSinkhorn:
     b_copied = jnp.concatenate((self._b, self._b))[idx_y]
     segment_ids_y = jnp.arange(2).repeat(y.shape[0])[idx_y]
 
-    segmented_regotcost = segment_sinkhorn.segment_sinkhorn(
+    seg_cost = segment_sinkhorn.segment_sinkhorn(
         x_copied,
         y_copied,
         num_segments=2,
@@ -87,22 +87,22 @@ class TestSegmentSinkhorn:
         **geom_kwargs
     )
 
-    np.testing.assert_allclose(true_reg_ot_cost.repeat(2), segmented_regotcost)
+    np.testing.assert_allclose(true_cost.repeat(2), seg_cost)
 
   def test_segment_sinkhorn_different_segment_sizes(self):
     # Test other array sizes
-    x1 = jnp.arange(10)[:, None].repeat(2, axis=1)
+    x1 = jnp.arange(10)[:, None].repeat(2, axis=1) - 0.1
     y1 = jnp.arange(11)[:, None].repeat(2, axis=1) + 0.1
 
     # Should have larger divergence since further apart:
-    x2 = jnp.arange(12)[:, None].repeat(2, axis=1)
+    x2 = jnp.arange(12)[:, None].repeat(2, axis=1) - 0.1
     y2 = 2 * jnp.arange(13)[:, None].repeat(2, axis=1) + 0.1
 
     sink = jax.jit(
         segment_sinkhorn.segment_sinkhorn,
         static_argnames=["num_segments", "max_measure_size"],
     )
-    segmented_regotcost = sink(
+    seg_cost = sink(
         jnp.concatenate((x1, x2)),
         jnp.concatenate((y1, y2)),
         num_segments=2,
@@ -112,19 +112,17 @@ class TestSegmentSinkhorn:
         epsilon=0.01
     )
 
-    assert segmented_regotcost.shape[0] == 2
-    assert segmented_regotcost[1] > segmented_regotcost[0]
+    assert seg_cost.shape[0] == 2
+    assert seg_cost[1] > seg_cost[0]
 
-    true_reg_ot_cost = []
+    true_cost = []
+    solver = jax.jit(sinkhorn.Sinkhorn())
     for x, y in zip((x1, x2), (y1, y2)):
       geom = pointcloud.PointCloud(x, y, epsilon=1e-2)
       prob = linear_problem.LinearProblem(geom)
-      solver = sinkhorn.Sinkhorn()
-      true_reg_ot_cost.append(solver(prob).reg_ot_cost)
+      true_cost.append(solver(prob).reg_ot_cost)
 
-    np.testing.assert_allclose(
-        segmented_regotcost, true_reg_ot_cost, atol=1e-4, rtol=1e-4
-    )
+    np.testing.assert_allclose(seg_cost, true_cost, atol=1e-4, rtol=1e-4)
 
   def test_sinkhorn_divergence_segment_custom_padding(self, rng):
     rngs = jax.random.split(rng, 4)
@@ -148,10 +146,10 @@ class TestSegmentSinkhorn:
     x1, x2, y1, y2 = (g(rngs[i], ns[i]) for i in range(4))
 
     true_reg_ot_cost = []
+    solver = jax.jit(sinkhorn.Sinkhorn())
     for x, y in zip((x1, x2), (y1, y2)):
       geom = pointcloud.PointCloud(x, y, cost_fn=b_cost, epsilon=1e-1)
       prob = linear_problem.LinearProblem(geom)
-      solver = sinkhorn.Sinkhorn()
       true_reg_ot_cost.append(solver(prob).reg_ot_cost)
 
     x = jnp.vstack((x1, x2))
