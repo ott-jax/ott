@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import sys
 from typing import Any, Literal, Optional, Tuple, Union
 
 import pytest
@@ -358,10 +356,6 @@ class TestKmeans:
     assert res.iteration == res_jit.iteration
     assert res.converged == res_jit.converged
 
-  @pytest.mark.skipif(
-      sys.platform == "darwin" and os.environ.get("CI", "false") == "true",
-      reason="Fails on macOS CI."
-  )
   @pytest.mark.parametrize(("jit", "force_scan"), [(True, False),
                                                    (False, True)],
                            ids=["jit-while-loop", "nojit-for-loop"])

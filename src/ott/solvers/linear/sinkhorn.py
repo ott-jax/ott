@@ -81,7 +81,7 @@ class SinkhornState(NamedTuple):
 
   def compute_kl_reg_cost(  # noqa: D102
       self, ot_prob: linear_problem.LinearProblem, lse_mode: bool
-  ) -> float:
+  ) -> jnp.ndarray:
     return compute_kl_reg_cost(self.fu, self.gv, ot_prob, lse_mode)
 
   def recenter(
@@ -235,7 +235,7 @@ def marginal_error(
 def compute_kl_reg_cost(
     f: jnp.ndarray, g: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
     lse_mode: bool
-) -> float:
+) -> jnp.ndarray:
   r"""Compute objective of Sinkhorn for OT problem given dual solutions.
 
   The objective is evaluated for dual solution ``f`` and ``g``, using
@@ -327,7 +327,7 @@ class SinkhornOutput(NamedTuple):
 
   potentials: Tuple[jnp.ndarray, ...]
   errors: Optional[jnp.ndarray] = None
-  reg_ot_cost: Optional[float] = None
+  reg_ot_cost: Optional[jnp.ndarray] = None
   ot_prob: Optional[linear_problem.LinearProblem] = None
   threshold: Optional[jnp.ndarray] = None
   converged: Optional[bool] = None
@@ -354,12 +354,12 @@ class SinkhornOutput(NamedTuple):
     return dual_cost
 
   @property
-  def primal_cost(self) -> float:
+  def primal_cost(self) -> jnp.ndarray:
     """Return transport cost of current transport solution at geometry."""
     return self.transport_cost_at_geom(other_geom=self.geom)
 
   @property
-  def ent_reg_cost(self) -> float:
+  def ent_reg_cost(self) -> jnp.ndarray:
     r"""Entropy regularized cost.
 
     This outputs
@@ -381,7 +381,7 @@ class SinkhornOutput(NamedTuple):
     return self.reg_ot_cost - self.geom.epsilon * (ent_a + ent_b)
 
   @property
-  def kl_reg_cost(self) -> float:
+  def kl_reg_cost(self) -> jnp.ndarray:
     r"""KL regularized OT transport cost.
 
     This outputs
@@ -459,7 +459,7 @@ class SinkhornOutput(NamedTuple):
       return self.ot_prob.geom.transport_from_scalings(*self.scalings)
 
   @property
-  def transport_mass(self) -> float:
+  def transport_mass(self) -> jnp.ndarray:
     """Sum of transport matrix."""
     return self.marginal(0).sum()
 
@@ -482,7 +482,7 @@ class SinkhornOutput(NamedTuple):
   def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     return self.ot_prob.geom.marginal_from_potentials(self.f, self.g, axis=axis)
 
-  def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
+  def cost_at_geom(self, other_geom: geometry.Geometry) -> jnp.ndarray:
     """Return reg-OT cost for matrix, evaluated at other cost matrix."""
     return (
         jnp.sum(self.matrix * other_geom.cost_matrix) -
@@ -1001,7 +1001,7 @@ class Sinkhorn:
             parallel_dual_updates=self.parallel_dual_updates,
             recenter=self.recenter_potentials
         )[0],
-        lambda *_: jnp.inf,
+        lambda *_: jnp.array(jnp.inf, dtype=ot_prob.dtype),
         state,
         ot_prob,
     )
@@ -1044,7 +1044,8 @@ class Sinkhorn:
                                                                jnp.ndarray]
   ) -> SinkhornState:
     """Return the initial state of the loop."""
-    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)))
+    errors = -jnp.ones((self.outer_iterations, len(self.norm_error)),
+                       dtype=ot_prob.dtype)
     state = SinkhornState(init, errors=errors)
     return self.anderson.init_maps(ot_prob, state) if self.anderson else state
 
