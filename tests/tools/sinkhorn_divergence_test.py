@@ -233,7 +233,7 @@ class TestSinkhornDivergence:
     assert len(out.geoms) == 3
 
   @pytest.mark.parametrize("shuffle", [False, True])
-  def test_segment_sinkhorn_result(self, shuffle: bool):
+  def test_segment_sinkdiv_result(self, shuffle: bool):
     # Test that segmented sinkhorn gives the same results:
     rngs = jax.random.split(self.rng, 4)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
@@ -290,13 +290,13 @@ class TestSinkhornDivergence:
         true_divergence.repeat(2), segmented_divergences, rtol=1e-6, atol=1e-6
     )
 
-  def test_segment_sinkhorn_different_segment_sizes(self):
+  def test_segment_sinkdiv_different_segment_sizes(self):
     # Test other array sizes
-    x1 = jnp.arange(10)[:, None].repeat(2, axis=1)
+    x1 = jnp.arange(10)[:, None].repeat(2, axis=1) - 0.1
     y1 = jnp.arange(11)[:, None].repeat(2, axis=1) + 0.1
 
     # Should have larger divergence since further apart:
-    x2 = jnp.arange(12)[:, None].repeat(2, axis=1)
+    x2 = jnp.arange(12)[:, None].repeat(2, axis=1) - 0.1
     y2 = 2 * jnp.arange(13)[:, None].repeat(2, axis=1) + 0.1
 
     sink_div = jax.jit(
@@ -327,7 +327,7 @@ class TestSinkhornDivergence:
         segmented_divergences, true_divergences, rtol=1e-6, atol=1e-6
     )
 
-  def test_sinkhorn_divergence_segment_custom_padding(self, rng):
+  def test_segment_sinkdiv_custom_padding(self, rng: jax.Array):
     rngs = jax.random.split(rng, 4)
     dim = 3
     b_cost = costs.Bures(dim)
