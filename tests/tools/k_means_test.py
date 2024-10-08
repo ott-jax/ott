@@ -360,7 +360,7 @@ class TestKmeans:
 
   @pytest.mark.skipif(
       sys.platform == "darwin" and os.environ.get("CI", "false") == "true",
-      reason="Fails on macOS CI."
+      reason="Fails on macOS."
   )
   @pytest.mark.parametrize(("jit", "force_scan"), [(True, False),
                                                    (False, True)],

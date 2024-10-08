@@ -13,6 +13,7 @@
 # limitations under the License.
 import functools
 import io
+import os
 import sys
 from typing import Optional, Tuple
 
@@ -677,6 +678,10 @@ class TestSinkhorn:
         for _ in range(1, num_iterations // inner_iterations + 1)
     ]
 
+  @pytest.mark.skipif(
+      sys.platform == "darwin" and os.environ.get("CI", "false") == "true",
+      reason="Segfaults on macOS 14."
+  )
   @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16])
   def test_sinkhorn_dtype(self, dtype: jnp.ndarray):
     x = self.x.astype(dtype)
