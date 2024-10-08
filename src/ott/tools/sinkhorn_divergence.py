@@ -70,7 +70,14 @@ class SinkhornDivergenceOutput:  # noqa: D101
   n_iters: Tuple[int, int, int]
 
   def to_dual_potentials(self) -> "potentials.EntropicPotentials":
-    """Return dual potential functions, :cite:`pooladian:22`, Eq. 8."""
+    """Return dual potential functions, :cite:`pooladian:22`.
+
+    Using vectors stored in ``potentials``, instantiate a
+    :class:`~ott.problems.linear.potentials.EntropicPotentials` object that will
+    provide approximations to optimal dual potential functions for the dual
+    OT problem defined for the geometry stored in ``geoms[0]``. These correspond
+    to Equation 8 in :cite:`pooladian:22`.
+    """
     assert not self.is_low_rank, \
       "Dual potentials are not available for low-rank."
     geom_xy, *_ = self.geoms
