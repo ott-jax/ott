@@ -46,7 +46,7 @@ class SinkhornDivergenceOutput:  # noqa: D101
       sizes ``[n, m], [n, n], [m, m]`` if their cost or kernel matrices where
       instantiated.
     a: first ``[n,]`` vector of marginal weights.
-    b: second ``[m,]`` vector of marginal weights for second.
+    b: second ``[m,]`` vector of marginal weights.
     potentials: three pairs of dual potential vectors, of sizes
       ``[n,], [m,]``, ``[n,], [n,]``, ``[m,], [m,]``, returned when the call
       to the :func:`~ott.solvers.linear.solve` solver to compute the divergence
