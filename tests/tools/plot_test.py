@@ -24,10 +24,10 @@ from ott.tools import plot
 
 class TestPlotting:
 
-  def test_plot(self, monkeypatch):
+  def test_plot(self, rng: jax.Array, monkeypatch):
     monkeypatch.setattr(plt, "show", lambda: None)
     n, m, d = 12, 7, 3
-    rngs = jax.random.split(jax.random.PRNGKey(0), 3)
+    rngs = jax.random.split(rng, 3)
     xs = [
         jax.random.normal(rngs[0], (n, d)) + 1,
         jax.random.normal(rngs[1], (n, d)) + 1

@@ -224,12 +224,12 @@ class TestCostMatrixFactorization:
 
   @pytest.mark.fast.with_args(rank=[2, 3], tol=[5e-1, 1e-2], only_fast=0)
   def test_geometry_to_lr(self, rng: jax.Array, rank: int, tol: float):
-    rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
     x = jax.random.normal(rng1, shape=(370, 3))
     y = jax.random.normal(rng2, shape=(460, 3))
     geom = geometry.Geometry(cost_matrix=x @ y.T)
 
-    geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol, rng=jax.random.PRNGKey(0))
+    geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol, rng=rng3)
 
     np.testing.assert_array_equal(geom.shape, geom_lr.shape)
     assert geom_lr.cost_rank == rank
@@ -306,10 +306,7 @@ class TestCostMatrixFactorization:
   def test_conversion_grid(self):
     """Test conversion from Grid to LRCGeometry."""
     ns = [6, 7, 11]
-    xs = [
-        jax.random.normal(jax.random.PRNGKey(i), (n,))
-        for i, n in enumerate(ns)
-    ]
+    xs = [jax.random.normal(jax.random.key(i), (n,)) for i, n in enumerate(ns)]
     geom = grid.Grid(xs)
 
     # Recovering cost matrix by applying it to columns of identity matrix.

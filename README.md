@@ -54,7 +54,7 @@ from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 
 # sample two point clouds and their weights.
-rngs = jax.random.split(jax.random.PRNGKey(0), 4)
+rngs = jax.random.split(jax.random.key(0), 4)
 n, m, d = 12, 14, 2
 x = jax.random.normal(rngs[0], (n,d)) + 1
 y = jax.random.uniform(rngs[1], (m,d))

@@ -32,7 +32,7 @@ def custom_proj(
     n_proj: int = 27
 ) -> jnp.ndarray:
   dim = x.shape[1]
-  rng = jax.random.PRNGKey(42) if rng is None else rng
+  rng = jax.random.key(42) if rng is None else rng
   proj_m = jax.random.uniform(rng, (n_proj, dim))
   return (x @ proj_m.T) ** 2
 
