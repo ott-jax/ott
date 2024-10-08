@@ -421,7 +421,7 @@ def _sinkhorn_divergence(
       cost_fn=cost_fn,
       epsilon=eps,
       share_epsilon=False,
-      sinkhorn_kwargs=kwargs,
+      solve_kwargs=kwargs,
   )
   return out
 

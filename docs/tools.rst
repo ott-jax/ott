@@ -26,6 +26,7 @@ Sinkhorn Divergence
     :toctree: _autosummary
 
     sinkhorn_divergence.sinkhorn_divergence
+    sinkhorn_divergence.SinkhornDivergenceOutput
     sinkhorn_divergence.segment_sinkhorn_divergence
 
 Sliced Wasserstein Distance
