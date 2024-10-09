@@ -116,7 +116,7 @@ class ICNN(potentials.BasePotential):
         num_potentials=dim,
         use_linear=True,
         use_bias=True,
-        kernel_diag_init=nn.initializers.constant(-2.0),
+        kernel_diag_init=nn.initializers.constant(-3.0),
         rectifier_fn=jax.nn.softplus,
         kernel_lr_init=self.init_fn,
         kernel_linear_init=self.init_fn,
@@ -134,7 +134,8 @@ class ICNN(potentials.BasePotential):
     if self.gaussian_map_samples is None:
       return posdef.PosDefPotentials(
           rank=rank,
-          kernel_diag_init=nn.initializers.ones,
+          kernel_diag_init=nn.initializers.constant(0.5),
+          rectifier_fn=jax.nn.softplus,
           kernel_lr_init=nn.initializers.zeros,
           kernel_linear_init=nn.initializers.zeros,
           **kwargs,
