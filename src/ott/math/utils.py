@@ -61,7 +61,7 @@ def norm(
   ``lambda x : jnp.linalg.norm(x-x)``. Such functions output `NaN` gradients,
   because they involve computing the derivative of a negative exponent of 0
   (e.g. when differentiating the Euclidean norm, one gets a 0-denominator in the
-  expression, see e.g. https://github.com/google/jax/issues/6484 for context).
+  expression, see e.g. https://github.com/jax-ml/jax/issues/6484 for context).
 
   While this makes sense mathematically, in the context of optimal transport
   such distances between a point and itself can be safely ignored when they
