@@ -27,7 +27,7 @@ Array = jnp.ndarray
 
 DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.lecun_normal()(*a, **k)
 DEFAULT_BIAS_INIT = nn.initializers.zeros
-DEFAULT_RECTIFIER = nn.activation.relu
+DEFAULT_RECTIFIER = nn.activation.softplus
 
 
 class PositiveDense(nn.Module):

@@ -24,8 +24,8 @@ from ott.neural.networks.layers import posdef
 __all__ = ["ICNN"]
 
 DEFAULT_KERNEL_INIT = posdef.DEFAULT_KERNEL_INIT
-DEFAULT_RECTIFIER = nn.activation.relu
-DEFAULT_ACTIVATION = nn.activation.relu
+DEFAULT_RECTIFIER = nn.activation.softplus
+DEFAULT_ACTIVATION = nn.activation.elu
 
 
 class ICNN(potentials.BasePotential):
@@ -49,9 +49,9 @@ class ICNN(potentials.BasePotential):
       The default is :func:`~flax.linen.initializers.normal`.
     act_fn: choice of activation function used in network architecture,
       needs to be convex. The default is :func:`~flax.linen.activation.relu`.
-    pos_weights: Enforce positive weights with a projection.
+    pos_weights: Enforce positive weights with a rectifier.
       If :obj:`False`, the positive weights should be enforced with clipping
-      or regularization in the loss.
+      or promoted to be non-negative with a regularization added to the loss.
     rectifier_fn: function to ensure the non negativity of the weights.
       The default is :func:`~flax.linen.activation.relu`.
     gaussian_map_samples: Tuple of source and target points, used to initialize
