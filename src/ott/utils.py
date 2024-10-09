@@ -78,7 +78,7 @@ def default_prng_key(rng: Optional[jax.Array] = None) -> jax.Array:
     If ``rng = None``, returns the default PRNG key.
     Otherwise, it returns the unmodified ``rng`` key.
   """
-  return jax.random.PRNGKey(0) if rng is None else rng
+  return jax.random.key(0) if rng is None else rng
 
 
 def default_progress_fn(
@@ -115,7 +115,7 @@ def default_progress_fn(
       from ott.geometry import pointcloud
       from ott.solvers import linear
 
-      x = jax.random.normal(jax.random.PRNGKey(0), (100, 5))
+      x = jax.random.normal(jax.random.key(0), (100, 5))
       geom = pointcloud.PointCloud(x)
 
       progress_fn = utils.default_progress_fn()
@@ -175,7 +175,7 @@ def tqdm_progress_fn(
       from ott.geometry import pointcloud
       from ott.solvers import linear
 
-      x = jax.random.normal(jax.random.PRNGKey(0), (100, 5))
+      x = jax.random.normal(jax.random.key(0), (100, 5))
       geom = pointcloud.PointCloud(x)
 
       with tqdm.tqdm() as pbar:

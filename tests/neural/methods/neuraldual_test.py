@@ -28,9 +28,11 @@ DatasetPair_t = Tuple[datasets.Dataset, datasets.Dataset]
 
 
 @pytest.fixture(params=[("simple", "circle")])
-def ds(request: Tuple[str, str]) -> DatasetPair_t:
+def ds(rng: jax.Array, request: Tuple[str, str]) -> DatasetPair_t:
   train_dataset, valid_dataset, _ = datasets.create_gaussian_mixture_samplers(
-      request.param[0], request.param[1], rng=jax.random.PRNGKey(0)
+      request.param[0],
+      request.param[1],
+      rng=rng,
   )
   return train_dataset, valid_dataset
 

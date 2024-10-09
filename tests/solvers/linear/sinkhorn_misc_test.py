@@ -105,7 +105,7 @@ class TestSinkhornBures:
     self.n = 11
     self.m = 13
     self.dim = 7
-    self.rngs = jax.random.split(jax.random.PRNGKey(0), 6)
+    self.rngs = jax.random.split(jax.random.key(0), 6)
 
     x = jax.random.normal(self.rngs[0], (self.n, self.dim, self.dim))
     y = jax.random.normal(self.rngs[1], (self.m, self.dim, self.dim))

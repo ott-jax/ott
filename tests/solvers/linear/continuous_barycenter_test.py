@@ -304,7 +304,7 @@ class TestBarycenter:
 
     gmm_generators = [
         gaussian_mixture.GaussianMixture.from_random(
-            jax.random.PRNGKey(seeds[i]),
+            jax.random.key(seeds[i]),
             n_components=n_components[i],
             n_dimensions=dim,
             stdev_cov=stdev_covs[i],

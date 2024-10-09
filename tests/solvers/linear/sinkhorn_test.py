@@ -508,12 +508,12 @@ class TestSinkhorn:
   @pytest.mark.cpu()
   @pytest.mark.limit_memory("80 MB")
   @pytest.mark.fast()
-  def test_sinkhorn_online_memory_jit(self):
+  def test_sinkhorn_online_memory_jit(self, rng: jax.Array):
     # test that full matrix is not materialized.
     # Only storing it would result in 250 * 8000 = 2e6 entries = 16Mb,
     # which would overflow due to other overheads
     batch_size = 10
-    rngs = jax.random.split(jax.random.PRNGKey(0), 4)
+    rngs = jax.random.split(rng, 4)
     n, m = 250, 8000
     x = jax.random.uniform(rngs[0], (n, 2))
     y = jax.random.uniform(rngs[1], (m, 2))
@@ -526,16 +526,16 @@ class TestSinkhorn:
     assert out.primal_cost > 0.0
 
   @pytest.mark.fast.with_args(cost_fn=[None, costs.SqPNorm(1.6)])
-  def test_primal_cost_grid(self, cost_fn: Optional[costs.CostFn]):
+  def test_primal_cost_grid(
+      self, rng: jax.Array, cost_fn: Optional[costs.CostFn]
+  ):
     """Test computation of primal / costs for Grids."""
+    rng_a, rng_b = jax.random.split(rng)
     ns = [6, 7, 11]
-    xs = [
-        jax.random.normal(jax.random.PRNGKey(i), (n,))
-        for i, n in enumerate(ns)
-    ]
+    xs = [jax.random.normal(jax.random.key(i), (n,)) for i, n in enumerate(ns)]
     geom = grid.Grid(xs, cost_fns=[cost_fn], epsilon=0.1)
-    a = jax.random.uniform(jax.random.PRNGKey(0), (geom.shape[0],))
-    b = jax.random.uniform(jax.random.PRNGKey(1), (geom.shape[0],))
+    a = jax.random.uniform(rng_a, (geom.shape[0],))
+    b = jax.random.uniform(rng_b, (geom.shape[0],))
     a, b = a / jnp.sum(a), b / jnp.sum(b)
     lin_prob = linear_problem.LinearProblem(geom, a=a, b=b)
     solver = sinkhorn.Sinkhorn()

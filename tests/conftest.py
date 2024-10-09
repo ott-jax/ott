@@ -71,7 +71,7 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
 
 @pytest.fixture(scope="session")
 def rng() -> jnp.ndarray:
-  return jax.random.PRNGKey(0)
+  return jax.random.key(0)
 
 
 @pytest.fixture()
