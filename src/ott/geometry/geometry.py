@@ -313,14 +313,14 @@ class Geometry:
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     """Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
-      scaling: jnp.ndarray [num_a or num_b] , scaling of size num_rows or
+      vec: jnp.ndarray [num_a or num_b] , scaling of size num_rows or
         num_cols of kernel_matrix
       eps: passed for consistency, not used yet.
       axis: standard kernel product if axis is 1, transpose if 0.
@@ -334,7 +334,7 @@ class Geometry:
       kernel = self.kernel_matrix ** (self.epsilon / eps)
     kernel = kernel if axis == 1 else kernel.T
 
-    return jnp.dot(kernel, scaling)
+    return jnp.dot(kernel, vec)
 
   def marginal_from_potentials(
       self,

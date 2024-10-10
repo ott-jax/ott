@@ -16,6 +16,7 @@ from typing import Any, Dict, Literal, Optional, Sequence, Tuple
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+import jax.tree_util as jtu
 
 from ott.geometry import geometry
 from ott.math import fixed_point_loop
@@ -24,7 +25,7 @@ from ott.math import utils as mu
 __all__ = ["Graph"]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class Graph(geometry.Geometry):
   r"""Graph distance approximation using heat kernel :cite:`heitz:21,crane:13`.
 
@@ -113,14 +114,14 @@ class Graph(geometry.Geometry):
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
-      scaling: Scaling to apply the kernel to.
+      vec: Scaling to apply the kernel to.
       eps: passed for consistency, not used yet.
       axis: passed for consistency, not used yet.
 
@@ -168,7 +169,7 @@ class Graph(geometry.Geometry):
         if force_scan else fixed_point_loop.fixpoint_iter_backprop
     )
 
-    state = (jnp.full_like(scaling, jnp.nan), scaling)
+    state = (jnp.full_like(vec, jnp.nan), vec)
     L = jsp.linalg.cholesky(self._M, lower=True)
     if self.numerical_scheme == "crank_nicolson":
       constants = L, self._scaled_laplacian

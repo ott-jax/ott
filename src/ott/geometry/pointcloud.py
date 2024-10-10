@@ -185,7 +185,8 @@ class PointCloud(geometry.Geometry):
     if not self.is_online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
-    def apply(x: jnp.ndarray, y: jnp.ndarray, f: jnp.ndarray, g: jnp.ndarray):
+    def apply(x: jnp.ndarray, y: jnp.ndarray, f: jnp.ndarray,
+              g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
       cost = cost.squeeze()
@@ -201,15 +202,27 @@ class PointCloud(geometry.Geometry):
 
   def apply_kernel(  # noqa: D102
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: int = 0
   ) -> jnp.ndarray:
     if eps is None:
       eps = self.epsilon
     if not self.is_online:
-      return super().apply_kernel(scaling, eps, axis)
-    raise NotImplementedError("TODO")
+      return super().apply_kernel(vec, eps, axis)
+
+    def apply(x: jnp.ndarray, y: jnp.ndarray, vec: jnp.ndarray) -> jnp.ndarray:
+      x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
+      cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
+      cost = cost.squeeze()
+      return jnp.dot(jnp.exp(-cost / eps), vec)
+
+    inv_scale_cost = self.inv_scale_cost
+    in_axes = (None, 0, None) if axis == 0 else (0, None, None)
+    batched_apply = utils.batched_vmap(
+        apply, batch_size=self.batch_size, in_axes=in_axes
+    )
+    return batched_apply(self.x, self.y, vec)
 
   def apply_cost(
       self,

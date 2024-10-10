@@ -255,7 +255,7 @@ class Grid(geometry.Geometry):
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: Optional[int] = None
   ) -> jnp.ndarray:
@@ -269,24 +269,22 @@ class Grid(geometry.Geometry):
     More implementation details in :cite:`schmitz:18`,
 
     Args:
-      scaling: jnp.ndarray, a vector of scaling (>0) values.
+      vec: jnp.ndarray, a vector of scaling (>0) values.
       eps: float, regularization strength
       axis: axis (0 or 1) along which summation should be carried out.
 
     Returns:
       a vector, the result of kernel applied onto scaling.
     """
-    scaling = jnp.reshape(scaling, self.grid_size)
+    vec = jnp.reshape(vec, self.grid_size)
     indices = list(range(1, self.grid_dimension))
     for dimension, geom in enumerate(self.geometries):
       kernel = geom.kernel_matrix
       kernel = kernel if eps is None else kernel ** (self.epsilon / eps)
       ind = indices.copy()
       ind.insert(dimension, 0)
-      scaling = jnp.tensordot(
-          kernel, scaling, axes=([0], [dimension])
-      ).transpose(ind)
-    return scaling.ravel()
+      vec = jnp.tensordot(kernel, vec, axes=([0], [dimension])).transpose(ind)
+    return vec.ravel()
 
   def transport_from_potentials(
       self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0

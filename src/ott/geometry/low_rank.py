@@ -422,13 +422,13 @@ class LRKGeometry(geometry.Geometry):
 
   def apply_kernel(  # noqa: D102
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     if axis == 0:
-      return self.k2 @ (self.k1.T @ scaling)
-    return self.k1 @ (self.k2.T @ scaling)
+      return self.k2 @ (self.k1.T @ vec)
+    return self.k1 @ (self.k2.T @ vec)
 
   @property
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102

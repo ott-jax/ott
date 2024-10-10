@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple, Union
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 from scipy.special import ive
 
@@ -28,7 +29,7 @@ __all__ = ["Geodesic"]
 Array_g = Union[jnp.ndarray, jesp.BCOO]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class Geodesic(geometry.Geometry):
   r"""Graph distance approximation using heat kernel :cite:`huguet:2023`.
 
@@ -134,14 +135,14 @@ class Geodesic(geometry.Geometry):
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     r"""Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
-      scaling: Scaling to apply the kernel to.
+      vec: Scaling to apply the kernel to.
       eps: passed for consistency, not used yet.
       axis: passed for consistency, not used yet.
 
@@ -149,7 +150,7 @@ class Geodesic(geometry.Geometry):
       Kernel applied to ``scaling``.
     """
     return expm_multiply(
-        self.scaled_laplacian, scaling, self.chebyshev_coeffs, 0.5 * self.eigval
+        self.scaled_laplacian, vec, self.chebyshev_coeffs, 0.5 * self.eigval
     )
 
   @property
