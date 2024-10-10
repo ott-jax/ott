@@ -18,6 +18,7 @@ import warnings
 from collections.abc import Sequence
 from typing import Any, Callable, NamedTuple, Optional, Tuple, TypeVar, Union
 
+# TODO(michalk8): add to requirements
 from typing_extensions import ParamSpec
 
 import jax
@@ -224,15 +225,12 @@ def _batch_and_remainder(
     in_axes: Optional[Union[int, Sequence[int], Any]],
 ) -> Tuple[Any, Any]:
   leaves, treedef = jax.tree.flatten(x)
-  # TODO(michalk8): remove dependency (flatten together)
-  in_axes = jax._src.api_util.flatten_axes(
+  in_axes = jax.api_util.flatten_axes(
       "vmap in_axes", treedef, in_axes, kws=True
   )
 
+  has_scan, has_remainder = False, False
   scan_leaves, remainder_leaves = [], []
-  has_scan = False
-  has_remainder = False
-
   for leaf, axis in zip(leaves, in_axes):
     if axis is None:
       scan_leaf = remainder_leaf = leaf
