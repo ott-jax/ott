@@ -254,7 +254,7 @@ class PointCloud(geometry.Geometry):
 
   def _apply_sqeucl_cost(
       self,
-      arr: jnp.ndarray,
+      vec: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
   ) -> jnp.ndarray:
@@ -264,26 +264,22 @@ class PointCloud(geometry.Geometry):
     and ``fn`` is a linear function.
 
     Args:
-      arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied
+      vec: jnp.ndarray [num_a or num_b], vector that will be multiplied
         by the cost matrix.
       axis: standard cost matrix if axis=1, transport if 0.
       fn: function optionally applied to cost matrix element-wise, before the
         application.
 
     Returns:
-      A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
+      A jnp.ndarray, [num_b] if axis=0 or [num_a] if axis=1
     """
-    # TODO(michalk8): verify
+    assert vec.ndim == 1, vec.shape
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
-    rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
-    nx = self.cost_fn.norm(x)
-    ny = self.cost_fn.norm(y)
+    nx, ny = self.cost_fn.norm(x), self.cost_fn.norm(y)
 
-    applied_cost = jnp.dot(nx, arr).reshape(1, -1)
-    applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
-    cross_term = -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
-    applied_cost += cross_term[:, None] if rank == 1 else cross_term
+    applied_cost = jnp.dot(nx, vec) + ny * jnp.sum(vec, axis=0)
+    applied_cost = applied_cost - 2.0 * jnp.dot(y, jnp.dot(x.T, vec))
     if fn is not None:
       applied_cost = fn(applied_cost)
     return self.inv_scale_cost * applied_cost
