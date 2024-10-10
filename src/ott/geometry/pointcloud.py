@@ -263,7 +263,7 @@ class PointCloud(geometry.Geometry):
 
     # switch to efficient computation for the squared euclidean case.
     if self.is_squared_euclidean and (fn is None or is_linear):
-      return self.vec_apply_cost(arr, axis, fn=fn)
+      return self._apply_sqeucl_cost(arr, axis, fn=fn)
     if not self.is_online:
       return super().apply_cost(arr, axis, fn)
 
@@ -275,7 +275,7 @@ class PointCloud(geometry.Geometry):
     )
     return batched_apply(self.x, self.y, arr)
 
-  def vec_apply_cost(
+  def _apply_sqeucl_cost(
       self,
       arr: jnp.ndarray,
       axis: int = 0,

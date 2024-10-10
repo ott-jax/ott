@@ -116,7 +116,7 @@ class TestPointCloudApply:
     with pytest.raises(
         AssertionError, match=r"Cost matrix is not a squared Euclidean\."
     ):
-      _ = pc.vec_apply_cost(arr, axis=axis)
+      _ = pc._apply_sqeucl_cost(arr, axis=axis)
 
     expected = pc.cost_matrix @ arr if axis == 1 else pc.cost_matrix.T @ arr
     actual = pc.apply_cost(arr, axis=axis).squeeze()
