@@ -219,6 +219,16 @@ def _prepare_info(status: IOStatus) -> Tuple[int, int, int, np.ndarray]:
   return iteration, inner_iterations, total_iter, errors
 
 
+def _canonicalize_axis(axis: int, num_dims: int) -> int:
+  if not -num_dims <= axis < num_dims:
+    raise ValueError(
+        f"axis {axis} is out of bounds for array of dimension {num_dims}"
+    )
+  if axis < 0:
+    axis = axis + num_dims
+  return axis
+
+
 def _batch_and_remainder(
     args: Any,
     *,
@@ -228,6 +238,13 @@ def _batch_and_remainder(
   leaves, in_tree = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
   in_axes = jax.api_util.flatten_axes(
       "vmap in_axes", in_tree, in_axes, kws=True
+  )
+  in_axes = jax.tree.map(
+      lambda axis, leaf: None
+      if axis is None else _canonicalize_axis(axis, jnp.ndim(leaf)),
+      in_axes,
+      leaves,
+      is_leaf=lambda x: x is None
   )
 
   has_scan, has_remainder = False, False
@@ -306,6 +323,7 @@ def batched_vmap(
   """TODO."""
 
   def unbatch(x: jnp.ndarray, axis: int) -> jnp.ndarray:
+    axis = _canonicalize_axis(axis, x.ndim - 1)
     x = jnp.moveaxis(x, 0, axis)
     return jax.lax.collapse(x, axis, axis + 2)
 
