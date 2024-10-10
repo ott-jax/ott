@@ -284,13 +284,11 @@ class PointCloud(geometry.Geometry):
     applied_cost = applied_cost - 2.0 * jnp.dot(y, jnp.dot(x.T, vec))
     if fn is not None:
       applied_cost = fn(applied_cost)
-    if scale_cost is None:
-      scale_cost = self.inv_scale_cost
     return scale_cost * applied_cost
 
   def _compute_summary_online(
       self, summary: Literal["mean", "max_cost"]
-  ) -> float:
+  ) -> jnp.ndarray:
     """Compute mean or max of cost matrix online, i.e. without instantiating it.
 
     Args:
@@ -299,9 +297,20 @@ class PointCloud(geometry.Geometry):
     Returns:
       summary statistics
     """
+
+    def compute_max(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+      x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
+      cost = self.cost_fn.all_pairs(x, y)
+      return jnp.max(jnp.abs(cost))
+
+    a, b = self._n_normed_ones, self._m_normed_ones
     if summary == "mean":
-      a, b = self._n_normed_ones, self._m_normed_ones
       return jnp.sum(self._apply_cost_to_vec(a, scale_cost=1.0) * b)
+    if summary == "max_cost":
+      fn = utils.batched_vmap(
+          compute_max, batch_size=self.batch_size, in_axes=[0, None]
+      )
+      return jnp.max(fn(self.x, self.y))
     raise NotImplementedError("TODO")
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
