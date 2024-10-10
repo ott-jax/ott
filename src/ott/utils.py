@@ -24,6 +24,7 @@ from typing_extensions import ParamSpec
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.interpreters import batching
 
 try:
   from tqdm import tqdm
@@ -219,14 +220,14 @@ def _prepare_info(status: IOStatus) -> Tuple[int, int, int, np.ndarray]:
 
 
 def _batch_and_remainder(
-    x: Any,
+    args: Any,
     *,
     batch_size: int,
     in_axes: Optional[Union[int, Sequence[int], Any]],
 ) -> Tuple[Any, Any]:
-  leaves, treedef = jax.tree.flatten(x)
+  leaves, in_tree = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
   in_axes = jax.api_util.flatten_axes(
-      "vmap in_axes", treedef, in_axes, kws=True
+      "vmap in_axes", in_tree, in_axes, kws=True
   )
 
   has_scan, has_remainder = False, False
@@ -252,37 +253,44 @@ def _batch_and_remainder(
 
   assert has_scan or has_remainder, "TODO"
 
-  scan_tree = treedef.unflatten(scan_leaves) if has_scan else None
-  remainder_tree = treedef.unflatten(
+  scan_tree = in_tree.unflatten(scan_leaves) if has_scan else None
+  remainder_tree = in_tree.unflatten(
       remainder_leaves
   ) if has_remainder else None
   return scan_tree, remainder_tree
 
 
 def _apply_scan(
-    fun: Callable[P, R], in_axes: Optional[Union[int, Sequence[int], Any]]
+    vmapped_fun: Callable[P, R], in_axes: Optional[Union[int, Sequence[int],
+                                                         Any]]
 ) -> Callable[P, R]:
+
+  def select_batch(arg: Any, index: int, *, axis: int) -> Any:
+    fn = functools.partial(
+        jax.lax.dynamic_index_in_dim, index=index, axis=axis, keepdims=False
+    )
+    return jax.tree.map(fn, arg)
 
   def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
 
     def body_fn(carry: None, index: int) -> Tuple[None, R]:
       del carry
-      select = functools.partial(
-          jax.lax.dynamic_index_in_dim, index=index, keepdims=False
+      new_args = tuple(
+          arg if axis is None else select_batch(arg, index, axis=axis)
+          for arg, axis in zip(args, axes)
       )
-      new_args = jax.tree.map(
-          lambda arg, axis: arg
-          if axis is None else select(arg, axis=axis), args, in_axes
-      )
-      return None, fun(*new_args, **kwargs)
+      return None, vmapped_fun(*new_args, **kwargs)
 
-    ix = next(ix for ix, axis in enumerate(in_axes) if axis is not None)
+    in_tree = jax.tree.structure(args, is_leaf=batching.is_vmappable)
+    axes = jax.api_util.flatten_axes("vmap in_axes", in_tree, in_axes, kws=True)
+
+    ix = next(ix for ix, axis in enumerate(axes) if axis is not None)
     leaf, *_ = jax.tree.leaves(args[ix])
-    axis, *_ = jax.tree.leaves(in_axes[ix])
+    axis, *_ = jax.tree.leaves(axes[ix])
     xs = np.arange(leaf.shape[axis])
 
-    _, res = jax.lax.scan(body_fn, init=None, xs=xs)
-    return res
+    _, result = jax.lax.scan(body_fn, init=None, xs=xs)
+    return result
 
   return wrapper
 
@@ -305,7 +313,6 @@ def batched_vmap(
 
   @functools.wraps(fun)
   def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-    # _ = jax.eval_shape(vmapped_fun, *args, **kwargs)
     batched, remainder = _batch_and_remainder(
         args, batch_size=batch_size, in_axes=in_axes
     )
@@ -325,7 +332,10 @@ def batched_vmap(
     # TODO(michalk8): check for empty arrays
     return remainder
 
+  if isinstance(in_axes, list):
+    in_axes = tuple(in_axes)
+
   vmapped_fun = jax.vmap(fun, in_axes=in_axes, out_axes=out_axes)
-  batched_fun = _apply_scan(vmapped_fun, in_axes)
+  batched_fun = _apply_scan(vmapped_fun, in_axes=in_axes)
 
   return wrapper
