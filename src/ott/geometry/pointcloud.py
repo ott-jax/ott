@@ -291,32 +291,6 @@ class PointCloud(geometry.Geometry):
         self.inv_scale_cost
     )
 
-  def transport_from_potentials(  # noqa: D102
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
-    if not self.is_online:
-      return super().transport_from_potentials(f, g)
-    in_axes = [None, 0, None, self._axis_norm, None, 0, None, None, None]
-    transport = jax.vmap(_transport_from_potentials_xy, in_axes=in_axes)
-    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
-    return transport(
-        self.y, self.x, self._norm_y, self._norm_x, g, f, self.epsilon, cost_fn,
-        self.inv_scale_cost
-    )
-
-  def transport_from_scalings(  # noqa: D102
-      self, u: jnp.ndarray, v: jnp.ndarray
-  ) -> jnp.ndarray:
-    if not self.is_online:
-      return super().transport_from_scalings(u, v)
-    in_axes = [None, 0, None, self._axis_norm, None, 0, None, None, None]
-    transport = jax.vmap(_transport_from_scalings_xy, in_axes=in_axes)
-    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
-    return transport(
-        self.y, self.x, self._norm_y, self._norm_x, v, u, self.epsilon, cost_fn,
-        self.inv_scale_cost
-    )
-
   def apply_cost(
       self,
       arr: jnp.ndarray,
@@ -702,23 +676,9 @@ def _apply_lse_kernel_xy(
   return mu.logsumexp((f + g - c) / eps, b=vec, return_sign=True, axis=-1)
 
 
-def _transport_from_potentials_xy(
-    x, y, norm_x, norm_y, f, g, eps, cost_fn, scale_cost
-):
-  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
-  return jnp.exp((f + g - c) / eps)
-
-
 def _apply_kernel_xy(x, y, norm_x, norm_y, vec, eps, cost_fn, scale_cost):
   c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
   return jnp.dot(jnp.exp(-c / eps), vec)
-
-
-def _transport_from_scalings_xy(
-    x, y, norm_x, norm_y, u, v, eps, cost_fn, scale_cost
-):
-  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
-  return jnp.exp(-c * scale_cost / eps) * u * v
 
 
 def _cost(x, y, norm_x, norm_y, cost_fn, scale_cost):
