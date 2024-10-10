@@ -189,7 +189,7 @@ class PointCloud(geometry.Geometry):
               g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
-      cost = cost.squeeze()
+      cost = cost.squeeze(1 - axis)
       # axis=-1
       res, sgn = mu.logsumexp((f + g - cost) / eps, b=vec, return_sign=True)
       return eps * res, sgn
@@ -217,7 +217,7 @@ class PointCloud(geometry.Geometry):
     def apply(x: jnp.ndarray, y: jnp.ndarray, vec: jnp.ndarray) -> jnp.ndarray:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
-      cost = cost.squeeze()
+      cost = cost.squeeze(1 - axis)
       return jnp.dot(jnp.exp(-cost / eps), vec)
 
     inv_scale_cost = self.inv_scale_cost
@@ -238,7 +238,7 @@ class PointCloud(geometry.Geometry):
     def apply(x: jnp.ndarray, y: jnp.ndarray, arr: jnp.ndarray) -> jnp.ndarray:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
-      cost = cost.squeeze()
+      cost = cost.squeeze(1 - axis)
       cost = cost if fn is None else fn(cost)
       return jnp.dot(cost, arr)
 
