@@ -278,12 +278,12 @@ def _apply_scan(
       )
       return None, fun(*new_args, **kwargs)
 
-    (index, axis) = next(
-        ((ix, axis) for ix, axis in enumerate(in_axes) if axis is not None)
-    )
-    size = jax.tree.map(lambda x: x.shape[axis], args[index])
+    ix = next(ix for ix, axis in enumerate(in_axes) if axis is not None)
+    leaf, *_ = jax.tree.leaves(args[ix])
+    axis, *_ = jax.tree.leaves(in_axes[ix])
+    xs = np.arange(leaf.shape[axis])
 
-    _, res = jax.lax.scan(body_fn, init=None, xs=jnp.arange(size))
+    _, res = jax.lax.scan(body_fn, init=None, xs=xs)
     return res
 
   return wrapper
@@ -300,7 +300,7 @@ def batched_vmap(
 
   def unbatch(x: jnp.ndarray, axis: int) -> jnp.ndarray:
     x = jnp.moveaxis(x, 0, axis)
-    return jax.lax.collapse(x, axis, axis + 1)
+    return jax.lax.collapse(x, axis, axis + 2)
 
   def concat(x: jnp.ndarray, y: jnp.ndarray, axis: int) -> jnp.ndarray:
     return jnp.concatenate([x, y], axis=axis)
