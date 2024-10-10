@@ -277,7 +277,7 @@ class Geometry:
       eps: float,
       vec: jnp.ndarray = None,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     r"""Apply :attr:`kernel_matrix` in log domain.
 
     This function applies the ground geometry's kernel in log domain, using

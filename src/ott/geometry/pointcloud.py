@@ -181,7 +181,7 @@ class PointCloud(geometry.Geometry):
       eps: float,
       vec: Optional[jnp.ndarray] = None,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     if not self.is_online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
@@ -191,14 +191,17 @@ class PointCloud(geometry.Geometry):
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
       cost = cost.squeeze()
       # axis=-1
-      return mu.logsumexp((f + g - cost) / eps, b=vec, return_sign=True)
+      res, sgn = mu.logsumexp((f + g - cost) / eps, b=vec, return_sign=True)
+      return eps * res, sgn
 
     inv_scale_cost = self.inv_scale_cost
     in_axes = (None, 0, None, 0) if axis == 0 else (0, None, 0, None)
     batched_apply = utils.batched_vmap(
         apply, batch_size=self.batch_size, in_axes=in_axes, out_axes=(0, 0)
     )
-    return batched_apply(self.x, self.y, f, g)
+    w_res, w_sgn = batched_apply(self.x, self.y, f, g)
+    remove = f if axis == 1 else g
+    return w_res - jnp.where(jnp.isfinite(remove), remove, 0), w_sgn
 
   def apply_kernel(  # noqa: D102
       self,
