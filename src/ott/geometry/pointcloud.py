@@ -245,7 +245,6 @@ class PointCloud(geometry.Geometry):
     if not self.is_online:
       return super().apply_cost(vec, axis, fn, is_linear)
 
-    # TODO(michalk8): shape
     inv_scale_cost = self.inv_scale_cost
     in_axes = (None, 0, None) if axis == 0 else (0, None, None)
     batched_apply = utils.batched_vmap(
