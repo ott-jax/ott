@@ -253,18 +253,27 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
     """
+
+    def apply(x: jnp.ndarray, y: jnp.ndarray, arr: jnp.ndarray) -> jnp.ndarray:
+      x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
+      cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
+      cost = cost.squeeze()
+      cost = cost if fn is None else fn(cost)
+      return jnp.dot(cost, arr)
+
     # switch to efficient computation for the squared euclidean case.
     if self.is_squared_euclidean and (fn is None or is_linear):
       return self.vec_apply_cost(arr, axis, fn=fn)
-    return self._apply_cost(arr, axis, fn=fn)
-
-  def _apply_cost(
-      self, arr: jnp.ndarray, axis: int = 0, fn=None
-  ) -> jnp.ndarray:
-    """See :meth:`apply_cost`."""
     if not self.is_online:
       return super().apply_cost(arr, axis, fn)
-    raise NotImplementedError("TODO")
+
+    # TODO(michalk8): shape
+    inv_scale_cost = self.inv_scale_cost
+    in_axes = (None, 0, None) if axis == 0 else (0, None, None)
+    batched_apply = utils.batched_vmap(
+        apply, batch_size=self.batch_size, in_axes=in_axes
+    )
+    return batched_apply(self.x, self.y, arr)
 
   def vec_apply_cost(
       self,
@@ -287,12 +296,12 @@ class PointCloud(geometry.Geometry):
     Returns:
       A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
+    # TODO(michalk8): verify
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
     rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
-    nx = self.cost_fn.norm(self.x)
-    ny = self.cost_fn.norm(self.y)
-    nx, ny = (nx, ny) if axis == 0 else (ny, nx)
+    nx = self.cost_fn.norm(x)
+    ny = self.cost_fn.norm(y)
 
     applied_cost = jnp.dot(nx, arr).reshape(1, -1)
     applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
