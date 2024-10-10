@@ -233,22 +233,21 @@ def _batch_and_remainder(
   has_scan = False
   has_remainder = False
 
-  for leaf, in_axis in zip(leaves, in_axes):
-    if in_axis is None:
+  for leaf, axis in zip(leaves, in_axes):
+    if axis is None:
       scan_leaf = remainder_leaf = leaf
     else:
       assert batch_size > 0, batch_size
-      num_splits, _ = divmod(leaf.shape[in_axis], batch_size)
+      num_splits, _ = divmod(leaf.shape[axis], batch_size)
       num_elems = num_splits * batch_size
 
-      scan_leaf = jax.lax.slice_in_dim(leaf, None, num_elems, axis=in_axis)
-      new_shape = leaf.shape[:in_axis] + (-1,
-                                          batch_size) + leaf.shape[in_axis + 1:]
+      scan_leaf = jax.lax.slice_in_dim(leaf, None, num_elems, axis=axis)
+      new_shape = leaf.shape[:axis] + (-1, batch_size) + leaf.shape[axis + 1:]
       scan_leaf = scan_leaf.reshape(new_shape)
-      remainder_leaf = jax.lax.slice_in_dim(leaf, num_elems, None, axis=in_axis)
+      remainder_leaf = jax.lax.slice_in_dim(leaf, num_elems, None, axis=axis)
 
-      has_scan = has_scan or scan_leaf.shape[in_axis]
-      has_remainder = has_remainder or remainder_leaf.shape[in_axis]
+      has_scan = has_scan or scan_leaf.shape[axis]
+      has_remainder = has_remainder or remainder_leaf.shape[axis]
 
     scan_leaves.append(scan_leaf)
     remainder_leaves.append(remainder_leaf)
