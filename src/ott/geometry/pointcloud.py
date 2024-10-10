@@ -239,11 +239,15 @@ class PointCloud(geometry.Geometry):
       cost = cost if fn is None else fn(cost)
       return jnp.dot(cost, arr)
 
-    # switch to efficient computation for the squared euclidean case.
+    # switch to an efficient computation for the squared Euclidean case
     if self.is_squared_euclidean and (fn is None or is_linear):
       return self._apply_sqeucl_cost(vec, axis, fn=fn)
+
+    # materialize the cost
     if not self.is_online:
-      return super().apply_cost(vec, axis, fn, is_linear)
+      return super()._apply_cost_to_vec(
+          vec, axis=axis, fn=fn, is_linear=is_linear
+      )
 
     inv_scale_cost = self.inv_scale_cost
     in_axes = (None, 0, None) if axis == 0 else (0, None, None)
