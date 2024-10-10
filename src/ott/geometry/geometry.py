@@ -26,7 +26,7 @@ from ott import utils
 from ott.geometry import epsilon_scheduler
 from ott.math import utils as mu
 
-__all__ = ["Geometry", "is_linear", "is_affine"]
+__all__ = ["Geometry"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -934,15 +934,3 @@ class Geometry:
     return cls(
         cost, kernel, eps, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
     )
-
-
-def is_affine(fn) -> bool:
-  """Test heuristically if a function is affine."""
-  x = jnp.arange(10.0)
-  out = jax.vmap(jax.grad(fn))(x)
-  return jnp.sum(jnp.diff(jnp.abs(out))) == 0.0
-
-
-def is_linear(fn) -> bool:
-  """Test heuristically if a function is linear."""
-  return jnp.logical_and(fn(0.0) == 0.0, is_affine(fn))
