@@ -87,8 +87,7 @@ class PointCloud(geometry.Geometry):
   def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
     if self.is_online:
       return None
-    cost_matrix = self._compute_cost_matrix()
-    return cost_matrix * self.inv_scale_cost
+    return self.inv_scale_cost * self._raw_cost_matrix
 
   @property
   def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
@@ -133,18 +132,18 @@ class PointCloud(geometry.Geometry):
     if self._scale_cost == "max_cost":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
-      return 1.0 / jnp.max(self._compute_cost_matrix())
+      return 1.0 / jnp.max(self._raw_cost_matrix)
     if self._scale_cost == "mean":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
       if self.shape[0] > 0:
-        geom = self._masked_geom(mask_value=jnp.nan)._compute_cost_matrix()
+        geom = self._masked_geom(mask_value=jnp.nan)._raw_cost_matrix
         return 1.0 / jnp.nanmean(geom)
       return 1.0
     if self._scale_cost == "median":
       if not self.is_online:
         geom = self._masked_geom(mask_value=jnp.nan)
-        return 1.0 / jnp.nanmedian(geom._compute_cost_matrix())
+        return 1.0 / jnp.nanmedian(geom._raw_cost_matrix)
       raise NotImplementedError(
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
@@ -170,8 +169,8 @@ class PointCloud(geometry.Geometry):
       )
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
-  # TODO(michalk8): rename + make a property
-  def _compute_cost_matrix(self) -> jnp.ndarray:
+  @property
+  def _raw_cost_matrix(self) -> jnp.ndarray:
     return self.cost_fn.all_pairs(self.x, self.y)
 
   def apply_lse_kernel(  # noqa: D102

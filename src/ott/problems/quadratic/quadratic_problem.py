@@ -355,7 +355,8 @@ class QuadraticProblem:
     geom_xy = self.geom_xy
 
     if isinstance(geom_xy, pointcloud.PointCloud) and geom_xy.is_online:
-      return geom_xy._compute_cost_matrix() * geom_xy.inv_scale_cost
+      # for computation
+      return geom_xy._raw_cost_matrix * geom_xy.inv_scale_cost
     return geom_xy.cost_matrix
 
   @property
