@@ -351,6 +351,7 @@ def batched_vmap(
     # TODO(michalk8): check for empty arrays
     return remainder
 
+  # TODO(michalk8): fix out_axes
   if isinstance(in_axes, list):
     in_axes = tuple(in_axes)
 

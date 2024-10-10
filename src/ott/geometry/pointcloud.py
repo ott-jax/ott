@@ -16,6 +16,7 @@ from typing import Any, Callable, Literal, Optional, Tuple, Union
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import costs, geometry, low_rank
 from ott.math import utils as mu
 
@@ -183,7 +184,20 @@ class PointCloud(geometry.Geometry):
   ) -> jnp.ndarray:
     if not self.is_online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
-    raise NotImplementedError("TODO")
+
+    def apply(x: jnp.ndarray, y: jnp.ndarray, f: jnp.ndarray, g: jnp.ndarray):
+      x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
+      cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
+      cost = cost.squeeze()
+      # axis=-1
+      return mu.logsumexp((f + g - cost) / eps, b=vec, return_sign=True)
+
+    inv_scale_cost = self.inv_scale_cost
+    in_axes = (None, 0, None, 0) if axis == 0 else (0, None, 0, None)
+    batched_apply = utils.batched_vmap(
+        apply, batch_size=self.batch_size, in_axes=in_axes, out_axes=(0, 0)
+    )
+    return batched_apply(self.x, self.y, f, g)
 
   def apply_kernel(  # noqa: D102
       self,
