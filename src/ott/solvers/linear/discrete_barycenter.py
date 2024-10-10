@@ -105,6 +105,7 @@ class FixedBarycenter:
           dual_initialization, weights=weights, axis=0
       )[jnp.newaxis, :]
 
+    # TODO(michalk8): geom.is_symmetric is not static
     if self.debiased and not geom.is_symmetric:
       raise ValueError("Geometry must be symmetric to use debiased option.")
     norm_error = (self.norm_error,)

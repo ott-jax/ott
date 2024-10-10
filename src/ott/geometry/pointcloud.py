@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
 from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
@@ -69,23 +68,10 @@ class PointCloud(geometry.Geometry):
     self.y = self.x if y is None else y
 
     self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
-    self._axis_norm = 0 if callable(self.cost_fn.norm) else None
     if batch_size is not None:
       assert batch_size > 0, f"`batch_size={batch_size}` must be positive."
     self._batch_size = batch_size
     self._scale_cost = scale_cost
-
-  @property
-  def _norm_x(self) -> Union[float, jnp.ndarray]:
-    if self._axis_norm == 0:
-      return self.cost_fn.norm(self.x)
-    return 0.0
-
-  @property
-  def _norm_y(self) -> Union[float, jnp.ndarray]:
-    if self._axis_norm == 0:
-      return self.cost_fn.norm(self.y)
-    return 0.0
 
   @property
   def can_LRC(self):  # noqa: D102
@@ -111,6 +97,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102
+    # TODO(michalk8): seems no longer necessary
     # in the process of flattening/unflattening in vmap, `__init__`
     # can be called with dummy objects
     # we optionally access `shape` in order to get the batch size
@@ -161,17 +148,18 @@ class PointCloud(geometry.Geometry):
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
       )
+    # TODO(michalk8): check if it exists
+    norm_x = self.cost_fn.norm(self.x)
+    norm_y = self.cost_fn.norm(self.y)
     if self._scale_cost == "max_norm":
-      if self.cost_fn.norm is not None:
-        return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
-      return 1.0
+      return 1.0 / jnp.maximum(norm_x.max(), norm_y.max())
     if self._scale_cost == "max_bound":
       if self.is_squared_euclidean:
-        x_argmax = jnp.argmax(self._norm_x)
-        y_argmax = jnp.argmax(self._norm_y)
+        x_argmax = jnp.argmax(norm_x)
+        y_argmax = jnp.argmax(norm_y)
         max_bound = (
-            self._norm_x[x_argmax] + self._norm_y[y_argmax] +
-            2 * jnp.sqrt(self._norm_x[x_argmax] * self._norm_y[y_argmax])
+            norm_x[x_argmax] + norm_y[y_argmax] +
+            2 * jnp.sqrt(norm_x[x_argmax] * norm_y[y_argmax])
         )
         return 1.0 / max_bound
       raise NotImplementedError(
@@ -181,11 +169,9 @@ class PointCloud(geometry.Geometry):
       )
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
+  # TODO(michalk8): rename + make a property
   def _compute_cost_matrix(self) -> jnp.ndarray:
-    cost_matrix = self.cost_fn.all_pairs_pairwise(self.x, self.y)
-    if self._axis_norm is not None:
-      cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
-    return cost_matrix
+    return self.cost_fn.all_pairs(self.x, self.y)
 
   def apply_lse_kernel(  # noqa: D102
       self,
@@ -195,72 +181,9 @@ class PointCloud(geometry.Geometry):
       vec: Optional[jnp.ndarray] = None,
       axis: int = 0
   ) -> jnp.ndarray:
-
-    def body0(carry, i: int):
-      f, g, eps, vec = carry
-      y, g_ = self._leading_slice(self.y, i), self._leading_slice(g, i)
-      norm_y = self._norm_y if self._axis_norm is None else self._leading_slice(
-          self._norm_y, i
-      )
-      h_res, h_sgn = app(
-          self.x, y, self._norm_x, norm_y, f, g_, eps, vec, cost_fn,
-          self.inv_scale_cost
-      )
-      return carry, (h_res, h_sgn)
-
-    def body1(carry, i: int):
-      f, g, eps, vec = carry
-      x, f_ = self._leading_slice(self.x, i), self._leading_slice(f, i)
-      norm_x = self._norm_x if self._axis_norm is None else self._leading_slice(
-          self._norm_x, i
-      )
-      h_res, h_sgn = app(
-          self.y, x, self._norm_y, norm_x, g, f_, eps, vec, cost_fn,
-          self.inv_scale_cost
-      )
-      return carry, (h_res, h_sgn)
-
-    def rest(i: int):
-      if axis == 0:
-        norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
-        return app(
-            self.x, self.y[i:], self._norm_x, norm_y, f, g[i:], eps, vec,
-            cost_fn, self.inv_scale_cost
-        )
-      norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
-      return app(
-          self.y, self.x[i:], self._norm_y, norm_x, g, f[i:], eps, vec, cost_fn,
-          self.inv_scale_cost
-      )
-
     if not self.is_online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
-
-    app = jax.vmap(
-        _apply_lse_kernel_xy,
-        in_axes=[
-            None, 0, None, self._axis_norm, None, 0, None, None, None, None
-        ]
-    )
-
-    if axis == 0:
-      fun, cost_fn = body0, self.cost_fn.pairwise
-      v, n = g, self._y_nsplit
-    elif axis == 1:
-      fun, cost_fn = body1, lambda y, x: self.cost_fn.pairwise(x, y)
-      v, n = f, self._x_nsplit
-    else:
-      raise ValueError(axis)
-
-    _, (h_res, h_sign) = jax.lax.scan(
-        fun, init=(f, g, eps, vec), xs=jnp.arange(n)
-    )
-    h_res, h_sign = jnp.concatenate(h_res), jnp.concatenate(h_sign)
-    h_res_rest, h_sign_rest = rest(n * self.batch_size)
-    h_res = jnp.concatenate([h_res, h_res_rest])
-    h_sign = jnp.concatenate([h_sign, h_sign_rest])
-
-    return eps * h_res - jnp.where(jnp.isfinite(v), v, 0), h_sign
+    raise NotImplementedError("TODO")
 
   def apply_kernel(  # noqa: D102
       self,
@@ -270,26 +193,9 @@ class PointCloud(geometry.Geometry):
   ) -> jnp.ndarray:
     if eps is None:
       eps = self.epsilon
-
     if not self.is_online:
       return super().apply_kernel(scaling, eps, axis)
-
-    # TODO(michalk8): batch this properly
-    app = jax.vmap(
-        _apply_kernel_xy,
-        in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
-    )
-    if axis == 0:
-      return app(
-          self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
-          self.cost_fn.pairwise, self.inv_scale_cost
-      )
-    # for non-symmetric costs
-    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
-    return app(
-        self.y, self.x, self._norm_y, self._norm_x, scaling, eps, cost_fn,
-        self.inv_scale_cost
-    )
+    raise NotImplementedError("TODO")
 
   def apply_cost(
       self,
@@ -323,7 +229,6 @@ class PointCloud(geometry.Geometry):
     # switch to efficient computation for the squared euclidean case.
     if self.is_squared_euclidean and (fn is None or is_linear):
       return self.vec_apply_cost(arr, axis, fn=fn)
-
     return self._apply_cost(arr, axis, fn=fn)
 
   def _apply_cost(
@@ -332,25 +237,7 @@ class PointCloud(geometry.Geometry):
     """See :meth:`apply_cost`."""
     if not self.is_online:
       return super().apply_cost(arr, axis, fn)
-
-    # TODO(michalk8): batch this properly
-    app = jax.vmap(
-        _apply_cost_xy,
-        in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
-    )
-    if arr.ndim == 1:
-      arr = arr.reshape(-1, 1)
-
-    if axis == 0:
-      return app(
-          self.x, self.y, self._norm_x, self._norm_y, arr,
-          self.cost_fn.pairwise, self.inv_scale_cost, fn
-      )
-    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
-    return app(
-        self.y, self.x, self._norm_y, self._norm_x, arr, cost_fn,
-        self.inv_scale_cost, fn
-    )
+    raise NotImplementedError("TODO")
 
   def vec_apply_cost(
       self,
@@ -376,7 +263,8 @@ class PointCloud(geometry.Geometry):
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
     rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
-    nx, ny = jnp.asarray(self._norm_x), jnp.asarray(self._norm_y)
+    nx = self.cost_fn.norm(self.x)
+    ny = self.cost_fn.norm(self.y)
     nx, ny = (nx, ny) if axis == 0 else (ny, nx)
 
     applied_cost = jnp.dot(nx, arr).reshape(1, -1)
@@ -386,11 +274,6 @@ class PointCloud(geometry.Geometry):
     if fn is not None:
       applied_cost = fn(applied_cost)
     return self.inv_scale_cost * applied_cost
-
-  def _leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
-    start_indices = [i * self.batch_size] + (t.ndim - 1) * [0]
-    slice_sizes = [self.batch_size] + list(t.shape[1:])
-    return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
 
   def _compute_summary_online(
       self, summary: Literal["mean", "max_cost"]
@@ -403,69 +286,7 @@ class PointCloud(geometry.Geometry):
     Returns:
       summary statistics
     """
-    scale_cost = 1.0
-
-    def body0(vec: jnp.ndarray, i: int):
-      y = self._leading_slice(self.y, i)
-      norm_y = self._norm_y if self._axis_norm is None else self._leading_slice(
-          self._norm_y, i
-      )
-      h_res = app(self.x, y, self._norm_x, norm_y, vec, cost_fn, scale_cost)
-      return vec, h_res
-
-    def body1(vec: jnp.ndarray, i: int):
-      x = self._leading_slice(self.x, i)
-      norm_x = self._norm_x if self._axis_norm is None else self._leading_slice(
-          self._norm_x, i
-      )
-      h_res = app(self.y, x, self._norm_y, norm_x, vec, cost_fn, scale_cost)
-      return vec, h_res
-
-    def rest(i: int) -> jnp.ndarray:
-      if batch_for_y:
-        norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
-        return app(
-            self.x, self.y[i:], self._norm_x, norm_y, vec, cost_fn, scale_cost
-        )
-      norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
-      return app(
-          self.y, self.x[i:], self._norm_y, norm_x, vec, cost_fn, scale_cost
-      )
-
-    if summary == "mean":
-      fn = _apply_cost_xy
-    elif summary == "max_cost":
-      fn = _apply_max_xy
-    else:
-      raise ValueError(
-          f"Scaling method {summary} does not exist for online mode."
-      )
-    app = jax.vmap(
-        fn, in_axes=[None, 0, None, self._axis_norm, None, None, None]
-    )
-
-    batch_for_y = self.shape[0] < self.shape[1]
-    if batch_for_y:
-      fun, cost_fn = body0, self.cost_fn.pairwise
-      n = self._y_nsplit
-      vec, other = self._n_normed_ones, self._m_normed_ones
-    else:
-      fun, cost_fn = body1, lambda y, x: self.cost_fn.pairwise(x, y)
-      n = self._x_nsplit
-      vec, other = self._m_normed_ones, self._n_normed_ones
-
-    _, val = jax.lax.scan(fun, init=vec, xs=jnp.arange(n))
-    val = jnp.concatenate(val).squeeze()
-    val_rest = rest(n * self.batch_size)
-    val_res = jnp.concatenate([val, val_rest])
-
-    if summary == "mean":
-      return jnp.sum(val_res * other)
-    if summary == "max_cost":
-      return jnp.max(val_res)
-    raise ValueError(
-        f"Scaling method {summary} does not exist for online mode."
-    )
+    raise NotImplementedError("TODO")
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
     """Compute barycenter of points in self.x using weights."""
@@ -653,20 +474,6 @@ class PointCloud(geometry.Geometry):
       return None
     n, m = self.shape
     return min(n, m, self._batch_size)
-
-  @property
-  def _x_nsplit(self) -> Optional[int]:
-    if self.batch_size is None:
-      return None
-    n, _ = self.shape
-    return int(math.floor(n / self.batch_size))
-
-  @property
-  def _y_nsplit(self) -> Optional[int]:
-    if self.batch_size is None:
-      return None
-    _, m = self.shape
-    return int(math.floor(m / self.batch_size))
 
 
 def _apply_lse_kernel_xy(

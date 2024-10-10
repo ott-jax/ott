@@ -44,21 +44,7 @@ Func = Callable[[jnp.ndarray], float]
 
 @jtu.register_pytree_node_class
 class CostFn(abc.ABC):
-  """Base class for all costs.
-
-  Cost functions evaluate a function on a pair of inputs. For convenience,
-  that function is split into two norms -- evaluated on each input separately --
-  followed by a pairwise cost that involves both inputs, as in:
-
-  .. math::
-    c(x, y) = norm(x) + norm(y) + pairwise(x, y)
-
-  If the :attr:`norm` function is not implemented, that value is handled as
-  :math:`0`, and only :func:`pairwise` is used.
-  """
-
-  # no norm function created by default.
-  norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
+  """Base class for all costs."""
 
   @abc.abstractmethod
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
@@ -107,13 +93,9 @@ class CostFn(abc.ABC):
       y: Array.
 
     Returns:
-      The cost, optionally including the :attr:`norms <norm>` of
-      :math:`x`/:math:`y`.
+      The cost.
     """
-    cost = self.pairwise(x, y)
-    if self.norm is None:
-      return cost
-    return cost + self.norm(x) + self.norm(y)
+    return self.pairwise(x, y)
 
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
@@ -126,18 +108,6 @@ class CostFn(abc.ABC):
       Array of shape ``[n, m]`` of cost evaluations.
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
-
-  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute matrix of all pairwise costs, excluding the :attr:`norms <norm>`.
-
-    Args:
-      x: Array of shape ``[n, ...]``.
-      y: Array of shape ``[m, ...]``.
-
-    Returns:
-      Array of shape ``[n, m]`` of cost evaluations.
-    """
-    return jax.vmap(lambda x_: jax.vmap(lambda y_: self.pairwise(x_, y_))(y))(x)
 
   def twist_operator(
       self, vec: jnp.ndarray, dual_vec: jnp.ndarray, variable: bool
