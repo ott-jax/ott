@@ -224,35 +224,13 @@ class PointCloud(geometry.Geometry):
     )
     return batched_apply(self.x, self.y, vec)
 
-  def apply_cost(
+  def _apply_cost_to_vec(
       self,
-      arr: jnp.ndarray,
+      vec: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       is_linear: bool = False,
   ) -> jnp.ndarray:
-    """Apply cost matrix to array (vector or matrix).
-
-    This function applies the geometry's cost matrix, to perform either
-    output = C arr (if axis=1)
-    output = C' arr (if axis=0)
-    where C is [num_a, num_b] matrix resulting from the (optional) elementwise
-    application of fn to each entry of the :attr:`cost_matrix`.
-
-    Args:
-      arr: jnp.ndarray [num_a or num_b, batch], vector that will be multiplied
-        by the cost matrix.
-      axis: standard cost matrix if axis=1, transpose if 0.
-      fn: function optionally applied to cost matrix element-wise, before the
-        apply.
-      is_linear: Whether ``fn`` is a linear function.
-        If true and :attr:`is_squared_euclidean` is ``True``, efficient
-        implementation is used. See :func:`ott.geometry.geometry.is_linear`
-        for a heuristic to help determine if a function is linear.
-
-    Returns:
-      A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
-    """
 
     def apply(x: jnp.ndarray, y: jnp.ndarray, arr: jnp.ndarray) -> jnp.ndarray:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
@@ -263,9 +241,9 @@ class PointCloud(geometry.Geometry):
 
     # switch to efficient computation for the squared euclidean case.
     if self.is_squared_euclidean and (fn is None or is_linear):
-      return self._apply_sqeucl_cost(arr, axis, fn=fn)
+      return self._apply_sqeucl_cost(vec, axis, fn=fn)
     if not self.is_online:
-      return super().apply_cost(arr, axis, fn)
+      return super().apply_cost(vec, axis, fn, is_linear)
 
     # TODO(michalk8): shape
     inv_scale_cost = self.inv_scale_cost
@@ -273,7 +251,7 @@ class PointCloud(geometry.Geometry):
     batched_apply = utils.batched_vmap(
         apply, batch_size=self.batch_size, in_axes=in_axes
     )
-    return batched_apply(self.x, self.y, arr)
+    return batched_apply(self.x, self.y, vec)
 
   def _apply_sqeucl_cost(
       self,
