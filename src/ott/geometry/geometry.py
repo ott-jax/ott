@@ -631,7 +631,8 @@ class Geometry:
     """
     del is_linear
     matrix = self.cost_matrix.T if axis == 0 else self.cost_matrix
-    matrix = fn(matrix) if fn is not None else matrix
+    if fn is not None:
+      matrix = fn(matrix)
     return jnp.dot(matrix, vec)
 
   @classmethod
