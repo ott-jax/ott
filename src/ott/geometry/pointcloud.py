@@ -262,21 +262,6 @@ class PointCloud(geometry.Geometry):
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
   ) -> jnp.ndarray:
-    """Apply the geometry's cost matrix in a vectorized way.
-
-    This function can be used when the cost matrix is squared euclidean
-    and ``fn`` is a linear function.
-
-    Args:
-      vec: jnp.ndarray [num_a or num_b], vector that will be multiplied
-        by the cost matrix.
-      axis: standard cost matrix if axis=1, transport if 0.
-      fn: function optionally applied to cost matrix element-wise, before the
-        application.
-
-    Returns:
-      A jnp.ndarray, [num_b] if axis=0 or [num_a] if axis=1
-    """
     assert vec.ndim == 1, vec.shape
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
