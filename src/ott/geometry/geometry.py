@@ -583,7 +583,7 @@ class Geometry:
       arr: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
-      **kwargs: Any
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply :attr:`cost_matrix` to array (vector or matrix).
 
@@ -597,23 +597,25 @@ class Geometry:
         the cost matrix.
       axis: standard cost matrix if axis=1, transpose if 0
       fn: function to apply to cost matrix element-wise before the dot product
-      kwargs: Keyword arguments for :meth:`_apply_cost_to_vec`.
+      is_linear: TODO.
 
     Returns:
       An array, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     if arr.ndim == 1:
-      arr = arr.reshape(-1, 1)
-
-    app = functools.partial(self._apply_cost_to_vec, axis=axis, fn=fn, **kwargs)
+      return self._apply_cost_to_vec(arr, axis=axis, fn=fn, is_linear=is_linear)
+    app = functools.partial(
+        self._apply_cost_to_vec, axis=axis, fn=fn, is_linear=is_linear
+    )
+    # TODO(michalk8): vmap over multiple dims?
     return jax.vmap(app, in_axes=1, out_axes=1)(arr)
 
   def _apply_cost_to_vec(
       self,
       vec: jnp.ndarray,
       axis: int = 0,
-      fn=None,
-      **_: Any,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply ``[num_a, num_b]`` fn(cost) (or transpose) to vector.
 
@@ -622,10 +624,12 @@ class Geometry:
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
+      is_linear: TODO.
 
     Returns:
       A jnp.ndarray corresponding to cost x vector
     """
+    del is_linear
     matrix = self.cost_matrix.T if axis == 0 else self.cost_matrix
     matrix = fn(matrix) if fn is not None else matrix
     return jnp.dot(matrix, vec)
