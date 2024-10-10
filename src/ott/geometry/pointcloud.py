@@ -233,18 +233,22 @@ class PointCloud(geometry.Geometry):
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       is_linear: bool = False,
+      inv_scale_cost: Optional[float] = None,
   ) -> jnp.ndarray:
 
     def apply(x: jnp.ndarray, y: jnp.ndarray, arr: jnp.ndarray) -> jnp.ndarray:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
       cost = cost.squeeze(1 - axis)
-      cost = cost if fn is None else fn(cost)
+      if fn is not None:
+        cost = fn(cost)
       return jnp.dot(cost, arr)
 
     # switch to an efficient computation for the squared Euclidean case
     if self.is_squared_euclidean and (fn is None or is_linear):
-      return self._apply_sqeucl_cost(vec, axis, fn=fn)
+      return self._apply_sqeucl_cost(
+          vec, axis, fn=fn, inv_scale_cost=inv_scale_cost
+      )
 
     # materialize the cost
     if not self.is_online:
@@ -252,7 +256,9 @@ class PointCloud(geometry.Geometry):
           vec, axis=axis, fn=fn, is_linear=is_linear
       )
 
-    inv_scale_cost = self.inv_scale_cost
+    # when computing the online properties, this is set to 1.0
+    if inv_scale_cost is None:
+      inv_scale_cost = self.inv_scale_cost
     in_axes = (None, 0, None) if axis == 0 else (0, None, None)
     batched_apply = utils.batched_vmap(
         apply, batch_size=self.batch_size, in_axes=in_axes
@@ -263,7 +269,8 @@ class PointCloud(geometry.Geometry):
       self,
       vec: jnp.ndarray,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      inv_scale_cost: Optional[float] = None,
   ) -> jnp.ndarray:
     assert vec.ndim == 1, vec.shape
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
@@ -274,7 +281,9 @@ class PointCloud(geometry.Geometry):
     applied_cost = applied_cost - 2.0 * jnp.dot(y, jnp.dot(x.T, vec))
     if fn is not None:
       applied_cost = fn(applied_cost)
-    return self.inv_scale_cost * applied_cost
+    if inv_scale_cost is None:
+      inv_scale_cost = self.inv_scale_cost
+    return inv_scale_cost * applied_cost
 
   def _compute_summary_online(
       self, summary: Literal["mean", "max_cost"]
@@ -287,6 +296,9 @@ class PointCloud(geometry.Geometry):
     Returns:
       summary statistics
     """
+    if summary == "mean":
+      a, b = self._n_normed_ones, self._m_normed_ones
+      return jnp.sum(self._apply_cost_to_vec(a, inv_scale_cost=1.0) * b)
     raise NotImplementedError("TODO")
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
