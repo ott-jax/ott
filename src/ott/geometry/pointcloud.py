@@ -196,6 +196,7 @@ class PointCloud(geometry.Geometry):
 
     inv_scale_cost = self.inv_scale_cost
     in_axes = (None, 0, None, 0) if axis == 0 else (0, None, 0, None)
+    # TODO(michalk8): fix explicitly passing `out_axes`
     batched_apply = utils.batched_vmap(
         apply, batch_size=self.batch_size, in_axes=in_axes, out_axes=(0, 0)
     )
