@@ -157,26 +157,28 @@ class LRCGeometry(geometry.Geometry):
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
       is_linear: Whether ``fn`` is a linear function to enable efficient
-        implementation. See :func:`ott.geometry.geometry.is_linear`
-        for a heuristic to help determine if a function is linear.
+        implementation.
 
     Returns:
       A jnp.ndarray corresponding to cost x vector
     """
-
-    def linear_apply(
-        vec: jnp.ndarray, axis: int, fn: Callable[[jnp.ndarray], jnp.ndarray]
-    ) -> jnp.ndarray:
-      c1 = self.cost_1 if axis == 1 else self.cost_2
-      c2 = self.cost_2 if axis == 1 else self.cost_1
-      c2 = fn(c2) if fn is not None else c2
-      bias = fn(self.bias) if fn is not None else self.bias
-      out = jnp.dot(c1, jnp.dot(c2.T, vec))
-      return out + bias * jnp.sum(vec) * jnp.ones_like(out)
-
     if fn is None or is_linear:
-      return linear_apply(vec, axis, fn=fn)
-    return super()._apply_cost_to_vec(vec, axis, fn=fn)
+      return self._apply_cost_to_vec_fast(vec, axis, fn=fn)
+    return super()._apply_cost_to_vec(vec, axis, fn=fn, is_linear=is_linear)
+
+  def _apply_cost_to_vec_fast(
+      self,
+      vec: jnp.ndarray,
+      axis: int = 0,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+  ) -> jnp.ndarray:
+    c1 = self.cost_1 if axis == 1 else self.cost_2
+    c2 = self.cost_2 if axis == 1 else self.cost_1
+    bias = self.bias
+    if fn is not None:
+      c2, bias = fn(c2), fn(bias)
+    out = jnp.dot(c1, jnp.dot(c2.T, vec))
+    return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
   def compute_max_cost(self) -> float:
     """Compute the maximum of the :attr:`cost_matrix`.
