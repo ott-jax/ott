@@ -78,15 +78,17 @@ class TestMaskPointCloud:
 
     if clazz is geometry.Geometry:
       geom = clazz(cost_matrix=x @ y.T, scale_cost="mean")
-    else:
+    elif clazz is pointcloud.PointCloud:
       geom = clazz(x, y, scale_cost="max_cost", batch_size=5)
+    else:
+      geom = clazz(x, y, scale_cost="max_cost")
     n = geom.shape[0] if src_ixs is None else len(src_ixs)
     m = geom.shape[1] if tgt_ixs is None else len(tgt_ixs)
 
-    if clazz is geometry.Geometry:
-      geom_sub = geom.subset(src_ixs, tgt_ixs)
-    else:
+    if clazz is pointcloud.PointCloud:
       geom_sub = geom.subset(src_ixs, tgt_ixs, batch_size=new_batch_size)
+    else:
+      geom_sub = geom.subset(src_ixs, tgt_ixs)
 
     assert type(geom_sub) == type(geom)
     np.testing.assert_array_equal(geom_sub.shape, (n, m))

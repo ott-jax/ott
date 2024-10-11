@@ -60,9 +60,9 @@ class PointCloud(geometry.Geometry):
       y: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
       batch_size: Optional[int] = None,
-      scale_cost: Union[int, float, Literal["mean", "max_norm", "max_bound",
-                                            "max_cost", "median"]] = 1.0,
-      **kwargs: Any
+      scale_cost: Union[float, Literal["mean", "max_norm", "max_bound",
+                                       "max_cost", "median"]] = 1.0,
+      **kwargs: Any,
   ):
     super().__init__(**kwargs)
     self.x = x

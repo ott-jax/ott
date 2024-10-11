@@ -67,7 +67,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       y_fused: Optional[jnp.ndarray] = None,
       fused_penalty: float = 1.0,
       gw_loss: Literal["sqeucl", "kl"] = "sqeucl",
-      scale_cost: Union[int, float, Literal["mean", "max_cost"]] = 1.0,
+      scale_cost: Union[float, Literal["mean", "max_cost"]] = 1.0,
       **kwargs: Any,
   ):
     assert y is None or costs is None, "Cannot specify both `y` and `costs`."

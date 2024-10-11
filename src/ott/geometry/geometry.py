@@ -83,8 +83,8 @@ class Geometry:
       kernel_matrix: Optional[jnp.ndarray] = None,
       epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
       relative_epsilon: Optional[Union[bool, Literal["mean", "std"]]] = None,
-      scale_cost: Union[int, float, Literal["mean", "max_cost", "median",
-                                            "std"]] = 1.0,
+      scale_cost: Union[float, Literal["mean", "max_cost", "median",
+                                       "std"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
   ):

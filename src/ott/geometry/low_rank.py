@@ -43,11 +43,6 @@ class LRCGeometry(geometry.Geometry):
       'max_bound', 'mean' and 'max_cost'. Alternatively, a float
       factor can be given to rescale the cost such that
       ``cost_matrix /= scale_cost``.
-    batch_size: optional size of the batch to compute online (without
-      instantiating the matrix) the scale factor ``scale_cost`` of the
-      :attr:`cost_matrix` when ``scale_cost = 'max_cost'``. If `None`, the batch
-      size is set to `1024` or to the largest number of samples between
-      :attr:`cost_1` and :attr:`cost_2` if smaller than `1024`.
     kwargs: keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
@@ -57,9 +52,7 @@ class LRCGeometry(geometry.Geometry):
       cost_2: jnp.ndarray,
       bias: float = 0.0,
       scale_factor: float = 1.0,
-      scale_cost: Union[int, float, Literal["mean", "max_bound",
-                                            "max_cost"]] = 1.0,
-      batch_size: Optional[int] = None,
+      scale_cost: Union[float, Literal["mean", "max_bound", "max_cost"]] = 1.0,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -68,8 +61,6 @@ class LRCGeometry(geometry.Geometry):
     self._bias = bias
     self._scale_factor = scale_factor
     self._scale_cost = scale_cost
-    # TODO(michalk8): remove?
-    self.batch_size = batch_size
 
   @property
   def cost_1(self) -> jnp.ndarray:
@@ -116,7 +107,7 @@ class LRCGeometry(geometry.Geometry):
     if self._scale_cost == "max_bound":
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
-      max_bound = x_norm + y_norm + 2 * jnp.sqrt(x_norm * y_norm)
+      max_bound = x_norm + y_norm + 2.0 * jnp.sqrt(x_norm * y_norm)
       return 1.0 / (max_bound + self._bias)
     if self._scale_cost == "mean":
       a, b = self._n_normed_ones, self._m_normed_ones
@@ -183,9 +174,7 @@ class LRCGeometry(geometry.Geometry):
   @property
   def _max_cost_matrix(self) -> jnp.ndarray:
     fn = utils.batched_vmap(
-        lambda c1, c2: jnp.max(c1 @ c2.T),
-        batch_size=self.batch_size or 1024,
-        in_axes=(0, None)
+        lambda c1, c2: jnp.max(c1 @ c2.T), batch_size=1024, in_axes=(0, None)
     )
     return jnp.max(fn(self._cost_1, self._cost_2)) + self._bias
 
@@ -291,7 +280,6 @@ class LRCGeometry(geometry.Geometry):
         self._scale_factor,
     ), {
         "scale_cost": self._scale_cost,
-        "batch_size": self.batch_size
     }
 
   @classmethod
