@@ -914,7 +914,7 @@ class UnbalancedBures(CostFn):
     log_m_pi += -0.5 * ldet_c_ab
 
     # if all logdet signs are 1, output value, nan otherwise
-    pos_signs = (sldet_c + sldet_c_ab + sldet_t_ab + sldet_t_ab) == 4
+    pos_signs = (sldet_c + sldet_c_ab + sldet_ab + sldet_t_ab) == 4
 
     cross_term = jax.lax.cond(
         pos_signs, lambda: 2 * sig2 * mass_x * mass_y - 2 *
