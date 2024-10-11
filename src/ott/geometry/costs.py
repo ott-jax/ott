@@ -48,7 +48,7 @@ class CostFn(abc.ABC):
   """Base class for all costs."""
 
   @abc.abstractmethod
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
@@ -85,18 +85,6 @@ class CostFn(abc.ABC):
       The padding vector.
     """
     return jnp.zeros((1, dim))
-
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Compute cost between :math:`x` and :math:`y`.
-
-    Args:
-      x: Array.
-      y: Array.
-
-    Returns:
-      The cost.
-    """
-    return self.pairwise(x, y)
 
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
@@ -171,7 +159,7 @@ class TICost(CostFn):
     """Legendre transform of :func:`h` when it is convex."""
     raise NotImplementedError("Legendre transform of `h` is not implemented.")
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
@@ -510,7 +498,7 @@ class Euclidean(CostFn):
   because the function is not strictly convex (it is linear on rays).
   """
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute Euclidean norm using custom jvp implementation.
 
     Here we use a custom jvp implementation for the norm that does not yield
@@ -531,7 +519,7 @@ class SqEuclidean(TICost):
     """Compute squared Euclidean norm for vector."""
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
     cross_term = -2.0 * jnp.vdot(x, y)
     return self.norm(x) + self.norm(y) + cross_term
@@ -560,7 +548,7 @@ class Cosine(CostFn):
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
@@ -596,7 +584,7 @@ class Arccos(CostFn):
     self.n = n
     self._ridge = ridge
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
@@ -660,7 +648,7 @@ class Bures(CostFn):
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute - 2 x Bures dot-product."""
     mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
     mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
@@ -858,7 +846,7 @@ class UnbalancedBures(CostFn):
     """
     return self._gamma * x[..., 0]
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute dot-product for unbalanced Bures.
 
     Args:
@@ -953,7 +941,7 @@ class SoftDTW(CostFn):
     self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
     self.debiased = debiased
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
     c_xy = self._soft_dtw(x, y)
     if self.debiased:
       return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))

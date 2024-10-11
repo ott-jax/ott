@@ -24,7 +24,7 @@ from ott.geometry import costs, geometry, pointcloud
 
 class NonSymCost(costs.CostFn):
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     z = x - y
     return jnp.sum(z ** 2 * (jnp.sign(z) + 0.5) ** 2)
 
