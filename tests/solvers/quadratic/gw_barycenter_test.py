@@ -78,7 +78,7 @@ class TestGWBarycenter:
         self.random_pc(n, d=self.ndim, rng=rng)
         for n, rng in zip(num_per_segment, rngs)
     ]
-    costs = [pc._raw_cost_matrix for pc, n in zip(pcs, num_per_segment)]
+    costs = [pc.cost_matrix for pc, n in zip(pcs, num_per_segment)]
     costs, cbs = self.pad_cost_matrices(costs)
     ys = jnp.concatenate([pc.x for pc in pcs])
     bs = jnp.concatenate([jnp.ones(n) / n for n in num_per_segment])

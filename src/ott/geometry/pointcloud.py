@@ -85,14 +85,10 @@ class PointCloud(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
-    if self.is_online:
-      return None
-    return self.inv_scale_cost * self._raw_cost_matrix
+    return self.inv_scale_cost * self._unscaled_cost_matrix
 
   @property
   def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
-    if self.is_online:
-      return None
     return jnp.exp(-self.cost_matrix / self.epsilon)
 
   @property
@@ -126,16 +122,16 @@ class PointCloud(geometry.Geometry):
     if self._scale_cost == "max_cost":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
-      return 1.0 / jnp.max(self._raw_cost_matrix)
+      return 1.0 / jnp.max(self._unscaled_cost_matrix)
     if self._scale_cost == "mean":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
-      geom = self._masked_geom(mask_value=jnp.nan)._raw_cost_matrix
+      geom = self._masked_geom(mask_value=jnp.nan)._unscaled_cost_matrix
       return 1.0 / jnp.nanmean(geom)
     if self._scale_cost == "median":
       if not self.is_online:
         geom = self._masked_geom(mask_value=jnp.nan)
-        return 1.0 / jnp.nanmedian(geom._raw_cost_matrix)
+        return 1.0 / jnp.nanmedian(geom._unscaled_cost_matrix)
       raise NotImplementedError(
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
@@ -162,7 +158,7 @@ class PointCloud(geometry.Geometry):
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
   @property
-  def _raw_cost_matrix(self) -> jnp.ndarray:
+  def _unscaled_cost_matrix(self) -> jnp.ndarray:
     return self.cost_fn.all_pairs(self.x, self.y)
 
   def apply_lse_kernel(  # noqa: D102
@@ -279,25 +275,6 @@ class PointCloud(geometry.Geometry):
     if fn is not None:
       applied_cost = fn(applied_cost)
     return scale_cost * applied_cost
-
-  def transport_from_potentials(  # noqa: D102
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
-    if not self.is_online:
-      return super().transport_from_potentials(f, g)
-    cost_matrix = self._raw_cost_matrix * self.inv_scale_cost
-    cost_matrix = f[:, None] + g[None, :] - cost_matrix
-    return jnp.exp(cost_matrix / self.epsilon)
-
-  def transport_from_scalings(  # noqa: D102
-      self, u: jnp.ndarray, v: jnp.ndarray
-  ) -> jnp.ndarray:
-    if not self.is_online:
-      return super().transport_from_scalings(u, v)
-    kernel_matrix = jnp.exp(
-        -self._raw_cost_matrix * (self.inv_scale_cost / self.epsilon)
-    )
-    return kernel_matrix * u[:, None] * v[None, :]
 
   def _compute_summary_online(
       self, summary: Literal["mean", "max_cost"]

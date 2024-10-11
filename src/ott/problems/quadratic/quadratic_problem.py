@@ -350,14 +350,7 @@ class QuadraticProblem:
 
   @property
   def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
-    if not self.is_fused:
-      return 0.0
-    geom_xy = self.geom_xy
-
-    if isinstance(geom_xy, pointcloud.PointCloud) and geom_xy.is_online:
-      # for computation
-      return geom_xy._raw_cost_matrix * geom_xy.inv_scale_cost
-    return geom_xy.cost_matrix
+    return self.geom_xy.cost_matrix if self.is_fused else 0.0
 
   @property
   def _is_low_rank_convertible(self) -> bool:
