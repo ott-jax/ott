@@ -140,7 +140,7 @@ class TestSinkhornGrid:
     )
 
     np.testing.assert_allclose(
-        geom_grid.apply_cost(vec)[:, 0],
+        geom_grid.apply_cost(vec),
         np.dot(geom_mat.cost_matrix.T, vec),
         rtol=1e-4,
         atol=1e-4
