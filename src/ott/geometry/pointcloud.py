@@ -97,12 +97,6 @@ class PointCloud(geometry.Geometry):
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102
-    # TODO(michalk8): seems no longer necessary
-    # in the process of flattening/unflattening in vmap, `__init__`
-    # can be called with dummy objects
-    # we optionally access `shape` in order to get the batch size
-    if self.x is None or self.y is None:
-      return 0, 0
     return self.x.shape[0], self.y.shape[0]
 
   @property
@@ -136,10 +130,8 @@ class PointCloud(geometry.Geometry):
     if self._scale_cost == "mean":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
-      if self.shape[0] > 0:
-        geom = self._masked_geom(mask_value=jnp.nan)._raw_cost_matrix
-        return 1.0 / jnp.nanmean(geom)
-      return 1.0
+      geom = self._masked_geom(mask_value=jnp.nan)._raw_cost_matrix
+      return 1.0 / jnp.nanmean(geom)
     if self._scale_cost == "median":
       if not self.is_online:
         geom = self._masked_geom(mask_value=jnp.nan)
