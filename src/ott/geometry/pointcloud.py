@@ -293,14 +293,19 @@ class PointCloud(geometry.Geometry):
   ) -> jnp.ndarray:
     if not self.is_online:
       return super().transport_from_potentials(f, g)
-    raise NotImplementedError("TODO")
+    cost_matrix = self._raw_cost_matrix * self.inv_scale_cost
+    cost_matrix = f[:, None] + g[None, :] - cost_matrix
+    return jnp.exp(cost_matrix / self.epsilon)
 
   def transport_from_scalings(  # noqa: D102
       self, u: jnp.ndarray, v: jnp.ndarray
   ) -> jnp.ndarray:
     if not self.is_online:
       return super().transport_from_scalings(u, v)
-    raise NotImplementedError("TODO")
+    kernel_matrix = jnp.exp(
+        -self._raw_cost_matrix * (self.inv_scale_cost / self.epsilon)
+    )
+    return kernel_matrix * u[:, None] * v[None, :]
 
   def _compute_summary_online(
       self, summary: Literal["mean", "max_cost"]
