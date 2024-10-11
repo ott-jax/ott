@@ -14,7 +14,7 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -527,7 +527,7 @@ class SqEuclidean(TICost):
   Implemented as a translation invariant cost, :math:`h(z) = \|z\|^2`.
   """
 
-  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
+  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute squared Euclidean norm for vector."""
     return jnp.sum(x ** 2, axis=-1)
 
