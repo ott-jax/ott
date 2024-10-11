@@ -303,15 +303,19 @@ class PointCloud(geometry.Geometry):
       cost = self.cost_fn.all_pairs(x, y)
       return jnp.max(jnp.abs(cost))
 
-    a, b = self._n_normed_ones, self._m_normed_ones
     if summary == "mean":
+      a, b = self._n_normed_ones, self._m_normed_ones
       return jnp.sum(self._apply_cost_to_vec(a, scale_cost=1.0) * b)
+
     if summary == "max_cost":
       fn = utils.batched_vmap(
           compute_max, batch_size=self.batch_size, in_axes=[0, None]
       )
       return jnp.max(fn(self.x, self.y))
-    raise NotImplementedError("TODO")
+
+    raise ValueError(
+        f"Scaling method {summary} does not exist for online mode."
+    )
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
     """Compute barycenter of points in self.x using weights."""
