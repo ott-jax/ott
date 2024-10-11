@@ -288,6 +288,20 @@ class PointCloud(geometry.Geometry):
       applied_cost = fn(applied_cost)
     return scale_cost * applied_cost
 
+  def transport_from_potentials(  # noqa: D102
+      self, f: jnp.ndarray, g: jnp.ndarray
+  ) -> jnp.ndarray:
+    if not self.is_online:
+      return super().transport_from_potentials(f, g)
+    raise NotImplementedError("TODO")
+
+  def transport_from_scalings(  # noqa: D102
+      self, u: jnp.ndarray, v: jnp.ndarray
+  ) -> jnp.ndarray:
+    if not self.is_online:
+      return super().transport_from_scalings(u, v)
+    raise NotImplementedError("TODO")
+
   def _compute_summary_online(
       self, summary: Literal["mean", "max_cost"]
   ) -> jnp.ndarray:
