@@ -163,7 +163,7 @@ class Geometry:
     rel = self._relative_epsilon
 
     # If nothing passed, default to STD
-    if (rel is None and target is None and scale_eps is None):
+    if rel is None and target is None and scale_eps is None:
       scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
     # If instructions passed change, otherwise (notably if False) skip.
     elif rel is not None:

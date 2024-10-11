@@ -533,7 +533,8 @@ class SqEuclidean(TICost):
 
   def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
-    return self.norm(x) + self.norm(y) - 2.0 * jnp.vdot(x, y)
+    cross_term = -2.0 * jnp.vdot(x, y)
+    return self.norm(x) + self.norm(y) + cross_term
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sum(z ** 2)
@@ -669,7 +670,10 @@ class Bures(CostFn):
     sq__sq_x_y_sq_x = matrix_square_root.sqrtm(
         sq_x_y_sq_x, self._dimension, **self._sqrtm_kw
     )[0]
-    return -2 * (mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
+    cross_term = -2.0 * (
+        mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1)
+    )
+    return self.norm(x) + self.norm(y) + cross_term
 
   def covariance_fixpoint_iter(
       self,
@@ -912,10 +916,11 @@ class UnbalancedBures(CostFn):
     # if all logdet signs are 1, output value, nan otherwise
     pos_signs = (sldet_c + sldet_c_ab + sldet_t_ab + sldet_t_ab) == 4
 
-    return jax.lax.cond(
+    cross_term = jax.lax.cond(
         pos_signs, lambda: 2 * sig2 * mass_x * mass_y - 2 *
         (sig2 + gam) * jnp.exp(log_m_pi), lambda: jnp.nan
     )
+    return self.norm(x) + self.norm(y) + cross_term
 
   def tree_flatten(self):  # noqa: D102
     return (), (self._dimension, self._sigma, self._gamma, self._sqrtm_kw)
