@@ -229,23 +229,27 @@ def _canonicalize_axis(axis: int, num_dims: int) -> int:
   return axis
 
 
+def _prepare_axes(name: str, tree: Any, axes: Any, kws: bool = False) -> Any:
+  leaves, treedef = jax.tree.flatten(tree, is_leaf=batching.is_vmappable)
+  axes = jax.api_util.flatten_axes(name, treedef, axes, kws=kws)
+  axes = [
+      axis if axis is None else _canonicalize_axis(axis, jnp.ndim(leaf))
+      for leaf, axis in zip(leaves, axes)
+  ]
+  return treedef.unflatten(axes)
+
+
 def _batch_and_remainder(
     args: Any,
     *,
     batch_size: int,
     in_axes: Optional[Union[int, Sequence[int], Any]],
 ) -> Tuple[Any, Any]:
-  leaves, in_tree = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
-  in_axes = jax.api_util.flatten_axes(
-      "vmap in_axes", in_tree, in_axes, kws=True
-  )
-  in_axes = jax.tree.map(
-      lambda axis, leaf: None
-      if axis is None else _canonicalize_axis(axis, jnp.ndim(leaf)),
-      in_axes,
-      leaves,
-      is_leaf=lambda x: x is None
-  )
+  leaves, treedef = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
+  in_axes = _prepare_axes("vmap in_axes", args, in_axes, kws=False)
+  assert not all(
+      axis is None for axis in in_axes
+  ), "vmap must have at least one non-None value in in_axes"
 
   has_scan, has_remainder = False, False
   scan_leaves, remainder_leaves = [], []
@@ -268,10 +272,8 @@ def _batch_and_remainder(
     scan_leaves.append(scan_leaf)
     remainder_leaves.append(remainder_leaf)
 
-  assert has_scan or has_remainder, "TODO"
-
-  scan_tree = in_tree.unflatten(scan_leaves) if has_scan else None
-  remainder_tree = in_tree.unflatten(
+  scan_tree = treedef.unflatten(scan_leaves) if has_scan else None
+  remainder_tree = treedef.unflatten(
       remainder_leaves
   ) if has_remainder else None
   return scan_tree, remainder_tree
@@ -298,10 +300,9 @@ def _apply_scan(
       )
       return None, vmapped_fun(*new_args, **kwargs)
 
-    in_tree = jax.tree.structure(args, is_leaf=batching.is_vmappable)
-    axes = jax.api_util.flatten_axes("vmap in_axes", in_tree, in_axes, kws=True)
-
+    axes = _prepare_axes("vmap in_axes", args, in_axes, kws=False)
     ix = next(ix for ix, axis in enumerate(axes) if axis is not None)
+
     leaf, *_ = jax.tree.leaves(args[ix])
     axis, *_ = jax.tree.leaves(axes[ix])
     xs = np.arange(leaf.shape[axis])
@@ -339,12 +340,13 @@ def batched_vmap(
 
     if has_batched:
       batched = batched_fun(*batched, **kwargs)
-      batched = jax.tree.map(unbatch, batched, out_axes)
+      out_axes_flat = _prepare_axes("vmap out_axes", batched, out_axes)
+      batched = jax.tree.map(unbatch, batched, out_axes_flat)
     if has_remainder:
       remainder = vmapped_fun(*remainder, **kwargs)
 
     if has_batched and has_remainder:
-      return jax.tree.map(concat, batched, remainder, out_axes)
+      return jax.tree.map(concat, batched, remainder, out_axes_flat)
     if has_batched:
       return batched
     # TODO(michalk8): check for empty arrays

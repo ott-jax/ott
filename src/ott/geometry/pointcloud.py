@@ -197,7 +197,9 @@ class PointCloud(geometry.Geometry):
     in_axes = (None, 0, None, 0) if axis == 0 else (0, None, 0, None)
     # TODO(michalk8): fix explicitly passing `out_axes`
     batched_apply = utils.batched_vmap(
-        apply, batch_size=self.batch_size, in_axes=in_axes, out_axes=(0, 0)
+        apply,
+        batch_size=self.batch_size,
+        in_axes=in_axes,
     )
     w_res, w_sgn = batched_apply(self.x, self.y, f, g)
     remove = f if axis == 1 else g
