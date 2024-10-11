@@ -317,7 +317,6 @@ def batched_vmap(
     *,
     batch_size: int,
     in_axes: Optional[Union[int, Sequence[int], Any]] = 0,
-    # TODO(michalk8): correctly handle non-negative indices
     out_axes: Any = 0,
 ) -> Callable[P, R]:
   """TODO."""
