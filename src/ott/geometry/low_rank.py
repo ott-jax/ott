@@ -119,10 +119,9 @@ class LRCGeometry(geometry.Geometry):
       max_bound = x_norm + y_norm + 2 * jnp.sqrt(x_norm * y_norm)
       return 1.0 / (max_bound + self._bias)
     if self._scale_cost == "mean":
-      factor1 = jnp.dot(self._n_normed_ones, self._cost_1)
-      factor2 = jnp.dot(self._cost_2.T, self._m_normed_ones)
-      mean = jnp.dot(factor1, factor2) + self._bias
-      return 1.0 / mean
+      a, b = self._n_normed_ones, self._m_normed_ones
+      mean = jnp.linalg.multi_dot([a, self._cost_1, self._cost_2.T, b])
+      return 1.0 / (mean + self._bias)
     if self._scale_cost == "max_cost":
       return 1.0 / self._max_cost_matrix
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
@@ -185,7 +184,7 @@ class LRCGeometry(geometry.Geometry):
   def _max_cost_matrix(self) -> jnp.ndarray:
     fn = utils.batched_vmap(
         lambda c1, c2: jnp.max(c1 @ c2.T),
-        batch_size=self.batch_size,
+        batch_size=self.batch_size or 1024,
         in_axes=(0, None)
     )
     return jnp.max(fn(self._cost_1, self._cost_2)) + self._bias
