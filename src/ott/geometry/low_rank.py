@@ -68,6 +68,7 @@ class LRCGeometry(geometry.Geometry):
     self._bias = bias
     self._scale_factor = scale_factor
     self._scale_cost = scale_cost
+    # TODO(michalk8): remove?
     self.batch_size = batch_size
 
   @property
@@ -123,7 +124,7 @@ class LRCGeometry(geometry.Geometry):
       mean = jnp.dot(factor1, factor2) + self._bias
       return 1.0 / mean
     if self._scale_cost == "max_cost":
-      return 1.0 / self.compute_max_cost()
+      return 1.0 / self._max_cost_matrix
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
@@ -172,62 +173,22 @@ class LRCGeometry(geometry.Geometry):
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
   ) -> jnp.ndarray:
-    c1 = self.cost_1 if axis == 1 else self.cost_2
-    c2 = self.cost_2 if axis == 1 else self.cost_1
+    c1, c2 = (self.cost_1,
+              self.cost_2) if axis == 1 else (self.cost_2, self.cost_1)
     bias = self.bias
     if fn is not None:
       c2, bias = fn(c2), fn(bias)
-    out = jnp.dot(c1, jnp.dot(c2.T, vec))
+    out = jnp.linalg.multi_dot([c1, c2.T, vec])
     return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
-  def compute_max_cost(self) -> float:
-    """Compute the maximum of the :attr:`cost_matrix`.
-
-    Three cases are taken into account:
-
-    - If the number of samples of ``cost_1`` and ``cost_2`` are both smaller
-      than 1024 and if ``batch_size`` is `None`, the ``cost_matrix`` is
-      computed to obtain its maximum entry.
-    - If one of the number of samples of ``cost_1`` or ``cost_2`` is larger
-      than 1024 and if ``batch_size`` is `None`, then the maximum of the
-      cost matrix is calculated by batch. The batches are created on the
-      longest axis of the cost matrix and their size is fixed to 1024.
-    - If ``batch_size`` is provided as a float, then the maximum of the cost
-      matrix is calculated by batch. The batches are created on the longest
-      axis of the cost matrix and their size if fixed by ``batch_size``.
-
-    Returns:
-      Maximum of the cost matrix.
-    """
-    batch_for_y = self.shape[1] > self.shape[0]
-
-    n = self.shape[1] if batch_for_y else self.shape[0]
-    p = self._cost_2.shape[1] if batch_for_y else self._cost_1.shape[1]
-    carry = ((self._cost_1, self._cost_2) if batch_for_y else
-             (self._cost_2, self._cost_1))
-
-    if self.batch_size:
-      batch_size = min(self.batch_size, n)
-    else:
-      batch_size = min(1024, max(self.shape[0], self.shape[1]))
-    n_batch = n // batch_size
-
-    def body(carry, slice_idx):
-      cost1, cost2 = carry
-      cost2_slice = jax.lax.dynamic_slice(
-          cost2, (slice_idx * batch_size, 0), (batch_size, p)
-      )
-      out_slice = jnp.max(jnp.dot(cost2_slice, cost1.T))
-      return carry, out_slice
-
-    def finalize(carry):
-      cost1, cost2 = carry
-      return jnp.dot(cost2[n_batch * batch_size:], cost1.T)
-
-    _, out = jax.lax.scan(body, carry, jnp.arange(n_batch))
-    last_slice = finalize(carry)
-    max_value = jnp.max(jnp.concatenate((out, last_slice.reshape(-1))))
-    return max_value + self._bias
+  @property
+  def _max_cost_matrix(self) -> jnp.ndarray:
+    fn = utils.batched_vmap(
+        lambda c1, c2: jnp.max(c1 @ c2.T),
+        batch_size=self.batch_size,
+        in_axes=(0, None)
+    )
+    return jnp.max(fn(self._cost_1, self._cost_2)) + self._bias
 
   def to_LRCGeometry(
       self,
