@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-from typing import Any, List, NoReturn, Optional, Sequence, Tuple
+from typing import Any, Callable, List, NoReturn, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -209,7 +209,11 @@ class Grid(geometry.Geometry):
     return jnp.transpose(softmax_res, indices), None
 
   def _apply_cost_to_vec(
-      self, vec: jnp.ndarray, axis: int = 0, fn=None
+      self,
+      vec: jnp.ndarray,
+      axis: int = 0,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     r"""Apply grid's cost matrix (without instantiating it) to a vector.
 
@@ -233,10 +237,13 @@ class Grid(geometry.Geometry):
       axis: axis 0 if applying transpose costs, 1 if using the original cost.
       fn: function optionally applied to cost matrix element-wise, before the
         dot product.
+      is_linear: TODO.
 
     Returns:
       A jnp.ndarray corresponding to cost x matrix
     """
+    # TODO(michalk8):
+    del fn, is_linear
     vec = jnp.reshape(vec, self.grid_size)
     accum_vec = jnp.zeros_like(vec)
     indices = list(range(1, self.grid_dimension))
