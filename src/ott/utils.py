@@ -353,7 +353,6 @@ def batched_vmap(
   """
 
   def unbatch(axis: int, x: jnp.ndarray) -> jnp.ndarray:
-    axis = _canonicalize_axis(axis, jnp.ndim(x) - 1)
     x = jnp.moveaxis(x, 0, axis)
     return jax.lax.collapse(x, axis, axis + 2)
 

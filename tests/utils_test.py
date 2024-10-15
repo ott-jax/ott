@@ -13,6 +13,8 @@
 # limitations under the License.
 from typing import Any, Optional
 
+import chex
+
 import pytest
 
 import jax
@@ -53,8 +55,20 @@ class TestBatchedVmap:
 
     np.testing.assert_array_equal(gt_fn(x), fn(x))
 
-  def test_empty_arrays(self):
-    pass
+  @pytest.mark.parametrize("out_axes", [0, 1, 2])
+  def test_out_axes(self, rng: jax.Array, out_axes: int):
+
+    def f(x: jnp.ndarray, y: jnp.ndarray) -> Any:
+      return (x.sum() + y.sum()).reshape(1, 1)
+
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (31, 13))
+    y = jax.random.normal(rng2, (31, 3))
+
+    gt_fn = jax.vmap(f, out_axes=out_axes)
+    fn = utils.batched_vmap(f, batch_size=5, out_axes=out_axes)
+
+    chex.assert_trees_all_equal(gt_fn(x, y), fn(x, y))
 
   def test_no_remainder(self):
     pass
