@@ -32,8 +32,22 @@ class TestBatchedVmap:
 
     np.testing.assert_array_equal(gt_fn(x), fn(x))
 
-  def test_pytree(self):
-    pass
+  def test_pytree(self, rng: jax.Array):
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
+    x = {
+        "foo": {
+            "bar": jax.random.normal(rng1, (5, 3, 3))
+        },
+        "baz": jax.random.normal(rng2, (2, 5)),
+        "quux": (2.0, 3.0),
+    }
+    in_axes = [{"foo": {"bar": 0}, "baz": 1, "quux": (None, None)}]
+
+    f = lambda x: x["foo"]["bar"].std() + x["baz"].mean() + x["quux"][0]
+    gt_fn = jax.vmap(f, in_axes=in_axes)
+    fn = utils.batched_vmap(f, in_axes=in_axes, batch_size=2)
+
+    np.testing.assert_array_equal(gt_fn(x), fn(x))
 
   def test_empty_arrays(self):
     pass

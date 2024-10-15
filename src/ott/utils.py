@@ -16,7 +16,16 @@ import functools
 import io
 import warnings
 from collections.abc import Sequence
-from typing import Any, Callable, NamedTuple, Optional, Tuple, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    List,
+    NamedTuple,
+    Optional,
+    Tuple,
+    TypeVar,
+    Union,
+)
 
 # TODO(michalk8): add to requirements
 from typing_extensions import ParamSpec
@@ -229,14 +238,16 @@ def _canonicalize_axis(axis: int, num_dims: int) -> int:
   return axis
 
 
-def _prepare_axes(name: str, tree: Any, axes: Any, kws: bool = False) -> Any:
-  leaves, treedef = jax.tree.flatten(tree, is_leaf=batching.is_vmappable)
-  axes = jax.api_util.flatten_axes(name, treedef, axes, kws=kws)
+def _prepare_axes(
+    name: str, leaves: Any, treedef: Any, axes: Any, *, return_flat: bool
+) -> Any:
+  axes = jax.api_util.flatten_axes(name, treedef, axes, kws=False)
+  assert len(leaves) == len(axes), (len(leaves), len(axes))
   axes = [
       axis if axis is None else _canonicalize_axis(axis, jnp.ndim(leaf))
-      for leaf, axis in zip(leaves, axes)
+      for axis, leaf in zip(axes, leaves)
   ]
-  return treedef.unflatten(axes)
+  return axes if return_flat else treedef.unflatten(axes)
 
 
 def _batch_and_remainder(
@@ -246,13 +257,16 @@ def _batch_and_remainder(
     in_axes: Optional[Union[int, Sequence[int], Any]],
 ) -> Tuple[Any, Any]:
   leaves, treedef = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
-  in_axes = _prepare_axes("vmap in_axes", args, in_axes, kws=False)
+  in_axes = _prepare_axes(
+      "vmap in_axes", leaves, treedef, in_axes, return_flat=True
+  )
   assert not all(
       axis is None for axis in in_axes
   ), "vmap must have at least one non-None value in in_axes"
 
   has_scan, has_remainder = False, False
   scan_leaves, remainder_leaves = [], []
+
   for leaf, axis in zip(leaves, in_axes):
     if axis is None:
       scan_leaf = remainder_leaf = leaf
@@ -284,6 +298,12 @@ def _apply_scan(
                                                          Any]]
 ) -> Callable[P, R]:
 
+  def num_steps(axes: List[Any], args: Tuple[Any, ...]) -> int:
+    ix = next(ix for ix, axis in enumerate(axes) if axis is not None)
+    leaf, *_ = jax.tree.leaves(args[ix])
+    axis, *_ = jax.tree.leaves(axes[ix])
+    return leaf.shape[axis]
+
   def select_batch(arg: Any, index: int, *, axis: int) -> Any:
     fn = functools.partial(
         jax.lax.dynamic_index_in_dim, index=index, axis=axis, keepdims=False
@@ -294,20 +314,19 @@ def _apply_scan(
 
     def body_fn(carry: None, index: int) -> Tuple[None, R]:
       del carry
-      new_args = tuple(
+      new_args = treedef.unflatten([
           arg if axis is None else select_batch(arg, index, axis=axis)
-          for arg, axis in zip(args, axes)
-      )
+          for arg, axis in zip(leaves, axes)
+      ])
       return None, vmapped_fun(*new_args, **kwargs)
 
-    axes = _prepare_axes("vmap in_axes", args, in_axes, kws=False)
-    ix = next(ix for ix, axis in enumerate(axes) if axis is not None)
+    leaves, treedef = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
+    axes = _prepare_axes(
+        "vmap in_axes", leaves, treedef, in_axes, return_flat=True
+    )
+    n = num_steps(axes, args)
 
-    leaf, *_ = jax.tree.leaves(args[ix])
-    axis, *_ = jax.tree.leaves(axes[ix])
-    xs = np.arange(leaf.shape[axis])
-
-    _, result = jax.lax.scan(body_fn, init=None, xs=xs)
+    _, result = jax.lax.scan(body_fn, init=None, xs=jnp.arange(n))
     return result
 
   return wrapper
@@ -333,12 +352,12 @@ def batched_vmap(
     The vectorized function.
   """
 
-  def unbatch(x: jnp.ndarray, axis: int) -> jnp.ndarray:
-    axis = _canonicalize_axis(axis, x.ndim - 1)
+  def unbatch(axis: int, x: jnp.ndarray) -> jnp.ndarray:
+    axis = _canonicalize_axis(axis, jnp.ndim(x) - 1)
     x = jnp.moveaxis(x, 0, axis)
     return jax.lax.collapse(x, axis, axis + 2)
 
-  def concat(x: jnp.ndarray, y: jnp.ndarray, axis: int) -> jnp.ndarray:
+  def concat(axis: int, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     return jnp.concatenate([x, y], axis=axis)
 
   @functools.wraps(fun)
@@ -351,13 +370,16 @@ def batched_vmap(
 
     if has_batched:
       batched = batched_fun(*batched, **kwargs)
-      out_axes_flat = _prepare_axes("vmap out_axes", batched, out_axes)
-      batched = jax.tree.map(unbatch, batched, out_axes_flat)
+      leaves, treedef = jax.tree.flatten(batched, is_leaf=batching.is_vmappable)
+      out_axes_ = _prepare_axes(
+          "vmap out_axes", leaves, treedef, out_axes, return_flat=False
+      )
+      batched = jax.tree.map(unbatch, out_axes_, batched)
     if has_remainder:
       remainder = vmapped_fun(*remainder, **kwargs)
 
     if has_batched and has_remainder:
-      return jax.tree.map(concat, batched, remainder, out_axes_flat)
+      return jax.tree.map(concat, out_axes_, batched, remainder)
     if has_batched:
       return batched
     # TODO(michalk8): check for empty arrays

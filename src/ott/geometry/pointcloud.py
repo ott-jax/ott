@@ -74,7 +74,6 @@ class PointCloud(geometry.Geometry):
     self._batch_size = batch_size
     self._scale_cost = scale_cost
 
-
   def apply_lse_kernel(  # noqa: D102
       self,
       f: jnp.ndarray,
