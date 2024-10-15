@@ -74,93 +74,6 @@ class PointCloud(geometry.Geometry):
     self._batch_size = batch_size
     self._scale_cost = scale_cost
 
-  @property
-  def can_LRC(self):  # noqa: D102
-    return self.is_squared_euclidean and self._check_LRC_dim
-
-  @property
-  def _check_LRC_dim(self):
-    (n, m), d = self.shape, self.x.shape[1]
-    return n * m > (n + m) * d
-
-  @property
-  def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
-    return self.inv_scale_cost * self._unscaled_cost_matrix
-
-  @property
-  def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
-    return jnp.exp(-self.cost_matrix / self.epsilon)
-
-  @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
-    return self.x.shape[0], self.y.shape[0]
-
-  @property
-  def is_symmetric(self) -> bool:  # noqa: D102
-    return self.y is None or (
-        jnp.all(self.x.shape == self.y.shape) and jnp.all(self.x == self.y)
-    )
-
-  @property
-  def is_squared_euclidean(self) -> bool:  # noqa: D102
-    return isinstance(self.cost_fn, costs.SqEuclidean)
-
-  @property
-  def is_online(self) -> bool:
-    """Whether the cost/kernel is computed on-the-fly."""
-    return self.batch_size is not None
-
-  @property
-  def cost_rank(self) -> int:  # noqa: D102
-    return self.x.shape[1]
-
-  @property
-  def inv_scale_cost(self) -> float:  # noqa: D102
-    if isinstance(self._scale_cost, (int, float, jax.Array)):
-      return 1.0 / self._scale_cost
-    self = self._masked_geom()
-    if self._scale_cost == "max_cost":
-      if self.is_online:
-        return 1.0 / self._compute_summary_online(self._scale_cost)
-      return 1.0 / jnp.max(self._unscaled_cost_matrix)
-    if self._scale_cost == "mean":
-      if self.is_online:
-        return 1.0 / self._compute_summary_online(self._scale_cost)
-      geom = self._masked_geom(mask_value=jnp.nan)._unscaled_cost_matrix
-      return 1.0 / jnp.nanmean(geom)
-    if self._scale_cost == "median":
-      if not self.is_online:
-        geom = self._masked_geom(mask_value=jnp.nan)
-        return 1.0 / jnp.nanmedian(geom._unscaled_cost_matrix)
-      raise NotImplementedError(
-          "Using the median as scaling factor for "
-          "the cost matrix with the online mode is not implemented."
-      )
-    if not hasattr(self.cost_fn, "norm"):
-      raise ValueError("Cost function has no norm method.")
-    norm_x = self.cost_fn.norm(self.x)
-    norm_y = self.cost_fn.norm(self.y)
-    if self._scale_cost == "max_norm":
-      return 1.0 / jnp.maximum(norm_x.max(), norm_y.max())
-    if self._scale_cost == "max_bound":
-      if self.is_squared_euclidean:
-        x_argmax = jnp.argmax(norm_x)
-        y_argmax = jnp.argmax(norm_y)
-        max_bound = (
-            norm_x[x_argmax] + norm_y[y_argmax] +
-            2 * jnp.sqrt(norm_x[x_argmax] * norm_y[y_argmax])
-        )
-        return 1.0 / max_bound
-      raise NotImplementedError(
-          "Using max_bound as scaling factor for "
-          "the cost matrix when the cost is not squared euclidean "
-          "is not implemented."
-      )
-    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
-
-  @property
-  def _unscaled_cost_matrix(self) -> jnp.ndarray:
-    return self.cost_fn.all_pairs(self.x, self.y)
 
   def apply_lse_kernel(  # noqa: D102
       self,
@@ -483,8 +396,91 @@ class PointCloud(geometry.Geometry):
     )
 
   @property
+  def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+    return self.inv_scale_cost * self._unscaled_cost_matrix
+
+  @property
+  def _unscaled_cost_matrix(self) -> jnp.ndarray:
+    return self.cost_fn.all_pairs(self.x, self.y)
+
+  @property
+  def inv_scale_cost(self) -> float:  # noqa: D102
+    if isinstance(self._scale_cost, (int, float, jax.Array)):
+      return 1.0 / self._scale_cost
+    self = self._masked_geom()
+    if self._scale_cost == "max_cost":
+      if self.is_online:
+        return 1.0 / self._compute_summary_online(self._scale_cost)
+      return 1.0 / jnp.max(self._unscaled_cost_matrix)
+    if self._scale_cost == "mean":
+      if self.is_online:
+        return 1.0 / self._compute_summary_online(self._scale_cost)
+      geom = self._masked_geom(mask_value=jnp.nan)._unscaled_cost_matrix
+      return 1.0 / jnp.nanmean(geom)
+    if self._scale_cost == "median":
+      if not self.is_online:
+        geom = self._masked_geom(mask_value=jnp.nan)
+        return 1.0 / jnp.nanmedian(geom._unscaled_cost_matrix)
+      raise NotImplementedError(
+          "Using the median as scaling factor for "
+          "the cost matrix with the online mode is not implemented."
+      )
+    if not hasattr(self.cost_fn, "norm"):
+      raise ValueError("Cost function has no norm method.")
+    norm_x = self.cost_fn.norm(self.x)
+    norm_y = self.cost_fn.norm(self.y)
+    if self._scale_cost == "max_norm":
+      return 1.0 / jnp.maximum(norm_x.max(), norm_y.max())
+    if self._scale_cost == "max_bound":
+      if self.is_squared_euclidean:
+        x_argmax = jnp.argmax(norm_x)
+        y_argmax = jnp.argmax(norm_y)
+        max_bound = (
+            norm_x[x_argmax] + norm_y[y_argmax] +
+            2 * jnp.sqrt(norm_x[x_argmax] * norm_y[y_argmax])
+        )
+        return 1.0 / max_bound
+      raise NotImplementedError(
+          "Using max_bound as scaling factor for "
+          "the cost matrix when the cost is not squared euclidean "
+          "is not implemented."
+      )
+    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
+
+  @property
+  def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+    return jnp.exp(-self.cost_matrix / self.epsilon)
+
+  @property
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
+    return self.x.shape[0], self.y.shape[0]
+
+  @property
   def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.x.dtype
+
+  @property
+  def is_symmetric(self) -> bool:  # noqa: D102
+    return self.y is None or (
+        jnp.all(self.x.shape == self.y.shape) and jnp.all(self.x == self.y)
+    )
+
+  @property
+  def is_squared_euclidean(self) -> bool:  # noqa: D102
+    return isinstance(self.cost_fn, costs.SqEuclidean)
+
+  @property
+  def can_LRC(self):  # noqa: D102
+    return self.is_squared_euclidean and self._check_LRC_dim
+
+  @property
+  def _check_LRC_dim(self):
+    (n, m), d = self.shape, self.x.shape[1]
+    return n * m > (n + m) * d
+
+  @property
+  def cost_rank(self) -> int:  # noqa: D102
+    return self.x.shape[1]
 
   @property
   def batch_size(self) -> Optional[int]:
@@ -493,3 +489,8 @@ class PointCloud(geometry.Geometry):
       return None
     n, m = self.shape
     return min(n, m, self._batch_size)
+
+  @property
+  def is_online(self) -> bool:
+    """Whether the cost/kernel is computed on-the-fly."""
+    return self.batch_size is not None
