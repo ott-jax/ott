@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import Any, Optional
 
 import pytest
 
@@ -33,6 +33,11 @@ class TestBatchedVmap:
     np.testing.assert_array_equal(gt_fn(x), fn(x))
 
   def test_pytree(self, rng: jax.Array):
+
+    def f(x: Any) -> jnp.ndarray:
+      return x["foo"]["bar"].std() + x["baz"].mean(
+      ) + x["quux"][0] * x["quux"][1]
+
     rng1, rng2, rng3 = jax.random.split(rng, 3)
     x = {
         "foo": {
@@ -43,7 +48,6 @@ class TestBatchedVmap:
     }
     in_axes = [{"foo": {"bar": 0}, "baz": 1, "quux": (None, None)}]
 
-    f = lambda x: x["foo"]["bar"].std() + x["baz"].mean() + x["quux"][0]
     gt_fn = jax.vmap(f, in_axes=in_axes)
     fn = utils.batched_vmap(f, in_axes=in_axes, batch_size=2)
 
