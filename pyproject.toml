@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ott-jax"
-description = "Optimal Transport Tools in JAX."
+description = "Optimal Transport Tools in JAX"
 requires-python = ">=3.9"
 dynamic = ["version"]
 readme = {file = "README.md", content-type = "text/markdown"}
