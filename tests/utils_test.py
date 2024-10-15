@@ -56,8 +56,22 @@ class TestBatchedVmap:
 
     np.testing.assert_array_equal(gt_fn(x), fn(x))
 
-  def test_in_axes(self):
-    pass
+  @pytest.mark.parametrize("in_axes", [0, 1, [0, None]])
+  def test_in_axes(self, rng: jax.Array, in_axes: Any):
+
+    def f(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+      x = jnp.atleast_2d(x)
+      y = jnp.atleast_2d(y)
+      return jnp.dot(x, y.T)
+
+    rng1, rng2 = jax.random.split(rng, 2)
+    x = jax.random.normal(rng1, (15, 3)) + 10.0
+    y = jax.random.normal(rng2, (15, 3))
+
+    gt_fn = jax.jit(jax.vmap(f, in_axes=in_axes))
+    fn = jax.jit(utils.batched_vmap(f, batch_size=5, in_axes=in_axes))
+
+    np.testing.assert_array_equal(gt_fn(x, y), fn(x, y))
 
   @pytest.mark.parametrize("out_axes", [0, 1, 2])
   def test_out_axes(self, rng: jax.Array, out_axes: int):
@@ -81,7 +95,7 @@ class TestBatchedVmap:
           }
       }, (1,))]
   )
-  def test_multiple_out_axes(self, rng: jax.Array, out_axes: Any):
+  def test_out_axes_pytree(self, rng: jax.Array, out_axes: Any):
 
     def f(x: jnp.ndarray) -> Any:
       z = jnp.arange(9).reshape(3, 3)

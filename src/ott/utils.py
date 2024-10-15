@@ -245,10 +245,7 @@ def _prepare_axes(
 ) -> Any:
   axes = jax.api_util.flatten_axes(name, treedef, axes, kws=False)
   assert len(leaves) == len(axes), (len(leaves), len(axes))
-  axes = [
-      axis if axis is None else _canonicalize_axis(axis, jnp.ndim(leaf))
-      for axis, leaf in zip(axes, leaves)
-  ]
+  # TODO(michalk8): enable negative axes
   return axes if return_flat else treedef.unflatten(axes)
 
 
