@@ -90,8 +90,21 @@ class TestBatchedVmap:
 
     np.testing.assert_array_equal(fn(x), x.sum(1))
 
-  def test_max_memory(self):
-    pass
+  @pytest.mark.limit_memory("10MB")
+  def test_vmap_max_memory(self, rng: jax.Array):
+    n, m, d = 2 ** 16, 2 ** 11, 3
+    rng, rng_data = jax.random.split(rng, 2)
+    y = jax.random.normal(rng_data, (m, d))
+
+    fn = utils.batched_vmap(
+        lambda x, y: jnp.dot(y, x).sum(), in_axes=[0, None], batch_size=128
+    )
+    fn = jax.jit(fn)
+
+    rng, rng_data = jax.random.split(rng, 2)
+    x = jax.random.normal(rng_data, (n, d))
+    res = fn(x, y)
+    assert res.shape == (n,)
 
 
 @pytest.mark.parametrize(("version", "msg"), [(None, "foo, bar, baz"),
