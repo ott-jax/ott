@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from typing import Any, Optional
 
 import chex
@@ -55,6 +56,9 @@ class TestBatchedVmap:
 
     np.testing.assert_array_equal(gt_fn(x), fn(x))
 
+  def test_in_axes(self):
+    pass
+
   @pytest.mark.parametrize("out_axes", [0, 1, 2])
   def test_out_axes(self, rng: jax.Array, out_axes: int):
 
@@ -70,11 +74,21 @@ class TestBatchedVmap:
 
     chex.assert_trees_all_equal(gt_fn(x, y), fn(x, y))
 
-  def test_no_remainder(self):
-    pass
+  @pytest.mark.parametrize("n", [16, 7])
+  @pytest.mark.parametrize("batch_size", [1, 4, 5, 7, 16])
+  def test_max_traces(self, rng: jax.Array, batch_size: int, n: int):
+    max_traces = 1 + (n % batch_size != 0)
 
-  def test_in_axes(self):
-    pass
+    @jax.jit
+    @functools.partial(utils.batched_vmap, batch_size=batch_size)
+    @chex.assert_max_traces(n=max_traces)
+    def fn(x: jnp.ndarray) -> jnp.ndarray:
+      return x.sum()
+
+    chex.clear_trace_counter()
+    x = jax.random.normal(rng, (n, 3))
+
+    np.testing.assert_array_equal(fn(x), x.sum(1))
 
   def test_max_memory(self):
     pass
