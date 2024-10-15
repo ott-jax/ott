@@ -230,7 +230,8 @@ def _prepare_info(status: IOStatus) -> Tuple[int, int, int, np.ndarray]:
   return iteration, inner_iterations, total_iter, errors
 
 
-def _canonicalize_axis(axis: int, num_dims: int) -> int:
+def _canonicalize_axis(axis: int, num_dims: int, *, has_extra_dim: bool) -> int:
+  num_dims -= has_extra_dim
   if not -num_dims <= axis < num_dims:
     raise ValueError(
         f"axis {axis} is out of bounds for array of dimension {num_dims}"
@@ -241,11 +242,21 @@ def _canonicalize_axis(axis: int, num_dims: int) -> int:
 
 
 def _prepare_axes(
-    name: str, leaves: Any, treedef: Any, axes: Any, *, return_flat: bool
+    name: str,
+    leaves: Any,
+    treedef: Any,
+    axes: Any,
+    *,
+    return_flat: bool,
+    has_extra_dim: bool,
 ) -> Any:
   axes = jax.api_util.flatten_axes(name, treedef, axes, kws=False)
   assert len(leaves) == len(axes), (len(leaves), len(axes))
-  # TODO(michalk8): enable negative axes
+  axes = [
+      axis if axis is None else
+      _canonicalize_axis(axis, jnp.ndim(leaf), has_extra_dim=has_extra_dim)
+      for axis, leaf in zip(axes, leaves)
+  ]
   return axes if return_flat else treedef.unflatten(axes)
 
 
@@ -255,15 +266,21 @@ def _batch_and_remainder(
     batch_size: int,
     in_axes: Optional[Union[int, Sequence[int], Any]],
 ) -> Tuple[Any, Any]:
-  assert batch_size > 0, f"Batch size must be positive, got {batch_size}. "
+  assert batch_size > 0, f"Batch size must be positive, got {batch_size}."
   leaves, treedef = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
   in_axes = _prepare_axes(
-      "vmap in_axes", leaves, treedef, in_axes, return_flat=True
+      "vmap in_axes",
+      leaves,
+      treedef,
+      in_axes,
+      return_flat=True,
+      has_extra_dim=False,
   )
   assert not all(
       axis is None for axis in in_axes
   ), "vmap must have at least one non-None value in in_axes"
 
+  num_splits = None
   has_scan, has_remainder = False, False
   scan_leaves, remainder_leaves = [], []
 
@@ -271,7 +288,12 @@ def _batch_and_remainder(
     if axis is None:
       scan_leaf = remainder_leaf = leaf
     else:
-      num_splits, _ = divmod(leaf.shape[axis], batch_size)
+      if num_splits is None:
+        num_splits, _ = divmod(leaf.shape[axis], batch_size)
+      else:
+        curr_num_splits, _ = divmod(leaf.shape[axis], batch_size)
+        # TODO(michalk8): better error message
+        assert num_splits == curr_num_splits, (num_splits, curr_num_splits)
       num_elems = num_splits * batch_size
 
       scan_leaf = jax.lax.slice_in_dim(leaf, None, num_elems, axis=axis)
@@ -321,7 +343,12 @@ def _apply_scan(
 
     leaves, treedef = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
     axes = _prepare_axes(
-        "vmap in_axes", leaves, treedef, in_axes, return_flat=True
+        "vmap in_axes",
+        leaves,
+        treedef,
+        in_axes,
+        return_flat=True,
+        has_extra_dim=True,
     )
     n = num_steps(axes, args)
 
@@ -370,7 +397,12 @@ def batched_vmap(
       batched = batched_fun(*batched, **kwargs)
       leaves, treedef = jax.tree.flatten(batched, is_leaf=batching.is_vmappable)
       out_axes_ = _prepare_axes(
-          "vmap out_axes", leaves, treedef, out_axes, return_flat=False
+          "vmap out_axes",
+          leaves,
+          treedef,
+          out_axes,
+          return_flat=False,
+          has_extra_dim=True,
       )
       batched = jax.tree.map(unbatch, out_axes_, batched)
     if has_remainder:

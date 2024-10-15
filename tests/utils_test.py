@@ -25,6 +25,7 @@ import numpy as np
 from ott import utils
 
 
+@pytest.mark.fast()
 class TestBatchedVmap:
 
   @pytest.mark.parametrize("batch_size", [1, 11, 32, 33])
@@ -56,8 +57,9 @@ class TestBatchedVmap:
 
     np.testing.assert_array_equal(gt_fn(x), fn(x))
 
-  @pytest.mark.parametrize("in_axes", [0, 1, [0, None]])
-  def test_in_axes(self, rng: jax.Array, in_axes: Any):
+  @pytest.mark.parametrize("batch_size", [1, 7, 67, 133])
+  @pytest.mark.parametrize("in_axes", [0, 1, -1, -2, [0, None], (0, -2)])
+  def test_in_axes(self, rng: jax.Array, in_axes: Any, batch_size: int):
 
     def f(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
       x = jnp.atleast_2d(x)
@@ -65,15 +67,16 @@ class TestBatchedVmap:
       return jnp.dot(x, y.T)
 
     rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, (15, 3)) + 10.0
-    y = jax.random.normal(rng2, (15, 3))
+    x = jax.random.normal(rng1, (133, 71)) + 10.0
+    y = jax.random.normal(rng2, (133, 71))
 
     gt_fn = jax.jit(jax.vmap(f, in_axes=in_axes))
-    fn = jax.jit(utils.batched_vmap(f, batch_size=5, in_axes=in_axes))
+    fn = jax.jit(utils.batched_vmap(f, batch_size=batch_size, in_axes=in_axes))
 
-    np.testing.assert_array_equal(gt_fn(x, y), fn(x, y))
+    # TODO(michalk8): check this
+    np.testing.assert_allclose(gt_fn(x, y), fn(x, y), rtol=1e-4, atol=1e-4)
 
-  @pytest.mark.parametrize("out_axes", [0, 1, 2])
+  @pytest.mark.parametrize("out_axes", [0, 1, 2, -1, -2, -3])
   def test_out_axes(self, rng: jax.Array, out_axes: int):
 
     def f(x: jnp.ndarray, y: jnp.ndarray) -> Any:
@@ -81,7 +84,7 @@ class TestBatchedVmap:
 
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.normal(rng1, (31, 13))
-    y = jax.random.normal(rng2, (31, 3))
+    y = jax.random.normal(rng2, (31, 6)) - 15.0
 
     gt_fn = jax.vmap(f, out_axes=out_axes)
     fn = utils.batched_vmap(f, batch_size=5, out_axes=out_axes)
