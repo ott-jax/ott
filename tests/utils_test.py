@@ -15,6 +15,10 @@ from typing import Optional
 
 import pytest
 
+import jax
+import jax.numpy as jnp
+import numpy as np
+
 from ott import utils
 
 
@@ -37,3 +41,29 @@ def test_deprecation_warning(version: Optional[str], msg: Optional[str]):
   with pytest.warns(DeprecationWarning, match=expected_msg):
     res = func()
   assert res == 42
+
+
+class TestBatchedVmap:
+
+  @pytest.mark.parametrize("batch_size", [1, 11, 32, 33])
+  def test_batch_size(self, rng: jax.Array, batch_size: int):
+    x = jax.random.normal(rng, (32, 2))
+    gt_fn = jax.jit(jax.vmap(jnp.sum))
+    fn = jax.jit(utils.batched_vmap(jnp.sum, batch_size=batch_size))
+
+    np.testing.assert_array_equal(gt_fn(x), fn(x))
+
+  def test_pytree(self):
+    pass
+
+  def test_empty_arrays(self):
+    pass
+
+  def test_no_remainder(self):
+    pass
+
+  def test_in_axes(self):
+    pass
+
+  def test_max_memory(self):
+    pass
