@@ -74,6 +74,26 @@ class TestBatchedVmap:
 
     chex.assert_trees_all_equal(gt_fn(x, y), fn(x, y))
 
+  @pytest.mark.parametrize(
+      "out_axes", [0, (0, 0, 1), (0, {
+          "x": {
+              "y": 1
+          }
+      }, (1,))]
+  )
+  def test_multiple_out_axes(self, rng: jax.Array, out_axes: Any):
+
+    def f(x: jnp.ndarray) -> Any:
+      z = jnp.arange(9).reshape(3, 3)
+      return x.mean(), {"x": {"y": jnp.ones(13)}}, (z,)
+
+    x = jax.random.normal(rng, (13, 5))
+
+    fn = utils.batched_vmap(f, batch_size=12, out_axes=out_axes)
+    gt_fn = jax.vmap(f, out_axes=out_axes)
+
+    chex.assert_trees_all_equal(gt_fn(x), fn(x))
+
   @pytest.mark.parametrize("n", [16, 7])
   @pytest.mark.parametrize("batch_size", [1, 4, 5, 7, 16])
   def test_max_traces(self, rng: jax.Array, batch_size: int, n: int):
