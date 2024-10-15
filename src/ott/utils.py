@@ -320,7 +320,18 @@ def batched_vmap(
     in_axes: Optional[Union[int, Sequence[int], Any]] = 0,
     out_axes: Any = 0,
 ) -> Callable[P, R]:
-  """TODO."""
+  """Batched version of :func:`~jax.vmap`.
+
+  Args:
+    fun: Function to be mapped over additional axes.
+    batch_size: Size of the batch.
+    in_axes: Values specifying which input array axes to map over.
+    out_axes: Values specifying where the mapped axis should appear
+      in the output.
+
+  Returns:
+    The vectorized function.
+  """
 
   def unbatch(x: jnp.ndarray, axis: int) -> jnp.ndarray:
     axis = _canonicalize_axis(axis, x.ndim - 1)
@@ -352,7 +363,6 @@ def batched_vmap(
     # TODO(michalk8): check for empty arrays
     return remainder
 
-  # TODO(michalk8): fix out_axes
   if isinstance(in_axes, list):
     in_axes = tuple(in_axes)
 
