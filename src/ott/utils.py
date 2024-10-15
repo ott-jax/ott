@@ -27,8 +27,10 @@ from typing import (
     Union,
 )
 
-# TODO(michalk8): add to requirements
-from typing_extensions import ParamSpec
+try:
+  from typing import ParamSpec
+except ImportError:
+  from typing_extensions import ParamSpec
 
 import jax
 import jax.numpy as jnp
