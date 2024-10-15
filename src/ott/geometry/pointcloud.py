@@ -136,7 +136,8 @@ class PointCloud(geometry.Geometry):
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
       )
-    # TODO(michalk8): check if it exists
+    if not hasattr(self.cost_fn, "norm"):
+      raise ValueError("Cost function has no norm method.")
     norm_x = self.cost_fn.norm(self.x)
     norm_y = self.cost_fn.norm(self.y)
     if self._scale_cost == "max_norm":
