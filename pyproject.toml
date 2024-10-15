@@ -47,6 +47,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 [project.urls]
@@ -75,7 +76,7 @@ test = [
     "networkx>=2.5",
     "scikit-learn>=1.0",
     "tqdm",
-    "tslearn>=0.5",
+    "tslearn>=0.5; python_version < '3.13'",
     "matplotlib",
 ]
 docs = [
@@ -185,14 +186,14 @@ ignore_path = ["docs/**/_autosummary", "docs/contributing.rst"]
 legacy_tox_ini = """
 [tox]
 min_version = 4.0
-env_list = lint-code,py{3.9,3.10,3.11,3.12},py3.9-jax-default
+env_list = lint-code,py{3.9,3.10,3.11,3.12,3.13},py3.10-jax-default
 skip_missing_interpreters = true
 
 [testenv]
 extras =
     test
     # https://github.com/google/flax/issues/3329
-    py{3.9,3.10,3.11,3.12},py3.9-jax-default: neural
+    py{3.9,3.10,3.11,3.12,3.13},py3.10-jax-default: neural
 pass_env = CUDA_*,PYTEST_*,CI
 commands_pre =
     gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html

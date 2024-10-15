@@ -21,7 +21,6 @@ import jax.numpy as jnp
 import jaxopt
 import numpy as np
 import scipy as sp
-from tslearn import metrics as ts_metrics
 
 from ott.geometry import costs, pointcloud, regularizers
 from ott.math import utils as mu
@@ -369,6 +368,7 @@ class TestSoftDTW:
   @pytest.mark.parametrize("m", [9, 10])
   @pytest.mark.parametrize("gamma", [1e-3, 5])
   def test_soft_dtw(self, rng: jax.Array, n: int, m: int, gamma: float):
+    ts_metrics = pytest.importorskip("tslearn.metrics")
     rng1, rng2 = jax.random.split(rng, 2)
     t1 = jax.random.normal(rng1, (n,))
     t2 = jax.random.normal(rng2, (m,))
@@ -385,6 +385,7 @@ class TestSoftDTW:
       debiased: bool,
       jit: bool,
   ):
+    ts_metrics = pytest.importorskip("tslearn.metrics")
     gamma = 1e-1
     rng1, rng2 = jax.random.split(rng, 2)
     t1 = jax.random.normal(rng1, (16,))
