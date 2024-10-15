@@ -256,6 +256,7 @@ def _batch_and_remainder(
     batch_size: int,
     in_axes: Optional[Union[int, Sequence[int], Any]],
 ) -> Tuple[Any, Any]:
+  assert batch_size > 0, f"Batch size must be positive, got {batch_size}. "
   leaves, treedef = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
   in_axes = _prepare_axes(
       "vmap in_axes", leaves, treedef, in_axes, return_flat=True
@@ -271,7 +272,6 @@ def _batch_and_remainder(
     if axis is None:
       scan_leaf = remainder_leaf = leaf
     else:
-      assert batch_size > 0, batch_size
       num_splits, _ = divmod(leaf.shape[axis], batch_size)
       num_elems = num_splits * batch_size
 
