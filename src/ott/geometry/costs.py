@@ -14,7 +14,7 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Dict, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -39,29 +39,16 @@ __all__ = [
     "SoftDTW",
 ]
 
+# TODO(michalk8): norm check
 Func = Callable[[jnp.ndarray], float]
 
 
 @jtu.register_pytree_node_class
 class CostFn(abc.ABC):
-  """Base class for all costs.
-
-  Cost functions evaluate a function on a pair of inputs. For convenience,
-  that function is split into two norms -- evaluated on each input separately --
-  followed by a pairwise cost that involves both inputs, as in:
-
-  .. math::
-    c(x, y) = norm(x) + norm(y) + pairwise(x, y)
-
-  If the :attr:`norm` function is not implemented, that value is handled as
-  :math:`0`, and only :func:`pairwise` is used.
-  """
-
-  # no norm function created by default.
-  norm: Optional[Callable[[jnp.ndarray], Union[float, jnp.ndarray]]] = None
+  """Base class for all costs."""
 
   @abc.abstractmethod
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost between :math:`x` and :math:`y`.
 
     Args:
@@ -99,22 +86,6 @@ class CostFn(abc.ABC):
     """
     return jnp.zeros((1, dim))
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Compute cost between :math:`x` and :math:`y`.
-
-    Args:
-      x: Array.
-      y: Array.
-
-    Returns:
-      The cost, optionally including the :attr:`norms <norm>` of
-      :math:`x`/:math:`y`.
-    """
-    cost = self.pairwise(x, y)
-    if self.norm is None:
-      return cost
-    return cost + self.norm(x) + self.norm(y)
-
   def all_pairs(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """Compute matrix of all pairwise costs, including the :attr:`norms <norm>`.
 
@@ -126,18 +97,6 @@ class CostFn(abc.ABC):
       Array of shape ``[n, m]`` of cost evaluations.
     """
     return jax.vmap(lambda x_: jax.vmap(lambda y_: self(x_, y_))(y))(x)
-
-  def all_pairs_pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """Compute matrix of all pairwise costs, excluding the :attr:`norms <norm>`.
-
-    Args:
-      x: Array of shape ``[n, ...]``.
-      y: Array of shape ``[m, ...]``.
-
-    Returns:
-      Array of shape ``[n, m]`` of cost evaluations.
-    """
-    return jax.vmap(lambda x_: jax.vmap(lambda y_: self.pairwise(x_, y_))(y))(x)
 
   def twist_operator(
       self, vec: jnp.ndarray, dual_vec: jnp.ndarray, variable: bool
@@ -200,7 +159,7 @@ class TICost(CostFn):
     """Legendre transform of :func:`h` when it is convex."""
     raise NotImplementedError("Legendre transform of `h` is not implemented.")
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute cost as evaluation of :func:`h` on :math:`x-y`."""
     return self.h(x - y)
 
@@ -539,8 +498,8 @@ class Euclidean(CostFn):
   because the function is not strictly convex (it is linear on rays).
   """
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Compute Euclidean norm using custom jvp implementation.
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    """Compute sq. Euclidean distance using a custom jvp implementation.
 
     Here we use a custom jvp implementation for the norm that does not yield
     `NaN` gradients when differentiating the norm of `(x-x)`, but defaults
@@ -556,13 +515,14 @@ class SqEuclidean(TICost):
   Implemented as a translation invariant cost, :math:`h(z) = \|z\|^2`.
   """
 
-  def norm(self, x: jnp.ndarray) -> Union[float, jnp.ndarray]:
+  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute squared Euclidean norm for vector."""
     return jnp.sum(x ** 2, axis=-1)
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute minus twice the dot-product between vectors."""
-    return -2.0 * jnp.vdot(x, y)
+    cross_term = -2.0 * jnp.vdot(x, y)
+    return self.norm(x) + self.norm(y) + cross_term
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
     return jnp.sum(z ** 2)
@@ -588,7 +548,7 @@ class Cosine(CostFn):
     super().__init__()
     self._ridge = ridge
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
@@ -624,7 +584,7 @@ class Arccos(CostFn):
     self.n = n
     self._ridge = ridge
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
     x_norm = jnp.linalg.norm(x, axis=-1)
     y_norm = jnp.linalg.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
@@ -688,7 +648,7 @@ class Bures(CostFn):
     norm += jnp.trace(cov, axis1=-2, axis2=-1)
     return norm
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute - 2 x Bures dot-product."""
     mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
     mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
@@ -698,7 +658,10 @@ class Bures(CostFn):
     sq__sq_x_y_sq_x = matrix_square_root.sqrtm(
         sq_x_y_sq_x, self._dimension, **self._sqrtm_kw
     )[0]
-    return -2 * (mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1))
+    cross_term = -2.0 * (
+        mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1)
+    )
+    return self.norm(x) + self.norm(y) + cross_term
 
   def covariance_fixpoint_iter(
       self,
@@ -883,7 +846,7 @@ class UnbalancedBures(CostFn):
     """
     return self._gamma * x[..., 0]
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Compute dot-product for unbalanced Bures.
 
     Args:
@@ -939,12 +902,13 @@ class UnbalancedBures(CostFn):
     log_m_pi += -0.5 * ldet_c_ab
 
     # if all logdet signs are 1, output value, nan otherwise
-    pos_signs = (sldet_c + sldet_c_ab + sldet_t_ab + sldet_t_ab) == 4
+    pos_signs = (sldet_c + sldet_c_ab + sldet_ab + sldet_t_ab) == 4
 
-    return jax.lax.cond(
+    cross_term = jax.lax.cond(
         pos_signs, lambda: 2 * sig2 * mass_x * mass_y - 2 *
         (sig2 + gam) * jnp.exp(log_m_pi), lambda: jnp.nan
     )
+    return self.norm(x) + self.norm(y) + cross_term
 
   def tree_flatten(self):  # noqa: D102
     return (), (self._dimension, self._sigma, self._gamma, self._sqrtm_kw)
@@ -977,7 +941,7 @@ class SoftDTW(CostFn):
     self.ground_cost = SqEuclidean() if ground_cost is None else ground_cost
     self.debiased = debiased
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
     c_xy = self._soft_dtw(x, y)
     if self.debiased:
       return c_xy - 0.5 * (self._soft_dtw(x, x) + self._soft_dtw(y, y))

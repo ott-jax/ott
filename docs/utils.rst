@@ -11,3 +11,4 @@ function for :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
 
     default_progress_fn
     tqdm_progress_fn
+    batched_vmap

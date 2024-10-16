@@ -162,8 +162,8 @@ class QuadraticProblem:
       f1, f2 = self.linear_loss
       tmp1 = apply_cost(geom_xx, marginal_1, axis=1, fn=f1)
       tmp2 = apply_cost(geom_yy, marginal_2, axis=1, fn=f2)
-    x_term = jnp.concatenate((tmp1, jnp.ones_like(tmp1)), axis=1)
-    y_term = jnp.concatenate((jnp.ones_like(tmp2), tmp2), axis=1)
+    x_term = jnp.stack([tmp1, jnp.ones_like(tmp1)], axis=-1)
+    y_term = jnp.stack([jnp.ones_like(tmp2), tmp2], axis=-1)
     return low_rank.LRCGeometry(cost_1=x_term, cost_2=y_term)
 
   def cost_unbalanced_correction(
@@ -350,13 +350,7 @@ class QuadraticProblem:
 
   @property
   def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
-    if not self.is_fused:
-      return 0.0
-    geom_xy = self.geom_xy
-
-    if isinstance(geom_xy, pointcloud.PointCloud) and geom_xy.is_online:
-      return geom_xy._compute_cost_matrix() * geom_xy.inv_scale_cost
-    return geom_xy.cost_matrix
+    return self.geom_xy.cost_matrix if self.is_fused else 0.0
 
   @property
   def _is_low_rank_convertible(self) -> bool:

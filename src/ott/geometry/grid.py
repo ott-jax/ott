@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-from typing import Any, List, NoReturn, Optional, Sequence, Tuple
+from typing import Any, Callable, List, NoReturn, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -209,7 +209,11 @@ class Grid(geometry.Geometry):
     return jnp.transpose(softmax_res, indices), None
 
   def _apply_cost_to_vec(
-      self, vec: jnp.ndarray, axis: int = 0, fn=None
+      self,
+      vec: jnp.ndarray,
+      axis: int = 0,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     r"""Apply grid's cost matrix (without instantiating it) to a vector.
 
@@ -233,10 +237,13 @@ class Grid(geometry.Geometry):
       axis: axis 0 if applying transpose costs, 1 if using the original cost.
       fn: function optionally applied to cost matrix element-wise, before the
         dot product.
+      is_linear: TODO.
 
     Returns:
       A jnp.ndarray corresponding to cost x matrix
     """
+    # TODO(michalk8):
+    del fn, is_linear
     vec = jnp.reshape(vec, self.grid_size)
     accum_vec = jnp.zeros_like(vec)
     indices = list(range(1, self.grid_dimension))
@@ -255,7 +262,7 @@ class Grid(geometry.Geometry):
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: Optional[int] = None
   ) -> jnp.ndarray:
@@ -269,24 +276,22 @@ class Grid(geometry.Geometry):
     More implementation details in :cite:`schmitz:18`,
 
     Args:
-      scaling: jnp.ndarray, a vector of scaling (>0) values.
+      vec: jnp.ndarray, a vector of scaling (>0) values.
       eps: float, regularization strength
       axis: axis (0 or 1) along which summation should be carried out.
 
     Returns:
       a vector, the result of kernel applied onto scaling.
     """
-    scaling = jnp.reshape(scaling, self.grid_size)
+    vec = jnp.reshape(vec, self.grid_size)
     indices = list(range(1, self.grid_dimension))
     for dimension, geom in enumerate(self.geometries):
       kernel = geom.kernel_matrix
       kernel = kernel if eps is None else kernel ** (self.epsilon / eps)
       ind = indices.copy()
       ind.insert(dimension, 0)
-      scaling = jnp.tensordot(
-          kernel, scaling, axes=([0], [dimension])
-      ).transpose(ind)
-    return scaling.ravel()
+      vec = jnp.tensordot(kernel, vec, axes=([0], [dimension])).transpose(ind)
+    return vec.ravel()
 
   def transport_from_potentials(
       self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0

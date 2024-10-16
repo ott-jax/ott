@@ -11,12 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import math
 from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import costs, geometry, low_rank
 from ott.math import utils as mu
 
@@ -60,132 +60,19 @@ class PointCloud(geometry.Geometry):
       y: Optional[jnp.ndarray] = None,
       cost_fn: Optional[costs.CostFn] = None,
       batch_size: Optional[int] = None,
-      scale_cost: Union[int, float, Literal["mean", "max_norm", "max_bound",
-                                            "max_cost", "median"]] = 1.0,
-      **kwargs: Any
+      scale_cost: Union[float, Literal["mean", "max_norm", "max_bound",
+                                       "max_cost", "median"]] = 1.0,
+      **kwargs: Any,
   ):
     super().__init__(**kwargs)
     self.x = x
     self.y = self.x if y is None else y
 
     self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
-    self._axis_norm = 0 if callable(self.cost_fn.norm) else None
     if batch_size is not None:
       assert batch_size > 0, f"`batch_size={batch_size}` must be positive."
     self._batch_size = batch_size
     self._scale_cost = scale_cost
-
-  @property
-  def _norm_x(self) -> Union[float, jnp.ndarray]:
-    if self._axis_norm == 0:
-      return self.cost_fn.norm(self.x)
-    return 0.0
-
-  @property
-  def _norm_y(self) -> Union[float, jnp.ndarray]:
-    if self._axis_norm == 0:
-      return self.cost_fn.norm(self.y)
-    return 0.0
-
-  @property
-  def can_LRC(self):  # noqa: D102
-    return self.is_squared_euclidean and self._check_LRC_dim
-
-  @property
-  def _check_LRC_dim(self):
-    (n, m), d = self.shape, self.x.shape[1]
-    return n * m > (n + m) * d
-
-  @property
-  def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
-    if self.is_online:
-      return None
-    cost_matrix = self._compute_cost_matrix()
-    return cost_matrix * self.inv_scale_cost
-
-  @property
-  def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
-    if self.is_online:
-      return None
-    return jnp.exp(-self.cost_matrix / self.epsilon)
-
-  @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
-    # in the process of flattening/unflattening in vmap, `__init__`
-    # can be called with dummy objects
-    # we optionally access `shape` in order to get the batch size
-    if self.x is None or self.y is None:
-      return 0, 0
-    return self.x.shape[0], self.y.shape[0]
-
-  @property
-  def is_symmetric(self) -> bool:  # noqa: D102
-    return self.y is None or (
-        jnp.all(self.x.shape == self.y.shape) and jnp.all(self.x == self.y)
-    )
-
-  @property
-  def is_squared_euclidean(self) -> bool:  # noqa: D102
-    return isinstance(self.cost_fn, costs.SqEuclidean)
-
-  @property
-  def is_online(self) -> bool:
-    """Whether the cost/kernel is computed on-the-fly."""
-    return self.batch_size is not None
-
-  @property
-  def cost_rank(self) -> int:  # noqa: D102
-    return self.x.shape[1]
-
-  @property
-  def inv_scale_cost(self) -> float:  # noqa: D102
-    if isinstance(self._scale_cost, (int, float, jax.Array)):
-      return 1.0 / self._scale_cost
-    self = self._masked_geom()
-    if self._scale_cost == "max_cost":
-      if self.is_online:
-        return 1.0 / self._compute_summary_online(self._scale_cost)
-      return 1.0 / jnp.max(self._compute_cost_matrix())
-    if self._scale_cost == "mean":
-      if self.is_online:
-        return 1.0 / self._compute_summary_online(self._scale_cost)
-      if self.shape[0] > 0:
-        geom = self._masked_geom(mask_value=jnp.nan)._compute_cost_matrix()
-        return 1.0 / jnp.nanmean(geom)
-      return 1.0
-    if self._scale_cost == "median":
-      if not self.is_online:
-        geom = self._masked_geom(mask_value=jnp.nan)
-        return 1.0 / jnp.nanmedian(geom._compute_cost_matrix())
-      raise NotImplementedError(
-          "Using the median as scaling factor for "
-          "the cost matrix with the online mode is not implemented."
-      )
-    if self._scale_cost == "max_norm":
-      if self.cost_fn.norm is not None:
-        return 1.0 / jnp.maximum(self._norm_x.max(), self._norm_y.max())
-      return 1.0
-    if self._scale_cost == "max_bound":
-      if self.is_squared_euclidean:
-        x_argmax = jnp.argmax(self._norm_x)
-        y_argmax = jnp.argmax(self._norm_y)
-        max_bound = (
-            self._norm_x[x_argmax] + self._norm_y[y_argmax] +
-            2 * jnp.sqrt(self._norm_x[x_argmax] * self._norm_y[y_argmax])
-        )
-        return 1.0 / max_bound
-      raise NotImplementedError(
-          "Using max_bound as scaling factor for "
-          "the cost matrix when the cost is not squared euclidean "
-          "is not implemented."
-      )
-    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
-
-  def _compute_cost_matrix(self) -> jnp.ndarray:
-    cost_matrix = self.cost_fn.all_pairs_pairwise(self.x, self.y)
-    if self._axis_norm is not None:
-      cost_matrix += self._norm_x[:, jnp.newaxis] + self._norm_y[jnp.newaxis, :]
-    return cost_matrix
 
   def apply_lse_kernel(  # noqa: D102
       self,
@@ -194,233 +81,116 @@ class PointCloud(geometry.Geometry):
       eps: float,
       vec: Optional[jnp.ndarray] = None,
       axis: int = 0
-  ) -> jnp.ndarray:
-
-    def body0(carry, i: int):
-      f, g, eps, vec = carry
-      y, g_ = self._leading_slice(self.y, i), self._leading_slice(g, i)
-      norm_y = self._norm_y if self._axis_norm is None else self._leading_slice(
-          self._norm_y, i
-      )
-      h_res, h_sgn = app(
-          self.x, y, self._norm_x, norm_y, f, g_, eps, vec, cost_fn,
-          self.inv_scale_cost
-      )
-      return carry, (h_res, h_sgn)
-
-    def body1(carry, i: int):
-      f, g, eps, vec = carry
-      x, f_ = self._leading_slice(self.x, i), self._leading_slice(f, i)
-      norm_x = self._norm_x if self._axis_norm is None else self._leading_slice(
-          self._norm_x, i
-      )
-      h_res, h_sgn = app(
-          self.y, x, self._norm_y, norm_x, g, f_, eps, vec, cost_fn,
-          self.inv_scale_cost
-      )
-      return carry, (h_res, h_sgn)
-
-    def rest(i: int):
-      if axis == 0:
-        norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
-        return app(
-            self.x, self.y[i:], self._norm_x, norm_y, f, g[i:], eps, vec,
-            cost_fn, self.inv_scale_cost
-        )
-      norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
-      return app(
-          self.y, self.x[i:], self._norm_y, norm_x, g, f[i:], eps, vec, cost_fn,
-          self.inv_scale_cost
-      )
-
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     if not self.is_online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
-    app = jax.vmap(
-        _apply_lse_kernel_xy,
-        in_axes=[
-            None, 0, None, self._axis_norm, None, 0, None, None, None, None
-        ]
+    def apply(x: jnp.ndarray, y: jnp.ndarray, f: jnp.ndarray,
+              g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
+      cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
+      cost = cost.squeeze(1 - axis)
+      # axis=-1
+      res, sgn = mu.logsumexp((f + g - cost) / eps, b=vec, return_sign=True)
+      return eps * res, sgn
+
+    inv_scale_cost = self.inv_scale_cost
+    in_axes = (None, 0, None, 0) if axis == 0 else (0, None, 0, None)
+    batched_apply = utils.batched_vmap(
+        apply,
+        batch_size=self.batch_size,
+        in_axes=in_axes,
     )
-
-    if axis == 0:
-      fun, cost_fn = body0, self.cost_fn.pairwise
-      v, n = g, self._y_nsplit
-    elif axis == 1:
-      fun, cost_fn = body1, lambda y, x: self.cost_fn.pairwise(x, y)
-      v, n = f, self._x_nsplit
-    else:
-      raise ValueError(axis)
-
-    _, (h_res, h_sign) = jax.lax.scan(
-        fun, init=(f, g, eps, vec), xs=jnp.arange(n)
-    )
-    h_res, h_sign = jnp.concatenate(h_res), jnp.concatenate(h_sign)
-    h_res_rest, h_sign_rest = rest(n * self.batch_size)
-    h_res = jnp.concatenate([h_res, h_res_rest])
-    h_sign = jnp.concatenate([h_sign, h_sign_rest])
-
-    return eps * h_res - jnp.where(jnp.isfinite(v), v, 0), h_sign
+    w_res, w_sgn = batched_apply(self.x, self.y, f, g)
+    remove = f if axis == 1 else g
+    return w_res - jnp.where(jnp.isfinite(remove), remove, 0), w_sgn
 
   def apply_kernel(  # noqa: D102
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: int = 0
   ) -> jnp.ndarray:
     if eps is None:
       eps = self.epsilon
-
     if not self.is_online:
-      return super().apply_kernel(scaling, eps, axis)
+      return super().apply_kernel(vec, eps, axis)
 
-    # TODO(michalk8): batch this properly
-    app = jax.vmap(
-        _apply_kernel_xy,
-        in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
-    )
-    if axis == 0:
-      return app(
-          self.x, self.y, self._norm_x, self._norm_y, scaling, eps,
-          self.cost_fn.pairwise, self.inv_scale_cost
-      )
-    # for non-symmetric costs
-    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
-    return app(
-        self.y, self.x, self._norm_y, self._norm_x, scaling, eps, cost_fn,
-        self.inv_scale_cost
-    )
+    def apply(x: jnp.ndarray, y: jnp.ndarray, vec: jnp.ndarray) -> jnp.ndarray:
+      x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
+      cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
+      cost = cost.squeeze(1 - axis)
+      return jnp.dot(jnp.exp(-cost / eps), vec)
 
-  def transport_from_potentials(  # noqa: D102
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
-    if not self.is_online:
-      return super().transport_from_potentials(f, g)
-    in_axes = [None, 0, None, self._axis_norm, None, 0, None, None, None]
-    transport = jax.vmap(_transport_from_potentials_xy, in_axes=in_axes)
-    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
-    return transport(
-        self.y, self.x, self._norm_y, self._norm_x, g, f, self.epsilon, cost_fn,
-        self.inv_scale_cost
+    inv_scale_cost = self.inv_scale_cost
+    in_axes = (None, 0, None) if axis == 0 else (0, None, None)
+    batched_apply = utils.batched_vmap(
+        apply, batch_size=self.batch_size, in_axes=in_axes
     )
+    return batched_apply(self.x, self.y, vec)
 
-  def transport_from_scalings(  # noqa: D102
-      self, u: jnp.ndarray, v: jnp.ndarray
-  ) -> jnp.ndarray:
-    if not self.is_online:
-      return super().transport_from_scalings(u, v)
-    in_axes = [None, 0, None, self._axis_norm, None, 0, None, None, None]
-    transport = jax.vmap(_transport_from_scalings_xy, in_axes=in_axes)
-    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
-    return transport(
-        self.y, self.x, self._norm_y, self._norm_x, v, u, self.epsilon, cost_fn,
-        self.inv_scale_cost
-    )
-
-  def apply_cost(
+  def _apply_cost_to_vec(
       self,
-      arr: jnp.ndarray,
+      vec: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
       is_linear: bool = False,
+      scale_cost: Optional[float] = None,
   ) -> jnp.ndarray:
-    """Apply cost matrix to array (vector or matrix).
 
-    This function applies the geometry's cost matrix, to perform either
-    output = C arr (if axis=1)
-    output = C' arr (if axis=0)
-    where C is [num_a, num_b] matrix resulting from the (optional) elementwise
-    application of fn to each entry of the :attr:`cost_matrix`.
+    def apply(x: jnp.ndarray, y: jnp.ndarray, arr: jnp.ndarray) -> jnp.ndarray:
+      x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
+      cost = self.cost_fn.all_pairs(x, y) * scale_cost
+      cost = cost.squeeze(1 - axis)
+      if fn is not None:
+        cost = fn(cost)
+      return jnp.dot(cost, arr)
 
-    Args:
-      arr: jnp.ndarray [num_a or num_b, batch], vector that will be multiplied
-        by the cost matrix.
-      axis: standard cost matrix if axis=1, transpose if 0.
-      fn: function optionally applied to cost matrix element-wise, before the
-        apply.
-      is_linear: Whether ``fn`` is a linear function.
-        If true and :attr:`is_squared_euclidean` is ``True``, efficient
-        implementation is used. See :func:`ott.geometry.geometry.is_linear`
-        for a heuristic to help determine if a function is linear.
-
-    Returns:
-      A jnp.ndarray, [num_b, batch] if axis=0 or [num_a, batch] if axis=1
-    """
-    # switch to efficient computation for the squared euclidean case.
+    # when computing the online properties, this is set to 1.0
+    if scale_cost is None:
+      scale_cost = self.inv_scale_cost
+    # switch to an efficient computation for the squared Euclidean case
     if self.is_squared_euclidean and (fn is None or is_linear):
-      return self.vec_apply_cost(arr, axis, fn=fn)
-
-    return self._apply_cost(arr, axis, fn=fn)
-
-  def _apply_cost(
-      self, arr: jnp.ndarray, axis: int = 0, fn=None
-  ) -> jnp.ndarray:
-    """See :meth:`apply_cost`."""
-    if not self.is_online:
-      return super().apply_cost(arr, axis, fn)
-
-    # TODO(michalk8): batch this properly
-    app = jax.vmap(
-        _apply_cost_xy,
-        in_axes=[None, 0, None, self._axis_norm, None, None, None, None]
-    )
-    if arr.ndim == 1:
-      arr = arr.reshape(-1, 1)
-
-    if axis == 0:
-      return app(
-          self.x, self.y, self._norm_x, self._norm_y, arr,
-          self.cost_fn.pairwise, self.inv_scale_cost, fn
+      return self._apply_sqeucl_cost(
+          vec,
+          scale_cost,
+          axis=axis,
+          fn=fn,
       )
-    cost_fn = lambda y, x: self.cost_fn.pairwise(x, y)
-    return app(
-        self.y, self.x, self._norm_y, self._norm_x, arr, cost_fn,
-        self.inv_scale_cost, fn
+
+    # materialize the cost
+    if not self.is_online:
+      return super()._apply_cost_to_vec(
+          vec, axis=axis, fn=fn, is_linear=is_linear
+      )
+
+    in_axes = (None, 0, None) if axis == 0 else (0, None, None)
+    batched_apply = utils.batched_vmap(
+        apply, batch_size=self.batch_size, in_axes=in_axes
     )
+    return batched_apply(self.x, self.y, vec)
 
-  def vec_apply_cost(
+  def _apply_sqeucl_cost(
       self,
-      arr: jnp.ndarray,
+      vec: jnp.ndarray,
+      scale_cost: float,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
   ) -> jnp.ndarray:
-    """Apply the geometry's cost matrix in a vectorized way.
-
-    This function can be used when the cost matrix is squared euclidean
-    and ``fn`` is a linear function.
-
-    Args:
-      arr: jnp.ndarray [num_a or num_b, p], vector that will be multiplied
-        by the cost matrix.
-      axis: standard cost matrix if axis=1, transport if 0.
-      fn: function optionally applied to cost matrix element-wise, before the
-        application.
-
-    Returns:
-      A jnp.ndarray, [num_b, p] if axis=0 or [num_a, p] if axis=1
-    """
+    assert vec.ndim == 1, vec.shape
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
-    rank = arr.ndim
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
-    nx, ny = jnp.asarray(self._norm_x), jnp.asarray(self._norm_y)
-    nx, ny = (nx, ny) if axis == 0 else (ny, nx)
+    nx, ny = self.cost_fn.norm(x), self.cost_fn.norm(y)
 
-    applied_cost = jnp.dot(nx, arr).reshape(1, -1)
-    applied_cost += ny.reshape(-1, 1) * jnp.sum(arr, axis=0).reshape(1, -1)
-    cross_term = -2.0 * jnp.dot(y, jnp.dot(x.T, arr))
-    applied_cost += cross_term[:, None] if rank == 1 else cross_term
+    applied_cost = jnp.dot(nx, vec) + ny * jnp.sum(vec, axis=0)
+    applied_cost = applied_cost - 2.0 * jnp.dot(y, jnp.dot(x.T, vec))
     if fn is not None:
       applied_cost = fn(applied_cost)
-    return self.inv_scale_cost * applied_cost
-
-  def _leading_slice(self, t: jnp.ndarray, i: int) -> jnp.ndarray:
-    start_indices = [i * self.batch_size] + (t.ndim - 1) * [0]
-    slice_sizes = [self.batch_size] + list(t.shape[1:])
-    return jax.lax.dynamic_slice(t, start_indices, slice_sizes)
+    return scale_cost * applied_cost
 
   def _compute_summary_online(
       self, summary: Literal["mean", "max_cost"]
-  ) -> float:
+  ) -> jnp.ndarray:
     """Compute mean or max of cost matrix online, i.e. without instantiating it.
 
     Args:
@@ -429,66 +199,22 @@ class PointCloud(geometry.Geometry):
     Returns:
       summary statistics
     """
-    scale_cost = 1.0
 
-    def body0(vec: jnp.ndarray, i: int):
-      y = self._leading_slice(self.y, i)
-      norm_y = self._norm_y if self._axis_norm is None else self._leading_slice(
-          self._norm_y, i
-      )
-      h_res = app(self.x, y, self._norm_x, norm_y, vec, cost_fn, scale_cost)
-      return vec, h_res
-
-    def body1(vec: jnp.ndarray, i: int):
-      x = self._leading_slice(self.x, i)
-      norm_x = self._norm_x if self._axis_norm is None else self._leading_slice(
-          self._norm_x, i
-      )
-      h_res = app(self.y, x, self._norm_y, norm_x, vec, cost_fn, scale_cost)
-      return vec, h_res
-
-    def rest(i: int) -> jnp.ndarray:
-      if batch_for_y:
-        norm_y = self._norm_y if self._axis_norm is None else self._norm_y[i:]
-        return app(
-            self.x, self.y[i:], self._norm_x, norm_y, vec, cost_fn, scale_cost
-        )
-      norm_x = self._norm_x if self._axis_norm is None else self._norm_x[i:]
-      return app(
-          self.y, self.x[i:], self._norm_y, norm_x, vec, cost_fn, scale_cost
-      )
+    def compute_max(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+      x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
+      cost = self.cost_fn.all_pairs(x, y)
+      return jnp.max(jnp.abs(cost))
 
     if summary == "mean":
-      fn = _apply_cost_xy
-    elif summary == "max_cost":
-      fn = _apply_max_xy
-    else:
-      raise ValueError(
-          f"Scaling method {summary} does not exist for online mode."
-      )
-    app = jax.vmap(
-        fn, in_axes=[None, 0, None, self._axis_norm, None, None, None]
-    )
+      a, b = self._n_normed_ones, self._m_normed_ones
+      return jnp.sum(self._apply_cost_to_vec(a, scale_cost=1.0) * b)
 
-    batch_for_y = self.shape[0] < self.shape[1]
-    if batch_for_y:
-      fun, cost_fn = body0, self.cost_fn.pairwise
-      n = self._y_nsplit
-      vec, other = self._n_normed_ones, self._m_normed_ones
-    else:
-      fun, cost_fn = body1, lambda y, x: self.cost_fn.pairwise(x, y)
-      n = self._x_nsplit
-      vec, other = self._m_normed_ones, self._n_normed_ones
-
-    _, val = jax.lax.scan(fun, init=vec, xs=jnp.arange(n))
-    val = jnp.concatenate(val).squeeze()
-    val_rest = rest(n * self.batch_size)
-    val_res = jnp.concatenate([val, val_rest])
-
-    if summary == "mean":
-      return jnp.sum(val_res * other)
     if summary == "max_cost":
-      return jnp.max(val_res)
+      fn = utils.batched_vmap(
+          compute_max, batch_size=self.batch_size, in_axes=[0, None]
+      )
+      return jnp.max(fn(self.x, self.y))
+
     raise ValueError(
         f"Scaling method {summary} does not exist for online mode."
     )
@@ -669,8 +395,91 @@ class PointCloud(geometry.Geometry):
     )
 
   @property
+  def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+    return self.inv_scale_cost * self._unscaled_cost_matrix
+
+  @property
+  def _unscaled_cost_matrix(self) -> jnp.ndarray:
+    return self.cost_fn.all_pairs(self.x, self.y)
+
+  @property
+  def inv_scale_cost(self) -> float:  # noqa: D102
+    if isinstance(self._scale_cost, (int, float, jax.Array)):
+      return 1.0 / self._scale_cost
+    self = self._masked_geom()
+    if self._scale_cost == "max_cost":
+      if self.is_online:
+        return 1.0 / self._compute_summary_online(self._scale_cost)
+      return 1.0 / jnp.max(self._unscaled_cost_matrix)
+    if self._scale_cost == "mean":
+      if self.is_online:
+        return 1.0 / self._compute_summary_online(self._scale_cost)
+      geom = self._masked_geom(mask_value=jnp.nan)._unscaled_cost_matrix
+      return 1.0 / jnp.nanmean(geom)
+    if self._scale_cost == "median":
+      if not self.is_online:
+        geom = self._masked_geom(mask_value=jnp.nan)
+        return 1.0 / jnp.nanmedian(geom._unscaled_cost_matrix)
+      raise NotImplementedError(
+          "Using the median as scaling factor for "
+          "the cost matrix with the online mode is not implemented."
+      )
+    if not hasattr(self.cost_fn, "norm"):
+      raise ValueError("Cost function has no norm method.")
+    norm_x = self.cost_fn.norm(self.x)
+    norm_y = self.cost_fn.norm(self.y)
+    if self._scale_cost == "max_norm":
+      return 1.0 / jnp.maximum(norm_x.max(), norm_y.max())
+    if self._scale_cost == "max_bound":
+      if self.is_squared_euclidean:
+        x_argmax = jnp.argmax(norm_x)
+        y_argmax = jnp.argmax(norm_y)
+        max_bound = (
+            norm_x[x_argmax] + norm_y[y_argmax] +
+            2 * jnp.sqrt(norm_x[x_argmax] * norm_y[y_argmax])
+        )
+        return 1.0 / max_bound
+      raise NotImplementedError(
+          "Using max_bound as scaling factor for "
+          "the cost matrix when the cost is not squared euclidean "
+          "is not implemented."
+      )
+    raise ValueError(f"Scaling {self._scale_cost} not implemented.")
+
+  @property
+  def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+    return jnp.exp(-self.cost_matrix / self.epsilon)
+
+  @property
+  def shape(self) -> Tuple[int, int]:  # noqa: D102
+    return self.x.shape[0], self.y.shape[0]
+
+  @property
   def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.x.dtype
+
+  @property
+  def is_symmetric(self) -> bool:  # noqa: D102
+    return self.y is None or (
+        jnp.all(self.x.shape == self.y.shape) and jnp.all(self.x == self.y)
+    )
+
+  @property
+  def is_squared_euclidean(self) -> bool:  # noqa: D102
+    return isinstance(self.cost_fn, costs.SqEuclidean)
+
+  @property
+  def can_LRC(self):  # noqa: D102
+    return self.is_squared_euclidean and self._check_LRC_dim
+
+  @property
+  def _check_LRC_dim(self):
+    (n, m), d = self.shape, self.x.shape[1]
+    return n * m > (n + m) * d
+
+  @property
+  def cost_rank(self) -> int:  # noqa: D102
+    return self.x.shape[1]
 
   @property
   def batch_size(self) -> Optional[int]:
@@ -681,77 +490,6 @@ class PointCloud(geometry.Geometry):
     return min(n, m, self._batch_size)
 
   @property
-  def _x_nsplit(self) -> Optional[int]:
-    if self.batch_size is None:
-      return None
-    n, _ = self.shape
-    return int(math.floor(n / self.batch_size))
-
-  @property
-  def _y_nsplit(self) -> Optional[int]:
-    if self.batch_size is None:
-      return None
-    _, m = self.shape
-    return int(math.floor(m / self.batch_size))
-
-
-def _apply_lse_kernel_xy(
-    x, y, norm_x, norm_y, f, g, eps, vec, cost_fn, scale_cost
-):
-  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
-  return mu.logsumexp((f + g - c) / eps, b=vec, return_sign=True, axis=-1)
-
-
-def _transport_from_potentials_xy(
-    x, y, norm_x, norm_y, f, g, eps, cost_fn, scale_cost
-):
-  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
-  return jnp.exp((f + g - c) / eps)
-
-
-def _apply_kernel_xy(x, y, norm_x, norm_y, vec, eps, cost_fn, scale_cost):
-  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
-  return jnp.dot(jnp.exp(-c / eps), vec)
-
-
-def _transport_from_scalings_xy(
-    x, y, norm_x, norm_y, u, v, eps, cost_fn, scale_cost
-):
-  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
-  return jnp.exp(-c * scale_cost / eps) * u * v
-
-
-def _cost(x, y, norm_x, norm_y, cost_fn, scale_cost):
-  one_line_pairwise = jax.vmap(cost_fn, in_axes=[0, None])
-  cost = norm_x + norm_y + one_line_pairwise(x, y)
-  return cost * scale_cost
-
-
-def _apply_cost_xy(x, y, norm_x, norm_y, vec, cost_fn, scale_cost, fn=None):
-  """Apply [num_b, num_a] fn(cost) matrix (or transpose) to vector.
-
-  Applies [num_b, num_a] ([num_a, num_b] if axis=1 from `apply_cost`)
-  fn(cost) matrix (or transpose) to vector.
-
-  Args:
-    x: jnp.ndarray [num_a, d], first pointcloud
-    y: jnp.ndarray [num_b, d], second pointcloud
-    norm_x: jnp.ndarray [num_a,], (squared) norm as defined in by cost_fn
-    norm_y: jnp.ndarray [num_b,], (squared) norm as defined in by cost_fn
-    vec: jnp.ndarray [num_a,] ([num_b,] if axis=1 from `apply_cost`) vector
-    cost_fn: a CostFn function between two points in dimension d.
-    scale_cost: scaling factor of the cost matrix.
-    fn: function optionally applied to cost matrix element-wise, before the
-      apply.
-
-  Returns:
-    A jnp.ndarray corresponding to cost x vector
-  """
-  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
-  return jnp.dot(c, vec) if fn is None else jnp.dot(fn(c), vec)
-
-
-def _apply_max_xy(x, y, norm_x, norm_y, vec, cost_fn, scale_cost):
-  del vec
-  c = _cost(x, y, norm_x, norm_y, cost_fn, scale_cost)
-  return jnp.max(jnp.abs(c))
+  def is_online(self) -> bool:
+    """Whether the cost/kernel is computed on-the-fly."""
+    return self.batch_size is not None

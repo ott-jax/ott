@@ -26,7 +26,7 @@ from ott import utils
 from ott.geometry import epsilon_scheduler
 from ott.math import utils as mu
 
-__all__ = ["Geometry", "is_linear", "is_affine"]
+__all__ = ["Geometry"]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -83,8 +83,8 @@ class Geometry:
       kernel_matrix: Optional[jnp.ndarray] = None,
       epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
       relative_epsilon: Optional[Union[bool, Literal["mean", "std"]]] = None,
-      scale_cost: Union[int, float, Literal["mean", "max_cost", "median",
-                                            "std"]] = 1.0,
+      scale_cost: Union[float, Literal["mean", "max_cost", "median",
+                                       "std"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
       tgt_mask: Optional[jnp.ndarray] = None,
   ):
@@ -163,7 +163,7 @@ class Geometry:
     rel = self._relative_epsilon
 
     # If nothing passed, default to STD
-    if (rel is None and target is None and scale_eps is None):
+    if rel is None and target is None and scale_eps is None:
       scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
     # If instructions passed change, otherwise (notably if False) skip.
     elif rel is not None:
@@ -277,7 +277,7 @@ class Geometry:
       eps: float,
       vec: jnp.ndarray = None,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
     r"""Apply :attr:`kernel_matrix` in log domain.
 
     This function applies the ground geometry's kernel in log domain, using
@@ -313,14 +313,14 @@ class Geometry:
 
   def apply_kernel(
       self,
-      scaling: jnp.ndarray,
+      vec: jnp.ndarray,
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     """Apply :attr:`kernel_matrix` on positive scaling vector.
 
     Args:
-      scaling: jnp.ndarray [num_a or num_b] , scaling of size num_rows or
+      vec: jnp.ndarray [num_a or num_b] , scaling of size num_rows or
         num_cols of kernel_matrix
       eps: passed for consistency, not used yet.
       axis: standard kernel product if axis is 1, transpose if 0.
@@ -334,7 +334,7 @@ class Geometry:
       kernel = self.kernel_matrix ** (self.epsilon / eps)
     kernel = kernel if axis == 1 else kernel.T
 
-    return jnp.dot(kernel, scaling)
+    return jnp.dot(kernel, vec)
 
   def marginal_from_potentials(
       self,
@@ -583,7 +583,7 @@ class Geometry:
       arr: jnp.ndarray,
       axis: int = 0,
       fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
-      **kwargs: Any
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply :attr:`cost_matrix` to array (vector or matrix).
 
@@ -597,23 +597,25 @@ class Geometry:
         the cost matrix.
       axis: standard cost matrix if axis=1, transpose if 0
       fn: function to apply to cost matrix element-wise before the dot product
-      kwargs: Keyword arguments for :meth:`_apply_cost_to_vec`.
+      is_linear: Whether ``fn`` is linear.
 
     Returns:
       An array, [num_b, p] if axis=0 or [num_a, p] if axis=1
     """
     if arr.ndim == 1:
-      arr = arr.reshape(-1, 1)
-
-    app = functools.partial(self._apply_cost_to_vec, axis=axis, fn=fn, **kwargs)
+      return self._apply_cost_to_vec(arr, axis=axis, fn=fn, is_linear=is_linear)
+    app = functools.partial(
+        self._apply_cost_to_vec, axis=axis, fn=fn, is_linear=is_linear
+    )
+    # TODO(michalk8): vmap over multiple dims?
     return jax.vmap(app, in_axes=1, out_axes=1)(arr)
 
   def _apply_cost_to_vec(
       self,
       vec: jnp.ndarray,
       axis: int = 0,
-      fn=None,
-      **_: Any,
+      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply ``[num_a, num_b]`` fn(cost) (or transpose) to vector.
 
@@ -622,12 +624,15 @@ class Geometry:
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
+      is_linear: Whether ``fn`` is linear.
 
     Returns:
       A jnp.ndarray corresponding to cost x vector
     """
+    del is_linear
     matrix = self.cost_matrix.T if axis == 0 else self.cost_matrix
-    matrix = fn(matrix) if fn is not None else matrix
+    if fn is not None:
+      matrix = fn(matrix)
     return jnp.dot(matrix, vec)
 
   @classmethod
@@ -929,15 +934,3 @@ class Geometry:
     return cls(
         cost, kernel, eps, src_mask=src_mask, tgt_mask=tgt_mask, **aux_data
     )
-
-
-def is_affine(fn) -> bool:
-  """Test heuristically if a function is affine."""
-  x = jnp.arange(10.0)
-  out = jax.vmap(jax.grad(fn))(x)
-  return jnp.sum(jnp.diff(jnp.abs(out))) == 0.0
-
-
-def is_linear(fn) -> bool:
-  """Test heuristically if a function is linear."""
-  return jnp.logical_and(fn(0.0) == 0.0, is_affine(fn))

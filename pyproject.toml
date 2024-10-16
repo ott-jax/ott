@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ott-jax"
-description = "Optimal Transport Tools in JAX."
+description = "Optimal Transport Tools in JAX"
 requires-python = ">=3.9"
 dynamic = ["version"]
 readme = {file = "README.md", content-type = "text/markdown"}
@@ -17,6 +17,7 @@ dependencies = [
     "jaxopt>=0.8",
     "lineax>=0.0.5",
     "numpy>=1.20.0",
+    "typing_extensions; python_version <= '3.9'",
 ]
 keywords = [
     "optimal transport",
@@ -107,7 +108,7 @@ multi_line_output = 3
 sections = ["FUTURE", "STDLIB", "THIRDPARTY", "TEST", "NUMERIC", "NEURAL", "PLOTTING", "FIRSTPARTY", "LOCALFOLDER"]
 # also contains what we import in notebooks/tests
 known_neural = ["flax", "optax", "diffrax", "orbax"]
-known_numeric = ["numpy", "scipy", "jax", "flax", "optax", "jaxopt", "ot", "torch", "torchvision", "pandas", "sklearn", "tslearn"]
+known_numeric = ["numpy", "scipy", "jax", "chex", "flax", "optax", "jaxopt", "ot", "torch", "torchvision", "pandas", "sklearn", "tslearn"]
 known_test = ["_pytest", "pytest"]
 known_plotting = ["IPython", "matplotlib", "mpl_toolkits", "seaborn"]
 
@@ -119,12 +120,6 @@ testpaths = [
 markers = [
     "cpu: Mark tests as CPU only.",
     "fast: Mark tests as fast.",
-]
-filterwarnings = [
-    "ignore:\\n*.*scipy.sparse array",
-    "ignore:jax.random.KeyArray is deprecated:DeprecationWarning",
-    "ignore:.*jax.config:DeprecationWarning",
-    "ignore:jax.core.Shape is deprecated:DeprecationWarning:chex",
 ]
 
 [tool.coverage.run]

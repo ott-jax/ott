@@ -24,7 +24,7 @@ from ott.geometry import costs, geometry, pointcloud
 
 class NonSymCost(costs.CostFn):
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     z = x - y
     return jnp.sum(z ** 2 * (jnp.sign(z) + 0.5) ** 2)
 
@@ -112,11 +112,10 @@ class TestPointCloudApply:
     pc = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine())
     arr = jnp.ones((pc.shape[0],)) if axis == 0 else jnp.ones((pc.shape[1],))
 
-    assert pc.cost_fn.norm is None
     with pytest.raises(
         AssertionError, match=r"Cost matrix is not a squared Euclidean\."
     ):
-      _ = pc.vec_apply_cost(arr, axis=axis)
+      _ = pc._apply_sqeucl_cost(arr, axis=axis, scale_cost=1.0)
 
     expected = pc.cost_matrix @ arr if axis == 1 else pc.cost_matrix.T @ arr
     actual = pc.apply_cost(arr, axis=axis).squeeze()
@@ -126,9 +125,7 @@ class TestPointCloudApply:
 
 class TestPointCloudCosineConversion:
 
-  @pytest.mark.parametrize(
-      "scale_cost", ["mean", "median", "max_cost", "max_norm", 41]
-  )
+  @pytest.mark.parametrize("scale_cost", ["mean", "median", "max_cost", 41])
   def test_cosine_to_sqeucl_conversion(
       self, rng: jax.Array, scale_cost: Union[str, float]
   ):
@@ -158,9 +155,7 @@ class TestPointCloudCosineConversion:
         eucl.cost_matrix, cosine.cost_matrix, rtol=1e-6, atol=1e-6
     )
 
-  @pytest.mark.parametrize(
-      "scale_cost", ["mean", "median", "max_cost", "max_norm", 2.0]
-  )
+  @pytest.mark.parametrize("scale_cost", ["mean", "median", "max_cost", 2.0])
   @pytest.mark.parametrize("axis", [0, 1])
   def test_apply_cost_cosine_to_sqeucl(
       self, rng: jax.Array, axis: int, scale_cost: Union[str, float]

@@ -51,7 +51,7 @@ class UnivariateWasserstein(costs.CostFn):
     )
     self._solve_fn = solve_fn
 
-  def pairwise(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Wasserstein distance between :math:`x` and :math:`y` seen as a 1D dist.
 
     Args:
