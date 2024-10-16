@@ -95,7 +95,7 @@ class TestSinkhornAnderson:
       assert iterations_anderson[0] > iterations_anderson[i]
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornBures:
 
   @pytest.fixture(autouse=True)
@@ -232,7 +232,7 @@ class TestSinkhornOnline:
     assert threshold > err
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornUnbalanced:
 
   @pytest.fixture(autouse=True)
@@ -340,7 +340,7 @@ class TestSinkhornJIT:
         epsilon=self.epsilon
     )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_jit_vs_non_jit_fwd(self):
 
     def assert_output_close(

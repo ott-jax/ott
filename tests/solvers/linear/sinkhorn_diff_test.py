@@ -330,7 +330,7 @@ class TestSinkhornJacobian:
     gradient = jax.grad(reg_ot_cost)(cost)
     np.testing.assert_array_equal(jnp.isnan(gradient), False)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_differentiability_with_jit(self, rng: jax.Array):
 
     def reg_ot_cost(c: jnp.ndarray) -> float:
@@ -535,7 +535,7 @@ class TestSinkhornJacobian:
     np.testing.assert_allclose(g_imp, g_back, atol=atol, rtol=rtol)
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestSinkhornGradGrid:
 
   @pytest.mark.parametrize("lse_mode", [False, True])

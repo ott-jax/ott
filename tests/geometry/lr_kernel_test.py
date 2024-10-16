@@ -10,7 +10,7 @@ from ott.geometry import costs, low_rank, pointcloud
 from ott.solvers import linear
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestLRCGeometry:
 
   @pytest.mark.parametrize("std", [1e-1, 1.0, 1e2])

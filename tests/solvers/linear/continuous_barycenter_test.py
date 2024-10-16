@@ -174,7 +174,7 @@ class TestBarycenter:
     assert jnp.all(out.x.ravel() < 2.3)
     assert jnp.all(out.x.ravel() > 0.7)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_bures_barycenter(
       self,
       rng: jax.Array,
@@ -267,7 +267,7 @@ class TestBarycenter:
         atol=1e-5
     )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_bures_barycenter_different_number_of_components(
       self,
       rng: jax.Array,

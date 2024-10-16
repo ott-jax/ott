@@ -205,7 +205,7 @@ class TestSinkhorn:
     f_1, f_2 = out_1.f, out_2.f
     np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_point_cloud_min_iter(self):
     """Testing the min_iterations parameter."""
     threshold = 1e-3
@@ -224,7 +224,7 @@ class TestSinkhorn:
     assert errors[2] == jnp.inf
     assert errors[3] > 0
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_point_cloud_scan_loop(self):
     """Testing the scan loop behavior."""
     threshold = 1e-3
@@ -505,9 +505,9 @@ class TestSinkhorn:
     # check only one iteration suffices when restarting with same data.
     assert num_iter_restarted == 1
 
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   @pytest.mark.limit_memory("80 MB")
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_sinkhorn_online_memory_jit(self, rng: jax.Array):
     # test that full matrix is not materialized.
     # Only storing it would result in 250 * 8000 = 2e6 entries = 16Mb,
@@ -622,7 +622,7 @@ class TestSinkhorn:
       captured = capsys.readouterr()
       assert captured.out.startswith("foo 7/14"), captured
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_custom_progress_fn(self):
     """Check that the callback function is actually called."""
     num_iterations = 30

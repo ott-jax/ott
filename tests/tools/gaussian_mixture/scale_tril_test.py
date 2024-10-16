@@ -22,13 +22,13 @@ from ott.math import matrix_square_root
 from ott.tools.gaussian_mixture import scale_tril
 
 
-@pytest.fixture
+@pytest.fixture()
 def chol() -> scale_tril.ScaleTriL:
   params = jnp.array([0.0, 2.0, jnp.log(3.0)])
   return scale_tril.ScaleTriL(params=params, size=2)
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestScaleTriL:
 
   def test_cholesky(self, chol: scale_tril.ScaleTriL):

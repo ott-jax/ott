@@ -23,7 +23,7 @@ from ott.solvers.linear import univariate
 from ott.solvers.quadratic import lower_bound
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestLowerBound:
 
   @pytest.fixture(autouse=True)

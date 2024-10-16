@@ -24,7 +24,7 @@ import numpy as np
 from ott import utils
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestBatchedVmap:
 
   @pytest.mark.parametrize("batch_size", [1, 11, 32, 33])

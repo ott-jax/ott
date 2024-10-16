@@ -128,7 +128,7 @@ class TestSinkhornDivergence:
     else:
       assert iters_xx_sym < iters_xx
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_euclidean_autoepsilon(self):
     rngs = jax.random.split(self.rng, 2)
     cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))

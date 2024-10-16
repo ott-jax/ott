@@ -84,7 +84,7 @@ def _ot_data(
   return datasets.OTData(lin=lin_data, quad=quad_data, condition=condition)
 
 
-@pytest.fixture
+@pytest.fixture()
 def lin_dl() -> OTLoader:
   n, d = 128, 2
   rng = np.random.default_rng(0)
@@ -99,7 +99,7 @@ def lin_dl() -> OTLoader:
   )
 
 
-@pytest.fixture
+@pytest.fixture()
 def lin_cond_dl() -> OTLoader:
   n, d, cond_dim = 128, 2, 3
   rng = np.random.default_rng(13)
@@ -117,7 +117,7 @@ def lin_cond_dl() -> OTLoader:
   )
 
 
-@pytest.fixture
+@pytest.fixture()
 def quad_dl() -> OTLoader:
   n, quad_src_dim, quad_tgt_dim = 128, 2, 4
   rng = np.random.default_rng(11)
@@ -133,7 +133,7 @@ def quad_dl() -> OTLoader:
   )
 
 
-@pytest.fixture
+@pytest.fixture()
 def quad_cond_dl() -> OTLoader:
   n, quad_src_dim, quad_tgt_dim, cond_dim = 128, 2, 4, 5
   rng = np.random.default_rng(414)
@@ -152,7 +152,7 @@ def quad_cond_dl() -> OTLoader:
   )
 
 
-@pytest.fixture
+@pytest.fixture()
 def fused_dl() -> OTLoader:
   n, lin_dim, quad_src_dim, quad_tgt_dim = 128, 6, 2, 4
   rng = np.random.default_rng(11)
@@ -169,7 +169,7 @@ def fused_dl() -> OTLoader:
   )
 
 
-@pytest.fixture
+@pytest.fixture()
 def fused_cond_dl() -> OTLoader:
   n, lin_dim, quad_src_dim, quad_tgt_dim, cond_dim = 128, 6, 2, 4, 7
   rng = np.random.default_rng(11)

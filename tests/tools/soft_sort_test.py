@@ -61,7 +61,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(jnp.diff(xs_lin, axis=0) >= -1e-8, True)
     np.testing.assert_array_equal(jnp.diff(xs_sig, axis=0) >= -1e-8, True)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("k", [-1, 4, 100])
   def test_topk_one_array(self, rng: jax.Array, k: int):
     n = 20
@@ -188,7 +188,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(x.shape, mask.shape)
     np.testing.assert_allclose(mask, expected_mask, atol=0.01, rtol=0.1)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("q", [0.2, 0.9])
   def test_quantile(self, q: float):
     x = jnp.linspace(0.0, 1.0, 100)
@@ -208,7 +208,7 @@ class TestSoftSort:
         q, 0.5 * np.ones((batch, 1, channels)), atol=3e-2
     )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("jit", [False, True])
   def test_quantiles(self, rng: jax.Array, jit: bool):
     inputs = jax.random.uniform(rng, (100, 2, 3))
@@ -255,7 +255,7 @@ class TestSoftSort:
     np.testing.assert_array_equal(output.shape, [k, d])
     np.testing.assert_allclose(output, inputs[-k:], atol=0.05)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("jit", [False, True])
   def test_quantize(self, jit: bool):
     n = 100

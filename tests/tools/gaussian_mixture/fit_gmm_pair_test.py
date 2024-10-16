@@ -65,7 +65,7 @@ class TestFitGmmPair:
     self.samples_gmm1 = gmm_generator1.sample(rng=subrng1, size=2000)
 
   # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu
+  @pytest.mark.cpu()
   @pytest.mark.fast.with_args(
       balanced=[False, True], weighted=[False, True], only_fast=0
   )

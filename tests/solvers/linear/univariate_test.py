@@ -120,7 +120,7 @@ class TestUnivariate:
         rtol=1e-1
     )
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   def test_cdf_distance_and_scipy(self, rng: jax.Array):
     x, y, a, b = self.x, self.y, self.a, self.b
     xx = jax.random.normal(rng, x.shape)
@@ -148,7 +148,7 @@ class TestUnivariate:
 
     np.testing.assert_allclose(scipy_d2, ott_d, atol=1e-2, rtol=1e-2)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize(
       "univariate_fn", [
           univariate.uniform_solver, univariate.quantile_solver,
@@ -208,7 +208,7 @@ class TestUnivariate:
       actual = 2.0 * jnp.vdot(v_b, grad_b)
       np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
-  @pytest.mark.fast
+  @pytest.mark.fast()
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.SqPNorm(1.1)])
   @pytest.mark.parametrize("weight_source", ["uniform", "a"])
   @pytest.mark.parametrize(("target", "weight_target"), [("y", "b"),
