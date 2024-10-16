@@ -73,8 +73,46 @@ class TestBatchedVmap:
     gt_fn = jax.jit(jax.vmap(f, in_axes=in_axes))
     fn = jax.jit(utils.batched_vmap(f, batch_size=batch_size, in_axes=in_axes))
 
-    # TODO(michalk8): check this
     np.testing.assert_allclose(gt_fn(x, y), fn(x, y), rtol=1e-4, atol=1e-4)
+
+  @pytest.mark.parametrize(
+      "in_axes", [((0, None, None),), (({
+          "foo": 1,
+          "baz": -1
+      }, -1, None),), [
+          ({
+              "foo": {
+                  "bar": 0
+              },
+              "baz": -2
+          }, None, None),
+      ]]
+  )
+  def test_in_axes_pytree(self, rng: jax.Array, in_axes: Any):
+
+    def f(tree: Any) -> jnp.ndarray:
+      x = tree[0]["foo"]["bar"]
+      y = tree[0]["baz"]
+      z, ((v,), w) = tree[1], tree[2]
+      return x.mean() - y.std() + z.sum() - y * (v + w)
+
+    batch_size = 1
+    rng0, rng1, rng2 = jax.random.split(rng, 3)
+    tree = (
+        {
+            "foo": {
+                "bar": jax.random.normal(rng0, (13, 5))
+            },
+            "baz": jax.random.normal(rng1, (13, 5))
+        },
+        jax.random.normal(rng2, (10, 5)),
+        ((2,), 13.0),
+    )
+
+    gt_fn = jax.jit(jax.vmap(f, in_axes=in_axes))
+    fn = jax.jit(utils.batched_vmap(f, in_axes=in_axes, batch_size=batch_size))
+
+    chex.assert_trees_all_close(gt_fn(tree), fn(tree), rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize("out_axes", [0, 1, 2, -1, -2, -3])
   def test_out_axes(self, rng: jax.Array, out_axes: int):
