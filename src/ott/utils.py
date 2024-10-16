@@ -289,11 +289,11 @@ def _batch_and_remainder(
       scan_leaf = remainder_leaf = leaf
     else:
       if num_splits is None:
-        num_splits, _ = divmod(leaf.shape[axis], batch_size)
+        num_splits = leaf.shape[axis] // batch_size
       else:
-        curr_num_splits, _ = divmod(leaf.shape[axis], batch_size)
-        # TODO(michalk8): better error message
-        assert num_splits == curr_num_splits, (num_splits, curr_num_splits)
+        curr_num_splits = leaf.shape[axis] // batch_size
+        assert num_splits == curr_num_splits, \
+          f"Expected {num_splits} splits, got {curr_num_splits}."
       num_elems = num_splits * batch_size
 
       scan_leaf = jax.lax.slice_in_dim(leaf, None, num_elems, axis=axis)

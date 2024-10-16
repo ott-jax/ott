@@ -96,15 +96,15 @@ class TestBatchedVmap:
       return x.mean() - y.std() + z.sum() - y * (v + w)
 
     batch_size = 1
-    rng0, rng1, rng2 = jax.random.split(rng, 3)
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
     tree = (
         {
             "foo": {
-                "bar": jax.random.normal(rng0, (13, 5))
+                "bar": jax.random.normal(rng1, (13, 5))
             },
-            "baz": jax.random.normal(rng1, (13, 5))
+            "baz": jax.random.normal(rng2, (13, 5))
         },
-        jax.random.normal(rng2, (10, 5)),
+        jax.random.normal(rng3, (10, 5)),
         ((2,), 13.0),
     )
 
@@ -179,6 +179,28 @@ class TestBatchedVmap:
     x = jax.random.normal(rng_data, (n, d))
     res = fn(x, y)
     assert res.shape == (n,)
+
+  @pytest.mark.parametrize("batch_size", [1, 5, 10])
+  def test_inconsistent_array_sizes(self, rng: jax.Array, batch_size: int):
+    rng1, rng2 = jax.random.split(rng, 2)
+
+    x = jax.random.normal(rng1, (5, 2))
+    y = jax.random.normal(rng2, (10, 2))
+
+    gt_fn = jax.vmap(lambda x, y: (x + y).sum(), in_axes=0)
+    fn = utils.batched_vmap(
+        lambda x, y: (x + y).sum(), batch_size=batch_size, in_axes=0
+    )
+
+    with pytest.raises(ValueError, match=r"^vmap got inconsistent"):
+      _ = gt_fn(x, y)
+    num_splits = x.shape[0] // batch_size
+    wrong_num_splits = y.shape[0] // batch_size
+    with pytest.raises(
+        AssertionError,
+        match=rf"^Expected {num_splits} splits, got {wrong_num_splits}\."
+    ):
+      _ = fn(x, y)
 
 
 @pytest.mark.parametrize(("version", "msg"), [(None, "foo, bar, baz"),
