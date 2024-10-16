@@ -59,7 +59,7 @@ class DualPotentials:
     self._f = f
     self._g = g
     assert (
-        not corr or type(cost_fn) == costs.SqEuclidean
+        not corr or type(cost_fn) is costs.SqEuclidean
     ), "Duals in `corr` form can only be used with a squared-Euclidean cost."
     self.cost_fn = cost_fn
     self._corr = corr

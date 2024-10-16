@@ -499,7 +499,7 @@ class Euclidean(CostFn):
   """
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
-    """Compute Euclidean norm using custom jvp implementation.
+    """Compute sq. Euclidean distance using a custom jvp implementation.
 
     Here we use a custom jvp implementation for the norm that does not yield
     `NaN` gradients when differentiating the norm of `(x-x)`, but defaults
