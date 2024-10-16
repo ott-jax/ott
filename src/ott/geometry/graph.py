@@ -118,10 +118,10 @@ class Graph(geometry.Geometry):
       eps: Optional[float] = None,
       axis: int = 0,
   ) -> jnp.ndarray:
-    r"""Apply :attr:`kernel_matrix` on positive scaling vector.
+    r"""Apply :attr:`kernel_matrix` on a positive vector.
 
     Args:
-      vec: Scaling to apply the kernel to.
+      vec: Vector to which the kernel is applied.
       eps: passed for consistency, not used yet.
       axis: passed for consistency, not used yet.
 

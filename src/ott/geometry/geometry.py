@@ -597,7 +597,7 @@ class Geometry:
         the cost matrix.
       axis: standard cost matrix if axis=1, transpose if 0
       fn: function to apply to cost matrix element-wise before the dot product
-      is_linear: TODO.
+      is_linear: Whether ``fn`` is linear.
 
     Returns:
       An array, [num_b, p] if axis=0 or [num_a, p] if axis=1
@@ -624,7 +624,7 @@ class Geometry:
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
-      is_linear: TODO.
+      is_linear: Whether ``fn`` is linear.
 
     Returns:
       A jnp.ndarray corresponding to cost x vector
