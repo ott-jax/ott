@@ -26,7 +26,7 @@ from ott.neural.networks import potentials
 from ott.tools import sinkhorn_divergence
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestMongeGap:
 
   @pytest.mark.parametrize("n_samples", [5, 25])
@@ -129,7 +129,7 @@ class TestMongeGap:
     )
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestMongeGapEstimator:
 
   def test_map_estimator_convergence(self):

@@ -231,7 +231,7 @@ def _sinkhorn_divergence(
         momentum=acceleration.Momentum(start=0, value=0.5),
         anderson=None,
     )
-    implicit_diff = kwargs.get("implicit_diff", None)
+    implicit_diff = kwargs.get("implicit_diff")
     if implicit_diff is not None:
       kwargs_symmetric["implicit_diff"] = implicit_diff.replace(symmetric=True)
 

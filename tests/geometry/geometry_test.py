@@ -21,7 +21,7 @@ import numpy as np
 from ott.geometry import epsilon_scheduler, geometry, pointcloud
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestCostMeanStd:
 
   @pytest.mark.parametrize("geom_type", ["pc", "geometry"])

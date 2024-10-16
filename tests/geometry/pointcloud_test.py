@@ -29,7 +29,7 @@ class NonSymCost(costs.CostFn):
     return jnp.sum(z ** 2 * (jnp.sign(z) + 0.5) ** 2)
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestPointCloudApply:
 
   def test_apply_cost_and_kernel(self, rng: jax.Array):

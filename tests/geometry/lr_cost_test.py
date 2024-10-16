@@ -22,7 +22,7 @@ import numpy as np
 from ott.geometry import costs, geometry, grid, low_rank, pointcloud
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestLRGeometry:
 
   def test_apply(self, rng: jax.Array):

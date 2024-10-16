@@ -20,7 +20,7 @@ import numpy as np
 from ott.neural.networks import icnn
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestICNN:
 
   def test_icnn_convexity(self, rng: jax.Array):

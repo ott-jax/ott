@@ -32,7 +32,7 @@ def _proj(matrix: jnp.ndarray) -> jnp.ndarray:
   return u.dot(v_h)
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestCostFn:
 
   def test_cosine(self, rng: jax.Array):
@@ -78,7 +78,7 @@ class TestCostFn:
         )
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestBuresBarycenter:
 
   def test_bures(self, rng: jax.Array):
@@ -228,7 +228,7 @@ class TestTICost:
     np.testing.assert_allclose(expected(x), actual(x), rtol=1e-4, atol=1e-4)
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestRegTICost:
 
   @pytest.mark.parametrize("d", [5, 31, 77])
@@ -361,7 +361,7 @@ class TestRegTICost:
     np.testing.assert_array_equal(expected_fn(x), actual_fn(x))
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestSoftDTW:
 
   @pytest.mark.parametrize("n", [7, 10])

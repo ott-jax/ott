@@ -21,7 +21,7 @@ import numpy as np
 from ott.tools.gaussian_mixture import gaussian_mixture, linalg
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestGaussianMixture:
 
   def test_get_summary_stats_from_points_and_assignment_probs(

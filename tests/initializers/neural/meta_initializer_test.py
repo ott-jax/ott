@@ -82,7 +82,7 @@ def run_sinkhorn(
   return solver(prob)
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestMetaInitializer:
 
   @pytest.mark.parametrize("lse_mode", [True, False])

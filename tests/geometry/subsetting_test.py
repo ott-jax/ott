@@ -24,7 +24,7 @@ from ott.geometry import geometry, low_rank, pointcloud
 Geom_t = Union[pointcloud.PointCloud, geometry.Geometry, low_rank.LRCGeometry]
 
 
-@pytest.fixture()
+@pytest.fixture
 def pc_masked(
     rng: jax.Array
 ) -> Tuple[pointcloud.PointCloud, pointcloud.PointCloud]:
@@ -58,7 +58,7 @@ def geom_masked(request, pc_masked) -> Tuple[Geom_t, pointcloud.PointCloud]:
   return geom, masked
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestMaskPointCloud:
 
   @pytest.mark.parametrize("tgt_ixs", [[1], jnp.arange(5)])
@@ -90,7 +90,7 @@ class TestMaskPointCloud:
     else:
       geom_sub = geom.subset(src_ixs, tgt_ixs)
 
-    assert type(geom_sub) == type(geom)
+    assert type(geom_sub) is type(geom)
     np.testing.assert_array_equal(geom_sub.shape, (n, m))
     assert geom_sub._scale_cost == geom._scale_cost
     if clazz is pointcloud.PointCloud:

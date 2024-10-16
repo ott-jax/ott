@@ -157,7 +157,7 @@ class TestLRSinkhorn:
         pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6
     )
 
-  @pytest.mark.fast()
+  @pytest.mark.fast
   def test_progress_fn(self):
     """Check that the callback function is actually called."""
     num_iterations = 37

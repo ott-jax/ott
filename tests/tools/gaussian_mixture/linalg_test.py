@@ -20,7 +20,7 @@ import numpy as np
 from ott.tools.gaussian_mixture import linalg
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestLinalg:
 
   def test_get_mean_and_var(self, rng: jax.Array):

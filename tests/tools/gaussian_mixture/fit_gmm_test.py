@@ -20,7 +20,7 @@ import jax.test_util
 from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestFitGmm:
 
   @pytest.fixture(autouse=True)

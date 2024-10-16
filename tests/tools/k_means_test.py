@@ -119,7 +119,7 @@ class TestKmeansPlusPlus:
 
 class TestKmeans:
 
-  @pytest.mark.fast()
+  @pytest.mark.fast
   @pytest.mark.parametrize("k", [1, 6])
   def test_k_means_output(self, rng: jax.Array, k: int):
     max_iter, ndim = 10, 4
@@ -139,7 +139,7 @@ class TestKmeans:
     assert res.inner_errors is None
     assert _is_same_clustering(pred_assignment, gt_assignment, k)
 
-  @pytest.mark.fast()
+  @pytest.mark.fast
   def test_k_means_simple_example(self):
     expected_labels = np.asarray([1, 1, 0, 0])
     expected_centers = np.asarray([[0.75, 1], [0.25, 0]])
@@ -283,7 +283,7 @@ class TestKmeans:
         res.error, res_scaled.error * jnp.sum(weights), rtol=1e-3, atol=1e-3
     )
 
-  @pytest.mark.fast()
+  @pytest.mark.fast
   def test_empty_weights(self, rng: jax.Array):
     n, ndim, k, d = 20, 2, 3, 5.0
     gen = np.random.RandomState(0)

@@ -74,7 +74,7 @@ def rng() -> jnp.ndarray:
   return jax.random.key(0)
 
 
-@pytest.fixture()
+@pytest.fixture
 def enable_x64() -> bool:
   with jax.experimental.enable_x64(True):
     try:

@@ -98,7 +98,7 @@ def run_sinkhorn(
   return solver(prob)
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestSinkhornInitializers:
 
   @pytest.mark.parametrize(

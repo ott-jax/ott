@@ -20,7 +20,7 @@ import numpy as np
 from ott.math import utils as mu
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestGeometryLse:
 
   def test_lse(self, rng: jax.Array):

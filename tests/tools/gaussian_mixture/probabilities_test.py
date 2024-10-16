@@ -21,7 +21,7 @@ import numpy as np
 from ott.tools.gaussian_mixture import probabilities
 
 
-@pytest.mark.fast()
+@pytest.mark.fast
 class TestProbabilities:
 
   def test_probs(self):
