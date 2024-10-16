@@ -14,10 +14,9 @@
 import functools
 from typing import Any, Optional
 
-import chex
-
 import pytest
 
+import chex
 import jax
 import jax.numpy as jnp
 import numpy as np

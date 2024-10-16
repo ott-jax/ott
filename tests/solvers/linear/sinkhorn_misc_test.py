@@ -13,10 +13,9 @@
 # limitations under the License.
 from typing import Optional
 
-import chex
-
 import pytest
 
+import chex
 import jax
 import jax.numpy as jnp
 import numpy as np
