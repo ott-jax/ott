@@ -41,6 +41,7 @@ backpropagation
 barycenter
 barycenters
 barycentric
+bijective
 binarized
 boolean
 centroids
@@ -60,6 +61,7 @@ dimensionality
 discretization
 discretize
 downweighted
+dualize
 duals
 eigendecomposition
 elementwise
@@ -91,6 +93,8 @@ linearized
 logit
 macOS
 methylation
+minimizer
+minimizers
 multimarginal
 neuroimaging
 normed
@@ -106,6 +110,7 @@ piecewise
 pluripotent
 polymatching
 polynomials
+polytope
 positivity
 postfix
 potentials
@@ -127,6 +132,7 @@ regularizer
 regularizers
 reimplementation
 renormalize
+reparameterization
 reproducibility
 rescale
 rescaled
@@ -156,6 +162,7 @@ thresholding
 transcriptome
 undirected
 univariate
+unnormalized
 unscaled
 url
 vectorized

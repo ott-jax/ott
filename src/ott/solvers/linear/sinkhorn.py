@@ -508,117 +508,8 @@ class SinkhornOutput(NamedTuple):
 class Sinkhorn:
   r"""Sinkhorn solver.
 
-  The Sinkhorn algorithm is a fixed point iteration that solves a regularized
-  optimal transport (reg-OT) problem between two measures.
-  The optimization variables are a pair of vectors (called potentials, or
-  scalings when parameterized as exponential of the former). Calling this
-  function returns therefore a pair of optimal vectors. In addition to these,
-  it also returns the objective value achieved by these optimal vectors;
-  a vector of size ``max_iterations/inner_iterations`` that records the vector
-  of values recorded to monitor convergence, throughout the execution of the
-  algorithm (padded with `-1` if convergence happens before), as well as a
-  boolean to signify whether the algorithm has converged within the number of
-  iterations specified by the user.
-
-  The reg-OT problem is specified by two measures, of respective sizes ``n`` and
-  ``m``. From the viewpoint of the ``sinkhorn`` function, these two measures are
-  only seen through a triplet (``geom``, ``a``, ``b``), where ``geom`` is a
-  ``Geometry`` object, and ``a`` and ``b`` are weight vectors of respective
-  sizes ``n`` and ``m``. Starting from two initial values for those potentials
-  or scalings (both can be defined by the user by passing value in
-  ``init_dual_a`` or ``init_dual_b``), the Sinkhorn algorithm will use
-  elementary operations that are carried out by the ``geom`` object.
-
-  Math:
-    Given a geometry ``geom``, which provides a cost matrix :math:`C` with its
-    regularization parameter :math:`\varepsilon`, (or a kernel matrix :math:`K`)
-    the reg-OT problem consists in finding two vectors `f`, `g` of size ``n``,
-    ``m`` that maximize the following criterion.
-
-    .. math::
-
-      \arg\max_{f, g}{- \langle a, \phi_a^{*}(-f) \rangle -  \langle b,
-      \phi_b^{*}(-g) \rangle - \varepsilon \langle e^{f/\varepsilon},
-      e^{-C/\varepsilon} e^{g/\varepsilon}} \rangle
-
-    where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
-    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform
-    :cite:`sejourne:19`.
-
-    That problem can also be written, instead, using positive scaling vectors
-    `u`, `v` of size ``n``, ``m``, handled with the kernel
-    :math:`K := e^{-C/\varepsilon}`,
-
-    .. math::
-
-      \arg\max_{u, v >0} - \langle a,\phi_a^{*}(-\varepsilon\log u) \rangle +
-      \langle b, \phi_b^{*}(-\varepsilon\log v) \rangle - \langle u, K v \rangle
-
-    Both of these problems corresponds, in their *primal* formulation, to
-    solving the unbalanced optimal transport problem with a variable matrix
-    :math:`P` of size ``n`` x ``m``:
-
-    .. math::
-
-      \arg\min_{P>0} \langle P,C \rangle +\varepsilon \text{KL}(P | ab^T)
-      + \rho_a \text{KL}(P\mathbf{1}_m | a) + \rho_b \text{KL}(P^T \mathbf{1}_n
-      | b)
-
-    where :math:`KL` is the generalized Kullback-Leibler divergence.
-
-    The very same primal problem can also be written using a kernel :math:`K`
-    instead of a cost :math:`C` as well:
-
-    .. math::
-
-      \arg\min_{P} \varepsilon \text{KL}(P|K)
-      + \rho_a \text{KL}(P\mathbf{1}_m | a) +
-      \rho_b \text{KL}(P^T \mathbf{1}_n | b)
-
-    The *original* OT problem taught in linear programming courses is recovered
-    by using the formulation above relying on the cost :math:`C`, and letting
-    :math:`\varepsilon \rightarrow 0`, and :math:`\rho_a, \rho_b \rightarrow
-    \infty`.
-    In that case the entropy disappears, whereas the :math:`KL` regularization
-    above become constraints on the marginals of :math:`P`: This results in a
-    standard min cost flow problem. This problem is not handled for now in this
-    toolbox, which focuses exclusively on the case :math:`\varepsilon > 0`.
-
-    The *balanced* regularized OT problem is recovered for finite
-    :math:`\varepsilon > 0` but letting :math:`\rho_a, \rho_b \rightarrow
-    \infty`. This problem can be shown to be equivalent to a matrix scaling
-    problem, which can be solved using the Sinkhorn fixed-point algorithm.
-    To handle the case :math:`\rho_a, \rho_b \rightarrow \infty`, the
-    ``sinkhorn`` function uses parameters ``tau_a`` and ``tau_b`` equal
-    respectively to :math:`\rho_a /(\varepsilon + \rho_a)` and
-    :math:`\rho_b / (\varepsilon + \rho_b)` instead. Setting either of these
-    parameters to 1 corresponds to setting the corresponding
-    :math:`\rho_a, \rho_b` to :math:`\infty`.
-
-    The Sinkhorn algorithm solves the reg-OT problem by seeking optimal
-    :math:`f`, :math:`g` potentials (or alternatively their parameterization
-    as positive scaling vectors :math:`u`, :math:`v`), rather than solving the
-    primal problem in :math:`P`. This is mostly for efficiency (potentials and
-    scalings have a ``n + m`` memory footprint, rather than ``n m`` required
-    to store `P`). This is also because both problems are, in fact, equivalent,
-    since the optimal transport :math:`P^{\star}` can be recovered from
-    optimal potentials :math:`f^{\star}`, :math:`g^{\star}` or scaling
-    :math:`u^{\star}`, :math:`v^{\star}`, using the geometry's cost or kernel
-    matrix respectively:
-
-    .. math::
-
-      P^{\star} = \exp\left(\frac{f^{\star}\mathbf{1}_m^T + \mathbf{1}_n g^{*T}-
-      C}{\varepsilon}\right) \text{ or } P^{\star} = \text{diag}(u^{\star}) K
-      \text{diag}(v^{\star})
-
-    By default, the Sinkhorn algorithm solves this dual problem in :math:`f, g`
-    or :math:`u, v` using block coordinate ascent, i.e. devising an update for
-    each :math:`f` and :math:`g` (resp. :math:`u` and :math:`v`) that cancels
-    their respective gradients, one at a time. These two iterations are repeated
-    ``inner_iterations`` times, after which the norm of these gradients will be
-    evaluated and compared with the ``threshold`` value. The iterations are then
-    repeated as long as that error exceeds ``threshold``.
+  The :term:`Sinkhorn algorithm` is a fixed point iteration that solves a
+  regularized optimal transport (reg-OT) problem between two measures.
 
   Note on Sinkhorn updates:
     The boolean flag ``lse_mode`` sets whether the algorithm is run in either:
@@ -700,9 +591,9 @@ class Sinkhorn:
       ``use_danskin`` flag must be set to ``False``.
 
     An alternative yet more costly way to differentiate the outputs of the
-    Sinkhorn iterations is to use unrolling, i.e. reverse mode differentiation
-    of the Sinkhorn loop. This is possible because Sinkhorn iterations are
-    wrapped in a custom fixed point iteration loop, defined in
+    Sinkhorn iterations is to use :term:`unrolling`, i.e. reverse mode
+    differentiation of the Sinkhorn loop. This is possible because Sinkhorn
+    iterations are wrapped in a custom fixed point iteration loop, defined in
     ``fixed_point_loop``, rather than a standard while loop. This is to ensure
     the end result of this fixed point loop can also be differentiated, if
     needed, using standard JAX operations. To ensure differentiability,
@@ -739,7 +630,7 @@ class Sinkhorn:
       ``jnp.where`` conditional statements to carry ``inf`` rather than ``NaN``
       values. In the reverse mode differentiation, the inputs corresponding to
       these 0 weights (a location `x`, or a row in the corresponding cost/kernel
-      matrix), and the weight itself will have ``NaN`` gradient values. This is
+      matrix), and the weight itself will have ``NaN`` gradient values. This
       reflects that these gradients are undefined, since these points were not
       considered in the optimization and have therefore no impact on the output.
 
@@ -764,8 +655,8 @@ class Sinkhorn:
       flag will return ``False`` as a consequence.
     momentum: Momentum instance.
     anderson: AndersonAcceleration instance.
-    implicit_diff: instance used to solve implicit differentiation. Unrolls
-      iterations if None.
+    implicit_diff: instance used to solve :term:`implicit differentiation`.
+      Uses :term:`unrolling` of iterations if ``None``.
     parallel_dual_updates: updates potentials or scalings in parallel if True,
       sequentially (in Gauss-Seidel fashion) if False.
     recenter_potentials: Whether to re-center the dual potentials.
