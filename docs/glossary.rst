@@ -133,7 +133,7 @@ Glossary
         parameters to 1 corresponds to setting the corresponding
         :math:`\rho_a, \rho_b` to :math:`\infty`.
 
-    enveloppe theorem
+    envelope theorem
         The envelope theorem is a major result about the differentiability
         properties of the value function of a parameterized optimization
         problem. Namely, that for a function :math:`f` defined implicitly as an
