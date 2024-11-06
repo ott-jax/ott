@@ -669,10 +669,10 @@ class Sinkhorn:
       ``tau_a < 1`` and ``tau_b < 1``.
     use_danskin: when :obj:`True`, it is assumed the
       :term:`entropy-regularized optimal transport` cost
-      is evaluated using :term:`Kantorovich potentials` that are frozen, i.e.
-      whose gradients have been stopped. This is useful when carrying out first
-      order differentiation, and is only valid when the algorithm has converged
-      with a low tolerance.
+      is evaluated using :term:`dual Kantorovich potentials` that are frozen,
+      i.e. whose gradients have been stopped. This is useful when carrying out
+      first order differentiation, and is only valid when the algorithm has
+      converged with a low tolerance.
     initializer: method to compute the initial potentials/scalings. This refers
       to a few possible classes implemented following the template in
       :class:`~ott.initializers.linear.SinkhornInitializer`.
