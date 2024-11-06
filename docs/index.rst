@@ -93,10 +93,11 @@ Packages
 - :mod:`ott.experimental` lists tools whose API is not mature yet to be included
   in the main toolbox, with changes expected in the near future, but which might
   still prove useful for users. This includes at the moment the
-  :term:`multimarginal`` Sinkhorn solver class
+  :class:`~ott.solvers.linear.mmsinkhorn.MMSinkhon` solver class to solve
+  :term:`multimarginal transport`.
   :class:`~ott.experimental.mmsinkhorn.MMSinkhon`.
 - :mod:`ott.neural` provides tools to parameterize and optimal
-  :term:`transport map`, :term:`coupling`` or conditional probabilities as
+  :term:`transport map`, :term:`coupling` or conditional probabilities as
   neural networks.
 - :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
   solvers from the :mod:`ott.solvers` module. Such tasks include computing

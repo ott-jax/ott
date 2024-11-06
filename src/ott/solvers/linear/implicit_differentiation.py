@@ -32,7 +32,11 @@ __all__ = ["ImplicitDiff", "solve_jax_cg"]
 
 @utils.register_pytree_node
 class ImplicitDiff:
-  """Implicit differentiation of Sinkhorn algorithm.
+  """Implicit differentiation of the :term:`Sinkhorn algorithm`.
+
+  This class encapsulates a few parameters and methods used to differentiate
+  the output of OT solvers w.r.t. relevant input variables such as point clouds
+  or cost functions.
 
   Args:
     solver: Callable to compute the solution to a linear problem. The callable
@@ -54,17 +58,17 @@ class ImplicitDiff:
     symmetric: flag used to figure out whether the linear system solved in the
       implicit function theorem is symmetric or not. This happens when
       ``tau_a==tau_b``, and when ``a == b``, or the precondition_fun
-      is the identity. The flag is False by default, and is also tested against
-      ``tau_a==tau_b``. It needs to be set manually by the user in the more
-      favorable case where the system is guaranteed to be symmetric.
+      is the identity. The flag is :obj:`False` by default, and is also tested
+      against ``tau_a==tau_b``. It needs to be set manually by the user in the
+      more favorable case where the system is guaranteed to be symmetric.
     precondition_fun: Function used to precondition, on both sides, the linear
       system derived from first-order conditions of the regularized OT problem.
       That linear system typically involves an equality between marginals (or
-      simple transform of these marginals when the problem is unbalanced) and
-      another function of the potentials. When that function is specified, that
-      function is applied on both sides of the equality, before being further
-      differentiated to provide the Jacobians needed for implicit function
-      theorem differentiation.
+      simple transform of these marginals when the problem is :term:`unbalanced`
+      ) and another function of the potentials. When that function is specified,
+      that function is applied on both sides of the equality, before being
+      further differentiated to provide the Jacobians needed for
+      :term`implicit differentiation`.
   """
 
   solver: Optional[Solver_t] = None
@@ -80,10 +84,11 @@ class ImplicitDiff:
       g: jnp.ndarray,
       lse_mode: bool,
   ) -> jnp.ndarray:
-    r"""Apply minus inverse of [hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
+    r"""Apply minus inverse of Hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
 
-    This function is used to carry out implicit differentiation of ``sinkhorn``
-    outputs, notably optimal potentials ``f`` and ``g``. That differentiation
+    This function is used to carry out :term:`implicit differentiation` of
+    the outputs of the :term:`Sinkhorn algorithm`, notably
+    :term:`dual Kantorovich potentials` ``f`` and ``g``. That differentiation
     requires solving a linear system, using (and inverting) the Jacobian of
     (preconditioned) first-order conditions w.r.t. the reg-OT problem.
 
@@ -112,9 +117,9 @@ class ImplicitDiff:
     \log`, as proposed in :cite:`cuturi:20a`.
 
     In both cases :math:`A` and :math:`D` are diagonal matrices, equal to the
-    row and
-    column marginals respectively, multiplied by the derivatives of :math:`h`
-    evaluated at those marginals, corrected (if handling the unbalanced case)
+    row and column marginals of the :term:`coupling` respectively,
+    multiplied by the derivatives of :math:`h` evaluated at those marginals,
+    corrected (if handling the :term:`unbalanced` case)
     by the second derivative of the part of the objective that ties potentials
     to the marginals (terms in ``phi_star``). When :math:`h` is the identity,
     :math:`B` and :math:`B^T` are equal respectively to the OT matrix and its

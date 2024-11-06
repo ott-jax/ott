@@ -162,13 +162,15 @@ ignore_directives = [
     "autosummary",
     "automodule",
     "autoclass",
-    "bibliography"
+    "bibliography",
+    "glossary",
 ]
 ignore_roles = [
     "class",
     "doc",
     "mod",
     "cite",
+    "term",
 ]
 
 [tool.doc8]
