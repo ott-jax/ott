@@ -125,7 +125,7 @@ Glossary
         The *balanced* regularized OT problem is recovered for finite
         :math:`\varepsilon > 0` but letting :math:`\rho_a, \rho_b \rightarrow
         \infty`. This problem can be shown to be equivalent to a matrix scaling
-        problem, 000_neural_dual copy.ipynbwhich can be solved using the Sinkhorn fixed-point algorithm.
+        problem, which can be solved using the :term:`Sinkhorn algorithm`.
         To handle the case :math:`\rho_a, \rho_b \rightarrow \infty`, the
         Sinkhorn function uses parameters ``tau_a`` and ``tau_b`` equal
         respectively to :math:`\rho_a /(\varepsilon + \rho_a)` and
@@ -212,7 +212,7 @@ Glossary
         measurable set :math:`B`, :math:`T\#\mu(B)=\mu(T^{-1}(B))`. Intuitively,
         it is the measure obtained by applying the map :math:`T` to all points
         described in :math:`\mu`. See also the
-        `wikipedia definition <https://en.wikipedia.org/wiki/push-forward_measure>`_
+        `Wikipedia definition <https://en.wikipedia.org/wiki/push-forward_measure>`_.
 
     optimal transport
         Mathematical theory used to describe and characterize efficient
@@ -292,8 +292,7 @@ Glossary
         Distance between two probability functions parameterized by a
         :term:`ground cost` function that is equal to the optimal objective
         reached when solving the :term:`Kantorovich problem`. Such a distance
-        is truly a distance (in the sense that it satisfies all 3 metric axioms,
-        see the
-        `wikipedia definition <https://en.wikipedia.org/wiki/Metric_space>`_)
+        is truly a distance (in the sense that it satisfies all 3
+        `metric axioms <https://en.wikipedia.org/wiki/Metric_space#Definition>`_),
         as long as the  :term:`ground cost` is itself a distance to a power
         :math:`p\leq 1`, and the :math:`1/p` power of the objective is taken.
