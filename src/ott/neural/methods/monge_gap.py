@@ -123,7 +123,8 @@ def monge_gap_from_samples(
     W_{c, \varepsilon}(\frac{1}{n}\sum_i \delta_{x_i},
     \frac{1}{n}\sum_i \delta_{y_i})
 
-  where :math:`W_{c, \varepsilon}` is an entropy-regularized optimal transport
+  where :math:`W_{c, \varepsilon}` is an
+  :term:`entropy-regularized optimal transport`
   cost, the :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`.
 
   Args:

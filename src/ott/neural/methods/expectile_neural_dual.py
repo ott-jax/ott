@@ -144,8 +144,8 @@ class ExpectileNeuralDual:
   It solves the dual optimal transport problem for a specified cost function
   :math:`c(x, y)` between two measures :math:`\alpha` and :math:`\beta` in
   :math:`d`-dimensional Euclidean space with additional regularization on
-  Kantorovich potentials. The expectile regularization enforces binding
-  conditions on the learning dual potentials :math:`f` and :math:`g`.
+  :term:`dual Kantorovich potentials`. The expectile regularization enforces
+  binding conditions on the learning dual potentials :math:`f` and :math:`g`.
   The main optimization objective is
 
   .. math::

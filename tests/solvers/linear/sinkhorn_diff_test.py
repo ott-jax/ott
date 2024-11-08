@@ -511,6 +511,7 @@ class TestSinkhornJacobian:
     loss_back = jax.jit(
         jax.grad(lambda a, x: loss_from_potential(a, x, False), argnums=arg)
     )
+
     g_back = loss_back(a, x)
     back_dif = jnp.sum(g_back * (delta_a if arg == 0 else delta_x))
 

@@ -154,7 +154,7 @@ class GWState(NamedTuple):
 
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
-  """Gromov-Wasserstein solver :cite:`peyre:16`.
+  """Entropic Gromov-Wasserstein solver :cite:`peyre:16`.
 
   .. seealso::
     Low-rank Gromov-Wasserstein :cite:`scetbon:23` is implemented in

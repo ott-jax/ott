@@ -508,117 +508,8 @@ class SinkhornOutput(NamedTuple):
 class Sinkhorn:
   r"""Sinkhorn solver.
 
-  The Sinkhorn algorithm is a fixed point iteration that solves a regularized
-  optimal transport (reg-OT) problem between two measures.
-  The optimization variables are a pair of vectors (called potentials, or
-  scalings when parameterized as exponential of the former). Calling this
-  function returns therefore a pair of optimal vectors. In addition to these,
-  it also returns the objective value achieved by these optimal vectors;
-  a vector of size ``max_iterations/inner_iterations`` that records the vector
-  of values recorded to monitor convergence, throughout the execution of the
-  algorithm (padded with `-1` if convergence happens before), as well as a
-  boolean to signify whether the algorithm has converged within the number of
-  iterations specified by the user.
-
-  The reg-OT problem is specified by two measures, of respective sizes ``n`` and
-  ``m``. From the viewpoint of the ``sinkhorn`` function, these two measures are
-  only seen through a triplet (``geom``, ``a``, ``b``), where ``geom`` is a
-  ``Geometry`` object, and ``a`` and ``b`` are weight vectors of respective
-  sizes ``n`` and ``m``. Starting from two initial values for those potentials
-  or scalings (both can be defined by the user by passing value in
-  ``init_dual_a`` or ``init_dual_b``), the Sinkhorn algorithm will use
-  elementary operations that are carried out by the ``geom`` object.
-
-  Math:
-    Given a geometry ``geom``, which provides a cost matrix :math:`C` with its
-    regularization parameter :math:`\varepsilon`, (or a kernel matrix :math:`K`)
-    the reg-OT problem consists in finding two vectors `f`, `g` of size ``n``,
-    ``m`` that maximize the following criterion.
-
-    .. math::
-
-      \arg\max_{f, g}{- \langle a, \phi_a^{*}(-f) \rangle -  \langle b,
-      \phi_b^{*}(-g) \rangle - \varepsilon \langle e^{f/\varepsilon},
-      e^{-C/\varepsilon} e^{g/\varepsilon}} \rangle
-
-    where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
-    :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform
-    :cite:`sejourne:19`.
-
-    That problem can also be written, instead, using positive scaling vectors
-    `u`, `v` of size ``n``, ``m``, handled with the kernel
-    :math:`K := e^{-C/\varepsilon}`,
-
-    .. math::
-
-      \arg\max_{u, v >0} - \langle a,\phi_a^{*}(-\varepsilon\log u) \rangle +
-      \langle b, \phi_b^{*}(-\varepsilon\log v) \rangle - \langle u, K v \rangle
-
-    Both of these problems corresponds, in their *primal* formulation, to
-    solving the unbalanced optimal transport problem with a variable matrix
-    :math:`P` of size ``n`` x ``m``:
-
-    .. math::
-
-      \arg\min_{P>0} \langle P,C \rangle +\varepsilon \text{KL}(P | ab^T)
-      + \rho_a \text{KL}(P\mathbf{1}_m | a) + \rho_b \text{KL}(P^T \mathbf{1}_n
-      | b)
-
-    where :math:`KL` is the generalized Kullback-Leibler divergence.
-
-    The very same primal problem can also be written using a kernel :math:`K`
-    instead of a cost :math:`C` as well:
-
-    .. math::
-
-      \arg\min_{P} \varepsilon \text{KL}(P|K)
-      + \rho_a \text{KL}(P\mathbf{1}_m | a) +
-      \rho_b \text{KL}(P^T \mathbf{1}_n | b)
-
-    The *original* OT problem taught in linear programming courses is recovered
-    by using the formulation above relying on the cost :math:`C`, and letting
-    :math:`\varepsilon \rightarrow 0`, and :math:`\rho_a, \rho_b \rightarrow
-    \infty`.
-    In that case the entropy disappears, whereas the :math:`KL` regularization
-    above become constraints on the marginals of :math:`P`: This results in a
-    standard min cost flow problem. This problem is not handled for now in this
-    toolbox, which focuses exclusively on the case :math:`\varepsilon > 0`.
-
-    The *balanced* regularized OT problem is recovered for finite
-    :math:`\varepsilon > 0` but letting :math:`\rho_a, \rho_b \rightarrow
-    \infty`. This problem can be shown to be equivalent to a matrix scaling
-    problem, which can be solved using the Sinkhorn fixed-point algorithm.
-    To handle the case :math:`\rho_a, \rho_b \rightarrow \infty`, the
-    ``sinkhorn`` function uses parameters ``tau_a`` and ``tau_b`` equal
-    respectively to :math:`\rho_a /(\varepsilon + \rho_a)` and
-    :math:`\rho_b / (\varepsilon + \rho_b)` instead. Setting either of these
-    parameters to 1 corresponds to setting the corresponding
-    :math:`\rho_a, \rho_b` to :math:`\infty`.
-
-    The Sinkhorn algorithm solves the reg-OT problem by seeking optimal
-    :math:`f`, :math:`g` potentials (or alternatively their parameterization
-    as positive scaling vectors :math:`u`, :math:`v`), rather than solving the
-    primal problem in :math:`P`. This is mostly for efficiency (potentials and
-    scalings have a ``n + m`` memory footprint, rather than ``n m`` required
-    to store `P`). This is also because both problems are, in fact, equivalent,
-    since the optimal transport :math:`P^{\star}` can be recovered from
-    optimal potentials :math:`f^{\star}`, :math:`g^{\star}` or scaling
-    :math:`u^{\star}`, :math:`v^{\star}`, using the geometry's cost or kernel
-    matrix respectively:
-
-    .. math::
-
-      P^{\star} = \exp\left(\frac{f^{\star}\mathbf{1}_m^T + \mathbf{1}_n g^{*T}-
-      C}{\varepsilon}\right) \text{ or } P^{\star} = \text{diag}(u^{\star}) K
-      \text{diag}(v^{\star})
-
-    By default, the Sinkhorn algorithm solves this dual problem in :math:`f, g`
-    or :math:`u, v` using block coordinate ascent, i.e. devising an update for
-    each :math:`f` and :math:`g` (resp. :math:`u` and :math:`v`) that cancels
-    their respective gradients, one at a time. These two iterations are repeated
-    ``inner_iterations`` times, after which the norm of these gradients will be
-    evaluated and compared with the ``threshold`` value. The iterations are then
-    repeated as long as that error exceeds ``threshold``.
+  The :term:`Sinkhorn algorithm` is a fixed point iteration that solves a
+  regularized optimal transport (reg-OT) problem between two measures.
 
   Note on Sinkhorn updates:
     The boolean flag ``lse_mode`` sets whether the algorithm is run in either:
@@ -659,50 +550,47 @@ class Sinkhorn:
     can only be carried out using implicit differentiation, and that all
     momentum related parameters are ignored.
 
-    The ``parallel_dual_updates`` flag is set to ``False`` by default. In that
-    setting, ``g_v`` is first updated using the latest values for ``f_u`` and
-    ``g_v``, before proceeding to update ``f_u`` using that new value for
-    ``g_v``. When the flag is set to ``True``, both ``f_u`` and ``g_v`` are
-    updated simultaneously. Note that setting that choice to ``True`` requires
-    using some form of averaging (e.g. ``momentum=0.5``). Without this, and on
-    its own ``parallel_dual_updates`` won't work.
+    The ``parallel_dual_updates`` flag is set to :obj:`False` by default. In
+    that setting, ``g_v`` is first updated using the latest values for ``f_u``
+    and ``g_v``, before proceeding to update ``f_u`` using that new value for
+    ``g_v``. When the flag is set to :obj:`True`, both ``f_u`` and ``g_v`` are
+    updated simultaneously. Note that setting that choice to :obj:`True`
+    requires using some form of averaging (e.g. ``momentum=0.5``). Without this,
+    and on its own ``parallel_dual_updates`` won't work.
 
   Differentiation:
     The optimal solutions ``f`` and ``g`` and the optimal objective
     (``reg_ot_cost``) outputted by the Sinkhorn algorithm can be differentiated
     w.r.t. relevant inputs ``geom``, ``a`` and ``b``. In the default setting,
-    implicit differentiation of the optimality conditions (``implicit_diff``
-    not equal to ``None``), this has two consequences, treating ``f`` and ``g``
-    differently from ``reg_ot_cost``.
+    the algorithm uses :term:`implicit differentiation` of the optimality
+    conditions (``implicit_diff`` not equal to ``None``). This has two
+    consequences:
 
     - The termination criterion used to stop Sinkhorn (cancellation of
       gradient of objective w.r.t. ``f_u`` and ``g_v``) is used to differentiate
-      ``f`` and ``g``, given a change in the inputs. These changes are computed
-      by solving a linear system. The arguments starting with
-      ``implicit_solver_*`` allow to define the linear solver that is used, and
-      to control for two types or regularization (we have observed that,
-      depending on the architecture, linear solves may require higher ridge
-      parameters to remain stable). The optimality conditions in Sinkhorn can be
-      analyzed as satisfying a ``z=z'`` condition, which are then
+      the :term:`dual Kantorovich potentials` ``f`` and ``g``, given a change in
+      the inputs. These changes are computed by solving a linear system. The
+      optimality conditions of the :term:`entropy-regularized optimal transport`
+      problem can be analyzed as satisfying a ``z=z'`` condition, which are then
       differentiated. It might be beneficial (e.g., as in :cite:`cuturi:20a`)
       to use a preconditioning function ``precondition_fun`` to differentiate
       instead ``h(z) = h(z')``.
 
     - The objective ``reg_ot_cost`` returned by Sinkhorn uses the so-called
-      envelope (or Danskin's) theorem. In that case, because it is assumed that
-      the gradients of the dual variables ``f_u`` and ``g_v`` w.r.t. dual
-      objective are zero (reflecting the fact that they are optimal), small
-      variations in ``f_u`` and ``g_v`` due to changes in inputs (such as
-      ``geom``, ``a`` and ``b``) are considered negligible. As a result,
-      ``stop_gradient`` is applied on dual variables ``f_u`` and ``g_v`` when
-      evaluating the ``reg_ot_cost`` objective. Note that this approach is
+      :term:`envelope theorem` (a.k.a. Danskin's theorem). In that case,
+      because it is assumed that the gradients of the dual variables ``f_u`` and
+      ``g_v`` w.r.t. dual objective are zero (reflecting the fact that they are
+      optimal), small variations in ``f_u`` and ``g_v`` due to changes in inputs
+      (such as ``geom``, ``a`` and ``b``) are considered negligible. As a
+      result, ``stop_gradient`` is applied on dual variables ``f_u`` and ``g_v``
+      when evaluating the ``reg_ot_cost`` objective. Note that this approach is
       `invalid` when computing higher order derivatives. In that case the
-      ``use_danskin`` flag must be set to ``False``.
+      ``use_danskin`` flag must be set to :obj:`False`.
 
     An alternative yet more costly way to differentiate the outputs of the
-    Sinkhorn iterations is to use unrolling, i.e. reverse mode differentiation
-    of the Sinkhorn loop. This is possible because Sinkhorn iterations are
-    wrapped in a custom fixed point iteration loop, defined in
+    Sinkhorn iterations is to use :term:`unrolling`, i.e. reverse mode
+    differentiation of the Sinkhorn loop. This is possible because Sinkhorn
+    iterations are wrapped in a custom fixed point iteration loop, defined in
     ``fixed_point_loop``, rather than a standard while loop. This is to ensure
     the end result of this fixed point loop can also be differentiated, if
     needed, using standard JAX operations. To ensure differentiability,
@@ -712,8 +600,8 @@ class Sinkhorn:
     ``inner_iterations`` at a time.
 
   Note:
-    * The Sinkhorn algorithm may not converge within the maximum number of
-      iterations for possibly several reasons:
+    * The :term:`Sinkhorn algorithm` may not converge within the maximum number
+      of iterations for possibly several reasons:
 
       1. the regularizer (defined as ``epsilon`` in the geometry ``geom``
          object) is too small. Consider either switching to ``lse_mode=True``
@@ -727,31 +615,34 @@ class Sinkhorn:
       3. OOMs issues may arise when storing either cost or kernel matrices that
          are too large in ``geom``. In the case where, the ``geom`` geometry is
          a ``PointCloud``, some of these issues might be solved by setting the
-         ``online`` flag to ``True``. This will trigger a re-computation on the
-         fly of the cost/kernel matrix.
+         ``online`` flag to :obj:`True`. This will trigger a re-computation on
+         the fly of the cost/kernel matrix.
 
     * The weight vectors ``a`` and ``b`` can be passed on with coordinates that
       have zero weight. This is then handled by relying on simple arithmetic for
       ``inf`` values that will likely arise (due to :math:`\log 0` when
-      ``lse_mode`` is ``True``, or divisions by zero when ``lse_mode`` is
-      ``False``). Whenever that arithmetic is likely to produce ``NaN`` values
-      (due to ``-inf * 0``, or ``-inf - -inf``) in the forward pass, we use
-      ``jnp.where`` conditional statements to carry ``inf`` rather than ``NaN``
-      values. In the reverse mode differentiation, the inputs corresponding to
-      these 0 weights (a location `x`, or a row in the corresponding cost/kernel
-      matrix), and the weight itself will have ``NaN`` gradient values. This is
-      reflects that these gradients are undefined, since these points were not
-      considered in the optimization and have therefore no impact on the output.
+      ``lse_mode`` is :obj:`True`, or divisions by zero when ``lse_mode`` is
+      :obj:`False`). Whenever that arithmetic is likely to produce ``NaN``
+      values (due to ``-inf * 0``, or ``-inf - -inf``) in the forward pass, we
+      use ``jnp.where`` conditional statements to carry ``inf`` rather than
+      ``NaN`` values. In reverse mode differentiation, the inputs corresponding
+      to these 0 weights (a location `x`, or a row in the corresponding
+      cost/kernel matrix), and the weight itself will have ``NaN`` gradient
+      values. This reflects that these gradients are undefined, since these
+      points were not considered in the optimization and have therefore no
+      impact on the output.
 
   Args:
-    lse_mode: ``True`` for log-sum-exp computations, ``False`` for kernel
+    lse_mode: :obj:`True` for log-sum-exp computations, :obj:`False` for kernel
       multiplication.
     threshold: tolerance used to stop the Sinkhorn iterations. This is
       typically the deviation between a target marginal and the marginal of the
-      current primal solution when either or both tau_a and tau_b are 1.0
-      (balanced or semi-balanced problem), or the relative change between two
-      successive solutions in the unbalanced case.
-    norm_error: power used to define p-norm of error for marginal/target.
+      current primal solution when either or both ``tau_a`` and ``tau_b`` are
+      :math:`1.0` (balanced or semi-balanced problem), or the relative change
+      between two successive solutions in the unbalanced case.
+    norm_error: power used to define the :math:`p`-norm used to quantify
+      the magnitude of the gradients. This criterion is used to terminate the
+      algorithm.
     inner_iterations: the Sinkhorn error is not recomputed at each
       iteration but every ``inner_iterations`` instead.
     min_iterations: the minimum number of Sinkhorn iterations carried
@@ -760,26 +651,30 @@ class Sinkhorn:
       ``max_iterations`` is equal to ``min_iterations``, Sinkhorn iterations are
       run by default using a :func:`jax.lax.scan` loop rather than a custom,
       unroll-able :func:`jax.lax.while_loop` that monitors convergence.
-      In that case the error is not monitored and the ``converged``
-      flag will return ``False`` as a consequence.
-    momentum: Momentum instance.
-    anderson: AndersonAcceleration instance.
-    implicit_diff: instance used to solve implicit differentiation. Unrolls
-      iterations if None.
-    parallel_dual_updates: updates potentials or scalings in parallel if True,
-      sequentially (in Gauss-Seidel fashion) if False.
+      In that case the error is only computed at the last iteration.
+    momentum: :class:`~ott.solvers.linear.acceleration.Momentum` instance.
+    anderson: :class:`~ott.solvers.linear.acceleration.AndersonAcceleration`
+      instance.
+    implicit_diff:
+      :class:`~ott.solvers.linear.implicit_differentiation.ImplicitDiff`
+      instance used to parameterize the linear solvers used in
+      :term:`implicit differentiation`. Tha algorithm uses :term:`unrolling` of
+      iterations if ``None``.
+    parallel_dual_updates: updates potentials or scalings in parallel if
+      :obj:`True`, sequentially (in Gauss-Seidel fashion) if :obj:`False`.
     recenter_potentials: Whether to re-center the dual potentials.
       If the problem is balanced, the ``f`` potential is zero-centered for
       numerical stability. Otherwise, use the approach of :cite:`sejourne:22`
       to achieve faster convergence. Only used when ``lse_mode = True`` and
       ``tau_a < 1`` and ``tau_b < 1``.
-    use_danskin: when ``True``, it is assumed the entropy regularized cost
-      is evaluated using optimal potentials that are frozen, i.e. whose
-      gradients have been stopped. This is useful when carrying out first order
-      differentiation, and is only valid (as with ``implicit_differentiation``)
-      when the algorithm has converged with a low tolerance.
-    initializer: how to compute the initial potentials/scalings. This refers to
-      a few possible classes implemented following the template in
+    use_danskin: when :obj:`True`, it is assumed the
+      :term:`entropy-regularized optimal transport` cost
+      is evaluated using :term:`dual Kantorovich potentials` that are frozen,
+      i.e. whose gradients have been stopped. This is useful when carrying out
+      first order differentiation, and is only valid when the algorithm has
+      converged with a low tolerance.
+    initializer: method to compute the initial potentials/scalings. This refers
+      to a few possible classes implemented following the template in
       :class:`~ott.initializers.linear.SinkhornInitializer`.
     progress_fn: callback function which gets called during the Sinkhorn
       iterations, so the user can display the error at each iteration,
@@ -1070,7 +965,7 @@ class Sinkhorn:
       The flag ``use_danskin`` controls whether that assumption is made. By
       default, that flag is set to the value of ``implicit_differentiation`` if
       not specified. If you wish to compute derivatives of order 2 and above,
-      set ``use_danskin`` to ``False``.
+      set ``use_danskin`` to :obj:`False`.
 
     Args:
       ot_prob: the transport problem.
