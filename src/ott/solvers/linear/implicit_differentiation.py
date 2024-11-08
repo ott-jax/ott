@@ -84,7 +84,7 @@ class ImplicitDiff:
       g: jnp.ndarray,
       lse_mode: bool,
   ) -> jnp.ndarray:
-    r"""Apply minus inverse of Hessian ``reg_ot_cost`` w.r.t. ``f``, ``g``].
+    r"""Apply minus inverse of Hessian of ``reg_ot_cost`` w.r.t. [``f``, ``g``].
 
     This function is used to carry out :term:`implicit differentiation` of
     the outputs of the :term:`Sinkhorn algorithm`, notably
