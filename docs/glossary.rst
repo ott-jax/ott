@@ -52,7 +52,7 @@ Glossary
           D(C):= \{f \in\mathbb{R}^n, g \in \mathbb{R}^m
           | f_i + g_j \leq C_{ij}\}.
 
-    dualize
+    dualizing
         Within the context of optimization, the process of simplifying a
         constrained optimization problem into an unconstrained one, by
         transforming constraints into penalty terms in the objective function.
@@ -198,7 +198,7 @@ Glossary
 
           \min_{\pi \in \Pi(\mu,\nu)} \iint cd\pi.
 
-        where :math:`\pi` is a :term:`coupling`` density with first marginal
+        where :math:`\pi` is a :term:`coupling` density with first marginal
         :math:`\mu` and second marginal :math:`\nu`.
 
     matching
@@ -286,11 +286,11 @@ Glossary
     unbalanced
         A generalization of the :term:`Kantorovich problem` defined to bring
         more flexibility to optimal transport computations. Such a
-        generalization arises when :term:`dualizing` the constraint that the variable
-        :term:`coupling` in the :term:`Kantorovich problem` has marginals that
-        coincide exactly with those of :math:`a` and :math:`b` or :math:`\mu`
-        and :math:`\nu` in the continuous formulation. Instead, deviations from
-        those marginals appear as penalty terms.
+        generalization arises when :term:`dualizing` the constraint that the
+        variable :term:`coupling` in the :term:`Kantorovich problem` has
+        marginals that coincide exactly with those of :math:`a` and :math:`b`
+        or :math:`\mu` and :math:`\nu` in the continuous formulation. Instead,
+        deviations from those marginals appear as penalty terms.
 
     unrolling
         Automatic differentiation technique to compute the vector-Jacobian

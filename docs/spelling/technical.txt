@@ -62,6 +62,7 @@ discretization
 discretize
 downweighted
 dualize
+dualizing
 duals
 eigendecomposition
 elementwise
