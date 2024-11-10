@@ -306,4 +306,4 @@ Glossary
         distance is truly a distance (in the sense that it satisfies all 3
         `metric axioms <https://en.wikipedia.org/wiki/Metric_space#Definition>`_),
         as long as the  :term:`ground cost` is itself a distance to a power
-        :math:`p\leq 1`, and the :math:`1/p`-th power of the objective is taken.
+        :math:`p\leq 1`, and the :math:`1/p`th power of the objective is taken.
