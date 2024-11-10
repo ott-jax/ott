@@ -10,7 +10,7 @@ Glossary
         When the coupling is balanced, the first and second marginals of that
         probability measure must coincide with :math:`\mu` and
         :math:`\nu` respectively. Equivalently, given two non-negative vectors
-        :math:`a\in\mathbb{R}^n` and :math:`b\in\mathbb{R}^m`, a coupling is a
+        :math:`a\in\mathbb{R}^n` and :math:`b\in\mathbb{R}^m`, a coupling in
         matrix form is a non-negative matrix :math:`P` of size
         :math:`n\times m`. When the coupling is balanced :math:`P` is in their
         :term:`transportation polytope` :math:`U(a,b)`.
@@ -21,11 +21,11 @@ Glossary
 
     dual Kantorovich problem
         Dual formulation of the :term:`Kantorovich problem`, seeking two
-        vectors, two :term:`dual Kantorovich potentials`, such that, given a
-        cost matrix :math:`C` of size ``[n, m]`` and two
-        probability vectors :math:`a \in\mathbb{R}^n,b\in\mathbb{R}^m`, they
-        belong to the :term:`dual transportation polyhedron` :math:`D(C)` and
-        maximize:
+        vectors :math:`f, g` that are :term:`dual Kantorovich potentials` such
+        that, given a :term:`ground cost` matrix :math:`C` of size ``[n, m]``
+        and two probability vectors :math:`a \in\mathbb{R}^n,b\in\mathbb{R}^m`,
+        they belong to the :term:`dual transportation polyhedron` :math:`D(C)`
+        and maximize:
 
         .. math::
 
@@ -38,9 +38,10 @@ Glossary
 
           \max_{f\oplus g\leq c} \int f d\mu + \int g d\nu,
 
-        where :math:`f,g` are real-valued functions on the supports of
-        :math:`\mu,\nu` and :math:`f\oplus g\leq c` means that for any pair
-        :math:`x,y` in the respective supports, :math:`f(x)+g(y)\leq c(x,y)`.
+        where :math:`f,g` are in that case real-valued *functions* on the
+        supports of :math:`\mu,\nu` and :math:`f\oplus g\leq c` means that for
+        any pair :math:`x,y` in the respective supports, one has
+        :math:`f(x)+g(y)\leq c(x,y)`.
 
     dual transportation polyhedron
         Given a :math:`n\times m` cost matrix :math:`C`, denotes the set of
@@ -52,7 +53,7 @@ Glossary
           | f_i + g_j \leq C_{ij}\}.
 
     dualize
-        Within the context of optimization, the process of converting a
+        Within the context of optimization, the process of simplifying a
         constrained optimization problem into an unconstrained one, by
         transforming constraints into penalty terms in the objective function.
 
@@ -61,10 +62,12 @@ Glossary
         a cost matrix :math:`C` of size ``[n, m]`` and two vectors :math:`a,b`
         of non-negative weights of respective size ``n`` and ``m``.
         The parameters of the EOT problem consist of three numbers
-        :math:`\varepsilon, \tau_a, \tau_b`.
+        :math:`\varepsilon, \tau_a, \tau_b>0`.
 
         The optimization variables are a pair of vectors of sizes ``n`` and
-        ``m`` denoted as :math:`f` and :math:`g`.
+        ``m`` denoted as :math:`f` and :math:`g`, akin to
+        :term:`dual Kantorovich potentials` but not constrained to belong to the
+        :term:`dual transportation polyhedron`.
 
         Using the reparameterization for :math:`\rho_a` and
         :math:`\rho_b` using
@@ -134,10 +137,10 @@ Glossary
         :math:`\rho_a, \rho_b` to :math:`\infty`.
 
     envelope theorem
-        The envelope theorem is a major result about the differentiability
-        properties of the value function of a parameterized optimization
-        problem. Namely, that for a function :math:`f` defined implicitly as an
-        optimal objective parameterized by a vector :math:`x`,
+        The envelope theorem or Danskin's theorem is a major result about the
+        differentiability properties of the value function of a parameterized
+        optimization problem. Namely, that for a function :math:`f` defined
+        implicitly as an optimal objective parameterized by a vector :math:`x`,
 
         .. math::
           h(x):=\min_z s(x,z), z^\star(x):=\arg\min_z s(x,z)
@@ -155,15 +158,17 @@ Glossary
     ground cost
         A real-valued function of two variables, :math:`c(x,y)` that describes
         the cost needed to displace a point :math:`x` in a source measure to
-        :math:`y` in a target measure.
+        :math:`y` in a target measure. Can also refer to a matrix :math:`C` of
+        evaluations of :math:`c` on various pairs of points,
+        :math:`C=[c(x_i, y_j)]_{ij}`.
 
     implicit differentiation
-        Differentiation technique to compute the vector-Jacobian
-        product of the minimizer of an optimization procedure by considering
-        that small variations in the input would still result in minimizers
-        that verify optimality conditions (KKT or first-order conditions). These
-        identities can then help recover the vector-Jacobian operator by
-        inverting a linear system.
+        Formula used to compute the vector-Jacobian
+        product of the minimizer of an optimization procedure that leverages
+        the fact that small variations in the input of the optimization problem
+        still result in minimizers that verify optimality conditions
+        (KKT or first-order conditions). These identities can then help recover
+        the vector-Jacobian operator by inverting a linear system.
 
     input-convex neural networks
         A neural network architecture for vectors with a few distinguishing
@@ -173,11 +178,12 @@ Glossary
     Kantorovich problem
         Linear program that is the original formulation of optimal transport
         between two point-clouds, seeking an optimal :term:`coupling` matrix
-        :math:`P`. The problem is parameterized by a cost matrix :math:`C` of
-        size ``[n, m]`` and two probability vectors :math:`a,b` of non-negative
-        weights of respective sizes ``n`` and ``m``, summing to :math:`1`.
-        The :term:`coupling` is in the :term:`transportation polytope`
-        :math:`U(a,b)` and must minimize the objective
+        :math:`P`. The problem is parameterized by a :term:`ground cost` matrix
+        :math:`C` of size ``[n, m]`` and two probability vectors :math:`a,b` of
+        non-negative weights of respective sizes ``n`` and ``m``, summing to
+        :math:`1`. The :term:`coupling` is in the
+        :term:`transportation polytope` :math:`U(a,b)` and must minimize the
+        objective
 
         .. math::
 
@@ -192,8 +198,8 @@ Glossary
 
           \min_{\pi \in \Pi(\mu,\nu)} \iint cd\pi.
 
-        where :math:`\pi` is a coupling density with first marginal :math:`\mu`
-        and second marginal :math:`\nu`.
+        where :math:`\pi` is a :term:`coupling`` density with first marginal
+        :math:`\mu` and second marginal :math:`\nu`.
 
     matching
         A bijective pairing between two families of points of the same size
@@ -211,14 +217,15 @@ Glossary
         :math:`T\#\mu`, is the measure defined to be such that for any
         measurable set :math:`B`, :math:`T\#\mu(B)=\mu(T^{-1}(B))`. Intuitively,
         it is the measure obtained by applying the map :math:`T` to all points
-        described in :math:`\mu`. See also the
+        described in the support of :math:`\mu`. See also the
         `Wikipedia definition <https://en.wikipedia.org/wiki/push-forward_measure>`_.
 
     optimal transport
-        Mathematical theory used to describe and characterize efficient
-        transformations between probability measures. Such transformations can
-        be studied between continuous probability measures (e.g. densities) and
-        estimated using samples from probability measures.
+        Theory that characterizes efficient transformations between probability
+        measures. Theoretical aspects usually arise when studying such
+        transformations between continuous probability measures (e.g. densities)
+        whereas computational aspects become relevant when estimating such
+        transforms from samples.
 
     Sinkhorn algorithm
         Fixed point iteration that solves the
@@ -240,10 +247,10 @@ Glossary
           \mathbf{1}_n g^{*T}-C}{\varepsilon}\right) \text{ or } P^{\star}
           = \text{diag}(u^{\star}) K \text{diag}(v^{\star})
 
-        By default, the Sinkhorn algorithm solves this dual problem using block
+        The Sinkhorn algorithm solves this dual problem using block
         coordinate ascent, i.e. devising an update for each :math:`f` and
-        :math:`g` (resp. :math:`u` and :math:`v`) that cancels their respective
-        gradients, one at a time.
+        :math:`g` (resp. :math:`u` and :math:`v`) that cancels alternatively
+        their respective gradients, one at a time.
 
     transport map
         A function :math:`T` that associates to each point :math:`x` in the
@@ -269,17 +276,21 @@ Glossary
 
     twist condition
         Given a :term:`ground cost` function :math:`c(x, y)` taking two input
-        vectors, this refers to the requirement that at any given point
-        :math:`x`, the map :math:`y \rightarrow \nabla_1 c(x, y)` be invertible.
-        Although not necessary, this condition simplifies many proofs when
-        proving the existence of optimal :term:`transport map`.
+        vectors, the twist condition refers to the requirement that at any given
+        point :math:`x`, the map :math:`y \mapsto \nabla_1 c(x, y)` be
+        invertible. Although not necessary, this condition is sufficient to
+        prove the existence of an optimal :term:`transport map` from a source
+        to a target measure with suitable assumptions on the measures
+        themselves.
 
     unbalanced
-        A generalization of the OT problem defined to bring more flexibility to
-        optimal transport computations. Such a generalization arises when
-        considering unnormalized probability distributions on the product space
-        of the supports :math:`\mu` and :math:`\nu`, without requiring that its
-        marginal coincides exactly with :math:`\mu` and :math:`\nu`.
+        A generalization of the :term:`Kantorovich problem` defined to bring
+        more flexibility to optimal transport computations. Such a
+        generalization arises when :term:`dualizing` the constraint that the variable
+        :term:`coupling` in the :term:`Kantorovich problem` has marginals that
+        coincide exactly with those of :math:`a` and :math:`b` or :math:`\mu`
+        and :math:`\nu` in the continuous formulation. Instead, deviations from
+        those marginals appear as penalty terms.
 
     unrolling
         Automatic differentiation technique to compute the vector-Jacobian
@@ -291,8 +302,8 @@ Glossary
     Wasserstein distance
         Distance between two probability functions parameterized by a
         :term:`ground cost` function that is equal to the optimal objective
-        reached when solving the :term:`Kantorovich problem`. Such a distance
-        is truly a distance (in the sense that it satisfies all 3
+        reached when solving the :term:`Kantorovich problem`. The Wasserstein
+        distance is truly a distance (in the sense that it satisfies all 3
         `metric axioms <https://en.wikipedia.org/wiki/Metric_space#Definition>`_),
         as long as the  :term:`ground cost` is itself a distance to a power
-        :math:`p\leq 1`, and the :math:`1/p` power of the objective is taken.
+        :math:`p\leq 1`, and the :math:`1/p`-th power of the objective is taken.
