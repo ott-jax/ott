@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from typing import Any, Dict, Optional, Tuple
 
 import pytest
@@ -45,30 +46,16 @@ class TestSinkhornDivergence:
   )
   def test_euclidean_point_cloud(self, cost_fn: costs.CostFn, rank: int):
 
-    def sinkdiv(
-        x: jnp.ndarray,
-        y: jnp.ndarray,
-        cost_fn: costs.CostFn,
-        epsilon: float,
-    ) -> sinkhorn_divergence.SinkhornDivergenceOutput:
-      return sinkhorn_divergence.sinkhorn_divergence(
-          pointcloud.PointCloud,
-          x,
-          y,
-          cost_fn=cost_fn,
-          a=self._a,
-          b=self._b,
-          epsilon=epsilon,
-          solve_kwargs={"rank": rank},
-      )
-
     is_low_rank = rank > 0
     rngs = jax.random.split(self.rng, 2)
     x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
     y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
 
     epsilon = 5e-2
-    div, out = jax.jit(sinkdiv)(x, y, cost_fn, epsilon)
+    sd = functools.partial(
+        sinkhorn_divergence.sinkdiv, solve_kwargs={"rank": rank}
+    )
+    div, out = jax.jit(sd)(x, y, cost_fn, epsilon, a=self._a, b=self._b)
 
     assert div >= 0.0
     assert out.is_low_rank == is_low_rank
@@ -84,27 +71,44 @@ class TestSinkhornDivergence:
     assert iters_xx < iters_xy
     assert iters_yy < iters_xy
 
-    grad = jax.jit(jax.grad(sinkdiv, has_aux=True, argnums=0))
-    np.testing.assert_array_equal(
-        jnp.isfinite(grad(x, y, cost_fn, epsilon)[0]), True
-    )
-
     # Check computation of divergence matches that done separately.
     geometry_xy = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
     geometry_xx = pointcloud.PointCloud(x, epsilon=epsilon, cost_fn=cost_fn)
     geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, cost_fn=cost_fn)
 
-    div2 = linear.solve(
+    div2_xy = linear.solve(
         geometry_xy, a=self._a, b=self._b, rank=rank
     ).reg_ot_cost
-    div2 -= 0.5 * linear.solve(
+    div2_xx = linear.solve(
         geometry_xx, a=self._a, b=self._a, rank=rank
     ).reg_ot_cost
-    div2 -= 0.5 * linear.solve(
+    div2_yy = linear.solve(
         geometry_yy, a=self._b, b=self._b, rank=rank
     ).reg_ot_cost
 
-    np.testing.assert_allclose(out.divergence, div2, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(
+        div, div2_xy - .5 * (div2_xx + div2_yy), rtol=1e-5, atol=1e-5
+    )
+
+    # Check passing offset when using static_b works
+    div_offset, _ = sd(
+        x,
+        y,
+        cost_fn,
+        epsilon,
+        a=self._a,
+        b=self._b,
+        static_b=True,
+        offset_static_b=div2_yy
+    )
+
+    np.testing.assert_allclose(div, div_offset, rtol=1e-5, atol=1e-5)
+
+    # Check gradient is finite
+    grad = jax.jit(jax.grad(sd, has_aux=True, argnums=0))
+    np.testing.assert_array_equal(
+        jnp.isfinite(grad(x, y, cost_fn, epsilon)[0]), True
+    )
 
     # Test divergence of x to itself close to 0.
     div, out = sinkhorn_divergence.sinkhorn_divergence(

@@ -175,6 +175,10 @@ class Plot:
         *y.T, s=sy, edgecolors="k", marker="X", label="y"
     )
     self.ax.legend(fontsize=15)
+
+    if self._title is not None:
+      self.ax.set_title(self._title)
+
     if not self._show_lines:
       return []
 
@@ -191,8 +195,6 @@ class Plot:
           alpha=alpha
       )
       self._lines.append(line)
-    if self._title is not None:
-      self.ax.set_title(self._title)
     return [self._points_x, self._points_y] + self._lines
 
   def update(self,
@@ -202,6 +204,10 @@ class Plot:
     x, y, _, _ = self._scatter(ot)
     self._points_x.set_offsets(x)
     self._points_y.set_offsets(y)
+
+    if title is not None:
+      self.ax.set_title(title)
+
     if not self._show_lines:
       return []
 
@@ -232,8 +238,6 @@ class Plot:
       self._lines.append(line)
 
     self._lines = self._lines[:num_to_plot]  # Maybe remove some
-    if title is not None:
-      self.ax.set_title(title)
     return [self._points_x, self._points_y] + self._lines
 
   def animate(
@@ -245,7 +249,7 @@ class Plot:
     """Make an animation from several transports."""
     _ = self(transports[0])
     if titles is None:
-      titles = [None for _ in np.arange(0, len(transports))]
+      titles = ["tt" for _ in np.arange(0, len(transports))]
     assert len(titles) == len(transports), (
         f"titles/transports lengths differ `{len(titles)}`/`{len(transports)}`."
     )
