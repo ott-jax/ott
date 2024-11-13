@@ -210,7 +210,7 @@ Glossary
         .. math::
           P = Q \text{diag}(g) R^T,
 
-        where :math:`Q,R` are :term:`coupling`` matrices of size ``[n,r]`` and
+        where :math:`Q,R` are :term:`coupling` matrices of size ``[n,r]`` and
         ``[m,r]`` and :math:`g` is a vector of size ``[r,]``. To be effective,
         one assumes implicitly that rank :math:`r\ll n,m`. To solve this in
         practice, the  :term:`Kantorovich problem` is modified to only seek
