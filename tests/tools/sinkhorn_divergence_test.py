@@ -55,7 +55,9 @@ class TestSinkhornDivergence:
     sd = functools.partial(
         sinkhorn_divergence.sinkdiv, solve_kwargs={"rank": rank}
     )
-    div, out = jax.jit(sd)(x, y, cost_fn, epsilon, a=self._a, b=self._b)
+    div, out = jax.jit(sd)(
+        x, y, cost_fn=cost_fn, epsilon=epsilon, a=self._a, b=self._b
+    )
 
     assert div >= 0.0
     assert out.is_low_rank == is_low_rank
@@ -94,8 +96,8 @@ class TestSinkhornDivergence:
     div_offset, _ = sd(
         x,
         y,
-        cost_fn,
-        epsilon,
+        cost_fn=cost_fn,
+        epsilon=epsilon,
         a=self._a,
         b=self._b,
         static_b=True,
@@ -107,7 +109,7 @@ class TestSinkhornDivergence:
     # Check gradient is finite
     grad = jax.jit(jax.grad(sd, has_aux=True, argnums=0))
     np.testing.assert_array_equal(
-        jnp.isfinite(grad(x, y, cost_fn, epsilon)[0]), True
+        jnp.isfinite(grad(x, y, cost_fn=cost_fn, epsilon=epsilon)[0]), True
     )
 
     # Test divergence of x to itself close to 0.
