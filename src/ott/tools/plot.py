@@ -249,7 +249,7 @@ class Plot:
     """Make an animation from several transports."""
     _ = self(transports[0])
     if titles is None:
-      titles = ["tt" for _ in np.arange(0, len(transports))]
+      titles = [None for _ in np.arange(0, len(transports))]
     assert len(titles) == len(transports), (
         f"titles/transports lengths differ `{len(titles)}`/`{len(transports)}`."
     )
