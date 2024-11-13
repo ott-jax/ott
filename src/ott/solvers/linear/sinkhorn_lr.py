@@ -261,12 +261,18 @@ class LRSinkhornOutput(NamedTuple):
 class LRSinkhorn(sinkhorn.Sinkhorn):
   r"""Low-Rank Sinkhorn solver for linear reg-OT problems.
 
+  The algorithm tries to minimize the :term:`low-rank optimal transport`
+  problem, a constrained formulation of the :term:`Kantorovich problem` where
+  the :term:`coupling` variable is constrained to have a low-rank.
+
+  That problem is non-convex, and therefore any algorithm that tries to
+  solve it requires special attention to initialization and control of
+  convergence. Convergence is evaluated on successive evaluations of the
+  objective whereas initializers are instance of the
+  :class:`~ott.ott.initializers.linear.initializers_lr.LRInitializer` class.
+
   The algorithm is described in :cite:`scetbon:21` and the implementation
   contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
-
-  The algorithm minimizes a non-convex problem. It therefore requires special
-  care to initialization and convergence. Convergence is evaluated on successive
-  evaluations of the objective.
 
   Args:
     rank: Rank constraint on the coupling to minimize the linear OT problem

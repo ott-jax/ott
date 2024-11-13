@@ -111,6 +111,48 @@ class SinkhornDivergenceOutput:  # noqa: D101
     return cls(*children, **aux_data)
 
 
+def sinkdiv(
+    x: jnp.ndarray,
+    y: jnp.ndarray,
+    *,
+    cost_fn: Optional[costs.CostFn] = None,
+    epsilon: Optional[float] = None,
+    **kwargs: Any,
+) -> Tuple[jnp.ndarray, SinkhornDivergenceOutput]:
+  """Wrapper to get the :term:`Sinkhorn divergence` between two point clouds.
+
+  Convenience wrapper around
+  :meth:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence` provided to
+  compute the :term:`Sinkhorn divergence` between two point clouds compared with
+  any ground cost :class:`~ott.geometry.costs.CostFn`. See other relevant
+  arguments in :meth:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
+
+  Args:
+    x: Array of input points, of shape `[num_x, feature]`.
+    y: Array of target points, of shape `[num_y, feature]`.
+    cost_fn: cost function of interest.
+    epsilon: entropic regularization.
+    kwargs: keywords arguments passed on to the generic
+      :meth:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence` method. Of
+      notable interest are ``a`` and ``b`` weight vectors, ``static_b`` and
+      ``offset_static_b`` which can be used to bypass the computations of the
+      transport problem between points stored in ``y`` (possibly with weights
+      ``b``) and themselves, and ``solve_kwargs`` to parameterize the linear
+      OT solver.
+
+  Returns:
+    The Sinkhorn divergence value, and output object detailing computations.
+  """
+  return sinkhorn_divergence(
+      pointcloud.PointCloud,
+      x=x,
+      y=y,
+      cost_fn=cost_fn,
+      epsilon=epsilon,
+      **kwargs
+  )
+
+
 def sinkhorn_divergence(
     geom: Type[geometry.Geometry],
     *args: Any,
@@ -118,26 +160,40 @@ def sinkhorn_divergence(
     b: Optional[jnp.ndarray] = None,
     solve_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
+    offset_static_b: Optional[float] = None,
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = True,
     **kwargs: Any,
 ) -> Tuple[jnp.ndarray, SinkhornDivergenceOutput]:
-  """Compute Sinkhorn divergence defined by a geometry, weights, parameters.
+  r"""Compute :term:`Sinkhorn divergence` between two measures.
+
+  The :term:`Sinkhorn divergence` is computed between two measures :math:`\mu`
+  and :math:`\nu` by specifying three :class:`~ott.geometry.Geometry` objects,
+  each describing pairwise costs within points in :math:`\mu,\nu`,
+  :math:`\mu,\mu`, and :math:`\nu,\nu`.
+
+  This implementation proposes the most general interface, to generate those
+  three geometries by specifying first the type of
+  :class:`~ott.geometry.Geometry` that is used to compare
+  them, followed by the arguments used to generate these three
+  :class:`~ott.geometry.Geometry` instances through its corresponding
+  :meth:`~ott.geometry.geometry.Geometry.prepare_divergences` method.
 
   Args:
     geom: Type of the geometry.
     args: Positional arguments to
       :meth:`~ott.geometry.geometry.Geometry.prepare_divergences` that are
       specific to each geometry.
-    a: the weight of each input point. The sum of all elements of `a` must
-      match that of `b` to converge.
-    b: the weight of each target point. The sum of all elements of `b` must
-      match that of `a` to converge.
+    a: the weight of each input point.
+    b: the weight of each target point.
     solve_kwargs: keywords arguments for
       :func:`~ott.solvers.linear.solve` that is called either twice
       if ``static_b == True`` or three times when ``static_b == False``.
-    static_b: if ``True``, divergence of measure `b` against itself is **not**
-      computed.
+    static_b: if :obj:`True`, divergence of the second measure
+      (with weights ``b``) to itself is **not** recomputed.
+    offset_static_b: when ``static_b`` is :obj:`True`, use that value to offset
+      computation. Useful when the value of the divergence of the second measure
+      to itself is precomputed and not expected to change.
     share_epsilon: if True, enforces that the same epsilon regularizer is shared
       for all 2 or 3 terms of the Sinkhorn divergence. In that case, the epsilon
       will be by default that used when comparing x to y (contained in the first
@@ -171,6 +227,7 @@ def sinkhorn_divergence(
       a=a,
       b=b,
       symmetric_sinkhorn=symmetric_sinkhorn,
+      offset_yy=offset_static_b,
       **solve_kwargs
   )
   return out.divergence, out
@@ -183,6 +240,7 @@ def _sinkhorn_divergence(
     a: jnp.ndarray,
     b: jnp.ndarray,
     symmetric_sinkhorn: bool,
+    offset_yy: Optional[float],
     **kwargs: Any,
 ) -> SinkhornDivergenceOutput:
   """Compute the (unbalanced) Sinkhorn divergence for the wrapper function.
@@ -205,6 +263,8 @@ def _sinkhorn_divergence(
      all elements of ``b`` must match that of ``a`` to converge.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
+    offset_yy: when available, regularized OT cost precomputed on
+       ``geometry_yy`` cost when transporting weight vector ``b`` onto itself.
     kwargs: Keyword arguments to :func:`~ott.solvers.linear.solve`.
 
   Returns:
@@ -239,7 +299,7 @@ def _sinkhorn_divergence(
   out_xx = linear.solve(geometry_xx, a=a, b=a, **kwargs_symmetric)
   if geometry_yy is None:
     # Create dummy output, corresponds to scenario where static_b is True.
-    out_yy = _empty_output(is_low_rank)
+    out_yy = _empty_output(is_low_rank, offset_yy)
   else:
     out_yy = linear.solve(geometry_yy, a=b, b=b, **kwargs_symmetric)
 
@@ -406,7 +466,8 @@ def segment_sinkhorn_divergence(
 
 
 def _empty_output(
-    is_low_rank: bool
+    is_low_rank: bool,
+    offset_yy: Optional[float] = None
 ) -> Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]:
   if is_low_rank:
     return sinkhorn_lr.LRSinkhornOutput(
@@ -419,13 +480,13 @@ def _empty_output(
         converged=True,
         costs=jnp.array([-jnp.inf]),
         errors=jnp.array([-jnp.inf]),
-        reg_ot_cost=0.0,
+        reg_ot_cost=0.0 if offset_yy is None else offset_yy,
     )
 
   return sinkhorn.SinkhornOutput(
       potentials=(None, None),
       errors=jnp.array([-jnp.inf]),
-      reg_ot_cost=0.0,
+      reg_ot_cost=0.0 if offset_yy is None else offset_yy,
       threshold=0.0,
       inner_iterations=0,
   )

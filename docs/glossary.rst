@@ -201,6 +201,24 @@ Glossary
         where :math:`\pi` is a :term:`coupling` density with first marginal
         :math:`\mu` and second marginal :math:`\nu`.
 
+    low-rank optimal transport
+        Variant of the :term:`Kantorovich problem` whereby the search for an
+        optimal :term:`coupling` matrix :math:`P` is restricted to lie in a
+        subset of matrices of low-rank. Effectively, this is parameterized by
+        replacing :math:`P` by a low-rank factorization
+
+        .. math::
+          P = Q \text{diag}(g) R^T,
+
+        where :math:`Q,R` are :term:`coupling` matrices of size ``[n,r]`` and
+        ``[m,r]`` and :math:`g` is a vector of size ``[r,]``. To be effective,
+        one assumes implicitly that rank :math:`r\ll n,m`. To solve this in
+        practice, the  :term:`Kantorovich problem` is modified to only seek
+        solutions with this factorization, and updates on :math:`Q,R,g` are done
+        alternatively. These updates are themselves carried out by solving an
+        :term:`entropy-regularized optimal transport` problem.
+
+
     matching
         A bijective pairing between two families of points of the same size
         :math:`N`, parameterized using a permutation of size :math:`N`.
@@ -251,6 +269,24 @@ Glossary
         coordinate ascent, i.e. devising an update for each :math:`f` and
         :math:`g` (resp. :math:`u` and :math:`v`) that cancels alternatively
         their respective gradients, one at a time.
+
+    Sinkhorn divergence
+        Proxy for the :term:`Wasserstein distance` between two samples. Rather
+        than use the output of the :term:`Kantorovich problem` to compare two
+        families of samples, whose numerical resolution requires running a
+        linear program, use instead the objective of
+        :term:`entropy-regularized optimal transport` or that of
+        :term:`low-rank optimal transport` properly renormalized. This
+        normalization is done by considering:
+
+        .. math::
+
+          \text{SD}(\mu, \nu):= \Delta(\mu, \nu)
+          - \tfrac12 \left(\Delta(\mu, \mu) + \Delta(\nu, \nu)\right)
+
+        where :math:`Delta` is either the output of either
+        :term:`entropy-regularized optimal transport` or
+        :term:`low-rank optimal transport`
 
     transport map
         A function :math:`T` that associates to each point :math:`x` in the
@@ -306,4 +342,5 @@ Glossary
         distance is truly a distance (in the sense that it satisfies all 3
         `metric axioms <https://en.wikipedia.org/wiki/Metric_space#Definition>`_
         ), as long as the  :term:`ground cost` is itself a distance to a power
-        :math:`p\leq 1`, and the :math:`1/p`th power of the objective is taken.
+        :math:`p\leq 1`, and the :math:`p` root of the objective of the
+        :term:`Kantorovich problem` is used.

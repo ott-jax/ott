@@ -133,6 +133,7 @@ regularizer
 regularizers
 reimplementation
 renormalize
+renormalized
 reparameterization
 reproducibility
 rescale
