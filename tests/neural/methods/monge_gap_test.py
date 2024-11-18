@@ -20,7 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott import datasets
-from ott.geometry import costs, pointcloud, regularizers
+from ott.geometry import costs, regularizers
 from ott.neural.methods import monge_gap
 from ott.neural.networks import potentials
 from ott.tools import sinkhorn_divergence
@@ -144,8 +144,7 @@ class TestMongeGapEstimator:
         mapped_samples: jnp.ndarray,
     ) -> Optional[float]:
       r"""Sinkhorn divergence fitting loss."""
-      div, _ = sinkhorn_divergence.sinkhorn_divergence(
-          pointcloud.PointCloud,
+      div, _ = sinkhorn_divergence.sinkdiv(
           x=samples,
           y=mapped_samples,
       )
