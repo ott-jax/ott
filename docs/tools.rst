@@ -20,6 +20,7 @@ Unregularized Optimal Transport
 
     unreg.hungarian
     unreg.HungarianOutput
+    unreg.wassdis_p
 
 
 Segmented Sinkhorn
