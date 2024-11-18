@@ -348,6 +348,33 @@ class PNormP(TICost):
 
 
 @jtu.register_pytree_node_class
+class PNorm(TICost):
+  r""":math:`p`-norm between vectors.
+
+  Uses custom implementation of `norm` to avoid `NaN` values when
+  differentiating the norm of :math:`x-x`.
+
+  Args:
+    p: Power of the p-norm in :math:`[1, +\infty)`.
+  """
+
+  def __init__(self, p: float):
+    super().__init__()
+    self.p = p
+
+  def h(self, z: jnp.ndarray) -> float:  # noqa: D102
+    return mu.norm(z, self.p) / self.p
+
+  def tree_flatten(self):  # noqa: D102
+    return (), (self.p,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(*aux_data)
+
+
+@jtu.register_pytree_node_class
 class RegTICost(TICost):
   r"""Regularized translation-invariant cost.
 

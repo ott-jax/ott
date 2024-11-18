@@ -13,6 +13,15 @@ differentiable approximations to ranks and quantile functions :cite:`cuturi:19`,
 and various tools to study Gaussians with the 2-Wasserstein metric
 :cite:`gelbrich:90,delon:20`, etc.
 
+Unregularized Optimal Transport
+-------------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    unreg.hungarian
+    unreg.HungarianOutput
+
+
 Segmented Sinkhorn
 ------------------
 .. autosummary::
