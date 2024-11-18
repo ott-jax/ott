@@ -141,6 +141,7 @@ linkcheck_ignore = [
     "https://doi.org/10.1145/2516971.2516977",
     "https://doi.org/10.1145/2766963",
     "https://keras.io/examples/nlp/pretrained_word_embeddings/",
+    "https://proceedings.neurips.cc/paper/2012/file/99bcfcd754a98ce89cb86f73acc04645-Paper.pdf"
 ]
 linkcheck_report_timeouts_as_broken = False
 
