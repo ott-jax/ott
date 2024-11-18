@@ -25,6 +25,7 @@ Sinkhorn Divergence
 .. autosummary::
     :toctree: _autosummary
 
+    sinkhorn_divergence.sinkdiv
     sinkhorn_divergence.sinkhorn_divergence
     sinkhorn_divergence.SinkhornDivergenceOutput
     sinkhorn_divergence.segment_sinkhorn_divergence
