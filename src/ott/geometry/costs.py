@@ -348,14 +348,14 @@ class PNormP(TICost):
 
 
 @jtu.register_pytree_node_class
-class PNorm(TICost):
-  r""":math:`p`-norm between vectors.
+class EuclideanP(TICost):
+  r""":math:`p`-power of Euclidean norm.
 
   Uses custom implementation of `norm` to avoid `NaN` values when
   differentiating the norm of :math:`x-x`.
 
   Args:
-    p: Power of the p-norm in :math:`[1, +\infty)`.
+    p: Power used to raise Euclidean norm, in :math:`[1, +\infty)`.
   """
 
   def __init__(self, p: float):
@@ -363,7 +363,8 @@ class PNorm(TICost):
     self.p = p
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
-    return mu.norm(z, self.p) / self.p
+    # Computed by raising squared-norm to p/2.
+    return mu.norm(z) ** (self.p / 2.)
 
   def tree_flatten(self):  # noqa: D102
     return (), (self.p,)

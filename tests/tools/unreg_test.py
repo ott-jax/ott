@@ -46,7 +46,7 @@ class TestHungarian:
     n, m, dim = 12, 12, 5
     rng1, rng2 = jax.random.split(rng, 2)
     x, y = gen_data(rng1, n, m, dim)
-    geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNorm(p=p))
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p=p))
     cost_hung, _ = unreg.hungarian(geom)
     w_p = unreg.wassdis_p(x, y, p)
     np.testing.assert_allclose(w_p, cost_hung ** 1. / p, rtol=1e-3, atol=1e-3)

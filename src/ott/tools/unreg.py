@@ -84,6 +84,6 @@ def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, p: float = 2.0) -> float:
   Returns:
     The p-Wasserstein distance between these point clouds.hungarian
   """
-  geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNorm(p))
+  geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p))
   cost, _ = hungarian(geom)
   return cost ** 1. / p
