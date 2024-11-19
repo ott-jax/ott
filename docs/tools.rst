@@ -7,11 +7,24 @@ The :mod:`~ott.tools` package contains high level functions that build on
 outputs produced by lower-level components in the toolbox, such as
 :mod:`~ott.solvers`.
 
-In particular, we provide user-friendly APIs to compute Sinkhorn divergences
-:cite:`genevay:18,sejourne:19`, sliced Wasserstein distances :cite:`rabin:12`,
-differentiable approximations to ranks and quantile functions :cite:`cuturi:19`,
-and various tools to study Gaussians with the 2-Wasserstein metric
-:cite:`gelbrich:90,delon:20`, etc.
+In particular, we provide user-friendly APIs to unregularized OT quantities,
+such as the :term:`Wasserstein distance` for two point clouds of the same size.
+We also provide functions to pad efficiently point clouds when doing large scale
+OT between them in parallel, implementations of the Sinkhorn
+divergence :cite:`genevay:18,sejourne:19`, sliced Wasserstein distances
+:cite:`rabin:12`, differentiable approximations to ranks and quantile functions
+:cite:`cuturi:19`, and various tools to study Gaussians with the
+2-:term:`Wasserstein distance` :cite:`gelbrich:90,delon:20`.
+
+Unregularized Optimal Transport
+-------------------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    unreg.hungarian
+    unreg.HungarianOutput
+    unreg.wassdis_p
+
 
 Segmented Sinkhorn
 ------------------

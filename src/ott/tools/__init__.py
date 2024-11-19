@@ -20,4 +20,5 @@ from . import (
     sinkhorn_divergence,
     sliced,
     soft_sort,
+    unreg,
 )

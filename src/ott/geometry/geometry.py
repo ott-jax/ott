@@ -48,19 +48,25 @@ class Geometry:
     cost_matrix: Cost matrix of shape ``[n, m]``.
     kernel_matrix: Kernel matrix of shape ``[n, m]``.
     epsilon: Regularization parameter. If ``None`` and either
-      ``relative_epsilon = True`` or ``relative_epsilon = None``, this defaults
-      to the value computed in :attr:`mean_cost_matrix` / 20. If passed as a
+      ``relative_epsilon = True`` or ``relative_epsilon = None`` or
+      ``relative_epsilon = str`` where ``str`` can be either ``mean`` or ``std``
+      , this value defaults to a multiple of :attr:`std_cost_matrix`
+      (or :attr:`mean_cost_matrix` if ``str`` is ``mean``), where that multiple
+      is set as ``DEFAULT_SCALE`` in ``epsilon_scheduler.py```.
+      If passed as a
       ``float``, then the regularizer that is ultimately used is either that
       ``float`` value (if ``relative_epsilon = False`` or ``None``) or that
-      ``float`` times the :attr:`mean_cost_matrix`
-      (if ``relative_epsilon = True``). Look for
+      ``float`` times the :attr:`std_cost_matrix` (if
+      ``relative_epsilon = True`` or ``relative_epsilon = `std```) or
+      :attr:`mean_cost_matrix` (if ``relative_epsilon = `mean```). Look for
       :class:`~ott.geometry.epsilon_scheduler.Epsilon` when passed as a
       scheduler.
-    relative_epsilon: when `False`, the parameter ``epsilon`` specifies the
-      value of the entropic regularization parameter. When `True`, ``epsilon``
-      refers to a fraction of the :attr:`std_cost_matrix`, which is computed
-      adaptively from data. Can also be set to ``mean`` or ``std`` to use mean
-      of cost matrix if necessary.
+    relative_epsilon: when :obj:`False`, the parameter ``epsilon`` specifies the
+      value of the entropic regularization parameter. When :obj:`True` or set
+      to a string, ``epsilon`` refers to a fraction of the
+      :attr:`std_cost_matrix` or :attr:`mean_cost_matrix`, which is computed
+      adaptively from data, depending on whether it is set to ``mean`` or
+      ``std``.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean', 'std' and 'max_cost'. Alternatively, a float factor can
       be given to rescale the cost such that ``cost_matrix /= scale_cost``.
