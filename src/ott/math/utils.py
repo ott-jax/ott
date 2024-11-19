@@ -77,7 +77,7 @@ def norm(
       is None. If both `axis` and `ord` are None, the 2-norm of ``x.ravel``
       will be returned.
     ord: `{non-zero int, jnp.inf, -jnp.inf, 'fro', 'nuc'}`, Order of the norm.
-      The default is `None`, which is equivalent to `2.0` for vectors.
+      The default is `None`, which is equivalent to `2` for vectors.
     axis: `{None, int, 2-tuple of ints}`, optional. If `axis` is an integer, it
       specifies the axis of `x` along which to compute the vector norms.
       If `axis` is a 2-tuple, it specifies the axes that hold 2-D matrices, and
