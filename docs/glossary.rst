@@ -162,6 +162,11 @@ Glossary
         evaluations of :math:`c` on various pairs of points,
         :math:`C=[c(x_i, y_j)]_{ij}`.
 
+    Hungarian algorithm
+        Combinatorial algorithm proposed by Harold Kuhn to solve the
+        :term:`optimal matching problem`. See the
+        `Wikipedia definition <https://en.wikipedia.org/wiki/Hungarian_algorithm>`_.
+
     implicit differentiation
         Formula used to compute the vector-Jacobian
         product of the minimizer of an optimization procedure that leverages
@@ -244,6 +249,11 @@ Glossary
         transformations between continuous probability measures (e.g. densities)
         whereas computational aspects become relevant when estimating such
         transforms from samples.
+
+    optimal matching problem
+        Instance of the :term:`Kantorovich problem` where both marginal weight
+        vectors :math:`a,b` are equal, and set both to a uniform weight vector
+        of the form :math:`(\tfrac{1}{n},\dots,\tfrac{1}{n})\in\mathbb{R}^n`.
 
     Sinkhorn algorithm
         Fixed point iteration that solves the

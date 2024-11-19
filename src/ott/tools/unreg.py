@@ -30,7 +30,7 @@ class HungarianOutput(NamedTuple):
     geom: geometry object
     paired_indices: Array of shape ``[2, n]``, of :math:`n` pairs
       of indices, for which the optimal transport assigns mass. Namely, for each
-      index :math:`0 <= k < n`, if one has
+      index :math:`0 \leq k < n`, if one has
       :math:`i := \text{paired_indices}[0, k]` and
       :math:`j := \text{paired_indices}[1, k]`, then point :math:`i` in
       the first geometry sends mass to point :math:`j` in the second.
@@ -48,10 +48,11 @@ class HungarianOutput(NamedTuple):
 
 
 def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
-  """Solve assignment problem using Hungarian as implemented in optax.
+  """Solve matching problem using :term:`Hungarian algorithm` from :mod:`optax`.
 
   Args:
-    geom: (square) geometry object.
+    geom: Geometry object with square (shape ``[n,n]``)
+      :attr:`~ott.geometry.geometry.Geomgetry.cost matrix`.
 
   Returns:
     The value of the unregularized OT problem, along with an output
@@ -66,11 +67,11 @@ def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
 
 
 def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, p: float = 2.0) -> float:
-  """Convenience wrapper on `hungarian` to get :term:`Wasserstein distance`.
+  """Compute the :term:`Wasserstein distance`, uses :term:`Hungarian algorithm`.
 
-  Uses :func:`~ott.tools.unreg.hungarian` to solve the
-  :term:`Kantorovich problem` between two point clouds of the same
-  size to compute a :term:`Wasserstein distance` estimator.
+  Uses :func:`hungarian` to solve the :term:`optimal matching problem` between
+  two point clouds of the same size, to compute a :term:`Wasserstein distance`
+  estimator.
 
   Note:
     At the moment, only supports point clouds of the same size to be easily

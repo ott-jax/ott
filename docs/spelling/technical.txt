@@ -165,6 +165,7 @@ transcriptome
 undirected
 univariate
 unnormalized
+unregularized
 unscaled
 url
 vectorized

@@ -32,8 +32,8 @@ class TestHungarian:
     rng1, rng2 = jax.random.split(rng, 2)
     x, y = gen_data(rng1, n, m, dim)
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=.0005)
-    cost_hung, out_hung = unreg.hungarian(geom)
-    out_sink = linear.solve(geom)
+    cost_hung, out_hung = jax.jit(unreg.hungarian)(geom)
+    out_sink = jax.jit(linear.solve)(geom)
     np.testing.assert_allclose(
         out_sink.primal_cost, cost_hung, rtol=1e-3, atol=1e-3
     )
@@ -47,8 +47,8 @@ class TestHungarian:
     rng1, rng2 = jax.random.split(rng, 2)
     x, y = gen_data(rng1, n, m, dim)
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p=p))
-    cost_hung, _ = unreg.hungarian(geom)
-    w_p = unreg.wassdis_p(x, y, p)
+    cost_hung, _ = jax.jit(unreg.hungarian)(geom)
+    w_p = jax.jit(unreg.wassdis_p)(x, y, p)
     np.testing.assert_allclose(w_p, cost_hung ** 1. / p, rtol=1e-3, atol=1e-3)
 
 

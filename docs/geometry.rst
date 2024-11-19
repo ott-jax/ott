@@ -63,6 +63,7 @@ Cost Functions
     costs.SqEuclidean
     costs.RegTICost
     costs.Euclidean
+    costs.EuclideanP
     costs.Cosine
     costs.Arccos
     costs.Bures
