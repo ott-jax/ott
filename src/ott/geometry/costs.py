@@ -363,8 +363,7 @@ class EuclideanP(TICost):
     self.p = p
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
-    # Computed by raising squared-norm to p/2.
-    return mu.norm(z) ** (self.p / 2.)
+    return mu.norm(z, ord=2) ** (self.p)
 
   def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
