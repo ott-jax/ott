@@ -35,7 +35,7 @@ Output = Union[sinkhorn.SinkhornOutput, sd.SinkhornDivergenceOutput]
 
 class ProgOTState(NamedTuple):
   x: jnp.ndarray
-  init_potentials: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]]
+  init_potentials: Optional[Tuple[jnp.ndarray, jnp.ndarray]]
 
 
 class ProgOTOutput(NamedTuple):
@@ -250,7 +250,7 @@ class ProgOT:
       next_x = _interpolate(x=state.x, t_x=t_x, alpha=alpha, cost_fn=cost_fn)
 
       next_init = ((1.0 - alpha) * out.f,
-                   (1.0 - alpha) * out.g) if warm_start else (None, None)
+                   (1.0 - alpha) * out.g) if warm_start else None
       next_state = ProgOTState(x=next_x, init_potentials=next_init)
 
       return next_state, (out, eps)
@@ -397,7 +397,7 @@ def _sinkhorn(
     y: jnp.ndarray,
     cost_fn: costs.TICost,
     eps: Optional[float],
-    init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
+    init: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None,
     **kwargs: Any,
 ) -> sinkhorn.SinkhornOutput:
   geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=eps)

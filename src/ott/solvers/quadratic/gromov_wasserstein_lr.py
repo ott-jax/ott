@@ -816,8 +816,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 def run(
     ot_prob: quadratic_problem.QuadraticProblem,
     solver: LRGromovWasserstein,
-    init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
-                Optional[jnp.ndarray]],
+    init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
 ) -> LRGWOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)
