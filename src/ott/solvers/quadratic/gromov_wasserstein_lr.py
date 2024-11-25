@@ -315,6 +315,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
     self.initializer = initializers_lr.RandomInitializer(
+        rank
     ) if initializer is None else initializer
     self.progress_fn = progress_fn
     # can be `None`

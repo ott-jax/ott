@@ -330,7 +330,7 @@ def iterations(
     del compute_error  # always assumed true for the outer loop of GW
 
     lin_state = state.linear_state
-    init = (lin_state.f, lin_state.g) if solver.warm_start else (None, None)
+    init = (lin_state.f, lin_state.g) if solver.warm_start else None
     linear_pb = prob.update_linearization(
         lin_state,
         solver.epsilon,

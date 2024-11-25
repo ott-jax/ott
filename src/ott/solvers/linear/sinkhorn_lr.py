@@ -315,7 +315,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.gamma = gamma
     self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
-    self.initializer = initializer
+    self.initializer = initializers_lr.RandomInitializer(
+        rank
+    ) if initializer is None else initializer
     self.progress_fn = progress_fn
     self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
 

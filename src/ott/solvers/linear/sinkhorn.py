@@ -662,9 +662,8 @@ class Sinkhorn:
       i.e. whose gradients have been stopped. This is useful when carrying out
       first order differentiation, and is only valid when the algorithm has
       converged with a low tolerance.
-    initializer: method to compute the initial potentials/scalings. This refers
-      to a few possible classes implemented following the template in
-      :class:`~ott.initializers.linear.SinkhornInitializer`.
+    initializer: method to compute the initial potentials/scalings. See
+      :mod:`~ott.initializers.linear` for more information.
     progress_fn: callback function which gets called during the Sinkhorn
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
@@ -686,7 +685,7 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: B008
-      initializer: Optional[init_lib.DefaultInitializer] = None,
+      initializer: Optional[init_lib.SinkhornInitializer] = None,
       progress_fn: Optional[ProgressFunction] = None,
   ):
     self.lse_mode = lse_mode

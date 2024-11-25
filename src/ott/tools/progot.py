@@ -229,9 +229,8 @@ class ProgOT:
         eps = self.epsilon_scales[it] * geom.epsilon
 
       if self.is_debiased:
-        assert state.init_potentials == (
-            None, None
-        ), "Warm start is not implemented for debiased."
+        assert state.init_potentials is None, \
+          "Warm start is not implemented for debiased."
         out = _sinkhorn_divergence(
             state.x, y, cost_fn=cost_fn, eps=eps, **kwargs
         )
@@ -266,7 +265,7 @@ class ProgOT:
       init_potentials = (jnp.zeros(n), jnp.zeros(m)
                         ) if lse_mode else (jnp.ones(n), jnp.ones(m))
     else:
-      init_potentials = (None, None)
+      init_potentials = None
 
     init_state = ProgOTState(x=x, init_potentials=init_potentials)
     _, (outputs, epsilons) = jax.lax.scan(
