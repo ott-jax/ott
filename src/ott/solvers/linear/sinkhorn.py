@@ -745,6 +745,7 @@ class Sinkhorn:
     Args:
       ot_prob: Linear OT problem.
       init: Initial dual potentials/scalings ``f_u`` and ``g_v``.
+        If :obj:`None`, run the initializer.
       kwargs: Keyword arguments for the initializer.
 
     Returns:
