@@ -29,7 +29,7 @@ from ott.solvers.linear import implicit_differentiation as implicit_lib
 
 __all__ = ["Sinkhorn", "SinkhornOutput"]
 
-ProgressCallbackFn_t = Callable[
+ProgressFunction = Callable[
     [Tuple[np.ndarray, np.ndarray, np.ndarray, "SinkhornState"]], None]
 
 
@@ -687,7 +687,7 @@ class Sinkhorn:
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: B008
       initializer: Optional[init_lib.DefaultInitializer] = None,
-      progress_fn: Optional[ProgressCallbackFn_t] = None,
+      progress_fn: Optional[ProgressFunction] = None,
   ):
     self.lse_mode = lse_mode
     self.threshold = threshold

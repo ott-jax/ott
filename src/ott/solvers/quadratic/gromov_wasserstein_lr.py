@@ -30,7 +30,7 @@ from ott.solvers.linear import lr_utils, sinkhorn
 
 __all__ = ["LRGromovWasserstein", "LRGWOutput"]
 
-ProgressCallbackFn_t = Callable[
+ProgressFunction = Callable[
     [Tuple[np.ndarray, np.ndarray, np.ndarray, "LRGWState"]], None]
 
 
@@ -297,7 +297,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       min_iterations: int = 10_000,
       max_iterations: int = 100_000,
       kwargs_dys: Optional[Mapping[str, Any]] = None,
-      progress_fn: Optional[ProgressCallbackFn_t] = None,
+      progress_fn: Optional[ProgressFunction] = None,
       **kwargs: Any,
   ):
     assert not implicit_diff, "Implicit diff. not yet implemented."

@@ -27,7 +27,7 @@ from ott.solvers.linear import lr_utils, sinkhorn
 
 __all__ = ["LRSinkhorn", "LRSinkhornOutput"]
 
-ProgressCallbackFn_t = Callable[
+ProgressFunction = Callable[
     [Tuple[np.ndarray, np.ndarray, np.ndarray, "LRSinkhornState"]], None]
 
 
@@ -301,7 +301,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       inner_iterations: int = 10,
       use_danskin: bool = True,
       kwargs_dys: Optional[Mapping[str, Any]] = None,
-      progress_fn: Optional[ProgressCallbackFn_t] = None,
+      progress_fn: Optional[ProgressFunction] = None,
       **kwargs: Any,
   ):
     kwargs["implicit_diff"] = None  # not yet implemented
