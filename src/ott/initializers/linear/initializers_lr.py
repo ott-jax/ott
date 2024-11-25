@@ -38,8 +38,7 @@ from ott.math import utils as mu
 if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
   from ott.problems.quadratic import quadratic_problem
-  from ott.solvers.linear import sinkhorn, sinkhorn_lr
-  from ott.solvers.quadratic import gromov_wasserstein_lr
+  from ott.solvers.linear import sinkhorn
 
 Problem_t = Union["linear_problem.LinearProblem",
                   "quadratic_problem.QuadraticProblem"]
@@ -123,65 +122,16 @@ class LRInitializer(abc.ABC):
       Array of shape ``[rank,]``.
     """
 
-  @classmethod
-  def from_solver(
-      cls,
-      solver: Union["sinkhorn_lr.LRSinkhorn",
-                    "gromov_wasserstein_lr.LRGromovWasserstein"],
-      *,
-      kind: Literal["random", "rank2", "k-means", "generalized-k-means"],
-      **kwargs: Any,
-  ) -> "LRInitializer":
-    """Create a low-rank initializer from a linear or quadratic solver.
-
-    Args:
-      solver: Low-rank linear or quadratic solver.
-      kind: Which initializer to instantiate.
-      kwargs: Keyword arguments when creating the initializer.
-
-    Returns:
-      Low-rank initializer.
-    """
-    rank = solver.rank
-    sinkhorn_kwargs = {
-        "norm_error": solver._norm_error,
-        "lse_mode": solver.lse_mode,
-        "implicit_diff": solver.implicit_diff,
-        "use_danskin": solver.use_danskin
-    }
-
-    if kind == "random":
-      return RandomInitializer(rank, **kwargs)
-    if kind == "rank2":
-      return Rank2Initializer(rank, **kwargs)
-    if kind == "k-means":
-      return KMeansInitializer(rank, sinkhorn_kwargs=sinkhorn_kwargs, **kwargs)
-    if kind == "generalized-k-means":
-      return GeneralizedKMeansInitializer(
-          rank, sinkhorn_kwargs=sinkhorn_kwargs, **kwargs
-      )
-    raise NotImplementedError(f"Initializer `{kind}` is not implemented.")
-
   def __call__(
       self,
       ot_prob: Problem_t,
-      q: Optional[jnp.ndarray] = None,
-      r: Optional[jnp.ndarray] = None,
-      g: Optional[jnp.ndarray] = None,
-      *,
       rng: Optional[jax.Array] = None,
-      **kwargs: Any
+      **kwargs: Any,
   ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
 
     Args:
-      ot_prob: OT problem.
-      q: Factor of shape ``[n, rank]``. If `None`, it will be initialized
-        using :meth:`init_q`.
-      r: Factor of shape ``[m, rank]``. If `None`, it will be initialized
-        using :meth:`init_r`.
-      g: Factor of shape ``[rank,]``. If `None`, it will be initialized
-        using :meth:`init_g`.
+      ot_prob: Linear OT problem.
       rng: Random key for seeding.
       kwargs: Additional keyword arguments for :meth:`init_q`, :meth:`init_r`
         and :meth:`init_g`.
@@ -190,14 +140,11 @@ class LRInitializer(abc.ABC):
       The factors :math:`Q`, :math:`R` and :math:`g`, respectively.
     """
     rng = utils.default_prng_key(rng)
-    rng1, rng2, rng3 = jax.random.split(rng, 3)
+    rng_g, rng_q, rng_r = jax.random.split(rng, 3)
 
-    if g is None:
-      g = self.init_g(ot_prob, rng1, **kwargs)
-    if q is None:
-      q = self.init_q(ot_prob, rng2, init_g=g, **kwargs)
-    if r is None:
-      r = self.init_r(ot_prob, rng3, init_g=g, **kwargs)
+    g = self.init_g(ot_prob, rng_g, **kwargs)
+    q = self.init_q(ot_prob, rng_q, init_g=g, **kwargs)
+    r = self.init_r(ot_prob, rng_r, init_g=g, **kwargs)
 
     assert g.shape == (self.rank,)
     assert q.shape == (ot_prob.a.shape[0], self.rank)

@@ -12,16 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the unbalanced low-rank GW algorithm."""
-from typing import (
-    Any,
-    Callable,
-    Literal,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, Mapping, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -269,7 +260,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       described in :cite:`scetbon:22b`.
     epsilon: Entropic regularization added on top of low-rank problem.
     initializer: How to initialize the :math:`Q`, :math:`R` and :math:`g`
-      factors.
+      factors. If :obj:`None`, use
+      :class:`~ott.initializers.linear.initializers_lr.RandomInitializer`.
     lse_mode: Whether to run computations in LSE or kernel mode.
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
@@ -287,8 +279,6 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
       :meth:`dykstra_update_kernel` or one of the functions defined in
       :mod:`ott.solvers.linear`, depending on the ``lse_mode``.
-    kwargs_init: Keyword arguments for
-      :class:`~ott.initializers.linear.initializers_lr.LRInitializer`.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """
@@ -299,9 +289,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       gamma: float = 10.0,
       gamma_rescale: bool = True,
       epsilon: float = 0.0,
-      initializer: Union[Literal["random", "rank2", "k-means",
-                                 "generalized-k-means"],
-                         initializers_lr.LRInitializer] = "random",
+      initializer: Optional[initializers_lr.LRInitializer] = None,
       lse_mode: bool = True,
       use_danskin: bool = True,
       implicit_diff: bool = False,
@@ -309,7 +297,6 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       min_iterations: int = 10_000,
       max_iterations: int = 100_000,
       kwargs_dys: Optional[Mapping[str, Any]] = None,
-      kwargs_init: Optional[Mapping[str, Any]] = None,
       progress_fn: Optional[ProgressCallbackFn_t] = None,
       **kwargs: Any,
   ):
@@ -327,33 +314,32 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     self.gamma = gamma
     self.gamma_rescale = gamma_rescale
     self.epsilon = epsilon
-    self.initializer = initializer
+    self.initializer = initializers_lr.RandomInitializer(
+    ) if initializer is None else initializer
     self.progress_fn = progress_fn
     # can be `None`
     self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
-    self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
       self,
       ot_prob: quadratic_problem.QuadraticProblem,
-      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
-                  Optional[jnp.ndarray]] = (None, None, None),
+      init: Optional[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]] = None,
       rng: Optional[jax.Array] = None,
       **kwargs: Any,
   ) -> LRGWOutput:
-    """Run low-rank Gromov-Wasserstein solver.
+    """Run the low-rank Gromov-Wasserstein solver.
 
     Args:
-      ot_prob: Linear OT problem.
-      init: Initial values for the low-rank factors:
+      ot_prob: Quadratic OT problem.
+      init: Initial values of the low-rank factors:
 
         - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.q`.
         - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.r`.
         - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.g`.
 
-        Any `None` values will be initialized using the initializer.
+        If :obj:`None`, use the initializer.
       rng: Random key for seeding.
-      kwargs: Additional arguments when calling the initializer.
+      kwargs: Keyword arguments for the initializer.
 
     Returns:
       The low-rank GW output.
@@ -363,9 +349,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
     if ot_prob._is_low_rank_convertible:
       ot_prob = ot_prob.to_low_rank(rng=rng_lrc)
+    if init is None:
+      init = self.initializer(ot_prob, rng=rng_init, **kwargs)
 
-    initializer = self.create_initializer(ot_prob)
-    init = initializer(ot_prob, *init, rng=rng_init, **kwargs)
     return run(ot_prob, self, init)
 
   def _get_costs(
@@ -746,28 +732,6 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   @property
   def norm_error(self) -> Tuple[int]:  # noqa: D102
     return self._norm_error,
-
-  def create_initializer(
-      self,
-      prob: quadratic_problem.QuadraticProblem,
-  ) -> initializers_lr.LRInitializer:
-    """Create a low-rank GW initializer.
-
-    Args:
-      prob: Quadratic OT problem used to determine the initializer.
-
-    Returns:
-      Low-rank initializer.
-    """
-    if isinstance(self.initializer, initializers_lr.LRInitializer):
-      assert self.initializer.rank == self.rank, \
-        f"Expected initializer's rank to be `{self.rank}`," \
-        f"found `{self.initializer.rank}`."
-      return self.initializer
-
-    return initializers_lr.LRInitializer.from_solver(
-        self, kind=self.initializer, **self.kwargs_init
-    )
 
   def init_state(
       self, ot_prob: quadratic_problem.QuadraticProblem,

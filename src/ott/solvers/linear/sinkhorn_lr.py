@@ -11,16 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import (
-    Any,
-    Callable,
-    Literal,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, Mapping, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -295,8 +286,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       :meth:`dykstra_update_kernel` or one of the functions defined in
       :mod:`ott.solvers.linear`, depending on whether the problem
       is balanced and on the ``lse_mode``.
-    kwargs_init: Keyword arguments for
-      :class:`~ott.initializers.linear.initializers_lr.LRInitializer`.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """
@@ -307,14 +296,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma: float = 10.0,
       gamma_rescale: bool = True,
       epsilon: float = 0.0,
-      initializer: Union[Literal["random", "rank2", "k-means",
-                                 "generalized-k-means"],
-                         initializers_lr.LRInitializer] = "random",
+      initializer: Optional[initializers_lr.LRInitializer] = None,
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
       kwargs_dys: Optional[Mapping[str, Any]] = None,
-      kwargs_init: Optional[Mapping[str, Any]] = None,
       progress_fn: Optional[ProgressCallbackFn_t] = None,
       **kwargs: Any,
   ):
@@ -331,16 +317,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     self.epsilon = epsilon
     self.initializer = initializer
     self.progress_fn = progress_fn
-    # can be `None`
     self.kwargs_dys = {} if kwargs_dys is None else kwargs_dys
-    self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray],
-                  Optional[jnp.ndarray]] = (None, None, None),
-      rng: Optional[jax.Array] = None,
+      init: Optional[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]] = None,
       **kwargs: Any,
   ) -> LRSinkhornOutput:
     """Run low-rank Sinkhorn.
@@ -353,15 +335,14 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.r`.
         - :attr:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornOutput.g`.
 
-        Any `None` values will be initialized using the initializer.
-      rng: Random key for seeding.
-      kwargs: Additional arguments when calling the initializer.
+        If :obj:`None`, run the initializer.
+      kwargs: Keyword arguments for the initializer.
 
     Returns:
       The low-rank Sinkhorn output.
     """
-    initializer = self.create_initializer(ot_prob)
-    init = initializer(ot_prob, *init, rng=rng, **kwargs)
+    if init is None:
+      init = self.initializer(ot_prob, **kwargs)
     return run(ot_prob, self, init)
 
   def _get_costs(
@@ -713,26 +694,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   @property
   def norm_error(self) -> Tuple[int]:  # noqa: D102
     return self._norm_error,
-
-  def create_initializer(
-      self, prob: linear_problem.LinearProblem
-  ) -> initializers_lr.LRInitializer:
-    """Create a low-rank Sinkhorn initializer.
-
-    Args:
-      prob: Linear OT problem used to determine the initializer.
-
-    Returns:
-      Low-rank initializer.
-    """
-    if isinstance(self.initializer, initializers_lr.LRInitializer):
-      assert self.initializer.rank == self.rank, \
-        f"Expected initializer's rank to be `{self.rank}`," \
-        f"found `{self.initializer.rank}`."
-      return self.initializer
-    return initializers_lr.LRInitializer.from_solver(
-        self, kind=self.initializer, **self.kwargs_init
-    )
 
   def init_state(
       self, ot_prob: linear_problem.LinearProblem,

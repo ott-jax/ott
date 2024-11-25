@@ -32,7 +32,7 @@ class SinkhornInitializer(abc.ABC):
   """Base class for Sinkhorn initializers."""
 
   @abc.abstractmethod
-  def init_dual_a(
+  def init_fu(
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
@@ -50,7 +50,7 @@ class SinkhornInitializer(abc.ABC):
     """
 
   @abc.abstractmethod
-  def init_dual_b(
+  def init_gv(
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
@@ -70,8 +70,6 @@ class SinkhornInitializer(abc.ABC):
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      a: Optional[jnp.ndarray],
-      b: Optional[jnp.ndarray],
       lse_mode: bool,
       rng: Optional[jax.Array] = None,
   ) -> Tuple[jnp.ndarray, jnp.ndarray]:
@@ -90,25 +88,15 @@ class SinkhornInitializer(abc.ABC):
       The initial potentials/scalings.
     """
     rng = utils.default_prng_key(rng)
-    rng_x, rng_y = jax.random.split(rng, 2)
-    n, m = ot_prob.geom.shape
-    if a is None:
-      a = self.init_dual_a(ot_prob, lse_mode=lse_mode, rng=rng_x)
-    if b is None:
-      b = self.init_dual_b(ot_prob, lse_mode=lse_mode, rng=rng_y)
-
-    assert a.shape == (
-        n,
-    ), f"Expected `f_u` to have shape `{n,}`, found `{a.shape}`."
-    assert b.shape == (
-        m,
-    ), f"Expected `g_v` to have shape `{m,}`, found `{b.shape}`."
+    rng_f, rng_g = jax.random.split(rng, 2)
+    fu = self.init_fu(ot_prob, lse_mode=lse_mode, rng=rng_f)
+    gv = self.init_gv(ot_prob, lse_mode=lse_mode, rng=rng_g)
 
     # cancel dual variables for zero weights
-    a = jnp.where(ot_prob.a > 0.0, a, -jnp.inf if lse_mode else 0.0)
-    b = jnp.where(ot_prob.b > 0.0, b, -jnp.inf if lse_mode else 0.0)
-
-    return a, b
+    mask_value = -jnp.inf if lse_mode else 0.0
+    fu = jnp.where(ot_prob.a > 0.0, fu, mask_value)
+    gv = jnp.where(ot_prob.b > 0.0, gv, mask_value)
+    return fu, gv
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [], {}
@@ -124,7 +112,7 @@ class SinkhornInitializer(abc.ABC):
 class DefaultInitializer(SinkhornInitializer):
   """Default initialization of Sinkhorn dual potentials/primal scalings."""
 
-  def init_dual_a(  # noqa: D102
+  def init_fu(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
@@ -133,7 +121,7 @@ class DefaultInitializer(SinkhornInitializer):
     del rng
     return jnp.zeros_like(ot_prob.a) if lse_mode else jnp.ones_like(ot_prob.a)
 
-  def init_dual_b(  # noqa: D102
+  def init_gv(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
@@ -154,7 +142,7 @@ class GaussianInitializer(DefaultInitializer):
   to initialize Sinkhorn potentials/scalings.
   """
 
-  def init_dual_a(  # noqa: D102
+  def init_fu(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
@@ -241,7 +229,7 @@ class SortingInitializer(DefaultInitializer):
 
     return f_potential
 
-  def init_dual_a(
+  def init_fu(
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
@@ -304,9 +292,8 @@ class SubsampleInitializer(DefaultInitializer):
       :class:`~ott.geometry.pointcloud.PointCloud`.
     subsample_n_y: number of points to subsample from the second measure in
       :class:`~ott.geometry.pointcloud.PointCloud`.
-      If ``None``, use ``subsample_n_x``.
-    kwargs: Keyword arguments for
-      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+      If :obj:`None`, use ``subsample_n_x``.
+    kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
   """
 
   def __init__(
@@ -320,7 +307,7 @@ class SubsampleInitializer(DefaultInitializer):
     self.subsample_n_y = subsample_n_y or subsample_n_x
     self.sinkhorn_kwargs = kwargs
 
-  def init_dual_a(  # noqa: D102
+  def init_fu(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,

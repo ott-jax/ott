@@ -176,7 +176,7 @@ class TestSinkhornInitializers:
     )
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"online"):
-      sort_init.init_dual_a(ot_problem, lse_mode=True)
+      sort_init.init_fu(ot_problem, lse_mode=True)
 
   def test_sorting_init_square_cost(self, rng: jax.Array):
     n, m, d = 10, 15, 1
@@ -185,7 +185,7 @@ class TestSinkhornInitializers:
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon)
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"square"):
-      sort_init.init_dual_a(ot_problem, lse_mode=True)
+      sort_init.init_fu(ot_problem, lse_mode=True)
 
   def test_default_initializer(self, rng: jax.Array):
     """Tests default initializer"""
@@ -194,10 +194,10 @@ class TestSinkhornInitializers:
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
 
-    default_potential_a = linear_init.DefaultInitializer().init_dual_a(
+    default_potential_a = linear_init.DefaultInitializer().init_fu(
         ot_problem, lse_mode=True
     )
-    default_potential_b = linear_init.DefaultInitializer().init_dual_b(
+    default_potential_b = linear_init.DefaultInitializer().init_gv(
         ot_problem, lse_mode=True
     )
 
@@ -220,7 +220,7 @@ class TestSinkhornInitializers:
     )
 
     with pytest.raises(AssertionError, match=r"pointcloud"):
-      gaus_init.init_dual_a(ot_problem, lse_mode=True)
+      gaus_init.init_fu(ot_problem, lse_mode=True)
 
   @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("jit", [False, True])
