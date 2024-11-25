@@ -95,7 +95,7 @@ class LRInitializer(abc.ABC):
     """Initialize the low-rank factor :math:`R`.
 
     Args:
-      ot_prob: Linear OT problem.
+      ot_prob: OT problem.
       rng: Random key for seeding.
       init_g: Initial value for :math:`g` factor.
       kwargs: Additional keyword arguments.
@@ -131,7 +131,7 @@ class LRInitializer(abc.ABC):
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
 
     Args:
-      ot_prob: Linear OT problem.
+      ot_prob: OT problem.
       rng: Random key for seeding.
       kwargs: Additional keyword arguments for :meth:`init_q`, :meth:`init_r`
         and :meth:`init_g`.
