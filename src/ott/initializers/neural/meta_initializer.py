@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
 import optax
 from flax import linen as nn
@@ -31,7 +32,7 @@ from ott.solvers.linear import sinkhorn
 __all__ = ["MetaInitializer"]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class MetaInitializer(initializers.DefaultInitializer):
   """Meta OT Initializer with a fixed geometry :cite:`amos:22`.
 
@@ -133,7 +134,7 @@ class MetaInitializer(initializers.DefaultInitializer):
     """
     return self.update_impl(state, a, b)
 
-  def init_dual_a(  # noqa: D102
+  def init_fu(  # noqa: D102
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,

@@ -14,8 +14,8 @@
 import abc
 from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
 
-import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
 from ott.geometry import geometry
 
@@ -26,16 +26,9 @@ if TYPE_CHECKING:
 __all__ = ["BaseQuadraticInitializer", "QuadraticInitializer"]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class BaseQuadraticInitializer(abc.ABC):
-  """Base class for quadratic initializers.
-
-  Args:
-    kwargs: Keyword arguments.
-  """
-
-  def __init__(self, **kwargs: Any):
-    self._kwargs = kwargs
+  """Base class for quadratic initializers."""
 
   def __call__(
       self, quad_prob: "quadratic_problem.QuadraticProblem", **kwargs: Any
@@ -47,7 +40,7 @@ class BaseQuadraticInitializer(abc.ABC):
       kwargs: Additional keyword arguments.
 
     Returns:
-      Linear problem.
+      The linearized problem.
     """
     from ott.problems.linear import linear_problem
 
@@ -80,7 +73,7 @@ class BaseQuadraticInitializer(abc.ABC):
     """
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return [], self._kwargs
+    return [], {}
 
   @classmethod
   def tree_unflatten(  # noqa: D102
@@ -89,6 +82,7 @@ class BaseQuadraticInitializer(abc.ABC):
     return cls(*children, **aux_data)
 
 
+@jtu.register_pytree_node_class
 class QuadraticInitializer(BaseQuadraticInitializer):
   r"""Initialize a linear problem locally around a selected coupling.
 
@@ -125,10 +119,8 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       defaults to the product coupling :math:`ab^T`.
   """
 
-  def __init__(
-      self, init_coupling: Optional[jnp.ndarray] = None, **kwargs: Any
-  ):
-    super().__init__(**kwargs)
+  def __init__(self, init_coupling: Optional[jnp.ndarray] = None):
+    super().__init__()
     self.init_coupling = init_coupling
 
   def _create_geometry(
@@ -145,10 +137,10 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       quad_prob: Quadratic OT problem.
       epsilon: Epsilon regularization.
       relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
-      kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
+      kwargs: Unused.
 
     Returns:
-      The initial geometry used to initialize the linearized problem.
+      Geometry used to initialize the linearized problem.
     """
     from ott.problems.quadratic import quadratic_problem
 
@@ -188,4 +180,4 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     )
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return [self.init_coupling], self._kwargs
+    return [self.init_coupling], {}

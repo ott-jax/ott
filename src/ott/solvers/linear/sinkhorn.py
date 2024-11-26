@@ -11,24 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import (
-    Any,
-    Callable,
-    Literal,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from typing import Any, Callable, NamedTuple, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import numpy as np
 
-from ott import utils
 from ott.geometry import geometry
 from ott.initializers.linear import initializers as init_lib
 from ott.math import fixed_point_loop
@@ -40,7 +29,7 @@ from ott.solvers.linear import implicit_differentiation as implicit_lib
 
 __all__ = ["Sinkhorn", "SinkhornOutput"]
 
-ProgressCallbackFn_t = Callable[
+ProgressFunction = Callable[
     [Tuple[np.ndarray, np.ndarray, np.ndarray, "SinkhornState"]], None]
 
 
@@ -673,14 +662,12 @@ class Sinkhorn:
       i.e. whose gradients have been stopped. This is useful when carrying out
       first order differentiation, and is only valid when the algorithm has
       converged with a low tolerance.
-    initializer: method to compute the initial potentials/scalings. This refers
-      to a few possible classes implemented following the template in
-      :class:`~ott.initializers.linear.SinkhornInitializer`.
+    initializer: method to compute the initial potentials/scalings. See
+      :mod:`~ott.initializers.linear` for more information.
     progress_fn: callback function which gets called during the Sinkhorn
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
-    kwargs_init: keyword arguments when creating the initializer.
   """
 
   def __init__(
@@ -698,10 +685,8 @@ class Sinkhorn:
       use_danskin: Optional[bool] = None,
       implicit_diff: Optional[implicit_lib.ImplicitDiff
                              ] = implicit_lib.ImplicitDiff(),  # noqa: B008
-      initializer: Union[Literal["default", "gaussian", "sorting", "subsample"],
-                         init_lib.SinkhornInitializer] = "default",
-      progress_fn: Optional[ProgressCallbackFn_t] = None,
-      kwargs_init: Optional[Mapping[str, Any]] = None,
+      initializer: Optional[init_lib.SinkhornInitializer] = None,
+      progress_fn: Optional[ProgressFunction] = None,
   ):
     self.lse_mode = lse_mode
     self.threshold = threshold
@@ -729,9 +714,9 @@ class Sinkhorn:
 
     self.parallel_dual_updates = parallel_dual_updates
     self.recenter_potentials = recenter_potentials
-    self.initializer = initializer
+    self.initializer = init_lib.DefaultInitializer(
+    ) if initializer is None else initializer
     self.progress_fn = progress_fn
-    self.kwargs_init = {} if kwargs_init is None else kwargs_init
 
     # Force implicit_differentiation to True when using Anderson acceleration,
     # Reset all momentum parameters to default (i.e. no momentum)
@@ -752,26 +737,23 @@ class Sinkhorn:
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      init: Tuple[Optional[jnp.ndarray], Optional[jnp.ndarray]] = (None, None),
-      rng: Optional[jax.Array] = None,
+      init: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None,
+      **kwargs: Any,
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
 
     Args:
       ot_prob: Linear OT problem.
-      init: Initial dual potentials/scalings f_u and g_v, respectively.
-        Any `None` values will be initialized using the initializer.
-      rng: Random number generator key for stochastic initialization.
+      init: Initial dual potentials/scalings ``f_u`` and ``g_v``.
+        If :obj:`None`, run the initializer.
+      kwargs: Keyword arguments for the initializer.
 
     Returns:
       The Sinkhorn output.
     """
-    rng = utils.default_prng_key(rng)
-    initializer = self.create_initializer()
-    init_dual_a, init_dual_b = initializer(
-        ot_prob, *init, lse_mode=self.lse_mode, rng=rng
-    )
-    return run(ot_prob, self, (init_dual_a, init_dual_b))
+    if init is None:
+      init = self.initializer(ot_prob, lse_mode=self.lse_mode, **kwargs)
+    return run(ot_prob, self, init)
 
   def lse_step(
       self, ot_prob: linear_problem.LinearProblem, state: SinkhornState,
@@ -1010,22 +992,6 @@ class Sinkhorn:
     if self.momentum and self.momentum.start > 0 and self._norm_error != 1:
       return self._norm_error, 1
     return self._norm_error,
-
-  # TODO(michalk8): in the future, enforce this (+ in GW) via abstract method
-  def create_initializer(self) -> init_lib.SinkhornInitializer:  # noqa: D102
-    if isinstance(self.initializer, init_lib.SinkhornInitializer):
-      return self.initializer
-    if self.initializer == "default":
-      return init_lib.DefaultInitializer()
-    if self.initializer == "gaussian":
-      return init_lib.GaussianInitializer()
-    if self.initializer == "sorting":
-      return init_lib.SortingInitializer(**self.kwargs_init)
-    if self.initializer == "subsample":
-      return init_lib.SubsampleInitializer(**self.kwargs_init)
-    raise NotImplementedError(
-        f"Initializer `{self.initializer}` is not yet implemented."
-    )
 
   def tree_flatten(self):  # noqa: D102
     aux = vars(self).copy()

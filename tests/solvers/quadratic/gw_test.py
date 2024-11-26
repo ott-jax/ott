@@ -507,7 +507,6 @@ class TestGromovWasserstein:
         gromov_wasserstein_lr.LRGromovWasserstein(
             rank=rank,
             epsilon=eps,
-            initializer="random",
             inner_iterations=50,
             min_iterations=50,
             max_iterations=50,

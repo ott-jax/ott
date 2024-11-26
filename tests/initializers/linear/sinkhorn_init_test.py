@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Literal, Optional
+from typing import Optional
 
 import pytest
 
@@ -101,35 +101,6 @@ def run_sinkhorn(
 @pytest.mark.fast()
 class TestSinkhornInitializers:
 
-  @pytest.mark.parametrize(
-      "init", [
-          "default", "gaussian", "sorting", "subsample",
-          linear_init.DefaultInitializer(), "non-existent"
-      ]
-  )
-  def test_create_initializer(self, init: str):
-    kwargs_init = {}
-    if init == "subsample":
-      kwargs_init["subsample_n_x"] = 10
-
-    solver = sinkhorn.Sinkhorn(initializer=init, kwargs_init=kwargs_init)
-    expected_types = {
-        "default": linear_init.DefaultInitializer,
-        "gaussian": linear_init.GaussianInitializer,
-        "sorting": linear_init.SortingInitializer,
-        "subsample": linear_init.SubsampleInitializer,
-    }
-
-    if isinstance(init, linear_init.SinkhornInitializer):
-      assert solver.create_initializer() is init
-    elif init == "non-existent":
-      with pytest.raises(NotImplementedError, match=r""):
-        _ = solver.create_initializer()
-    else:
-      actual = solver.create_initializer()
-      expected_type = expected_types[init]
-      assert isinstance(actual, expected_type)
-
   @pytest.mark.parametrize(("vector_min", "lse_mode"), [(True, True),
                                                         (True, False),
                                                         (False, True)])
@@ -176,7 +147,7 @@ class TestSinkhornInitializers:
     )
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"online"):
-      sort_init.init_dual_a(ot_problem, lse_mode=True)
+      sort_init.init_fu(ot_problem, lse_mode=True)
 
   def test_sorting_init_square_cost(self, rng: jax.Array):
     n, m, d = 10, 15, 1
@@ -185,7 +156,7 @@ class TestSinkhornInitializers:
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon)
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"square"):
-      sort_init.init_dual_a(ot_problem, lse_mode=True)
+      sort_init.init_fu(ot_problem, lse_mode=True)
 
   def test_default_initializer(self, rng: jax.Array):
     """Tests default initializer"""
@@ -194,16 +165,12 @@ class TestSinkhornInitializers:
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
 
-    default_potential_a = linear_init.DefaultInitializer().init_dual_a(
-        ot_problem, lse_mode=True
-    )
-    default_potential_b = linear_init.DefaultInitializer().init_dual_b(
-        ot_problem, lse_mode=True
-    )
+    f = linear_init.DefaultInitializer().init_fu(ot_problem, lse_mode=True)
+    g = linear_init.DefaultInitializer().init_gv(ot_problem, lse_mode=True)
 
     # check default is 0
-    np.testing.assert_array_equal(0.0, default_potential_a)
-    np.testing.assert_array_equal(0.0, default_potential_b)
+    np.testing.assert_array_equal(f, 0.0)
+    np.testing.assert_array_equal(g, 0.0)
 
   def test_gauss_pointcloud_geom(self, rng: jax.Array):
     n, m, d = 20, 20, 2
@@ -220,30 +187,30 @@ class TestSinkhornInitializers:
     )
 
     with pytest.raises(AssertionError, match=r"pointcloud"):
-      gaus_init.init_dual_a(ot_problem, lse_mode=True)
+      gaus_init.init_fu(ot_problem, lse_mode=True)
 
   @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("jit", [False, True])
-  @pytest.mark.parametrize("initializer", ["sorting", "gaussian", "subsample"])
+  @pytest.mark.parametrize(
+      "initializer", [
+          linear_init.SortingInitializer(vectorized_update=True),
+          linear_init.GaussianInitializer(),
+          linear_init.SubsampleInitializer(10)
+      ]
+  )
   def test_initializer_n_iter(
-      self, rng: jax.Array, lse_mode: bool, jit: bool,
-      initializer: Literal["sorting", "gaussian", "subsample"]
+      self,
+      rng: jax.Array,
+      lse_mode: bool,
+      jit: bool,
+      initializer: linear_init.SinkhornInitializer,
   ):
     """Tests Gaussian initializer"""
     n, m, d = 40, 40, 2
-    subsample_n = 10
     epsilon = 1e-2
 
-    # initializer
-    if initializer == "sorting":
-      initializer = linear_init.SortingInitializer(vectorized_update=True)
-    elif initializer == "gaussian":
-      initializer = linear_init.GaussianInitializer()
-    elif initializer == "subsample":
-      initializer = linear_init.SubsampleInitializer(subsample_n_x=subsample_n)
-
     # ot problem
-    if initializer == "sorting":
+    if isinstance(initializer, linear_init.SortingInitializer):
       ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
     else:
       ot_problem = create_ot_problem(

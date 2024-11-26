@@ -25,44 +25,6 @@ from ott.solvers.linear import sinkhorn_lr
 
 class TestLRInitializers:
 
-  def test_explicit_initializer(self):
-    rank = 2
-    initializer = initializers_lr.RandomInitializer(rank=rank)
-    solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=initializer)
-
-    assert solver.create_initializer(prob="not used") is initializer
-
-  @pytest.mark.parametrize(
-      "initializer", ["random", "rank2", "k-means", "generalized-k-means"]
-  )
-  @pytest.mark.parametrize("partial_init", ["q", "r", "g"])
-  def test_partial_initialization(
-      self, rng: jax.Array, initializer: str, partial_init: str
-  ):
-    n, d, rank = 27, 5, 6
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    x = jax.random.normal(rng1, (n, d))
-    pc = pointcloud.PointCloud(x, epsilon=5e-1)
-    prob = linear_problem.LinearProblem(pc)
-    q_init = jax.random.normal(rng2, (n, rank))
-    r_init = jax.random.normal(rng2, (n, rank))
-    g_init = jax.random.normal(rng2, (rank,))
-
-    solver = sinkhorn_lr.LRSinkhorn(rank=rank, initializer=initializer)
-    initializer = solver.create_initializer(prob)
-
-    if partial_init == "q":
-      q, _, _ = initializer(prob, q=q_init)
-      np.testing.assert_array_equal(q, q_init)
-    elif partial_init == "r":
-      _, r, _ = initializer(prob, r=r_init)
-      np.testing.assert_array_equal(r, r_init)
-    elif partial_init == "g":
-      _, _, g = initializer(prob, g=g_init)
-      np.testing.assert_array_equal(g, g_init)
-    else:
-      raise NotImplementedError(partial_init)
-
   @pytest.mark.fast.with_args("rank", [2, 4, 10, 13], only_fast=True)
   def test_generalized_k_means_has_correct_rank(
       self, rng: jax.Array, rank: int
@@ -72,11 +34,7 @@ class TestLRInitializers:
     pc = pointcloud.PointCloud(x, epsilon=0.5)
     prob = linear_problem.LinearProblem(pc)
 
-    solver = sinkhorn_lr.LRSinkhorn(
-        rank=rank, initializer="generalized-k-means"
-    )
-    initializer = solver.create_initializer(prob)
-
+    initializer = initializers_lr.GeneralizedKMeansInitializer(rank)
     q, r, g = initializer(prob)
 
     assert jnp.linalg.matrix_rank(q) == rank
@@ -92,10 +50,16 @@ class TestLRInitializers:
     prob = linear_problem.LinearProblem(pc)
 
     solver_random = sinkhorn_lr.LRSinkhorn(
-        rank=rank, epsilon=epsilon, initializer="random", max_iterations=10000
+        rank=rank,
+        epsilon=epsilon,
+        initializer=initializers_lr.RandomInitializer(rank),
+        max_iterations=10000,
     )
     solver_init = sinkhorn_lr.LRSinkhorn(
-        rank=rank, epsilon=epsilon, initializer="k-means", max_iterations=10000
+        rank=rank,
+        epsilon=epsilon,
+        initializer=initializers_lr.KMeansInitializer(rank),
+        max_iterations=10000
     )
 
     out_random = solver_random(prob)

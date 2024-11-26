@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Tuple
+from typing import Any, Tuple, Type
 
 import pytest
 
@@ -20,6 +20,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott.geometry import low_rank, pointcloud
+from ott.initializers.linear import initializers_lr
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn_lr
 
@@ -44,19 +45,20 @@ class TestLRSinkhorn:
     self.b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(
-      "use_lrcgeom,initializer,gamma_rescale,lse_mode", (
-          (True, "rank2", False, True),
-          (False, "random", True, False),
-          (True, "k-means", False, True),
+      "use_lrcgeom,initializer_class,gamma_rescale,lse_mode", (
+          (True, initializers_lr.Rank2Initializer, False, True),
+          (False, initializers_lr.RandomInitializer, True, False),
+          (True, initializers_lr.KMeansInitializer, False, True),
       ),
       only_fast=0
   )
   def test_euclidean_point_cloud_lr(
-      self, use_lrcgeom: bool, initializer: str, gamma_rescale: bool,
-      lse_mode: bool
+      self, use_lrcgeom: bool,
+      initializer_class: Type[initializers_lr.LRInitializer],
+      gamma_rescale: bool, lse_mode: bool
   ):
     """Two point clouds, tested with 3 different initializations."""
-    threshold = 1e-3
+    rank, threshold = 6, 1e-3
     geom = pointcloud.PointCloud(self.x, self.y)
     # This test to check LR can work both with LRCGeometries and regular ones
     if use_lrcgeom:
@@ -67,11 +69,11 @@ class TestLRSinkhorn:
     # Start with a low rank parameter
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
-        rank=6,
+        rank=rank,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
         lse_mode=lse_mode,
-        initializer=initializer
+        initializer=initializer_class(rank)
     )
     out = solver(ot_prob)
 
@@ -87,13 +89,14 @@ class TestLRSinkhorn:
     cost_1 = out.primal_cost
 
     # Try with higher rank
+    rank = 14
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
-        rank=14,
+        rank=rank,
         epsilon=0.0,
         gamma_rescale=gamma_rescale,
         lse_mode=lse_mode,
-        initializer=initializer,
+        initializer=initializer_class(rank)
     )
     out = solver(ot_prob)
 
@@ -119,12 +122,12 @@ class TestLRSinkhorn:
     # due to non-convexity of problem and benefit of adding regularizer)
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
-        rank=14,
+        rank=rank,
         epsilon=5e-1,
         gamma=1.0,
         gamma_rescale=gamma_rescale,
         lse_mode=lse_mode,
-        initializer=initializer,
+        initializer=initializer_class(rank),
     )
     out = solver(ot_prob)
 

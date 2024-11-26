@@ -166,7 +166,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     relative_epsilon: Whether to use relative epsilon in the linearized
       geometry.
     initializer: Quadratic initializer. If :obj:`None`, use
-      :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`
+      :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`.
     warm_start: Whether to initialize Sinkhorn calls with the values
       from the previous iteration.
     progress_fn: callback function which gets called during the
@@ -190,7 +190,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     super().__init__(linear_solver, **kwargs)
     self.epsilon = epsilon
     self.relative_epsilon = relative_epsilon
-    self.initializer = initializer
+    self.initializer = quad_initializers.QuadraticInitializer(
+    ) if initializer is None else initializer
     self.warm_start = warm_start
     self.progress_fn = progress_fn
 
@@ -204,9 +205,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
     Args:
       prob: Quadratic OT problem.
-      init: Initial linearization of the quadratic problem. If `None`, it will
-        be computed using the initializer.
-      kwargs: Keyword arguments used when calling the initializer.
+      init: Initial linearization of the quadratic problem.
+        If :obj:`None`, use the initializer.
+      kwargs: Keyword arguments for the initializer.
 
     Returns:
       The Gromov-Wasserstein output.
@@ -215,14 +216,11 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       prob = prob.to_low_rank()
 
     if init is None:
-      initializer = self.initializer
-      if initializer is None:
-        initializer = quad_initializers.QuadraticInitializer()
-      init = initializer(
+      init = self.initializer(
           prob,
           epsilon=self.epsilon,
           relative_epsilon=self.relative_epsilon,
-          **kwargs
+          **kwargs,
       )
 
     out = iterations(self, prob, init)
@@ -332,7 +330,7 @@ def iterations(
     del compute_error  # always assumed true for the outer loop of GW
 
     lin_state = state.linear_state
-    init = (lin_state.f, lin_state.g) if solver.warm_start else (None, None)
+    init = (lin_state.f, lin_state.g) if solver.warm_start else None
     linear_pb = prob.update_linearization(
         lin_state,
         solver.epsilon,

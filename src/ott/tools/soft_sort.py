@@ -21,6 +21,7 @@ import numpy as np
 
 from ott import utils
 from ott.geometry import costs, pointcloud
+from ott.initializers.linear import initializers
 from ott.problems.linear import linear_problem
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
@@ -136,7 +137,7 @@ def _sort(
     if num_targets is None or num_targets == num_points:
       num_targets = num_points
       # use sorting initializer in this case.
-      kwargs.setdefault("initializer", "sorting")
+      kwargs.setdefault("initializer", initializers.SortingInitializer())
     start_index = 0
     b = jnp.ones((num_targets,)) / num_targets
   ot = transport_for_sort(inputs, a, b, **kwargs)
