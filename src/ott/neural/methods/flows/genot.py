@@ -139,7 +139,7 @@ class GENOT:
                                 x_t,
                                 cond,
                                 rngs={"dropout": rng_dropout})
-        u_t = self.flow.compute_ut(time, latent, target)
+        u_t = self.flow.compute_ut(time, x_t, latent, target)
 
         return jnp.mean((v_t - u_t) ** 2)
 
