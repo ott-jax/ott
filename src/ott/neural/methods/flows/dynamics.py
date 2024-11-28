@@ -36,7 +36,7 @@ class BaseFlow(abc.ABC):
 
   @abc.abstractmethod
   def compute_mu_t(
-      self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
+      self, t: jnp.ndarray, x0: jnp.ndarray, x1: jnp.ndarray
   ) -> jnp.ndarray:
     """Compute the mean of the probability path.
 
@@ -45,8 +45,8 @@ class BaseFlow(abc.ABC):
 
     Args:
       t: Time :math:`t` of shape ``[batch, 1]``.
-      src: Sample from the source distribution of shape ``[batch, ...]``.
-      tgt: Sample from the target distribution of shape ``[batch, ...]``.
+      x0: Sample from the source distribution of shape ``[batch, ...]``.
+      x1: Sample from the target distribution of shape ``[batch, ...]``.
     """
 
   @abc.abstractmethod
@@ -62,7 +62,7 @@ class BaseFlow(abc.ABC):
 
   @abc.abstractmethod
   def compute_ut(
-      self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
+      self, t: jnp.ndarray, x: jnp.ndarray, x0: jnp.ndarray, x1: jnp.ndarray
   ) -> jnp.ndarray:
     """Evaluate the conditional vector field.
 
@@ -71,15 +71,16 @@ class BaseFlow(abc.ABC):
 
     Args:
       t: Time :math:`t` of shape ``[batch, 1]``.
-      src: Sample from the source distribution of shape ``[batch, ...]``.
-      tgt: Sample from the target distribution of shape ``[batch, ...]``.
+      x: Current position :math:`x` of shape ``[batch, ...]``.
+      x0: Source position :math:`x_0` of shape ``[batch, ...]``.
+      x1: Target position :math:`x_1` of shape ``[batch, ...]``.
 
     Returns:
       Conditional vector field evaluated at time :math:`t`.
     """
 
   def compute_xt(
-      self, rng: jax.Array, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
+      self, rng: jax.Array, t: jnp.ndarray, x0: jnp.ndarray, x1: jnp.ndarray
   ) -> jnp.ndarray:
     """Sample from the probability path.
 
@@ -89,15 +90,15 @@ class BaseFlow(abc.ABC):
     Args:
       rng: Random number generator.
       t: Time :math:`t` of shape ``[batch, 1]``.
-      src: Sample from the source distribution of shape ``[batch, ...]``.
-      tgt: Sample from the target distribution of shape ``[batch, ...]``.
+      x0: Sample from the source distribution of shape ``[batch, ...]``.
+      x1: Sample from the target distribution of shape ``[batch, ...]``.
 
     Returns:
       Samples from the probability path between :math:`x_0` and :math:`x_1`
       at time :math:`t`.
     """
-    noise = jax.random.normal(rng, shape=src.shape)
-    mu_t = self.compute_mu_t(t, src, tgt)
+    noise = jax.random.normal(rng, shape=x0.shape)
+    mu_t = self.compute_mu_t(t, x0, x1)
     sigma_t = self.compute_sigma_t(t)
     return mu_t + sigma_t * noise
 
@@ -110,15 +111,15 @@ class StraightFlow(BaseFlow, abc.ABC):
   """
 
   def compute_mu_t(  # noqa: D102
-      self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
+      self, t: jnp.ndarray, x0: jnp.ndarray, x1: jnp.ndarray
   ) -> jnp.ndarray:
-    return (1.0 - t) * src + t * tgt
+    return (1.0 - t) * x0 + t * x1
 
   def compute_ut(  # noqa: D102
-      self, t: jnp.ndarray, src: jnp.ndarray, tgt: jnp.ndarray
+      self, t: jnp.ndarray, x: jnp.ndarray, x0: jnp.ndarray, x1: jnp.ndarray
   ) -> jnp.ndarray:
-    del t
-    return tgt - src
+    del t, x
+    return x1 - x0
 
 
 class ConstantNoiseFlow(StraightFlow):
@@ -162,3 +163,21 @@ class BrownianBridge(StraightFlow):
       at time :math:`t`.
     """
     return self.sigma * jnp.sqrt(t * (1.0 - t))
+
+  def compute_ut(
+      self, t: jnp.ndarray, x: jnp.ndarray, x0: jnp.ndarray, x1: jnp.ndarray
+  ) -> jnp.ndarray:
+    r"""Compute the conditional vector field :math:`u_t(x|z)`.
+
+    Args:
+        t: Time :math:`t` of shape ``[batch, 1]``.
+        x: Current position :math:`x` of shape ``[batch, ...]``.
+        x0: Source position :math:`x_0` of shape ``[batch, ...]``.
+        x1: Target position :math:`x_1` of shape ``[batch, ...]``.
+
+    Returns:
+        The vector field :math:`u_t(x|z)` at time :math:`t`.
+    """
+    drift_term = (1 - 2 * t) / (2 * t * (1 - t)) * (x - (t * x1 + (1 - t) * x0))
+    control_term = x1 - x0
+    return drift_term + control_term
