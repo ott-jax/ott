@@ -15,6 +15,7 @@ from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
 from ott import utils
 from ott.geometry import costs, geometry, low_rank
@@ -23,7 +24,7 @@ from ott.math import utils as mu
 __all__ = ["PointCloud"]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class PointCloud(geometry.Geometry):
   """Defines geometry for 2 point clouds (possibly 1 vs itself).
 
@@ -32,9 +33,9 @@ class PointCloud(geometry.Geometry):
   will be recomputed on the fly, rather than stored in memory.
 
   Args:
-    x : n x d array of n d-dimensional vectors
-    y : m x d array of m d-dimensional vectors. If `None`, use ``x``.
-    cost_fn: a CostFn function between two points in dimension d.
+    x: Array of shape ``[n, d]``.
+    y: Array of shape ``[m, d]``. If :obj:`None`, use ``x``.
+    cost_fn: Cost function between two points in dimension :math:`d`.
     batch_size: When ``None``, the cost matrix corresponding to that point cloud
      is computed, stored and later re-used at each application of
      :meth:`apply_lse_kernel`. When ``batch_size`` is a positive integer,
