@@ -26,10 +26,10 @@ DEFAULT_SCALE = 0.05
 class Epsilon:
   r"""Scheduler class for the regularization parameter epsilon.
 
-  An epsilon scheduler outputs a regularization strength, to be used by a
-  Sinkhorn-type algorithm, at any iteration count. That value is either the
-  final, targeted regularization, or one that is larger, obtained by
-  geometric decay of an initial value that is larger than the intended target.
+  An epsilon scheduler outputs a regularization strength, to be used by the
+  :term:`Sinkhorn algorithm` or variant, at any iteration count. That value is
+  either the final, targeted regularization, or one that is larger, obtained by
+  geometric decay of an initial multiplier.
 
   Args:
     target: The epsilon regularizer that is targeted.
@@ -45,7 +45,7 @@ class Epsilon:
     self.decay = decay
 
   def __call__(self, it: Optional[int]) -> jnp.array:
-    """Return (intermediate) regularizer value at a given iteration.
+    """Intermediate regularizer value at a given iteration number.
 
     Args:
       it: Current iteration. If :obj:`None`, return :attr:`target`.
