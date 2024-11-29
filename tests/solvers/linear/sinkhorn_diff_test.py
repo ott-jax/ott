@@ -788,7 +788,9 @@ class TestSinkhornHessian:
     delta_a = delta_a - jnp.mean(delta_a)
     delta_x = jax.random.uniform(rngs[5], (n, dim))
 
-    hess_loss_imp = (jax.hessian(lambda a, x: loss(a, x, True), argnums=arg))
+    hess_loss_imp = jax.jit(
+        jax.hessian(lambda a, x: loss(a, x, True), argnums=arg)
+    )
     hess_imp = hess_loss_imp(a, x)
 
     # Test that Hessians produced with either backprop or implicit do match.
