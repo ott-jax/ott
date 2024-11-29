@@ -36,32 +36,30 @@ class Geometry:
 
   Optimal transport problems are intrinsically geometric: they compute an
   optimal way to transport mass from one configuration onto another. To define
-  what is meant by optimality of transport requires defining a cost, of moving
-  mass from one among several sources, towards one out of multiple targets.
-  These sources and targets can be provided as points in vectors spaces, grids,
-  or more generally exclusively described through a (dissimilarity) cost matrix,
-  or almost equivalently, a (similarity) kernel matrix.
-
-  Once that cost or kernel matrix is set, the ``Geometry`` class provides a
-  basic operations to be run with the Sinkhorn algorithm.
+  what is meant by optimality of transport requires defining a
+  :term:`ground cost`, which quantifies how costly it is to move mass from
+  one among several source locations, towards one out of multiple
+  target locations. These source and target locations can be described as
+  points in vectors spaces, grids, or more generally described
+  through a (dissimilarity) cost matrix, or almost equivalently, a
+  (similarity) kernel matrix. This class describes such a
+  geometry and several useful methods to exploit it.
 
   Args:
     cost_matrix: Cost matrix of shape ``[n, m]``.
     kernel_matrix: Kernel matrix of shape ``[n, m]``.
-    epsilon: Regularization parameter. If ``None`` and
-      ``relative_epsilon = None``
-      ``relative_epsilon = str`` where ``str`` can be either ``mean`` or ``std``
-      , this value defaults to a multiple of :attr:`std_cost_matrix`
-      (or :attr:`mean_cost_matrix` if ``str`` is ``mean``), where that multiple
-      is set as ``DEFAULT_SCALE`` in ``epsilon_scheduler.py```.
-      If passed as a
-      ``float``, then the regularizer that is ultimately used is either that
-      ``float`` value (if ``relative_epsilon = False`` or ``None``) or that
-      ``float`` times the :attr:`std_cost_matrix` (if
-      ``relative_epsilon = True`` or ``relative_epsilon = `std```) or
-      :attr:`mean_cost_matrix` (if ``relative_epsilon = `mean```). Look for
+    epsilon: Regularization parameter or scheduler. Look for
       :class:`~ott.geometry.epsilon_scheduler.Epsilon` when passed as a
-      scheduler.
+      scheduler directly. Otherwise, if :obj:`None` and
+      ``relative_epsilon`` is :obj:`None` the regularizer value
+      defaults to a multiple of :attr:`std_cost_matrix`, that multiple
+      is set as :obj:`~ott.geometry.epsilon_scheduler.DEFAULT_SCALE`,
+      currently equal to `0.05`. If passed as
+      a ``float``, then the regularizer that is ultimately used is either
+      that ``float`` value (if ``relative_epsilon`` is :obj:`None`) or that
+      ``float`` times the :attr:`std_cost_matrix` (if
+      ``relative_epsilon`` is ``"std"``) or
+      :attr:`mean_cost_matrix` (if ``relative_epsilon`` is ``"mean"``).
     relative_epsilon: Whether ``epsilon`` refers to a fraction of the
       :attr:`mean_cost_matrix` or :attr:`std_cost_matrix`.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
