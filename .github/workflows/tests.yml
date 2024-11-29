@@ -16,8 +16,6 @@ jobs:
   fast-tests:
     name: Fast tests Python ${{ matrix.python-version }} ${{ matrix.jax-version }}
     runs-on: ubuntu-latest
-    # allow tests using the latest JAX to fail
-    continue-on-error: ${{ matrix.jax-version == 'jax-latest' }}
     strategy:
       fail-fast: false
       matrix:
