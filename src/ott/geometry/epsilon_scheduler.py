@@ -26,14 +26,10 @@ DEFAULT_SCALE = 0.05
 class Epsilon:
   r"""Scheduler class for the regularization parameter epsilon.
 
-  An epsilon scheduler outputs a regularization strength, to be used by in a
+  An epsilon scheduler outputs a regularization strength, to be used by a
   Sinkhorn-type algorithm, at any iteration count. That value is either the
   final, targeted regularization, or one that is larger, obtained by
   geometric decay of an initial value that is larger than the intended target.
-  Concretely, the value returned by such a scheduler will consider first
-  the max between ``target`` and ``init * target * decay ** iteration``.
-  If the ``scale_epsilon`` parameter is provided, that value is used to
-  multiply the max computed previously by ``scale_epsilon``.
 
   Args:
     target: The epsilon regularizer that is targeted.
