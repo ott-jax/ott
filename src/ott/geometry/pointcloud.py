@@ -27,13 +27,9 @@ __all__ = ["PointCloud"]
 class PointCloud(geometry.Geometry):
   """Defines geometry for 2 point clouds (possibly 1 vs itself).
 
-  Creates a geometry, specifying a cost function passed as CostFn type object.
-  When the number of points is large, setting the ``batch_size`` flag implies
-  that cost and kernel matrices used to update potentials or scalings
-  will be recomputed on the fly, rather than stored in memory. More precisely,
-  when setting ``batch_size``, the cost function will be partially cached by
-  storing norm values for each point in both point clouds, but the pairwise cost
-  function evaluations won't be.
+  When the number of points is large, setting the :attr:`batch_size` flag
+  implies that cost and kernel matrices used to update potentials or scalings
+  will be recomputed on the fly, rather than stored in memory.
 
   Args:
     x : n x d array of n d-dimensional vectors
