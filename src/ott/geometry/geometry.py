@@ -20,16 +20,17 @@ if TYPE_CHECKING:
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+import jax.tree_util as jtu
 import numpy as np
 
 from ott import utils
-from ott.geometry import epsilon_scheduler
+from ott.geometry import epsilon_scheduler as eps_scheduler
 from ott.math import utils as mu
 
 __all__ = ["Geometry"]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class Geometry:
   r"""Base class to define ground costs/kernels used in optimal transport.
 
@@ -47,8 +48,8 @@ class Geometry:
   Args:
     cost_matrix: Cost matrix of shape ``[n, m]``.
     kernel_matrix: Kernel matrix of shape ``[n, m]``.
-    epsilon: Regularization parameter. If ``None`` and either
-      ``relative_epsilon = True`` or ``relative_epsilon = None`` or
+    epsilon: Regularization parameter. If ``None`` and
+      ``relative_epsilon = None``
       ``relative_epsilon = str`` where ``str`` can be either ``mean`` or ``std``
       , this value defaults to a multiple of :attr:`std_cost_matrix`
       (or :attr:`mean_cost_matrix` if ``str`` is ``mean``), where that multiple
@@ -87,8 +88,8 @@ class Geometry:
       self,
       cost_matrix: Optional[jnp.ndarray] = None,
       kernel_matrix: Optional[jnp.ndarray] = None,
-      epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
-      relative_epsilon: Optional[Union[bool, Literal["mean", "std"]]] = None,
+      epsilon: Optional[Union[float, eps_scheduler.Epsilon]] = None,
+      relative_epsilon: Optional[Literal["mean", "std"]] = None,
       scale_cost: Union[float, Literal["mean", "max_cost", "median",
                                        "std"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
@@ -96,13 +97,8 @@ class Geometry:
   ):
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
-
-    # needed for `copy_epsilon`, because of the `isinstance` check
-    self._epsilon_init = epsilon if isinstance(
-        epsilon, epsilon_scheduler.Epsilon
-    ) else epsilon_scheduler.Epsilon(epsilon)
+    self._epsilon_init = epsilon
     self._relative_epsilon = relative_epsilon
-
     self._scale_cost = scale_cost
 
     self._src_mask = src_mask
@@ -150,7 +146,7 @@ class Geometry:
     to output :math:`\sigma`.
     """
     tmp = self._masked_geom().apply_square_cost(self._n_normed_ones).squeeze()
-    tmp = jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix) ** 2
+    tmp = jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix ** 2)
     return jnp.sqrt(jax.nn.relu(tmp))
 
   @property
@@ -164,35 +160,36 @@ class Geometry:
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property
-  def _epsilon(self) -> epsilon_scheduler.Epsilon:
-    (target, scale_eps, _, _), _ = self._epsilon_init.tree_flatten()
-    rel = self._relative_epsilon
+  def epsilon_scheduler(self) -> eps_scheduler.Epsilon:
+    """TODO."""
+    if isinstance(self._epsilon_init, eps_scheduler.Epsilon):
+      return self._epsilon_init
 
-    # If nothing passed, default to STD
-    if rel is None and target is None and scale_eps is None:
-      scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
-    # If instructions passed change, otherwise (notably if False) skip.
-    elif rel is not None:
-      if rel == "mean" or rel is True:  # Legacy option.
-        scale_eps = jax.lax.stop_gradient(self.mean_cost_matrix)
-      elif rel == "std":
-        scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
-        # Avoid 0 std, since this would set epsilon to 0.0 and result in
-        # a division by 0.
-        scale_eps = jnp.where(scale_eps <= 0.0, 1.0, scale_eps)
+    # no relative epsilon
+    if self._relative_epsilon is None:
+      if self._epsilon_init is not None:
+        return eps_scheduler.Epsilon(self._epsilon_init)
+      multiplier = eps_scheduler.DEFAULT_SCALE
+      scale = jax.lax.stop_gradient(self.std_cost_matrix)
+      return eps_scheduler.Epsilon(target=multiplier * scale)
 
-    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
-      return self._epsilon_init.set(scale_epsilon=scale_eps)
+    if self._relative_epsilon == "std":
+      scale = jax.lax.stop_gradient(self.std_cost_matrix)
+    elif self._relative_epsilon == "mean":
+      scale = jax.lax.stop_gradient(self.mean_cost_matrix)
+    else:
+      raise ValueError(f"Invalid relative epsilon: {self._relative_epsilon}.")
 
-    return epsilon_scheduler.Epsilon(
-        target=epsilon_scheduler.DEFAULT_SCALE if target is None else target,
-        scale_epsilon=scale_eps
+    multiplier = (
+        eps_scheduler.DEFAULT_SCALE
+        if self._epsilon_init is None else self._epsilon_init
     )
+    return eps_scheduler.Epsilon(target=multiplier * scale)
 
   @property
   def epsilon(self) -> float:
     """Epsilon regularization value."""
-    return self._epsilon.target
+    return self.epsilon_scheduler.target
 
   @property
   def shape(self) -> Tuple[int, int]:
@@ -257,20 +254,11 @@ class Geometry:
 
   def copy_epsilon(self, other: "Geometry") -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
-    other_epsilon = other._epsilon
     children, aux_data = self.tree_flatten()
-
-    new_children = []
-    for child in children:
-      if isinstance(child, epsilon_scheduler.Epsilon):
-        child = child.set(
-            target=other_epsilon._target_init,
-            scale_epsilon=other_epsilon._scale_epsilon
-        )
-      new_children.append(child)
-
-    aux_data["relative_epsilon"] = False
-    return type(self).tree_unflatten(aux_data, new_children)
+    new_geom = type(self).tree_unflatten(aux_data, children)
+    new_geom._epsilon_init = other.epsilon_scheduler
+    new_geom._relative_epsilon = other._relative_epsilon  # has no effect
+    return new_geom
 
   # The functions below are at the core of Sinkhorn iterations, they
   # are implemented here in their default form, either in lse (using directly
@@ -412,7 +400,7 @@ class Geometry:
     Returns:
       new potential value, g if axis=0, f if axis is 1.
     """
-    eps = self._epsilon.at(iteration)
+    eps = self.epsilon_scheduler(iteration)
     app_lse = self.apply_lse_kernel(f, g, eps, axis=axis)[0]
     return eps * log_marginal - jnp.where(jnp.isfinite(app_lse), app_lse, 0)
 
@@ -434,7 +422,7 @@ class Geometry:
     Returns:
       new scaling vector, of size num_b if axis=0, num_a if axis is 1.
     """
-    eps = self._epsilon.at(iteration)
+    eps = self.epsilon_scheduler(iteration)
     app_kernel = self.apply_kernel(scaling, eps, axis=axis)
     return marginal / jnp.where(app_kernel > 0, app_kernel, 1.0)
 
@@ -931,7 +919,7 @@ class Geometry:
         self._src_mask, self._tgt_mask
     ), {
         "scale_cost": self._scale_cost,
-        "relative_epsilon": self._relative_epsilon
+        "relative_epsilon": self._relative_epsilon,
     }
 
   @classmethod

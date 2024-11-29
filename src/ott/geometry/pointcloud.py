@@ -255,7 +255,8 @@ class PointCloud(geometry.Geometry):
         self.cost_fn,
     ), {
         "batch_size": self._batch_size,
-        "scale_cost": self._scale_cost
+        "scale_cost": self._scale_cost,
+        "relative_epsilon": self._relative_epsilon,
     }
 
   @classmethod

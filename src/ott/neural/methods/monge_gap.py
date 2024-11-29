@@ -46,7 +46,7 @@ def monge_gap(
     reference_points: jnp.ndarray,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
-    relative_epsilon: Optional[bool] = None,
+    relative_epsilon: Optional[Literal["mean", "std"]] = None,
     scale_cost: Union[float, Literal["mean", "max_cost", "median"]] = 1.0,
     return_output: bool = False,
     **kwargs: Any
@@ -111,7 +111,7 @@ def monge_gap_from_samples(
     target: jnp.ndarray,
     cost_fn: Optional[costs.CostFn] = None,
     epsilon: Optional[float] = None,
-    relative_epsilon: Optional[bool] = None,
+    relative_epsilon: Optional[Literal["mean", "std"]] = None,
     scale_cost: Union[float, Literal["mean", "max_cost", "median"]] = 1.0,
     return_output: bool = False,
     **kwargs: Any

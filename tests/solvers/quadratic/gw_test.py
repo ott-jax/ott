@@ -433,7 +433,9 @@ class TestGromovWasserstein:
 
     linear_solver = sinkhorn.Sinkhorn()
     solver = gromov_wasserstein.GromovWasserstein(
-        linear_solver, epsilon=eps, relative_epsilon=True
+        linear_solver,
+        epsilon=eps,
+        relative_epsilon="std",
     )
 
     out = solver(prob)

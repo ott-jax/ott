@@ -234,7 +234,7 @@ class QuadraticProblem:
   def update_lr_geom(
       self,
       lr_sink: "sinkhorn_lr.LRSinkhornOutput",
-      relative_epsilon: Optional[bool] = None,
+      relative_epsilon: Optional[Literal["mean", "std"]] = None,
   ) -> geometry.Geometry:
     """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
     marginal_1 = lr_sink.marginal(1)
@@ -270,7 +270,7 @@ class QuadraticProblem:
       transport: Transport,
       epsilon: Optional[float] = None,
       old_transport_mass: float = 1.0,
-      relative_epsilon: Optional[bool] = None,
+      relative_epsilon: Optional[Literal["mean", "std"]] = None,
   ) -> linear_problem.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
@@ -337,7 +337,7 @@ class QuadraticProblem:
       self,
       lr_sink: "sinkhorn_lr.LRSinkhornOutput",
       *,
-      relative_epsilon: Optional[bool] = None,
+      relative_epsilon: Optional[Literal["mean", "std"]] = None,
   ) -> linear_problem.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
     return linear_problem.LinearProblem(

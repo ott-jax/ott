@@ -146,8 +146,8 @@ class TestSinkhorn:
     )
 
     np.testing.assert_allclose(
-        geom_1._epsilon.at(2) * scale ** 2,
-        geom_2._epsilon.at(2),
+        geom_1.epsilon_scheduler(2) * scale ** 2,
+        geom_2.epsilon_scheduler(2),
         rtol=1e-3,
         atol=1e-3
     )
@@ -167,9 +167,10 @@ class TestSinkhorn:
       tau_b: float
   ):
     """Check that variations in init/decay work, and result in same solution."""
-    epsilon = epsilon_scheduler.Epsilon(init=init, decay=decay)
-    geom1 = pointcloud.PointCloud(self.x, self.y, epsilon=epsilon)
-    geom2 = pointcloud.PointCloud(self.x, self.y)
+    geom = pointcloud.PointCloud(self.x, self.y)
+    target = epsilon_scheduler.DEFAULT_SCALE * geom.std_cost_matrix
+    epsilon = epsilon_scheduler.Epsilon(target, init=init, decay=decay)
+    geom_eps = pointcloud.PointCloud(self.x, self.y, epsilon=epsilon)
     run_fn = jax.jit(
         linear.solve,
         static_argnames=[
@@ -178,7 +179,7 @@ class TestSinkhorn:
     )
 
     out_1 = run_fn(
-        geom1,
+        geom_eps,
         self.a,
         self.b,
         tau_a=tau_a,
@@ -188,7 +189,7 @@ class TestSinkhorn:
         recenter_potentials=True
     )
     out_2 = run_fn(
-        geom2,
+        geom,
         self.a,
         self.b,
         tau_a=tau_a,
