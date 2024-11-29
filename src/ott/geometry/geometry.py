@@ -62,12 +62,8 @@ class Geometry:
       :attr:`mean_cost_matrix` (if ``relative_epsilon = `mean```). Look for
       :class:`~ott.geometry.epsilon_scheduler.Epsilon` when passed as a
       scheduler.
-    relative_epsilon: when :obj:`False`, the parameter ``epsilon`` specifies the
-      value of the entropic regularization parameter. When :obj:`True` or set
-      to a string, ``epsilon`` refers to a fraction of the
-      :attr:`std_cost_matrix` or :attr:`mean_cost_matrix`, which is computed
-      adaptively from data, depending on whether it is set to ``mean`` or
-      ``std``.
+    relative_epsilon: Whether ``epsilon`` refers to a fraction of the
+      :attr:`mean_cost_matrix` or :attr:`std_cost_matrix`.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean', 'std' and 'max_cost'. Alternatively, a float factor can
       be given to rescale the cost such that ``cost_matrix /= scale_cost``.
