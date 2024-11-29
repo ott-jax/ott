@@ -37,9 +37,8 @@ class Epsilon:
 
   Args:
     target: The epsilon regularizer that is targeted.
-    init: Initial value when using epsilon scheduling, understood as multiple
-      of target value. if passed, ``int * decay ** iteration`` will be used
-      to rescale target.
+    init: Initial value when using epsilon scheduling, understood as a multiple
+      of the ``target``, following :math:`\text{init} \text{decay}^{\text{it}}`.
     decay: Geometric decay factor, :math:`\leq 1`.
   """
 
