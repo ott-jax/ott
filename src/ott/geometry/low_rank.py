@@ -112,7 +112,7 @@ class LRCGeometry(geometry.Geometry):
       return 1.0 / (mean + self._bias)
     if self._scale_cost == "max_cost":
       return 1.0 / self._max_cost_matrix
-    if jnp.isscalar(self._scale_cost):
+    if utils.is_scalar(self._scale_cost):
       return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 

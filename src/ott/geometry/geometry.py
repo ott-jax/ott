@@ -220,7 +220,7 @@ class Geometry:
       return 1.0 / jnp.mean(self._cost_matrix)
     if self._scale_cost == "median":
       return 1.0 / jnp.median(self._cost_matrix)
-    if jnp.isscalar(self._scale_cost):
+    if utils.is_scalar(self._scale_cost):
       return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
