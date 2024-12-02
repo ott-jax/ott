@@ -168,7 +168,7 @@ class TestSinkhorn:
   ):
     """Check that variations in init/decay work, and result in same solution."""
     geom = pointcloud.PointCloud(self.x, self.y)
-    target = epsilon_scheduler.DEFAULT_SCALE * geom.std_cost_matrix
+    target = epsilon_scheduler.DEFAULT_EPSILON_SCALE * geom.std_cost_matrix
     epsilon = epsilon_scheduler.Epsilon(target, init=init, decay=decay)
     geom_eps = pointcloud.PointCloud(self.x, self.y, epsilon=epsilon)
     run_fn = jax.jit(

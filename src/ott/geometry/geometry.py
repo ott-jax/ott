@@ -48,18 +48,18 @@ class Geometry:
   Args:
     cost_matrix: Cost matrix of shape ``[n, m]``.
     kernel_matrix: Kernel matrix of shape ``[n, m]``.
-    epsilon: Regularization parameter or scheduler. Look for
-      :class:`~ott.geometry.epsilon_scheduler.Epsilon` when passed as a
-      scheduler directly. Otherwise, if :obj:`None` and
-      ``relative_epsilon`` is :obj:`None` the regularizer value
-      defaults to a multiple of :attr:`std_cost_matrix`, that multiple
-      is set as :obj:`~ott.geometry.epsilon_scheduler.DEFAULT_SCALE`,
-      currently equal to `0.05`. If passed as
-      a ``float``, then the regularizer that is ultimately used is either
-      that ``float`` value (if ``relative_epsilon`` is :obj:`None`) or that
-      ``float`` times the :attr:`std_cost_matrix` (if
-      ``relative_epsilon`` is ``"std"``) or
-      :attr:`mean_cost_matrix` (if ``relative_epsilon`` is ``"mean"``).
+    epsilon: Regularization parameter or a scheduler:
+
+      - ``epsilon = None`` and ``relative_epsilon = None``, use
+        :math:`0.05 * \text{stddev(cost_matrix)}`.
+      - if ``epsilon`` is a :class:`float` and ``relative_epsilon = None``,
+        it directly corresponds to the regularization strength.
+      - otherwise, ``epsilon`` multiplies the :attr:`mean_cost_matrix` or
+        :attr:`std_cost_matrix`, depending on the value of ``relative_epsilon``.
+
+      If ``epsilon = None``, the value of
+      :obj:`DEFAULT_EPSILON_SCALE = 0.05 <ott.geometry.epsilon_scheduler.DEFAULT_EPSILON_SCALE>`.
+      will be used.
     relative_epsilon: Whether ``epsilon`` refers to a fraction of the
       :attr:`mean_cost_matrix` or :attr:`std_cost_matrix`.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
@@ -76,7 +76,7 @@ class Geometry:
     parameter that is meaningful. That parameter can be provided by the user,
     or assigned a default value through a simple rule, using for instance the
     :attr:`mean_cost_matrix` or the :attr:`std_cost_matrix`.
-  """
+  """  # noqa: E501
 
   def __init__(
       self,
@@ -163,7 +163,7 @@ class Geometry:
     if self._relative_epsilon is None:
       if self._epsilon_init is not None:
         return eps_scheduler.Epsilon(self._epsilon_init)
-      multiplier = eps_scheduler.DEFAULT_SCALE
+      multiplier = eps_scheduler.DEFAULT_EPSILON_SCALE
       scale = jax.lax.stop_gradient(self.std_cost_matrix)
       return eps_scheduler.Epsilon(target=multiplier * scale)
 
@@ -175,7 +175,7 @@ class Geometry:
       raise ValueError(f"Invalid relative epsilon: {self._relative_epsilon}.")
 
     multiplier = (
-        eps_scheduler.DEFAULT_SCALE
+        eps_scheduler.DEFAULT_EPSILON_SCALE
         if self._epsilon_init is None else self._epsilon_init
     )
     return eps_scheduler.Epsilon(target=multiplier * scale)

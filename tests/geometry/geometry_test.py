@@ -28,7 +28,7 @@ class TestCostMeanStd:
   def test_cost_stdmean(self, rng: jax.Array, geom_type: str):
     """Test consistency of std evaluation."""
     n, m, d = 5, 18, 10
-    default_scale = epsilon_scheduler.DEFAULT_SCALE
+    default_scale = epsilon_scheduler.DEFAULT_EPSILON_SCALE
     rngs = jax.random.split(rng, 5)
     x = jax.random.normal(rngs[0], (n, d))
     y = jax.random.normal(rngs[1], (m, d)) + 1

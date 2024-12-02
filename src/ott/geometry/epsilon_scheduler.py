@@ -16,10 +16,10 @@ from typing import Optional
 import jax.numpy as jnp
 import jax.tree_util as jtu
 
-__all__ = ["Epsilon", "DEFAULT_SCALE"]
+__all__ = ["Epsilon", "DEFAULT_EPSILON_SCALE"]
 
 #: Scaling applied to statistic (mean/std) of cost to compute default epsilon.
-DEFAULT_SCALE = 0.05
+DEFAULT_EPSILON_SCALE = 0.05
 
 
 @jtu.register_pytree_node_class
