@@ -107,7 +107,7 @@ class Geometry:
   @property
   def median_cost_matrix(self) -> float:
     """Median of the :attr:`cost_matrix`."""
-    return jnp.nanmedian(self.cost_matrix)  # will fail for online PC
+    return jnp.median(self.cost_matrix)
 
   @property
   def mean_cost_matrix(self) -> float:
@@ -216,11 +216,11 @@ class Geometry:
   def inv_scale_cost(self) -> jnp.ndarray:
     """Compute and return inverse of scaling factor for cost matrix."""
     if self._scale_cost == "max_cost":
-      return 1.0 / jnp.nanmax(self._cost_matrix)
+      return 1.0 / jnp.max(self._cost_matrix)
     if self._scale_cost == "mean":
-      return 1.0 / jnp.nanmean(self._cost_matrix)
+      return 1.0 / jnp.mean(self._cost_matrix)
     if self._scale_cost == "median":
-      return 1.0 / jnp.nanmedian(self._cost_matrix)
+      return 1.0 / jnp.median(self._cost_matrix)
     if jnp.isscalar(self._scale_cost):
       return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
