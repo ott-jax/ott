@@ -429,8 +429,6 @@ def segment_sinkhorn_divergence(
       padded_weight_x: jnp.ndarray,
       padded_weight_y: jnp.ndarray,
   ) -> float:
-    mask_x = padded_weight_x > 0.0
-    mask_y = padded_weight_y > 0.0
     div, _ = sinkhorn_divergence(
         pointcloud.PointCloud,
         padded_x,
@@ -442,9 +440,7 @@ def segment_sinkhorn_divergence(
         share_epsilon=share_epsilon,
         symmetric_sinkhorn=symmetric_sinkhorn,
         cost_fn=cost_fn,
-        src_mask=mask_x,
-        tgt_mask=mask_y,
-        **kwargs
+        **kwargs,
     )
     return div
 

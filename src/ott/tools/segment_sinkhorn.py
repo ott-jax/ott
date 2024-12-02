@@ -108,16 +108,11 @@ def segment_sinkhorn(
       padded_y: jnp.ndarray,
       padded_weight_x: jnp.ndarray,
       padded_weight_y: jnp.ndarray,
-  ) -> float:
-    mask_x = padded_weight_x > 0.0
-    mask_y = padded_weight_y > 0.0
-
+  ) -> jnp.ndarray:
     geom = pointcloud.PointCloud(
         padded_x,
         padded_y,
         cost_fn=cost_fn,
-        src_mask=mask_x,
-        tgt_mask=mask_y,
         **kwargs,
     )
     prob = linear_problem.LinearProblem(

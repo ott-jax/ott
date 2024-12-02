@@ -121,7 +121,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         transport: jnp.ndarray,
         fn: Optional[quadratic_costs.Loss],
     ) -> jnp.ndarray:
-      geom = self._create_y_geometry(y, mask=b > 0.0)
+      geom = self._create_y_geometry(y)
       fn, lin = (None, True) if fn is None else (fn.func, fn.is_linear)
 
       tmp = geom.apply_cost(
@@ -182,12 +182,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   def _create_bary_geometry(
       self,
       cost_matrix: jnp.ndarray,
-      mask: Optional[jnp.ndarray] = None
   ) -> geometry.Geometry:
     return geometry.Geometry(
         cost_matrix=cost_matrix,
-        src_mask=mask,
-        tgt_mask=mask,
         epsilon=self.epsilon,
         scale_cost=self.scale_cost
     )
@@ -195,7 +192,6 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   def _create_y_geometry(
       self,
       y: jnp.ndarray,
-      mask: Optional[jnp.ndarray] = None
   ) -> geometry.Geometry:
     if self._y_as_costs:
       assert y.shape[0] == y.shape[1], y.shape
@@ -203,24 +199,18 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
           y,
           epsilon=self.epsilon,
           scale_cost=self.scale_cost,
-          src_mask=mask,
-          tgt_mask=mask
       )
     return pointcloud.PointCloud(
         y,
         epsilon=self.epsilon,
         scale_cost=self.scale_cost,
         cost_fn=self.cost_fn,
-        src_mask=mask,
-        tgt_mask=mask
     )
 
   def _create_fused_geometry(
       self,
       x: jnp.ndarray,
       y: jnp.ndarray,
-      src_mask: Optional[jnp.ndarray] = None,
-      tgt_mask: Optional[jnp.ndarray] = None
   ) -> pointcloud.PointCloud:
     return pointcloud.PointCloud(
         x,
@@ -228,8 +218,6 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         cost_fn=self.cost_fn,
         epsilon=self.epsilon,
         scale_cost=self.scale_cost,
-        src_mask=src_mask,
-        tgt_mask=tgt_mask
     )
 
   def _create_problem(
@@ -239,18 +227,12 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       b: jnp.ndarray,
       f: Optional[jnp.ndarray] = None
   ) -> quadratic_problem.QuadraticProblem:
-    # TODO(michalk8): in future, mask in the problem for convenience?
-    bary_mask = state.a > 0.0
-    y_mask = b > 0.0
-
-    geom_xx = self._create_bary_geometry(state.cost, mask=bary_mask)
-    geom_yy = self._create_y_geometry(y, mask=y_mask)
+    geom_xx = self._create_bary_geometry(state.cost)
+    geom_yy = self._create_y_geometry(y)
     if self.is_fused:
       assert f is not None
       assert state.x.shape[1] == f.shape[1]
-      geom_xy = self._create_fused_geometry(
-          state.x, f, src_mask=bary_mask, tgt_mask=y_mask
-      )
+      geom_xy = self._create_fused_geometry(state.x, f)
     else:
       geom_xy = None
 

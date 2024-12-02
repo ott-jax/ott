@@ -255,7 +255,7 @@ class TestCostMatrixFactorization:
         y,
         cost_fn=costs.SqPNorm(p=2.1),
         batch_size=batch_size,
-        scale_cost=scale_cost
+        scale_cost=scale_cost,
     )
 
     if geom.batch_size is not None:

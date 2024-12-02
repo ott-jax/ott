@@ -94,27 +94,26 @@ class LRCGeometry(geometry.Geometry):
 
   @property
   def is_symmetric(self) -> bool:  # noqa: D102
-    return (
-        self._cost_1.shape[0] == self._cost_2.shape[0] and
-        jnp.all(self._cost_1 == self._cost_2)
-    )
+    n, m = self.shape
+    return (n == m) and jnp.all(self._cost_1 == self._cost_2)
 
   @property
-  def inv_scale_cost(self) -> float:  # noqa: D102
-    if isinstance(self._scale_cost, (int, float, jax.Array)):
-      return 1.0 / self._scale_cost
-    self = self._masked_geom()
+  def inv_scale_cost(self) -> jnp.ndarray:  # noqa: D102
     if self._scale_cost == "max_bound":
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
       max_bound = x_norm + y_norm + 2.0 * jnp.sqrt(x_norm * y_norm)
       return 1.0 / (max_bound + self._bias)
     if self._scale_cost == "mean":
-      a, b = self._n_normed_ones, self._m_normed_ones
+      n, m = self.shape
+      a = jnp.full((n,), fill_value=1.0 / n)
+      b = jnp.full((m,), fill_value=1.0 / m)
       mean = jnp.linalg.multi_dot([a, self._cost_1, self._cost_2.T, b])
       return 1.0 / (mean + self._bias)
     if self._scale_cost == "max_cost":
       return 1.0 / self._max_cost_matrix
+    if jnp.isscalar(self._scale_cost):
+      return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
@@ -193,66 +192,6 @@ class LRCGeometry(geometry.Geometry):
   def can_LRC(self):  # noqa: D102
     return True
 
-  def subset(  # noqa: D102
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
-      **kwargs: Any
-  ) -> "LRCGeometry":
-
-    def subset_fn(
-        arr: Optional[jnp.ndarray],
-        ixs: Optional[jnp.ndarray],
-    ) -> jnp.ndarray:
-      return arr if arr is None or ixs is None else arr[ixs, ...]
-
-    return self._mask_subset_helper(
-        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
-    )
-
-  def mask(  # noqa: D102
-      self,
-      src_mask: Optional[jnp.ndarray],
-      tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.0,
-  ) -> "LRCGeometry":
-
-    def mask_fn(
-        arr: Optional[jnp.ndarray],
-        mask: Optional[jnp.ndarray],
-    ) -> Optional[jnp.ndarray]:
-      if arr is None or mask is None:
-        return arr
-      return jnp.where(mask[:, None], arr, mask_value)
-
-    src_mask = self._normalize_mask(src_mask, self.shape[0])
-    tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
-    return self._mask_subset_helper(
-        src_mask, tgt_mask, fn=mask_fn, propagate_mask=False
-    )
-
-  def _mask_subset_helper(
-      self,
-      src_ixs: Optional[jnp.ndarray],
-      tgt_ixs: Optional[jnp.ndarray],
-      *,
-      fn: Callable[[Optional[jnp.ndarray], Optional[jnp.ndarray]],
-                   Optional[jnp.ndarray]],
-      propagate_mask: bool,
-      **kwargs: Any,
-  ) -> "LRCGeometry":
-    (c1, c2, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
-    c1 = fn(c1, src_ixs)
-    c2 = fn(c2, tgt_ixs)
-    if propagate_mask:
-      src_mask = self._normalize_mask(src_mask, self.shape[0])
-      tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
-      src_mask = fn(src_mask, src_ixs)
-      tgt_mask = fn(tgt_mask, tgt_ixs)
-
-    aux_data = {**aux_data, **kwargs}
-    return type(self).tree_unflatten(
-        aux_data, [c1, c2, src_mask, tgt_mask] + children
-    )
-
   def __add__(self, other: "LRCGeometry") -> "LRCGeometry":
     if not isinstance(other, LRCGeometry):
       return NotImplemented
@@ -273,8 +212,6 @@ class LRCGeometry(geometry.Geometry):
     return (
         self._cost_1,
         self._cost_2,
-        self._src_mask,
-        self._tgt_mask,
         self._epsilon_init,
         self._bias,
         self._scale_factor,
@@ -285,15 +222,13 @@ class LRCGeometry(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    c1, c2, src_mask, tgt_mask, epsilon, bias, scale_factor = children
+    c1, c2, epsilon, bias, scale_factor = children
     return cls(
         c1,
         c2,
         bias=bias,
         scale_factor=scale_factor,
         epsilon=epsilon,
-        src_mask=src_mask,
-        tgt_mask=tgt_mask,
         **aux_data
     )
 
