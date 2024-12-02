@@ -36,14 +36,14 @@ class PointCloud(geometry.Geometry):
     x: Array of shape ``[n, d]``.
     y: Array of shape ``[m, d]``. If :obj:`None`, use ``x``.
     cost_fn: Cost function between two points in dimension :math:`d`.
-    batch_size: When ``None``, the cost matrix corresponding to that point cloud
-     is computed, stored and later re-used at each application of
-     :meth:`apply_lse_kernel`. When ``batch_size`` is a positive integer,
-     computations are done in an online fashion, namely the cost matrix is
-     recomputed at each call of the :meth:`apply_lse_kernel` step,
-     ``batch_size`` lines at a time, used on a vector and discarded.
-     The online computation is particularly useful for big point clouds
-     whose cost matrix does not fit in memory.
+    batch_size: If :obj:`None`, the cost matrix corresponding to that
+      point cloud is computed, stored and later re-used at each application of
+      :meth:`apply_lse_kernel`. When ``batch_size`` is a positive integer,
+      computations are done in an online fashion, namely the cost matrix is
+      recomputed at each call of the :meth:`apply_lse_kernel` step,
+      ``batch_size`` lines at a time, used on a vector and discarded.
+      The online computation is particularly useful for big point clouds
+      whose cost matrix does not fit in memory.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
       Alternatively, a float factor can be given to rescale the cost such
