@@ -111,10 +111,9 @@ class KMeansOutput(NamedTuple):
 def _random_init(
     geom: pointcloud.PointCloud, k: int, rng: jax.Array
 ) -> jnp.ndarray:
-  ixs = jnp.arange(geom.shape[0])
-  ixs = jax.random.choice(rng, ixs, shape=(k,), replace=False)
-  # TODO(michalk8)
-  return geom.subset(ixs, None).x
+  n, _ = geom.shape
+  ixs = jax.random.choice(rng, jnp.arange(n), shape=(k,), replace=False)
+  return geom.x[ixs]
 
 
 def _k_means_plus_plus(
@@ -128,8 +127,7 @@ def _k_means_plus_plus(
     rng, next_rng = jax.random.split(rng, 2)
     ix = jax.random.choice(rng, jnp.arange(geom.shape[0]), shape=())
     centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
-    # TODO(michalk8)
-    dists = geom.subset([ix], None).cost_matrix[0]
+    dists = geom.subset(ix).cost_matrix.squeeze(0)  # (m,)
     return KPPState(rng=next_rng, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
@@ -145,8 +143,7 @@ def _k_means_plus_plus(
     ixs = jax.random.choice(
         rng, ixs, shape=(n_local_trials,), p=probs, replace=True
     )
-    # TODO(michalk8)
-    geom = geom.subset(ixs, None)
+    geom = geom.subset(row_ixs=ixs)
 
     candidate_dists = jnp.minimum(geom.cost_matrix, state.centroid_dists)
     best_ix = jnp.argmin(candidate_dists.sum(1))

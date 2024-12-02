@@ -362,6 +362,18 @@ class PointCloud(geometry.Geometry):
       return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
+  def subset(  # noqa: D102
+      self,
+      row_ixs: Optional[jnp.ndarray] = None,
+      col_ixs: Optional[jnp.ndarray] = None,
+  ) -> "PointCloud":
+    (x, y, *rest), aux_data = self.tree_flatten()
+    if row_ixs is not None:
+      x = x[jnp.atleast_1d(row_ixs)]
+    if col_ixs is not None:
+      y = y[jnp.atleast_1d(col_ixs)]
+    return type(self).tree_unflatten(aux_data, (x, y, *rest))
+
   @property
   def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
     return jnp.exp(-self.cost_matrix / self.epsilon)
@@ -376,9 +388,8 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_symmetric(self) -> bool:  # noqa: D102
-    return self.y is None or (
-        jnp.all(self.x.shape == self.y.shape) and jnp.all(self.x == self.y)
-    )
+    n, m = self.shape
+    return self.y is None or ((n == m) and jnp.all(self.x == self.y))
 
   @property
   def is_squared_euclidean(self) -> bool:  # noqa: D102

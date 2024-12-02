@@ -207,10 +207,9 @@ class Geometry:
   @property
   def is_symmetric(self) -> bool:
     """Whether geometry cost/kernel is a symmetric matrix."""
+    n, m = self.shape
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
-    return (
-        mat.shape[0] == mat.shape[1] and jnp.all(mat == mat.T)
-    ) if mat is not None else False
+    return (n == m) and jnp.all(mat == mat.T)
 
   @property
   def inv_scale_cost(self) -> jnp.ndarray:
@@ -681,15 +680,14 @@ class Geometry:
       i_star = jax.random.randint(rng1, shape=(), minval=0, maxval=n)
       j_star = jax.random.randint(rng2, shape=(), minval=0, maxval=m)
 
-      # TODO(michalk8)
-      ci_star = self.subset([i_star], None).cost_matrix.ravel() ** 2  # (m,)
-      cj_star = self.subset(None, [j_star]).cost_matrix.ravel() ** 2  # (n,)
+      ci_star = self.subset(row_ixs=i_star).cost_matrix.ravel() ** 2  # (m,)
+      cj_star = self.subset(col_ixs=j_star).cost_matrix.ravel() ** 2  # (n,)
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)
       row_ixs = jax.random.choice(rng3, n, shape=(n_subset,), p=p_row)
       # (n_subset, m)
-      s = self.subset(row_ixs, None).cost_matrix
+      s = self.subset(row_ixs=row_ixs).cost_matrix
       s /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
       p_col = jnp.sum(s ** 2, axis=0)  # (m,)
@@ -710,7 +708,7 @@ class Geometry:
       col_ixs = jax.random.choice(rng5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
-      A_trans = self.subset(None, col_ixs).cost_matrix * inv_scale
+      A_trans = self.subset(col_ixs=col_ixs).cost_matrix * inv_scale
       B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
       M = jnp.linalg.inv(B.T @ B)  # (k, k)
       V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
@@ -725,6 +723,31 @@ class Geometry:
         scale_cost=self._scale_cost,
         scale_factor=scale,
     )
+
+  def subset(
+      self,
+      row_ixs: Optional[jnp.ndarray] = None,
+      col_ixs: Optional[jnp.ndarray] = None
+  ) -> "Geometry":
+    """Subset rows or columns of a geometry.
+
+    Args:
+      row_ixs: Row indices. If :obj:`None`, use all rows.
+      col_ixs: Column indices. If :obj:`None`, use all columns.
+
+    Returns:
+      The subsetted geometry.
+    """
+    (cost, kernel, *rest), aux_data = self.tree_flatten()
+    row_ixs = row_ixs if row_ixs is None else jnp.atleast_1d(row_ixs)
+    col_ixs = col_ixs if col_ixs is None else jnp.atleast_1d(col_ixs)
+    if cost is not None:
+      cost = cost if row_ixs is None else cost[row_ixs]
+      cost = cost if col_ixs is None else cost[:, col_ixs]
+    if kernel is not None:
+      kernel = kernel if row_ixs is None else kernel[row_ixs]
+      kernel = kernel if col_ixs is None else kernel[:, col_ixs]
+    return type(self).tree_unflatten(aux_data, (cost, kernel, *rest))
 
   @property
   def dtype(self) -> jnp.dtype:
