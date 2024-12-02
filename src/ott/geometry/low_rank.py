@@ -280,6 +280,7 @@ class LRCGeometry(geometry.Geometry):
         self._scale_factor,
     ), {
         "scale_cost": self._scale_cost,
+        "relative_epsilon": self._relative_epsilon,
     }
 
   @classmethod
@@ -319,7 +320,7 @@ class LRKGeometry(geometry.Geometry):
       epsilon: Optional[float] = None,
       **kwargs: Any
   ):
-    super().__init__(epsilon=epsilon, relative_epsilon=False, **kwargs)
+    super().__init__(epsilon=epsilon, relative_epsilon=None, **kwargs)
     self.k1 = k1
     self.k2 = k2
 

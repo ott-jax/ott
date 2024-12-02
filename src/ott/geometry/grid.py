@@ -78,6 +78,7 @@ class Grid(geometry.Geometry):
       grid_dimension: Optional[int] = None,
       **kwargs: Any,
   ):
+    super().__init__(**kwargs)
     if (
         grid_size is not None and x is not None and num_a is not None and
         grid_dimension is not None
@@ -105,10 +106,9 @@ class Grid(geometry.Geometry):
     self.kwargs = {
         "num_a": self.num_a,
         "grid_size": self.grid_size,
-        "grid_dimension": self.grid_dimension
+        "grid_dimension": self.grid_dimension,
+        "relative_epsilon": self._relative_epsilon,
     }
-
-    super().__init__(**kwargs)
 
   @property
   def geometries(self) -> List[geometry.Geometry]:
@@ -365,9 +365,8 @@ class Grid(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    return cls(
-        x=children[0], cost_fns=children[1], epsilon=children[2], **aux_data
-    )
+    x, cost_fns, epsilon = children
+    return cls(x, cost_fns=cost_fns, epsilon=epsilon, **aux_data)
 
   def to_LRCGeometry(
       self,

@@ -20,53 +20,48 @@ if TYPE_CHECKING:
 import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
+import jax.tree_util as jtu
 import numpy as np
 
 from ott import utils
-from ott.geometry import epsilon_scheduler
+from ott.geometry import epsilon_scheduler as eps_scheduler
 from ott.math import utils as mu
 
 __all__ = ["Geometry"]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class Geometry:
   r"""Base class to define ground costs/kernels used in optimal transport.
 
   Optimal transport problems are intrinsically geometric: they compute an
   optimal way to transport mass from one configuration onto another. To define
-  what is meant by optimality of transport requires defining a cost, of moving
-  mass from one among several sources, towards one out of multiple targets.
-  These sources and targets can be provided as points in vectors spaces, grids,
-  or more generally exclusively described through a (dissimilarity) cost matrix,
-  or almost equivalently, a (similarity) kernel matrix.
-
-  Once that cost or kernel matrix is set, the ``Geometry`` class provides a
-  basic operations to be run with the Sinkhorn algorithm.
+  what is meant by optimality of transport requires defining a
+  :term:`ground cost`, which quantifies how costly it is to move mass from
+  one among several source locations, towards one out of multiple
+  target locations. These source and target locations can be described as
+  points in vectors spaces, grids, or more generally described
+  through a (dissimilarity) cost matrix, or almost equivalently, a
+  (similarity) kernel matrix. This class describes such a
+  geometry and several useful methods to exploit it.
 
   Args:
     cost_matrix: Cost matrix of shape ``[n, m]``.
     kernel_matrix: Kernel matrix of shape ``[n, m]``.
-    epsilon: Regularization parameter. If ``None`` and either
-      ``relative_epsilon = True`` or ``relative_epsilon = None`` or
-      ``relative_epsilon = str`` where ``str`` can be either ``mean`` or ``std``
-      , this value defaults to a multiple of :attr:`std_cost_matrix`
-      (or :attr:`mean_cost_matrix` if ``str`` is ``mean``), where that multiple
-      is set as ``DEFAULT_SCALE`` in ``epsilon_scheduler.py```.
-      If passed as a
-      ``float``, then the regularizer that is ultimately used is either that
-      ``float`` value (if ``relative_epsilon = False`` or ``None``) or that
-      ``float`` times the :attr:`std_cost_matrix` (if
-      ``relative_epsilon = True`` or ``relative_epsilon = `std```) or
-      :attr:`mean_cost_matrix` (if ``relative_epsilon = `mean```). Look for
-      :class:`~ott.geometry.epsilon_scheduler.Epsilon` when passed as a
-      scheduler.
-    relative_epsilon: when :obj:`False`, the parameter ``epsilon`` specifies the
-      value of the entropic regularization parameter. When :obj:`True` or set
-      to a string, ``epsilon`` refers to a fraction of the
-      :attr:`std_cost_matrix` or :attr:`mean_cost_matrix`, which is computed
-      adaptively from data, depending on whether it is set to ``mean`` or
-      ``std``.
+    epsilon: Regularization parameter or a scheduler:
+
+      - ``epsilon = None`` and ``relative_epsilon = None``, use
+        :math:`0.05 * \text{stddev(cost_matrix)}`.
+      - if ``epsilon`` is a :class:`float` and ``relative_epsilon = None``,
+        it directly corresponds to the regularization strength.
+      - otherwise, ``epsilon`` multiplies the :attr:`mean_cost_matrix` or
+        :attr:`std_cost_matrix`, depending on the value of ``relative_epsilon``.
+
+      If ``epsilon = None``, the value of
+      :obj:`DEFAULT_EPSILON_SCALE = 0.05 <ott.geometry.epsilon_scheduler.DEFAULT_EPSILON_SCALE>`.
+      will be used.
+    relative_epsilon: Whether ``epsilon`` refers to a fraction of the
+      :attr:`mean_cost_matrix` or :attr:`std_cost_matrix`.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean', 'std' and 'max_cost'. Alternatively, a float factor can
       be given to rescale the cost such that ``cost_matrix /= scale_cost``.
@@ -81,14 +76,14 @@ class Geometry:
     parameter that is meaningful. That parameter can be provided by the user,
     or assigned a default value through a simple rule, using for instance the
     :attr:`mean_cost_matrix` or the :attr:`std_cost_matrix`.
-  """
+  """  # noqa: E501
 
   def __init__(
       self,
       cost_matrix: Optional[jnp.ndarray] = None,
       kernel_matrix: Optional[jnp.ndarray] = None,
-      epsilon: Optional[Union[float, epsilon_scheduler.Epsilon]] = None,
-      relative_epsilon: Optional[Union[bool, Literal["mean", "std"]]] = None,
+      epsilon: Optional[Union[float, eps_scheduler.Epsilon]] = None,
+      relative_epsilon: Optional[Literal["mean", "std"]] = None,
       scale_cost: Union[float, Literal["mean", "max_cost", "median",
                                        "std"]] = 1.0,
       src_mask: Optional[jnp.ndarray] = None,
@@ -96,13 +91,8 @@ class Geometry:
   ):
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
-
-    # needed for `copy_epsilon`, because of the `isinstance` check
-    self._epsilon_init = epsilon if isinstance(
-        epsilon, epsilon_scheduler.Epsilon
-    ) else epsilon_scheduler.Epsilon(epsilon)
+    self._epsilon_init = epsilon
     self._relative_epsilon = relative_epsilon
-
     self._scale_cost = scale_cost
 
     self._src_mask = src_mask
@@ -150,7 +140,7 @@ class Geometry:
     to output :math:`\sigma`.
     """
     tmp = self._masked_geom().apply_square_cost(self._n_normed_ones).squeeze()
-    tmp = jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix) ** 2
+    tmp = jnp.sum(tmp * self._m_normed_ones) - (self.mean_cost_matrix ** 2)
     return jnp.sqrt(jax.nn.relu(tmp))
 
   @property
@@ -164,35 +154,36 @@ class Geometry:
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property
-  def _epsilon(self) -> epsilon_scheduler.Epsilon:
-    (target, scale_eps, _, _), _ = self._epsilon_init.tree_flatten()
-    rel = self._relative_epsilon
+  def epsilon_scheduler(self) -> eps_scheduler.Epsilon:
+    """Epsilon scheduler."""
+    if isinstance(self._epsilon_init, eps_scheduler.Epsilon):
+      return self._epsilon_init
 
-    # If nothing passed, default to STD
-    if rel is None and target is None and scale_eps is None:
-      scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
-    # If instructions passed change, otherwise (notably if False) skip.
-    elif rel is not None:
-      if rel == "mean" or rel is True:  # Legacy option.
-        scale_eps = jax.lax.stop_gradient(self.mean_cost_matrix)
-      elif rel == "std":
-        scale_eps = jax.lax.stop_gradient(self.std_cost_matrix)
-        # Avoid 0 std, since this would set epsilon to 0.0 and result in
-        # a division by 0.
-        scale_eps = jnp.where(scale_eps <= 0.0, 1.0, scale_eps)
+    # no relative epsilon
+    if self._relative_epsilon is None:
+      if self._epsilon_init is not None:
+        return eps_scheduler.Epsilon(self._epsilon_init)
+      multiplier = eps_scheduler.DEFAULT_EPSILON_SCALE
+      scale = jax.lax.stop_gradient(self.std_cost_matrix)
+      return eps_scheduler.Epsilon(target=multiplier * scale)
 
-    if isinstance(self._epsilon_init, epsilon_scheduler.Epsilon):
-      return self._epsilon_init.set(scale_epsilon=scale_eps)
+    if self._relative_epsilon == "std":
+      scale = jax.lax.stop_gradient(self.std_cost_matrix)
+    elif self._relative_epsilon == "mean":
+      scale = jax.lax.stop_gradient(self.mean_cost_matrix)
+    else:
+      raise ValueError(f"Invalid relative epsilon: {self._relative_epsilon}.")
 
-    return epsilon_scheduler.Epsilon(
-        target=epsilon_scheduler.DEFAULT_SCALE if target is None else target,
-        scale_epsilon=scale_eps
+    multiplier = (
+        eps_scheduler.DEFAULT_EPSILON_SCALE
+        if self._epsilon_init is None else self._epsilon_init
     )
+    return eps_scheduler.Epsilon(target=multiplier * scale)
 
   @property
   def epsilon(self) -> float:
     """Epsilon regularization value."""
-    return self._epsilon.target
+    return self.epsilon_scheduler.target
 
   @property
   def shape(self) -> Tuple[int, int]:
@@ -257,20 +248,11 @@ class Geometry:
 
   def copy_epsilon(self, other: "Geometry") -> "Geometry":
     """Copy the epsilon parameters from another geometry."""
-    other_epsilon = other._epsilon
     children, aux_data = self.tree_flatten()
-
-    new_children = []
-    for child in children:
-      if isinstance(child, epsilon_scheduler.Epsilon):
-        child = child.set(
-            target=other_epsilon._target_init,
-            scale_epsilon=other_epsilon._scale_epsilon
-        )
-      new_children.append(child)
-
-    aux_data["relative_epsilon"] = False
-    return type(self).tree_unflatten(aux_data, new_children)
+    new_geom = type(self).tree_unflatten(aux_data, children)
+    new_geom._epsilon_init = other.epsilon_scheduler
+    new_geom._relative_epsilon = other._relative_epsilon  # has no effect
+    return new_geom
 
   # The functions below are at the core of Sinkhorn iterations, they
   # are implemented here in their default form, either in lse (using directly
@@ -412,7 +394,7 @@ class Geometry:
     Returns:
       new potential value, g if axis=0, f if axis is 1.
     """
-    eps = self._epsilon.at(iteration)
+    eps = self.epsilon_scheduler(iteration)
     app_lse = self.apply_lse_kernel(f, g, eps, axis=axis)[0]
     return eps * log_marginal - jnp.where(jnp.isfinite(app_lse), app_lse, 0)
 
@@ -434,7 +416,7 @@ class Geometry:
     Returns:
       new scaling vector, of size num_b if axis=0, num_a if axis is 1.
     """
-    eps = self._epsilon.at(iteration)
+    eps = self.epsilon_scheduler(iteration)
     app_kernel = self.apply_kernel(scaling, eps, axis=axis)
     return marginal / jnp.where(app_kernel > 0, app_kernel, 1.0)
 
@@ -613,7 +595,6 @@ class Geometry:
     app = functools.partial(
         self._apply_cost_to_vec, axis=axis, fn=fn, is_linear=is_linear
     )
-    # TODO(michalk8): vmap over multiple dims?
     return jax.vmap(app, in_axes=1, out_axes=1)(arr)
 
   def _apply_cost_to_vec(
@@ -931,7 +912,7 @@ class Geometry:
         self._src_mask, self._tgt_mask
     ), {
         "scale_cost": self._scale_cost,
-        "relative_epsilon": self._relative_epsilon
+        "relative_epsilon": self._relative_epsilon,
     }
 
   @classmethod

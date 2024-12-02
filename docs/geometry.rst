@@ -49,7 +49,7 @@ Geometries
     low_rank.LRCGeometry
     low_rank.LRKGeometry
     epsilon_scheduler.Epsilon
-    epsilon_scheduler.DEFAULT_SCALE
+    epsilon_scheduler.DEFAULT_EPSILON_SCALE
 
 Cost Functions
 --------------

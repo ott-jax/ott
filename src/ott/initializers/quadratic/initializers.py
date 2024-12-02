@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import TYPE_CHECKING, Any, Dict, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Sequence, Tuple
 
 import jax.numpy as jnp
 import jax.tree_util as jtu
@@ -128,7 +128,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       quad_prob: "quadratic_problem.QuadraticProblem",
       *,
       epsilon: float,
-      relative_epsilon: Optional[bool] = None,
+      relative_epsilon: Optional[Literal["mean", "std"]] = None,
       **kwargs: Any,
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.

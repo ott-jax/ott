@@ -150,7 +150,11 @@ class TestSinkhornDivergence:
     assert div > 0.0
     assert len(out.potentials) == 3
     assert len(out.geoms) == 3
-    np.testing.assert_allclose(out.geoms[0].epsilon, out.geoms[1].epsilon)
+
+    geom0, geom1, *_ = out.geoms
+
+    assert geom0.epsilon_scheduler is not geom1.epsilon_scheduler
+    assert geom0.epsilon == geom1.epsilon
 
   def test_euclidean_autoepsilon_not_share_epsilon(self):
     rngs = jax.random.split(self.rng, 2)

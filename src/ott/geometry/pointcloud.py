@@ -15,6 +15,7 @@ from typing import Any, Callable, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
 from ott import utils
 from ott.geometry import costs, geometry, low_rank
@@ -23,30 +24,26 @@ from ott.math import utils as mu
 __all__ = ["PointCloud"]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_pytree_node_class
 class PointCloud(geometry.Geometry):
   """Defines geometry for 2 point clouds (possibly 1 vs itself).
 
-  Creates a geometry, specifying a cost function passed as CostFn type object.
-  When the number of points is large, setting the ``batch_size`` flag implies
-  that cost and kernel matrices used to update potentials or scalings
-  will be recomputed on the fly, rather than stored in memory. More precisely,
-  when setting ``batch_size``, the cost function will be partially cached by
-  storing norm values for each point in both point clouds, but the pairwise cost
-  function evaluations won't be.
+  When the number of points is large, setting the :attr:`batch_size` flag
+  implies that cost and kernel matrices used to update potentials or scalings
+  will be recomputed on the fly, rather than stored in memory.
 
   Args:
-    x : n x d array of n d-dimensional vectors
-    y : m x d array of m d-dimensional vectors. If `None`, use ``x``.
-    cost_fn: a CostFn function between two points in dimension d.
-    batch_size: When ``None``, the cost matrix corresponding to that point cloud
-     is computed, stored and later re-used at each application of
-     :meth:`apply_lse_kernel`. When ``batch_size`` is a positive integer,
-     computations are done in an online fashion, namely the cost matrix is
-     recomputed at each call of the :meth:`apply_lse_kernel` step,
-     ``batch_size`` lines at a time, used on a vector and discarded.
-     The online computation is particularly useful for big point clouds
-     whose cost matrix does not fit in memory.
+    x: Array of shape ``[n, d]``.
+    y: Array of shape ``[m, d]``. If :obj:`None`, use ``x``.
+    cost_fn: Cost function between two points in dimension :math:`d`.
+    batch_size: If :obj:`None`, the cost matrix corresponding to that
+      point cloud is computed, stored and later re-used at each application of
+      :meth:`apply_lse_kernel`. When ``batch_size`` is a positive integer,
+      computations are done in an online fashion, namely the cost matrix is
+      recomputed at each call of the :meth:`apply_lse_kernel` step,
+      ``batch_size`` lines at a time, used on a vector and discarded.
+      The online computation is particularly useful for big point clouds
+      whose cost matrix does not fit in memory.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
       'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
       Alternatively, a float factor can be given to rescale the cost such
@@ -255,7 +252,8 @@ class PointCloud(geometry.Geometry):
         self.cost_fn,
     ), {
         "batch_size": self._batch_size,
-        "scale_cost": self._scale_cost
+        "scale_cost": self._scale_cost,
+        "relative_epsilon": self._relative_epsilon,
     }
 
   @classmethod
