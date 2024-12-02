@@ -155,7 +155,7 @@ class Geometry:
 
   @property
   def epsilon_scheduler(self) -> eps_scheduler.Epsilon:
-    """TODO."""
+    """Epsilon scheduler."""
     if isinstance(self._epsilon_init, eps_scheduler.Epsilon):
       return self._epsilon_init
 
@@ -595,7 +595,6 @@ class Geometry:
     app = functools.partial(
         self._apply_cost_to_vec, axis=axis, fn=fn, is_linear=is_linear
     )
-    # TODO(michalk8): vmap over multiple dims?
     return jax.vmap(app, in_axes=1, out_axes=1)(arr)
 
   def _apply_cost_to_vec(
