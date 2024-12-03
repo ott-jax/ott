@@ -275,9 +275,7 @@ def init_transports(
   rng1, rng2 = jax.random.split(rng, 2)
   x = jax.random.normal(rng1, shape=(len(a), 2))
   y = jax.random.normal(rng2, shape=(len(b), 2))
-  geom = pointcloud.PointCloud(
-      x, y, epsilon=epsilon, src_mask=a > 0, tgt_mask=b > 0
-  )
+  geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   problem = linear_problem.LinearProblem(geom, a=a, b=b)
   return solver(problem).matrix
 

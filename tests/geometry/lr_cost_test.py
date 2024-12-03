@@ -255,15 +255,10 @@ class TestCostMatrixFactorization:
         y,
         cost_fn=costs.SqPNorm(p=2.1),
         batch_size=batch_size,
-        scale_cost=scale_cost
+        scale_cost=scale_cost,
     )
 
-    if geom.batch_size is not None:
-      # because `self.assert_upper_bound` tries to instantiate the matrix
-      geom = geom.subset(None, None, batch_size=None)
-
     geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol)
-
     np.testing.assert_array_equal(geom.shape, geom_lr.shape)
     assert geom_lr.cost_rank == rank
     self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)

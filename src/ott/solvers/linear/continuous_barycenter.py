@@ -73,12 +73,7 @@ class FreeBarycenterState(NamedTuple):
         a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
     ):
       geom = pointcloud.PointCloud(
-          x,
-          y,
-          src_mask=a > 0.0,
-          tgt_mask=b > 0.0,
-          cost_fn=bar_prob.cost_fn,
-          epsilon=bar_prob.epsilon
+          x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
       )
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
       out = linear_solver(prob)

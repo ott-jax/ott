@@ -315,21 +315,6 @@ class Grid(geometry.Geometry):
         "cloud geometry instead."
     )
 
-  def subset(
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray]
-  ) -> NoReturn:
-    """Not implemented."""
-    raise NotImplementedError("Subsetting is not implemented for grids.")
-
-  def mask(
-      self,
-      src_mask: Optional[jnp.ndarray],
-      tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.0,
-  ) -> NoReturn:
-    """Not implemented."""
-    raise NotImplementedError("Masking is not implemented for grids.")
-
   @property
   def cost_matrix(self) -> jnp.ndarray:
     """Not implemented."""
@@ -425,6 +410,4 @@ class Grid(geometry.Geometry):
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
         scale_cost=self._scale_cost,
-        src_mask=self.src_mask,
-        tgt_mask=self.tgt_mask,
     )

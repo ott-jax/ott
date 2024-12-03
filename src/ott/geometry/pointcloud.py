@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import Any, Callable, Literal, Optional, Tuple, Union
 
-import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 
@@ -203,7 +202,9 @@ class PointCloud(geometry.Geometry):
       return jnp.max(jnp.abs(cost))
 
     if summary == "mean":
-      a, b = self._n_normed_ones, self._m_normed_ones
+      n, m = self.shape
+      a = jnp.full((n,), fill_value=1.0 / n)
+      b = jnp.full((m,), fill_value=1.0 / m)
       return jnp.sum(self._apply_cost_to_vec(a, scale_cost=1.0) * b)
 
     if summary == "max_cost":
@@ -226,28 +227,18 @@ class PointCloud(geometry.Geometry):
       x: jnp.ndarray,
       y: jnp.ndarray,
       static_b: bool = False,
-      src_mask: Optional[jnp.ndarray] = None,
-      tgt_mask: Optional[jnp.ndarray] = None,
       **kwargs: Any
   ) -> Tuple["PointCloud", ...]:
     """Instantiate the geometries used for a divergence computation."""
     couples = [(x, y), (x, x)]
-    masks = [(src_mask, tgt_mask), (src_mask, src_mask)]
     if not static_b:
       couples += [(y, y)]
-      masks += [(tgt_mask, tgt_mask)]
-
-    return tuple(
-        cls(x, y, src_mask=x_mask, tgt_mask=y_mask, **kwargs)
-        for ((x, y), (x_mask, y_mask)) in zip(couples, masks)
-    )
+    return tuple(cls(x, y, **kwargs) for (x, y) in couples)
 
   def tree_flatten(self):  # noqa: D102
     return (
         self.x,
         self.y,
-        self._src_mask,
-        self._tgt_mask,
         self._epsilon_init,
         self.cost_fn,
     ), {
@@ -258,16 +249,8 @@ class PointCloud(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    x, y, src_mask, tgt_mask, epsilon, cost_fn = children
-    return cls(
-        x,
-        y,
-        cost_fn=cost_fn,
-        src_mask=src_mask,
-        tgt_mask=tgt_mask,
-        epsilon=epsilon,
-        **aux_data
-    )
+    x, y, epsilon, cost_fn = children
+    return cls(x, y, cost_fn=cost_fn, epsilon=epsilon, **aux_data)
 
   def _cosine_to_sqeucl(self) -> "PointCloud":
     assert isinstance(self.cost_fn, costs.Cosine), type(self.cost_fn)
@@ -328,68 +311,6 @@ class PointCloud(geometry.Geometry):
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
         scale_cost=self._scale_cost,
-        src_mask=self.src_mask,
-        tgt_mask=self.tgt_mask,
-    )
-
-  def subset(  # noqa: D102
-      self, src_ixs: Optional[jnp.ndarray], tgt_ixs: Optional[jnp.ndarray],
-      **kwargs: Any
-  ) -> "PointCloud":
-
-    def subset_fn(
-        arr: Optional[jnp.ndarray],
-        ixs: Optional[jnp.ndarray],
-    ) -> jnp.ndarray:
-      return arr if arr is None or ixs is None else arr[ixs, ...]
-
-    return self._mask_subset_helper(
-        src_ixs, tgt_ixs, fn=subset_fn, propagate_mask=True, **kwargs
-    )
-
-  def mask(  # noqa: D102
-      self,
-      src_mask: Optional[jnp.ndarray],
-      tgt_mask: Optional[jnp.ndarray],
-      mask_value: float = 0.0,
-  ) -> "PointCloud":
-
-    def mask_fn(
-        arr: Optional[jnp.ndarray],
-        mask: Optional[jnp.ndarray],
-    ) -> Optional[jnp.ndarray]:
-      if arr is None or mask is None:
-        return arr
-      return jnp.where(mask[:, None], arr, mask_value)
-
-    src_mask = self._normalize_mask(src_mask, self.shape[0])
-    tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
-    return self._mask_subset_helper(
-        src_mask, tgt_mask, fn=mask_fn, propagate_mask=False
-    )
-
-  def _mask_subset_helper(
-      self,
-      src_ixs: Optional[jnp.ndarray],
-      tgt_ixs: Optional[jnp.ndarray],
-      *,
-      fn: Callable[[Optional[jnp.ndarray], Optional[jnp.ndarray]],
-                   Optional[jnp.ndarray]],
-      propagate_mask: bool,
-      **kwargs: Any,
-  ) -> "PointCloud":
-    (x, y, src_mask, tgt_mask, *children), aux_data = self.tree_flatten()
-    x = fn(x, src_ixs)
-    y = fn(y, tgt_ixs)
-    if propagate_mask:
-      src_mask = self._normalize_mask(src_mask, self.shape[0])
-      tgt_mask = self._normalize_mask(tgt_mask, self.shape[1])
-      src_mask = fn(src_mask, src_ixs)
-      tgt_mask = fn(tgt_mask, tgt_ixs)
-    aux_data = {**aux_data, **kwargs}
-
-    return type(self).tree_unflatten(
-        aux_data, [x, y, src_mask, tgt_mask] + children
     )
 
   @property
@@ -401,10 +322,7 @@ class PointCloud(geometry.Geometry):
     return self.cost_fn.all_pairs(self.x, self.y)
 
   @property
-  def inv_scale_cost(self) -> float:  # noqa: D102
-    if isinstance(self._scale_cost, (int, float, jax.Array)):
-      return 1.0 / self._scale_cost
-    self = self._masked_geom()
+  def inv_scale_cost(self) -> jnp.ndarray:  # noqa: D102
     if self._scale_cost == "max_cost":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
@@ -412,23 +330,21 @@ class PointCloud(geometry.Geometry):
     if self._scale_cost == "mean":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
-      geom = self._masked_geom(mask_value=jnp.nan)._unscaled_cost_matrix
-      return 1.0 / jnp.nanmean(geom)
+      return 1.0 / jnp.mean(self._unscaled_cost_matrix)
     if self._scale_cost == "median":
       if not self.is_online:
-        geom = self._masked_geom(mask_value=jnp.nan)
-        return 1.0 / jnp.nanmedian(geom._unscaled_cost_matrix)
+        return 1.0 / jnp.median(self._unscaled_cost_matrix)
       raise NotImplementedError(
           "Using the median as scaling factor for "
           "the cost matrix with the online mode is not implemented."
       )
-    if not hasattr(self.cost_fn, "norm"):
-      raise ValueError("Cost function has no norm method.")
-    norm_x = self.cost_fn.norm(self.x)
-    norm_y = self.cost_fn.norm(self.y)
     if self._scale_cost == "max_norm":
+      norm_x = self.cost_fn.norm(self.x)
+      norm_y = self.cost_fn.norm(self.y)
       return 1.0 / jnp.maximum(norm_x.max(), norm_y.max())
     if self._scale_cost == "max_bound":
+      norm_x = self.cost_fn.norm(self.x)
+      norm_y = self.cost_fn.norm(self.y)
       if self.is_squared_euclidean:
         x_argmax = jnp.argmax(norm_x)
         y_argmax = jnp.argmax(norm_y)
@@ -442,7 +358,21 @@ class PointCloud(geometry.Geometry):
           "the cost matrix when the cost is not squared euclidean "
           "is not implemented."
       )
+    if utils.is_scalar(self._scale_cost):
+      return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
+
+  def subset(  # noqa: D102
+      self,
+      row_ixs: Optional[jnp.ndarray] = None,
+      col_ixs: Optional[jnp.ndarray] = None,
+  ) -> "PointCloud":
+    (x, y, *rest), aux_data = self.tree_flatten()
+    if row_ixs is not None:
+      x = x[jnp.atleast_1d(row_ixs)]
+    if col_ixs is not None:
+      y = y[jnp.atleast_1d(col_ixs)]
+    return type(self).tree_unflatten(aux_data, (x, y, *rest))
 
   @property
   def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
@@ -458,9 +388,8 @@ class PointCloud(geometry.Geometry):
 
   @property
   def is_symmetric(self) -> bool:  # noqa: D102
-    return self.y is None or (
-        jnp.all(self.x.shape == self.y.shape) and jnp.all(self.x == self.y)
-    )
+    n, m = self.shape
+    return self.y is None or ((n == m) and jnp.all(self.x == self.y))
 
   @property
   def is_squared_euclidean(self) -> bool:  # noqa: D102
