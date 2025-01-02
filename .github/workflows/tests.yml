@@ -46,7 +46,7 @@ jobs:
     name: Fast GPU tests Python 3.10 on ubuntu-22.04
     runs-on: [self-hosted, ott-gpu]
     container:
-      image: docker://michalk8/cuda:12.2.2-cudnn8-devel-ubuntu22.04
+      image: docker://michalk8/cuda:12.3.2-cudnn9-devel-ubuntu22.04
       options: --gpus="device=2"
     steps:
     - uses: actions/checkout@v4
