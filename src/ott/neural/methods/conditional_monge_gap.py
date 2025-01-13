@@ -259,6 +259,9 @@ class ConditionalMongeGapEstimator:
         validloader_source: Iterator[jnp.ndarray],
         validloader_target: Iterator[jnp.ndarray],
     ):
+        """The dataloaders should return a dict with key `X`.
+        The target dataloaders should additionally include a key
+        `c_embed`, which has the embedded condition in `dim_cond`."""
         # define logs
         logs = collections.defaultdict(lambda: collections.defaultdict(list))
 
@@ -340,10 +343,10 @@ class ConditionalMongeGapEstimator:
 
             # compute the loss
             val_fitting_loss, log_fitting_loss = self.fitting_loss(
-                batch["target"], mapped_samples
+                batch["target"]["X"], mapped_samples
             )
             val_regularizer, log_regularizer = self.regularizer(
-                batch["source"], mapped_samples
+                batch["source"]["X"], mapped_samples
             )
             val_tot_loss, log_regularizer = val_fitting_loss + val_regularizer
 
