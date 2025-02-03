@@ -109,7 +109,7 @@ class TestEntropicPotentials:
 
     geom = pointcloud.PointCloud(x, y, epsilon=eps)
     prob = linear_problem.LinearProblem(geom)
-    out = sinkhorn.Sinkhorn()(prob)
+    out = sinkhorn.Sinkhorn(max_iterations=3_000)(prob)
     assert out.converged
     potentials = out.to_dual_potentials()
 
