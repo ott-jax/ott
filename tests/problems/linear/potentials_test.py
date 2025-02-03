@@ -20,8 +20,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-import matplotlib.pyplot as plt
-
 from ott.geometry import costs, pointcloud, regularizers
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn
@@ -95,7 +93,7 @@ class TestEntropicPotentials:
 
   @pytest.mark.fast.with_args(forward=[False, True], only_fast=0)
   def test_entropic_potentials_displacement(
-      self, rng: jax.Array, forward: bool, monkeypatch
+      self, rng: jax.Array, forward: bool
   ):
     """Tests entropic displacements, as well as their plots."""
     n1, n2, d = 96, 128, 2
@@ -128,8 +126,6 @@ class TestEntropicPotentials:
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=-1))
     assert error <= 0.3
 
-    # Test plot functionality, but ensure it does not block execution
-    monkeypatch.setattr(plt, "show", lambda: None)
     potentials.plot_ot_map(x, y, x_test, forward=True)
     potentials.plot_ot_map(x, y, y_test, forward=False)
     potentials.plot_potential()

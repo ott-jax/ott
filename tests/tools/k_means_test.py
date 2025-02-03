@@ -64,15 +64,15 @@ class TestKmeansPlusPlus:
   @pytest.mark.fast.with_args("n_local_trials", [None, 3], only_fast=-1)
   def test_n_local_trials(self, rng: jax.Array, n_local_trials):
     n, k = 100, 4
-    rng1, rng2 = jax.random.split(rng)
+    rng1, rng2 = rng, jax.random.clone(rng)
     geom, _, c = make_blobs(
         n_samples=n, centers=k, cost_fn="sqeucl", random_state=0
     )
     centers1 = k_means._k_means_plus_plus(geom, k, rng1, n_local_trials)
     centers2 = k_means._k_means_plus_plus(geom, k, rng2, 20)
 
-    shift1 = jnp.linalg.norm(centers1 - c, ord="fro") ** 2
-    shift2 = jnp.linalg.norm(centers2 - c, ord="fro") ** 2
+    shift1 = jnp.linalg.norm(centers1 - c, ord="fro")
+    shift2 = jnp.linalg.norm(centers2 - c, ord="fro")
 
     assert shift1 > shift2
 
