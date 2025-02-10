@@ -730,7 +730,7 @@ class TestSinkhornJacobianPreconditioning:
 class TestSinkhornHessian:
 
   @pytest.mark.fast.with_args(
-      "lse_mode,tau_a,tau_b,arg,lineax_ridge", (
+      "lse_mode,tau_a,tau_b,arg,ridge", (
           (True, 1.0, 1.0, 0, 0.0),
           (False, 1.0, 1.0, 0, 1e-8),
           (True, 1.0, 1.0, 1, 0.0),
@@ -742,29 +742,19 @@ class TestSinkhornHessian:
   )
   def test_hessian_sinkhorn(
       self, rng: jax.Array, lse_mode: bool, tau_a: float, tau_b: float,
-      arg: int, lineax_ridge: float
+      arg: int, ridge: float
   ):
     """Test hessian w.r.t. weights and locations."""
-    try:
-      from ott.solvers.linear import lineax_implicit  # noqa: F401
-      test_back = True
-      ridge = lineax_ridge
-    except ImportError:
-      test_back = False
-      ridge = 1e-5
-
-    n, m = (12, 15)
-    dim = 3
     rngs = jax.random.split(rng, 6)
+    n, m, dim = 12, 15, 3
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
     a = jax.random.uniform(rngs[2], (n,)) + 0.1
     b = jax.random.uniform(rngs[3], (m,)) + 0.1
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
-    epsilon = 0.1
+    epsilon = 0.15
 
-    # Add a ridge when using JAX solvers, smaller ridge for lineax solvers
     solver_kwargs = {
         "ridge_identity": ridge,
         "ridge_kernel": ridge if tau_a == tau_b == 1.0 else 0.0
@@ -794,11 +784,10 @@ class TestSinkhornHessian:
     hess_imp = hess_loss_imp(a, x)
 
     # Test that Hessians produced with either backprop or implicit do match.
-    if test_back:
-      hess_loss_back = jax.jit(
-          jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
-      )
-      hess_back = hess_loss_back(a, x)
+    hess_loss_back = jax.jit(
+        jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
+    )
+    hess_back = hess_loss_back(a, x)
 
     # In the balanced case, when studying differentiability w.r.t
     # weights, both Hessians must be the same,
@@ -807,17 +796,13 @@ class TestSinkhornHessian:
     # resulting matrices are equal.
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
       hess_imp -= jnp.mean(hess_imp, keepdims=True, axis=1)
-      if test_back:
-        hess_back -= jnp.mean(hess_back, keepdims=True, axis=1)
+      hess_back -= jnp.mean(hess_back, keepdims=True, axis=1)
 
-    if test_back:
-      # Uniform equality is difficult to obtain numerically on the
-      # entire matrices. We switch to relative 1-norm of difference.
-      dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
-      rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-      assert rel_dif_norm < 0.1
-
-    eps = 1e-3
+    # Uniform equality is difficult to obtain numerically on the
+    # entire matrices. We switch to relative 1-norm of difference.
+    dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
+    rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
+    assert rel_dif_norm < 0.1
 
     # Numerical test of implicit diff jacobian.
     grad_ = jax.jit(
@@ -826,6 +811,7 @@ class TestSinkhornHessian:
     grad_init = grad_(a, x)
 
     # Depending on variable tested, perturb either a or x.
+    eps = 1e-3
     a_p = a + eps * delta_a if arg == 0 else a
     x_p = x if arg == 0 else x + eps * delta_x
 
