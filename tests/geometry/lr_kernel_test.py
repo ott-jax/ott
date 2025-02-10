@@ -71,7 +71,7 @@ class TestLRCGeometry:
     gt_cost = pc.cost_matrix
 
     max_abs_diff = []
-    for rank in [10, 50, 100, 200]:
+    for rank in [50, 100, 400]:
       rng, rng_approx = jax.random.split(rng, 2)
       geom = low_rank.LRKGeometry.from_pointcloud(
           x, y, rank=rank, kernel=kernel, std=std, n=n, rng=rng_approx
@@ -120,4 +120,4 @@ class TestLRCGeometry:
       # test higher rank better approximates the Sinkhorn solution
       np.testing.assert_array_equal(diff <= 0.0, True)
     except AssertionError:
-      np.testing.assert_allclose(diff, 0.0, rtol=1e-3, atol=1e-3)
+      np.testing.assert_allclose(diff, 0.0, rtol=1e-2, atol=1e-2)

@@ -116,8 +116,7 @@ class TestLinalg:
           np.testing.assert_allclose(jnp.exp(m[..., i, j]), mnew[..., i, j])
 
   def test_matrix_powers(self, rng: jax.Array):
-    rng, subrng = jax.random.split(rng)
-    m = jax.random.normal(subrng, shape=(4, 4))
+    m = jax.random.normal(rng, shape=(4, 4))
     m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
     m = jnp.matmul(m, m)  # symmetric, pos def
     inv_m = jnp.linalg.inv(m)
@@ -132,7 +131,7 @@ class TestLinalg:
     m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
     m = jnp.matmul(m, m)  # symmetric, pos def
     cholesky = jnp.linalg.cholesky(m)  # lower triangular
-    rng, subrng = jax.random.split(rng)
+    _, subrng = jax.random.split(rng)
     x = jax.random.normal(subrng, shape=(10, 2))
     inv_cholesky = jnp.linalg.inv(cholesky)
     expected = jnp.transpose(jnp.matmul(inv_cholesky, jnp.transpose(x)))
@@ -140,8 +139,7 @@ class TestLinalg:
     np.testing.assert_allclose(expected, actual, atol=1e-4, rtol=1e-4)
 
   def test_get_random_orthogonal(self, rng: jax.Array):
-    rng, subrng = jax.random.split(rng)
-    q = linalg.get_random_orthogonal(rng=subrng, dim=3)
+    q = linalg.get_random_orthogonal(rng=rng, dim=3)
     qt = jnp.transpose(q)
     expected = jnp.eye(3)
     actual = jnp.matmul(q, qt)

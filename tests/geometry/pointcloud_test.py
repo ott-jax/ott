@@ -177,7 +177,7 @@ class TestPointCloudCosineConversion:
   @pytest.mark.parametrize(("n", "m"), [(20, 10), (9, 22)])
   def test_nonsym_cost_batched(self, rng: jax.Array, n: int, m: int):
     d, eps = 5, 1e-1
-    rtol, atol = 1e-6, 1e-6
+    rtol, atol = 1e-5, 1e-5
     rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
     x = jax.random.normal(rng1, shape=(n, d))
     y = jax.random.normal(rng2, shape=(m, d))

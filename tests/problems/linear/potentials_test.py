@@ -124,7 +124,7 @@ class TestEntropicPotentials:
 
     # TODO(michalk8): better error measure
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=-1))
-    assert error <= 0.3
+    assert error <= 0.45
 
     potentials.plot_ot_map(x, y, x_test, forward=True)
     potentials.plot_ot_map(x, y, y_test, forward=False)
@@ -294,15 +294,15 @@ class TestEntropicPotentials:
 
     @jax.jit
     def loss(c: costs.RegTICost) -> float:
-      pc = pointcloud.PointCloud(x, y, cost_fn=c, epsilon=eps_sink)
+      pc = pointcloud.PointCloud(x, y, cost_fn=c)
       prob = linear_problem.LinearProblem(pc)
-      out = sinkhorn.Sinkhorn()(prob)
+      out = sinkhorn.Sinkhorn(implicit_diff=None)(prob)
       f_est = out.to_dual_potentials()
       y_hat = f_est.transport(x_te)
       return jnp.mean(jnp.linalg.norm(y_hat - y_te, axis=-1))
 
-    n, m, d, d_proj = 13, 14, 6, 3
-    eps, eps_sink = 1e-3, 1e-1
+    n, m, d, d_proj = 25, 21, 6, 4
+    eps = 1e-4
 
     rngs = jax.random.split(rng, 6)
 

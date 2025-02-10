@@ -19,7 +19,6 @@ import pytest
 
 import jax
 import jax.experimental
-import jax.numpy as jnp
 
 import matplotlib as mpl
 
@@ -73,7 +72,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 
 @pytest.fixture()
-def rng() -> jnp.ndarray:
+def rng() -> jax.Array:
   return jax.random.key(0)
 
 

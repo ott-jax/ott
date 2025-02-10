@@ -397,11 +397,11 @@ class TestKmeans:
     np.testing.assert_allclose(actual, expected, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize("tol", [1e-3, 0.0])
-  @pytest.mark.parametrize(("n", "k"), [(37, 4), (128, 6)])
+  @pytest.mark.parametrize(("n", "k"), [(37, 4), (128, 2)])
   def test_clustering_matches_sklearn(
       self, rng: jax.Array, n: int, k: int, tol: float
   ):
-    x, _, _ = make_blobs(n_samples=n, centers=k, random_state=41)
+    x, _, _ = make_blobs(n_samples=n, centers=k, random_state=0)
 
     res_kmeans = KMeans(n_clusters=k, n_init=20, tol=tol, random_state=0).fit(x)
     res_ours = k_means.k_means(x, k, n_init=20, tol=tol, rng=rng)

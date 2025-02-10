@@ -53,7 +53,11 @@ class TestSinkhornDivergence:
 
     epsilon = 5e-2
     sd = functools.partial(
-        sinkhorn_divergence.sinkdiv, solve_kwargs={"rank": rank}
+        sinkhorn_divergence.sinkdiv,
+        solve_kwargs={
+            "rank": rank,
+            "inner_iterations": 1
+        }
     )
     div, out = jax.jit(sd)(
         x, y, cost_fn=cost_fn, epsilon=epsilon, a=self._a, b=self._b

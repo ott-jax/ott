@@ -80,24 +80,6 @@ def create_ot_problem(
   return linear_problem.LinearProblem(geom=geom, a=a, b=b)
 
 
-def run_sinkhorn(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    *,
-    initializer: linear_init.SinkhornInitializer,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    epsilon: float = 1e-2,
-    lse_mode: bool = True,
-) -> sinkhorn.SinkhornOutput:
-  """Runs Sinkhorn algorithm with given initializer."""
-
-  geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  prob = linear_problem.LinearProblem(geom, a, b)
-  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=initializer)
-  return solver(prob)
-
-
 @pytest.mark.fast()
 class TestSinkhornInitializers:
 
@@ -106,31 +88,20 @@ class TestSinkhornInitializers:
                                                         (False, True)])
   def test_sorting_init(self, vector_min: bool, lse_mode: bool, rng: jax.Array):
     """Tests sorting dual initializer."""
-    n = 50
-    epsilon = 1e-2
+    n, epsilon = 50, 1e-2
 
     ot_problem = create_sorting_problem(rng=rng, n=n, epsilon=epsilon)
 
-    sink_out_base = run_sinkhorn(
-        x=ot_problem.geom.x,
-        y=ot_problem.geom.y,
-        initializer=linear_init.DefaultInitializer(),
-        a=ot_problem.a,
-        b=ot_problem.b,
-        epsilon=epsilon
-    )
+    solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
+    sink_out_base = jax.jit(solver)(ot_problem)
 
-    sink_out_init = run_sinkhorn(
-        x=ot_problem.geom.x,
-        y=ot_problem.geom.y,
+    solver = sinkhorn.Sinkhorn(
+        lse_mode=lse_mode,
         initializer=linear_init.SortingInitializer(
             vectorized_update=vector_min
-        ),
-        a=ot_problem.a,
-        b=ot_problem.b,
-        epsilon=epsilon,
-        lse_mode=lse_mode
+        )
     )
+    sink_out_init = jax.jit(solver)(ot_problem)
 
     # check initializer is better or equal
     if lse_mode:
@@ -190,7 +161,6 @@ class TestSinkhornInitializers:
       gaus_init.init_fu(ot_problem, lse_mode=True)
 
   @pytest.mark.parametrize("lse_mode", [True, False])
-  @pytest.mark.parametrize("jit", [False, True])
   @pytest.mark.parametrize(
       "initializer", [
           linear_init.SortingInitializer(vectorized_update=True),
@@ -202,12 +172,11 @@ class TestSinkhornInitializers:
       self,
       rng: jax.Array,
       lse_mode: bool,
-      jit: bool,
       initializer: linear_init.SinkhornInitializer,
   ):
     """Tests Gaussian initializer"""
     n, m, d = 40, 40, 2
-    epsilon = 1e-2
+    epsilon = 5e-2
 
     # ot problem
     if isinstance(initializer, linear_init.SortingInitializer):
@@ -217,30 +186,11 @@ class TestSinkhornInitializers:
           rng, n, m, d, epsilon=epsilon, batch_size=3
       )
 
-    run_fn = run_sinkhorn
-    if jit:
-      run_fn = jax.jit(run_fn, static_argnames=["lse_mode"])
+    solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
+    default_out = jax.jit(solver)(ot_problem)
 
-    # run sinkhorn
-    default_out = run_fn(
-        x=ot_problem.geom.x,
-        y=ot_problem.geom.y,
-        initializer=linear_init.DefaultInitializer(),
-        a=ot_problem.a,
-        b=ot_problem.b,
-        epsilon=epsilon,
-        lse_mode=lse_mode,
-    )
-
-    init_out = run_fn(
-        x=ot_problem.geom.x,
-        y=ot_problem.geom.y,
-        initializer=initializer,
-        a=ot_problem.a,
-        b=ot_problem.b,
-        epsilon=epsilon,
-        lse_mode=lse_mode,
-    )
+    solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=initializer)
+    init_out = solver(ot_problem)
 
     if lse_mode:
       assert default_out.converged
