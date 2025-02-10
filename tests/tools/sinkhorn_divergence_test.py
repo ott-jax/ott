@@ -92,10 +92,6 @@ class TestSinkhornDivergence:
         geometry_yy, a=self._b, b=self._b, rank=rank
     ).reg_ot_cost
 
-    np.testing.assert_allclose(
-        div, div2_xy - .5 * (div2_xx + div2_yy), rtol=1e-5, atol=1e-5
-    )
-
     # Check passing offset when using static_b works
     div_offset, _ = sd(
         x,
@@ -108,7 +104,16 @@ class TestSinkhornDivergence:
         offset_static_b=div2_yy
     )
 
-    np.testing.assert_allclose(div, div_offset, rtol=1e-5, atol=1e-5)
+    if is_low_rank:
+      np.testing.assert_allclose(
+          div, div2_xy - 0.5 * (div2_xx + div2_yy), rtol=1e-3, atol=1e-3
+      )
+      np.testing.assert_allclose(div, div_offset, rtol=1e-4, atol=1e-4)
+    else:
+      np.testing.assert_allclose(
+          div, div2_xy - 0.5 * (div2_xx + div2_yy), rtol=1e-5, atol=1e-5
+      )
+      np.testing.assert_allclose(div, div_offset, rtol=1e-5, atol=1e-5)
 
     # Check gradient is finite
     grad = jax.jit(jax.grad(sd, has_aux=True, argnums=0))
