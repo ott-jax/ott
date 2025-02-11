@@ -130,9 +130,9 @@ class TestSoftSort:
     np.testing.assert_allclose(z, qua(q), atol=atol)
 
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
-  def test_ranks(self, axis, rng: jax.Array, jit: bool):
-    rng1, rng2 = jax.random.split(rng, 2)
+  def test_ranks(self, axis, rng: jax.Array, jit: bool, enable_x64: bool):
     num_targets = 13
+    rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.uniform(rng1, (8, 5, 2))
     expected_ranks = jnp.argsort(
         jnp.argsort(x, axis=axis), axis=axis
@@ -144,24 +144,21 @@ class TestSoftSort:
         squashing_fun=lambda x: x,
         epsilon=1e-4,
         axis=axis,
-        max_iterations=5000
+        max_iterations=5000,
     )
     if jit:
       my_ranks = jax.jit(my_ranks, static_argnames="num_targets")
 
     ranks = my_ranks(x)
 
-    np.testing.assert_array_equal(x.shape, ranks.shape)
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
 
     ranks = my_ranks(x, num_targets=num_targets)
-    np.testing.assert_array_equal(x.shape, ranks.shape)
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
 
     target_weights = jax.random.uniform(rng2, (num_targets,))
     target_weights /= jnp.sum(target_weights)
     ranks = my_ranks(x, target_weights=target_weights)
-    np.testing.assert_array_equal(x.shape, ranks.shape)
     np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
 
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)

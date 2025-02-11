@@ -46,7 +46,7 @@ class TestSinkhornImplicit:
   @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
                            [(True, 1e-4, True), (False, 1e-6, False)])
   def test_implicit_differentiation_versus_autodiff(
-      self, lse_mode: bool, threshold: float, pcg: bool
+      self, rng: jax.Array, lse_mode: bool, threshold: float, pcg: bool
   ):
     epsilon = 5e-2
 
@@ -79,6 +79,7 @@ class TestSinkhornImplicit:
       )
       return solver(prob).reg_ot_cost
 
+    rng1, rng2 = jax.random.split(rng)
     loss = loss_pcg if pcg else loss_g
 
     loss_and_grad_imp = jax.jit(
@@ -95,7 +96,7 @@ class TestSinkhornImplicit:
     eps = 1e-3
 
     # test gradient w.r.t. a works and gradient implicit ~= gradient autodiff
-    delta = jax.random.uniform(self.rngs[4], (self.n,)) / 10
+    delta = jax.random.uniform(rng1, (self.n,)) / 10
     delta = delta - jnp.mean(delta)  # center perturbation
     reg_ot_delta_plus = loss(self.a + eps * delta, self.x)
     reg_ot_delta_minus = loss(self.a - eps * delta, self.x)
@@ -117,7 +118,7 @@ class TestSinkhornImplicit:
     )
 
     # test gradient w.r.t. x works and gradient implicit ~= gradient autodiff
-    delta = jax.random.uniform(self.rngs[4], (self.n, self.dim))
+    delta = jax.random.uniform(rng2, (self.n, self.dim))
     reg_ot_delta_plus = loss(self.a, self.x + eps * delta)
     reg_ot_delta_minus = loss(self.a, self.x - eps * delta)
     delta_dot_grad = jnp.sum(delta * grad_loss_imp[1])
@@ -365,9 +366,9 @@ class TestSinkhornJacobian:
       axis: test the jacobian of the application of the (right) application of
         transport to arbitrary vec (axis=0) or the left (axis=1).
     """
-    n, m = (27, 13)
+    n, m = 27, 13
     dim = 4
-    rngs = jax.random.split(rng, 9)
+    rngs = jax.random.split(rng, 7)
     x = jax.random.uniform(rngs[0], (n, dim)) / dim
     y = jax.random.uniform(rngs[1], (m, dim)) / dim
     a = jax.random.uniform(rngs[2], (n,)) + 0.2
@@ -420,7 +421,7 @@ class TestSinkhornJacobian:
       )
 
     # Compute finite difference
-    perturb_scale = 1e-3
+    perturb_scale = 1e-4
     a_p, a_m, x_p, x_m = a, a, x, x
     if arg == 0:
       a_p = a + perturb_scale * delta_a
@@ -441,14 +442,13 @@ class TestSinkhornJacobian:
     # Check unrolling jacobian when using lse_mode.
     if lse_mode:
       np.testing.assert_allclose(fin_dif, back_dif, atol=atol, rtol=1e-1)
-
       # Check Jacobian matrices match loosely.
       # Orthogonalize j_imp, j_back w.r.t. 1 if balanced problem,
       # and testing jacobian w.r.t weights
       if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
-        j_imp = j_imp - jnp.mean(j_imp, axis=1)[:, None]
-        j_back = j_back - jnp.mean(j_imp, axis=1)[:, None]
-      np.testing.assert_allclose(j_imp, j_back, atol=atol, rtol=1e-1)
+        j_imp = j_imp - jnp.mean(j_imp, keepdims=True, axis=1)
+        j_back = j_back - jnp.mean(j_back, keepdims=True, axis=1)
+      np.testing.assert_allclose(j_imp, j_back, atol=atol, rtol=1e-2)
 
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
@@ -730,7 +730,7 @@ class TestSinkhornJacobianPreconditioning:
 class TestSinkhornHessian:
 
   @pytest.mark.fast.with_args(
-      "lse_mode,tau_a,tau_b,arg,lineax_ridge", (
+      "lse_mode,tau_a,tau_b,arg,ridge", (
           (True, 1.0, 1.0, 0, 0.0),
           (False, 1.0, 1.0, 0, 1e-8),
           (True, 1.0, 1.0, 1, 0.0),
@@ -742,29 +742,19 @@ class TestSinkhornHessian:
   )
   def test_hessian_sinkhorn(
       self, rng: jax.Array, lse_mode: bool, tau_a: float, tau_b: float,
-      arg: int, lineax_ridge: float
+      arg: int, ridge: float
   ):
     """Test hessian w.r.t. weights and locations."""
-    try:
-      from ott.solvers.linear import lineax_implicit  # noqa: F401
-      test_back = True
-      ridge = lineax_ridge
-    except ImportError:
-      test_back = False
-      ridge = 1e-5
-
-    n, m = (12, 15)
-    dim = 3
     rngs = jax.random.split(rng, 6)
+    n, m, dim = 12, 15, 3
     x = jax.random.uniform(rngs[0], (n, dim))
     y = jax.random.uniform(rngs[1], (m, dim))
     a = jax.random.uniform(rngs[2], (n,)) + 0.1
     b = jax.random.uniform(rngs[3], (m,)) + 0.1
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
-    epsilon = 0.1
+    epsilon = 0.15
 
-    # Add a ridge when using JAX solvers, smaller ridge for lineax solvers
     solver_kwargs = {
         "ridge_identity": ridge,
         "ridge_kernel": ridge if tau_a == tau_b == 1.0 else 0.0
@@ -794,11 +784,10 @@ class TestSinkhornHessian:
     hess_imp = hess_loss_imp(a, x)
 
     # Test that Hessians produced with either backprop or implicit do match.
-    if test_back:
-      hess_loss_back = jax.jit(
-          jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
-      )
-      hess_back = hess_loss_back(a, x)
+    hess_loss_back = jax.jit(
+        jax.hessian(lambda a, x: loss(a, x, False), argnums=arg)
+    )
+    hess_back = hess_loss_back(a, x)
 
     # In the balanced case, when studying differentiability w.r.t
     # weights, both Hessians must be the same,
@@ -806,18 +795,14 @@ class TestSinkhornHessian:
     # For that reason we remove that contribution and check the
     # resulting matrices are equal.
     if tau_a == 1.0 and tau_b == 1.0 and arg == 0:
-      hess_imp -= jnp.mean(hess_imp, axis=1)[:, None]
-      if test_back:
-        hess_back -= jnp.mean(hess_back, axis=1)[:, None]
+      hess_imp -= jnp.mean(hess_imp, keepdims=True, axis=1)
+      hess_back -= jnp.mean(hess_back, keepdims=True, axis=1)
 
-    if test_back:
-      # Uniform equality is difficult to obtain numerically on the
-      # entire matrices. We switch to relative 1-norm of difference.
-      dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
-      rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
-      assert rel_dif_norm < 0.1
-
-    eps = 1e-3
+    # Uniform equality is difficult to obtain numerically on the
+    # entire matrices. We switch to relative 1-norm of difference.
+    dif_norm = jnp.sum(jnp.abs(hess_imp - hess_back))
+    rel_dif_norm = dif_norm / jnp.sum(jnp.abs(hess_imp))
+    assert rel_dif_norm < 0.1
 
     # Numerical test of implicit diff jacobian.
     grad_ = jax.jit(
@@ -826,6 +811,7 @@ class TestSinkhornHessian:
     grad_init = grad_(a, x)
 
     # Depending on variable tested, perturb either a or x.
+    eps = 1e-3
     a_p = a + eps * delta_a if arg == 0 else a
     x_p = x if arg == 0 else x + eps * delta_x
 

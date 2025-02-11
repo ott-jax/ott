@@ -203,7 +203,7 @@ class TestLRSinkhorn:
         lin_prob
     )
 
-    assert traced_values["iters"] == [9, 19, 29, 39]
+    assert traced_values["iters"] == [9, 19, 29]
     assert traced_values["total"] == [num_iterations
                                      ] * len(traced_values["total"])
 

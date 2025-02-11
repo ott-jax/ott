@@ -21,7 +21,6 @@ import jax.numpy as jnp
 from flax import linen as nn
 
 from ott.geometry import pointcloud
-from ott.initializers.linear import initializers as linear_init
 from ott.initializers.neural import meta_initializer as meta_init
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
@@ -49,37 +48,12 @@ def create_ot_problem(
 ) -> linear_problem.LinearProblem:
   # define ot problem
   x_rng, y_rng = jax.random.split(rng)
-
-  mu_a = jnp.array([-1, 1]) * 5
-  mu_b = jnp.array([0, 0])
-
+  mu_a = jnp.array([-1.0, 1.0]) * 5
+  mu_b = jnp.array([0.0, 0.0])
   x = jax.random.normal(x_rng, (n, d)) + mu_a
   y = jax.random.normal(y_rng, (m, d)) + mu_b
-
-  a = jnp.ones(n) / n
-  b = jnp.ones(m) / m
-
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
-
-  return linear_problem.LinearProblem(geom=geom, a=a, b=b)
-
-
-def run_sinkhorn(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    *,
-    initializer: linear_init.SinkhornInitializer,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    epsilon: float = 1e-2,
-    lse_mode: bool = True,
-) -> sinkhorn.SinkhornOutput:
-  """Runs Sinkhorn algorithm with given initializer."""
-
-  geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
-  prob = linear_problem.LinearProblem(geom, a, b)
-  solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=initializer)
-  return solver(prob)
+  return linear_problem.LinearProblem(geom=geom)
 
 
 @pytest.mark.fast()
@@ -88,36 +62,27 @@ class TestMetaInitializer:
   @pytest.mark.parametrize("lse_mode", [True, False])
   def test_meta_initializer(self, rng: jax.Array, lse_mode: bool):
     """Tests Meta initializer"""
-    n, m, d = 20, 20, 2
+    n, m, d = 32, 30, 2
     epsilon = 1e-2
 
     ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
-    a = ot_problem.a
-    b = ot_problem.b
-    geom = ot_problem.geom
 
     # run sinkhorn
-    sink_out = run_sinkhorn(
-        x=ot_problem.geom.x,
-        y=ot_problem.geom.y,
-        initializer=linear_init.DefaultInitializer(),
-        a=ot_problem.a,
-        b=ot_problem.b,
-        epsilon=epsilon,
-        lse_mode=lse_mode
-    )
+    solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, max_iterations=3000)
+    sink_out = jax.jit(solver)(ot_problem)
 
     # overfit the initializer to the problem.
     meta_model = MetaMLP(n)
-    meta_initializer = meta_init.MetaInitializer(geom, meta_model)
+    meta_initializer = meta_init.MetaInitializer(ot_problem.geom, meta_model)
     for _ in range(50):
       _, _, meta_initializer.state = meta_initializer.update(
-          meta_initializer.state, a=a, b=b
+          meta_initializer.state, a=ot_problem.a, b=ot_problem.b
       )
 
-    prob = linear_problem.LinearProblem(geom, a, b)
-    solver = sinkhorn.Sinkhorn(initializer=meta_initializer, lse_mode=lse_mode)
-    meta_out = solver(prob)
+    solver = sinkhorn.Sinkhorn(
+        initializer=meta_initializer, lse_mode=lse_mode, max_iterations=3000
+    )
+    meta_out = jax.jit(solver)(ot_problem)
 
     # check initializer is better
     if lse_mode:

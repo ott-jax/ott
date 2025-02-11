@@ -293,7 +293,7 @@ class TestGraph:
     x = jnp.abs(jax.random.normal(rng, (n,)))
 
     graph_no_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=-1)
-    graph_low_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=2.5e-4)
+    graph_low_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=1e-4)
     graph_high_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=1e-1)
 
     app_no_tol = graph_no_tol.apply_kernel(x)

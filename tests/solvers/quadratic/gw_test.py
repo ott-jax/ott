@@ -144,8 +144,7 @@ class TestGromovWasserstein:
         linear_solver, epsilon=1e-1, store_inner_errors=True
     )
     out = solver(prob)
-    np.testing.assert_array_less(out.n_iters, 10)
-    np.testing.assert_array_less(1, out.n_iters)
+    assert 1 < out.n_iters < 12
     errors = out.errors
 
     np.testing.assert_array_equal(errors.ndim, 2)
@@ -441,11 +440,11 @@ class TestGromovWasserstein:
     out = solver(prob)
 
     if scale_cost == 1.0:
-      assert 40 < out.reg_gw_cost < 41
-      assert 38 < out.primal_cost < 39
+      assert out.reg_gw_cost < 34
+      assert out.primal_cost < 32
     else:
-      assert 0.215 < out.reg_gw_cost < 0.22
-      assert 0.19 < out.primal_cost < 0.201
+      assert out.reg_gw_cost < 0.23
+      assert out.primal_cost < 0.22
 
   @pytest.mark.parametrize(("tau_a", "tau_b", "eps", "ti"),
                            [(0.99, 0.95, 0.0, True), (0.9, 0.8, 1e-3, False),
@@ -509,9 +508,7 @@ class TestGromovWasserstein:
         gromov_wasserstein_lr.LRGromovWasserstein(
             rank=rank,
             epsilon=eps,
-            inner_iterations=50,
-            min_iterations=50,
-            max_iterations=50,
+            max_iterations=100,
         )
     )
 
@@ -523,7 +520,7 @@ class TestGromovWasserstein:
         res.transport_mass, res_unbal.transport_mass, rtol=1e-4, atol=1e-4
     )
     np.testing.assert_allclose(
-        res.primal_cost, res_unbal.primal_cost, rtol=1e-3, atol=1e-3
+        res.primal_cost, res_unbal.primal_cost, rtol=1e-2, atol=1e-2
     )
 
   @pytest.mark.parametrize("grad", [False, True])

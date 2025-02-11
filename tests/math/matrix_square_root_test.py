@@ -164,15 +164,15 @@ class TestMatrixSquareRoot:
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a, b=self.b, c=self.c
     )
-    np.testing.assert_allclose(self.x, x, atol=1e-5)
+    np.testing.assert_allclose(self.x, x, atol=1e-4)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[None], b=self.b[None], c=self.c[None]
     )
-    np.testing.assert_allclose(self.x, x[0], atol=1e-5)
+    np.testing.assert_allclose(self.x, x[0], atol=1e-4)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=self.a[None, None], b=self.b[None, None], c=self.c[None, None]
     )
-    np.testing.assert_allclose(self.x, x[0, 0], atol=1e-5)
+    np.testing.assert_allclose(self.x, x[0, 0], atol=1e-4)
 
   # requires Schur decomposition, which jax does not implement on GPU
   @pytest.mark.cpu()

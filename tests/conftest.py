@@ -11,19 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import collections.abc
 import itertools
+from collections import abc
 from typing import Any, Mapping, Optional, Sequence
 
 import pytest
-from _pytest.python import Metafunc
 
 import jax
 import jax.experimental
-import jax.numpy as jnp
+
+import matplotlib as mpl
 
 
-def pytest_generate_tests(metafunc: Metafunc) -> None:
+def pytest_sessionstart(session: pytest.Session) -> None:
+  mpl.use("Agg")
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
   if not hasattr(metafunc.function, "pytestmark"):
     # no annotation
     return
@@ -38,10 +42,8 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
       argnames, argvalues = mark.args
     else:
       argnames = tuple(mark.kwargs.keys())
-      argvalues = [
-          (vs,) if not isinstance(vs, (str, collections.abc.Iterable)) else vs
-          for vs in mark.kwargs.values()
-      ]
+      argvalues = [(vs,) if not isinstance(vs, (str, abc.Iterable)) else vs
+                   for vs in mark.kwargs.values()]
       argvalues = list(itertools.product(*argvalues))
 
     opt = str(metafunc.config.getoption("-m"))
@@ -69,8 +71,8 @@ def pytest_generate_tests(metafunc: Metafunc) -> None:
       metafunc.parametrize(argnames, combinations, ids=ids)
 
 
-@pytest.fixture(scope="session")
-def rng() -> jnp.ndarray:
+@pytest.fixture()
+def rng() -> jax.Array:
   return jax.random.key(0)
 
 

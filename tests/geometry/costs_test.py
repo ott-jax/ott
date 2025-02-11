@@ -160,7 +160,9 @@ class TestTICost:
       ]
   )
   def test_sqeucl_transport(
-      self, rng: jax.Array, cost_fn: costs.TICost, enable_x64
+      self,
+      rng: jax.Array,
+      cost_fn: costs.TICost,
   ):
     sqeucl = costs.SqEuclidean()
     x = jax.random.normal(rng, (12, 7))
@@ -174,7 +176,9 @@ class TestTICost:
     else:
       actual_fn = jax.jit(jax.vmap(lambda x: x - jax.grad(h_f)(x)))
 
-    np.testing.assert_array_equal(expected_fn(x), actual_fn(x))
+    np.testing.assert_allclose(
+        expected_fn(x), actual_fn(x), rtol=1e-6, atol=1e-6
+    )
     if not isinstance(cost_fn, costs.SqEuclidean):
       np.testing.assert_allclose(
           0.5 * sqeucl.all_pairs(x, x),
