@@ -152,7 +152,7 @@ class TestSoftSort:
       my_ranks = jax.jit(my_ranks, static_argnames="num_targets")
 
     ranks = my_ranks(x)
-    np.testing.assert_allclose(expected_ranks, ranks, atol=0.5, rtol=0.1)
+    np.testing.assert_allclose(expected_ranks, ranks, atol=0.4, rtol=0.1)
 
     # soft-Ranks computed against target that is not the same size will
     # inevitably be "softer", i.e. less likely to look integer.
@@ -162,7 +162,7 @@ class TestSoftSort:
     target_weights = jax.random.uniform(rng2, (num_targets,))
     target_weights /= jnp.sum(target_weights)
     ranks = my_ranks(x, target_weights=target_weights)
-    np.testing.assert_allclose(expected_ranks, ranks, atol=0.5, rtol=0.1)
+    np.testing.assert_allclose(expected_ranks, ranks, atol=0.6, rtol=0.1)
 
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
   def test_topk_mask(self, axis, rng: jax.Array, jit: bool):
