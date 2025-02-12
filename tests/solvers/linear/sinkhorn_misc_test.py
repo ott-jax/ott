@@ -100,13 +100,14 @@ class TestSinkhornBures:
     self.n = 11
     self.m = 13
     self.dim = 7
+    self.deg_freedom = self.dim + 4
     self.rngs = jax.random.split(jax.random.key(0), 6)
 
-    x = jax.random.normal(self.rngs[0], (self.n, self.dim, self.dim))
-    y = jax.random.normal(self.rngs[1], (self.m, self.dim, self.dim))
+    x = jax.random.normal(self.rngs[0], (self.n, self.dim, self.deg_freedom))
+    y = jax.random.normal(self.rngs[1], (self.m, self.dim, self.deg_freedom))
 
-    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1))) / self.dim
-    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1))) / self.dim
+    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1))) / self.deg_freedom
+    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1))) / self.deg_freedom
 
     m_x = jax.random.uniform(self.rngs[2], (self.n, self.dim))
     m_y = jax.random.uniform(self.rngs[3], (self.m, self.dim))
@@ -134,8 +135,6 @@ class TestSinkhornBures:
       ws_x = jnp.abs(jax.random.uniform(rng1, (self.x.shape[0], 1))) + 1e-1
       ws_y = jnp.abs(jax.random.uniform(rng2, (self.y.shape[0], 1))) + 1e-1
       ws_x = ws_x.at[0].set(0.0)
-      ws_x = jnp.ones_like(ws_x)
-      ws_y = jnp.ones_like(ws_y)
       x = jnp.concatenate([ws_x, self.x], axis=1)
       y = jnp.concatenate([ws_y, self.y], axis=1)
       cost_fn = costs.UnbalancedBures(dimension=self.dim, gamma=0.9, sigma=0.98)
