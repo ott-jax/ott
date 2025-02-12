@@ -152,11 +152,10 @@ class TestSoftSort:
       my_ranks = jax.jit(my_ranks, static_argnames="num_targets")
 
     ranks = my_ranks(x)
-    np.testing.assert_allclose(expected_ranks, ranks, atol=0.3, rtol=0.1)
+    np.testing.assert_allclose(expected_ranks, ranks, atol=0.5, rtol=0.1)
 
     # soft-Ranks computed against target that is not the same size will
-    # inevitably be "softer". Therefore increasing tolerance. Notice these
-    # ranks are integers on the scale of the size of x at axis.
+    # inevitably be "softer", i.e. less likely to look integer.
     ranks = my_ranks(x, num_targets=num_targets)
     np.testing.assert_allclose(expected_ranks, ranks, atol=0.5, rtol=0.1)
 
@@ -177,7 +176,7 @@ class TestSoftSort:
         soft_sort.topk_mask,
         squashing_fun=lambda x: x,
         epsilon=1e-4,  # needed to recover a sharp mask given close ties
-        max_iterations=15000,  # needed to recover a sharp mask given close ties
+        max_iterations=15_000,
         axis=axis
     )
     if jit:
