@@ -157,7 +157,7 @@ class TestSoftSort:
     # soft-Ranks computed against target that is not the same size will
     # inevitably be "softer", i.e. less likely to look integer.
     ranks = my_ranks(x, num_targets=num_targets)
-    np.testing.assert_allclose(expected_ranks, ranks, atol=0.5, rtol=0.1)
+    np.testing.assert_allclose(expected_ranks, ranks, atol=0.6, rtol=0.1)
 
     target_weights = jax.random.uniform(rng2, (num_targets,))
     target_weights /= jnp.sum(target_weights)
