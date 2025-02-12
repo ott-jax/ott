@@ -105,8 +105,8 @@ class TestSinkhornBures:
     x = jax.random.normal(self.rngs[0], (self.n, self.dim, self.dim))
     y = jax.random.normal(self.rngs[1], (self.m, self.dim, self.dim))
 
-    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1)))
-    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1)))
+    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1))) / self.dim
+    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1))) / self.dim
 
     m_x = jax.random.uniform(self.rngs[2], (self.n, self.dim))
     m_y = jax.random.uniform(self.rngs[3], (self.m, self.dim))
