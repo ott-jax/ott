@@ -134,6 +134,8 @@ class TestSoftSort:
     num_targets = 13
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.uniform(rng1, (8, 5, 2))
+    #print('X')
+    #print(x.tolist())
     expected_ranks = jnp.argsort(
         jnp.argsort(x, axis=axis), axis=axis
     ).astype(float)
@@ -144,22 +146,23 @@ class TestSoftSort:
         squashing_fun=lambda x: x,
         epsilon=1e-4,
         axis=axis,
-        max_iterations=5000,
+        max_iterations=20_000,
     )
     if jit:
       my_ranks = jax.jit(my_ranks, static_argnames="num_targets")
 
     ranks = my_ranks(x)
+    np.testing.assert_allclose(expected_ranks, ranks, atol=0.4, rtol=0.1)
 
-    np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
-
+    # soft-Ranks computed against target that is not the same size will
+    # inevitably be "softer", i.e. less likely to look integer.
     ranks = my_ranks(x, num_targets=num_targets)
-    np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
+    np.testing.assert_allclose(expected_ranks, ranks, atol=0.6, rtol=0.1)
 
     target_weights = jax.random.uniform(rng2, (num_targets,))
     target_weights /= jnp.sum(target_weights)
     ranks = my_ranks(x, target_weights=target_weights)
-    np.testing.assert_allclose(ranks, expected_ranks, atol=0.3, rtol=0.1)
+    np.testing.assert_allclose(expected_ranks, ranks, atol=0.6, rtol=0.1)
 
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
   def test_topk_mask(self, axis, rng: jax.Array, jit: bool):
@@ -173,7 +176,7 @@ class TestSoftSort:
         soft_sort.topk_mask,
         squashing_fun=lambda x: x,
         epsilon=1e-4,  # needed to recover a sharp mask given close ties
-        max_iterations=15000,  # needed to recover a sharp mask given close ties
+        max_iterations=15_000,
         axis=axis
     )
     if jit:

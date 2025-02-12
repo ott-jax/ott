@@ -97,7 +97,9 @@ class Plot:
       cmap: str = "cool",
       scale_alpha_by_coupling: bool = False,
       alpha: float = 0.7,
-      title: Optional[str] = None
+      title: Optional[str] = None,
+      xlim: Optional[List[float]] = None,
+      ylim: Optional[List[float]] = None,
   ):
     if plt is None:
       raise RuntimeError("Please install `matplotlib` first.")
@@ -120,6 +122,8 @@ class Plot:
     self._scale_alpha_by_coupling = scale_alpha_by_coupling
     self._alpha = alpha
     self._title = title
+    self._xlim = xlim
+    self._ylim = ylim
 
   def _scatter(self, ot: Transport):
     """Compute the position and scales of the points on a 2D plot."""
@@ -195,6 +199,12 @@ class Plot:
           alpha=alpha
       )
       self._lines.append(line)
+
+    if self._xlim is not None:
+      self.ax.set_xlim(self._xlim)
+    if self._ylim is not None:
+      self.ax.set_ylim(self._ylim)
+
     return [self._points_x, self._points_y] + self._lines
 
   def update(self,
