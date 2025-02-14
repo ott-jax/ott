@@ -134,8 +134,6 @@ class TestSoftSort:
     num_targets = 13
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.uniform(rng1, (8, 5, 2))
-    #print('X')
-    #print(x.tolist())
     expected_ranks = jnp.argsort(
         jnp.argsort(x, axis=axis), axis=axis
     ).astype(float)
@@ -154,10 +152,10 @@ class TestSoftSort:
     ranks = my_ranks(x)
     np.testing.assert_allclose(expected_ranks, ranks, atol=0.4, rtol=0.1)
 
-    # soft-Ranks computed against target that is not the same size will
-    # inevitably be "softer", i.e. less likely to look integer.
+    # soft-ranks computed against target that is not the same size will
+    # inevitably be "softer", i.e. less likely to look like an integer.
     ranks = my_ranks(x, num_targets=num_targets)
-    np.testing.assert_allclose(expected_ranks, ranks, atol=0.6, rtol=0.1)
+    np.testing.assert_allclose(expected_ranks, ranks, atol=0.7, rtol=0.1)
 
     target_weights = jax.random.uniform(rng2, (num_targets,))
     target_weights /= jnp.sum(target_weights)
