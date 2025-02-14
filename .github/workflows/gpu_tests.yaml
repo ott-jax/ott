@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   gpu-tests:
-    name: Fast GPU tests Python 3.10 on ubuntu-22.04
+    name: Python 3.10 on ubuntu-22.04
     runs-on: [self-hosted, ott-gpu]
     container:
       image: docker://michalk8/cuda:12.3.2-cudnn9-devel-ubuntu22.04
