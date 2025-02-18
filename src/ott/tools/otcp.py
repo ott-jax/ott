@@ -35,6 +35,7 @@ def sobol_sphere(
       1.0 / (num_radii + 1), num_radii / (num_radii + 1), num_radii
   )
   sphere = _sobol_sphere(num_samples, d, seed=seed, **kwargs)
+  sphere = sphere.astype(radius.dtype)
   points = sphere[None] * radius[:, None, None]
   points = points.reshape(-1, d)
 
@@ -49,9 +50,9 @@ def sobol_sphere(
 def _sobol_sphere(n: int, d: int, seed: int = 0, **kwargs: Any) -> jnp.ndarray:
   # TODO(michalk8): make as pure callback
   sampler = qmc.Sobol(d=d, seed=seed, scramble=True, **kwargs)
-  samples = sampler.random_base2(m=math.ceil(math.log2(n)))
-  samples = jnp.asarray(samples)  # TODO(michalk8): dtype
-  theta = jsp.special.ndtri(samples)[:n]
+  samples = sampler.random_base2(m=math.ceil(math.log2(n)))[:n]
+  samples = jnp.array(samples)
+
+  theta = jsp.special.ndtri(samples)
   eps = jnp.finfo(theta).tiny
-  theta /= jnp.linalg.norm(theta, keepdims=True, axis=-1) + eps
-  return theta
+  return theta / (jnp.linalg.norm(theta, keepdims=True, axis=-1) + eps)
