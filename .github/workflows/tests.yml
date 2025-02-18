@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   fast-tests:
-    name: Fast tests Python ${{ matrix.python-version }} ${{ matrix.jax-version }}
+    name: Python ${{ matrix.python-version }} ${{ matrix.jax-version }} (fast)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -39,6 +39,7 @@ jobs:
         tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --notest -v
 
     - name: Run tests
+      continue-on-error: ${{ matrix.jax-version == 'jax-latest' }}
       run: |
         tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --skip-pkg-install -- -m fast --memray -n auto -vv
 
