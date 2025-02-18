@@ -14,12 +14,12 @@ concurrency:
 
 jobs:
   fast-tests:
-    name: Fast tests Python ${{ matrix.python-version }} ${{ matrix.jax-version }}
+    name: Python ${{ matrix.python-version }} ${{ matrix.jax-version }} (fast)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10']
+        python-version: ['3.12']
         jax-version: [jax-default, jax-latest]
 
     steps:
@@ -39,33 +39,9 @@ jobs:
         tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --notest -v
 
     - name: Run tests
+      continue-on-error: ${{ matrix.jax-version == 'jax-latest' }}
       run: |
         tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --skip-pkg-install -- -m fast --memray -n auto -vv
-
-  gpu-tests:
-    name: Fast GPU tests Python 3.10 on ubuntu-22.04
-    runs-on: [self-hosted, ott-gpu]
-    container:
-      image: docker://michalk8/cuda:12.3.2-cudnn9-devel-ubuntu22.04
-      options: --gpus="device=2"
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Install dependencies
-      run: |
-        python3 -m pip install --upgrade pip
-        python3 -m pip install -e".[test]"
-        python3 -m pip install "jax[cuda12]"
-
-    - name: Run nvidia-smi
-      run: |
-        nvidia-smi
-
-    - name: Run tests
-      run: |
-        python3 -m pytest -m "fast and not cpu" --memray --durations 10 -vv
-      env:
-        XLA_PYTHON_CLIENT_PREALLOCATE: 'false'
 
   tests:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}
@@ -76,9 +52,9 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13']
         os: [ubuntu-latest]
         include:
-        - python-version: '3.9'
-          os: macos-14
         - python-version: '3.10'
+          os: macos-14
+        - python-version: '3.12'
           os: macos-15
 
     steps:

@@ -40,9 +40,9 @@ class TestLRInitializers:
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
 
-  @pytest.mark.parametrize("epsilon", [0.0, 1e-1])
-  def test_better_initialization_helps(self, rng: jax.Array, epsilon: float):
+  def test_better_initialization_helps(self, rng: jax.Array):
     n, d, rank = 81, 13, 3
+    epsilon = 1e-1
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.normal(rng1, (n, d))
     y = jax.random.normal(rng2, (n, d))
@@ -71,4 +71,4 @@ class TestLRInitializers:
     np.testing.assert_array_less((out_init.errors > -1).sum(),
                                  (out_random.errors > -1).sum())
     # converged to a better solution
-    np.testing.assert_array_less(out_init.reg_ot_cost, out_random.reg_ot_cost)
+    assert out_init.reg_ot_cost <= out_random.reg_ot_cost

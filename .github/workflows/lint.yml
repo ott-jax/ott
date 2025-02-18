@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   lint:
-    name: Lint ${{ matrix.lint-kind }}
+    name: ${{ matrix.lint-kind }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
