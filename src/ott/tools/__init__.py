@@ -14,6 +14,7 @@
 from . import (
     gaussian_mixture,
     k_means,
+    otcp,
     plot,
     progot,
     segment_sinkhorn,
