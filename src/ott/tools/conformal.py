@@ -25,14 +25,44 @@ from ott.geometry import pointcloud
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
 
-__all__ = ["otcp", "sobol_sphere"]
+__all__ = ["otcp", "OTCPOutput", "sobol_sphere"]
 
 
-class OTCPResult(NamedTuple):
-  predict: Callable[[jnp.ndarray, float], jnp.ndarray]
-  get_scores: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
-  calib_scores: jnp.ndarray
+# TODO(michalk8): register
+class OTCPOutput(NamedTuple):
+  model: Callable[[jnp.ndarray], jnp.ndarray]
   out: sinkhorn.SinkhornOutput
+  x_calib: jnp.ndarray
+  y_calib: jnp.ndarray
+  offset: jnp.ndarray = 0.0
+  scale: jnp.ndarray = 1.0
+
+  def predict(self, x: jnp.ndarray, alpha: float):
+    assert x.ndim == 1, x.shape
+    target = self.out.geom.y
+    y_hat = self.model(x[None])
+    radius = jnp.quantile(self.calibration_scores, q=1.0 - alpha)
+    candidates = self.transport(radius * target, forward=False)
+    candidates = self._rescale(candidates, forward=False)
+    return y_hat - candidates
+
+  def get_scores(self, x: jnp.ndarray, y: jnp.ndarray):
+    residuals = y - self.model(x)
+    residuals = self._rescale(residuals, forward=True)
+    scores = self.transport(residuals, forward=True)
+    return jnp.linalg.norm(scores, axis=-1)
+
+  def transport(self, x: jnp.ndarray, *, forward: bool = True):
+    return self.out.to_dual_potentials().transport(x, forward=forward)
+
+  def _rescale(self, x: jnp.ndarray, *, forward: bool) -> jnp.ndarray:
+    if forward:
+      return (x - self.offset) / self.scale
+    return (self.scale * x) + self.offset
+
+  @property
+  def calibration_scores(self) -> jnp.ndarray:
+    return self.get_scores(self.x_calib, self.y_calib)
 
 
 def otcp(
@@ -48,49 +78,24 @@ def otcp(
     **kwargs: Any
 ) -> Callable[[jnp.ndarray, float], jnp.ndarray]:
   """TODO."""
-
-  def get_residuals(y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
-    return y - y_hat
-
-  def rescale(x: jnp.ndarray, *, forward: bool):
-    offset = jnp.mean(trn_residuals, axis=0, keepdims=True)
-    scale = jnp.linalg.norm(trn_residuals - offset, axis=-1).max()
-    return ((x - offset) / scale) if forward else ((x * scale) + offset)
-
-  # TODO(michalk8): move to OTCPResult?
-  def predict(x: jnp.ndarray, alpha: float) -> jnp.ndarray:
-    """TODO."""
-    assert x.ndim == 1, x.shape
-    y_hat = model(x[None])
-    radius_alpha = jnp.quantile(calib_scores, q=1.0 - alpha)
-    candidates = tmap.transport(target * radius_alpha, forward=False)
-    candidates = rescale(candidates, forward=False)
-    return y_hat - candidates
-
-  def get_scores(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    residuals = get_residuals(y, model(x))
-    residuals = rescale(residuals, forward=True)
-    scores = tmap.transport(residuals, forward=True)
-    return jnp.linalg.norm(scores, axis=-1)
-
-  trn_residuals = get_residuals(y_trn, model(x_trn))
-  trn_residuals = rescale(trn_residuals, forward=True)
-
+  trn_residuals = y_trn - model(x_trn)
+  offset = jnp.mean(trn_residuals, axis=0, keepdims=True)
+  scale = jnp.linalg.norm(trn_residuals - offset, axis=-1).max()
+  trn_residuals = (trn_residuals - offset) / scale
   target, weights = sobol_sphere(
       num_target, dim=trn_residuals.shape[-1], rng=rng
   )
 
   geom = pointcloud.PointCloud(trn_residuals, target, epsilon=epsilon)
   out = linear.solve(geom, b=weights, **kwargs)
-  tmap = out.to_dual_potentials()
 
-  calib_scores = get_scores(x_calib, y_calib)
-
-  return OTCPResult(
-      predict=predict,
-      get_scores=get_scores,
-      calib_scores=calib_scores,
+  return OTCPOutput(
+      model=model,
       out=out,
+      x_calib=x_calib,
+      y_calib=y_calib,
+      offset=offset,
+      scale=scale,
   )
 
 
