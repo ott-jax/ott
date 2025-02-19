@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from . import (
+    conformal,
     gaussian_mixture,
     k_means,
-    otcp,
     plot,
     progot,
     segment_sinkhorn,
