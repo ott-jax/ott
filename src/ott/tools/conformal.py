@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -23,8 +23,16 @@ from scipy.stats import qmc
 from ott import utils
 from ott.geometry import pointcloud
 from ott.solvers import linear
+from ott.solvers.linear import sinkhorn
 
 __all__ = ["otcp", "sobol_sphere"]
+
+
+class OTCPResult(NamedTuple):
+  predict: Callable[[jnp.ndarray, float], jnp.ndarray]
+  get_scores: Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+  calib_scores: jnp.ndarray
+  out: sinkhorn.SinkhornOutput
 
 
 def otcp(
@@ -45,35 +53,45 @@ def otcp(
     return y - y_hat
 
   def rescale(x: jnp.ndarray, *, forward: bool):
-    offset = jnp.mean(resid_trn, axis=0, keepdims=True)
-    scale = jnp.linalg.norm(resid_trn - offset, axis=-1).max()
+    offset = jnp.mean(trn_residuals, axis=0, keepdims=True)
+    scale = jnp.linalg.norm(trn_residuals - offset, axis=-1).max()
     return ((x - offset) / scale) if forward else ((x * scale) + offset)
 
-  def conformalize(x_pred: jnp.ndarray, alpha: float = 0.1) -> jnp.ndarray:
+  # TODO(michalk8): move to OTCPResult?
+  def predict(x: jnp.ndarray, alpha: float) -> jnp.ndarray:
     """TODO."""
-    assert x_pred.ndim == 1, x_pred.shape
-    x_pred = jnp.atleast_2d(x_pred)
-    y_hat = model(x_pred)
-
-    radius_alpha = jnp.quantile(scores_calib, q=1.0 - alpha)
+    assert x.ndim == 1, x.shape
+    y_hat = model(x[None])
+    radius_alpha = jnp.quantile(calib_scores, q=1.0 - alpha)
     candidates = tmap.transport(target * radius_alpha, forward=False)
     candidates = rescale(candidates, forward=False)
     return y_hat - candidates
 
-  resid_trn = get_residuals(y_trn, model(x_trn))
-  resid_trn = rescale(resid_trn, forward=True)
+  def get_scores(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    residuals = get_residuals(y, model(x))
+    residuals = rescale(residuals, forward=True)
+    scores = tmap.transport(residuals, forward=True)
+    return jnp.linalg.norm(scores, axis=-1)
 
-  target, weights = sobol_sphere(num_target, dim=resid_trn.shape[-1], rng=rng)
+  trn_residuals = get_residuals(y_trn, model(x_trn))
+  trn_residuals = rescale(trn_residuals, forward=True)
 
-  geom = pointcloud.PointCloud(resid_trn, target, epsilon=epsilon)
-  tmap = linear.solve(geom, b=weights, **kwargs).to_dual_potentials()
+  target, weights = sobol_sphere(
+      num_target, dim=trn_residuals.shape[-1], rng=rng
+  )
 
-  resid_calib = get_residuals(y_calib, model(x_calib))
-  resid_calib = rescale(resid_calib, forward=True)
-  scores_calib = tmap.transport(resid_calib, forward=True)
-  scores_calib = jnp.linalg.norm(scores_calib, axis=-1)
+  geom = pointcloud.PointCloud(trn_residuals, target, epsilon=epsilon)
+  out = linear.solve(geom, b=weights, **kwargs)
+  tmap = out.to_dual_potentials()
 
-  return conformalize
+  calib_scores = get_scores(x_calib, y_calib)
+
+  return OTCPResult(
+      predict=predict,
+      get_scores=get_scores,
+      calib_scores=calib_scores,
+      out=out,
+  )
 
 
 def sobol_sphere(
