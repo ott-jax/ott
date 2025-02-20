@@ -13,7 +13,7 @@
 # limitations under the License.
 import dataclasses
 import math
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Literal, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -27,7 +27,7 @@ from ott.geometry import pointcloud
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
 
-__all__ = ["otcp", "OTCPOutput", "sobol_sphere"]
+__all__ = ["otcp", "OTCPOutput", "sample_target_measure"]
 
 
 @jtu.register_dataclass
@@ -107,7 +107,10 @@ def otcp(
 ) -> Callable[[jnp.ndarray, float], jnp.ndarray]:
   """TODO."""
   dim = y_trn.shape[-1]
-  score_fn = classification_score if is_classifier else regression_score
+  if is_classifier:
+    score_fn, sample_method = classification_score, "random"
+  else:
+    score_fn, sample_method = regression_score, "sobol"
 
   y_hat_trn = model(x_trn)
   trn_residuals = score_fn(y_trn, y_hat_trn)
@@ -116,7 +119,9 @@ def otcp(
   scale = jnp.linalg.norm(trn_residuals - offset, axis=-1).max()
   trn_residuals = (trn_residuals - offset) / scale
 
-  target, weights = sobol_sphere(num_target, dim=dim, rng=rng)
+  target, weights = sample_target_measure((num_target, dim),
+                                          method=sample_method,
+                                          rng=rng)
   geom = pointcloud.PointCloud(trn_residuals, target, epsilon=epsilon)
 
   out = linear.solve(geom, b=weights, **kwargs)
@@ -131,35 +136,34 @@ def otcp(
   )
 
 
-def sobol_sphere(
-    num_samples: int,
-    dim: int,
+def sample_target_measure(
+    shape: Tuple[int, int],
+    method: Literal["random", "sobol"],
     rng: Optional[jax.Array] = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """TODO."""
-
-  def sample(n: jnp.ndarray, d: jnp.ndarray, seed: jnp.ndarray) -> np.ndarray:
-    n, d, seed = n.item(), d.item(), seed.item()
-    sampler = qmc.Sobol(d=d, seed=seed, scramble=True)
-    samples = sampler.random_base2(m=math.ceil(math.log2(n)))[:n]
-    theta = sp.special.ndtri(samples)
-    eps = np.finfo(theta.dtype).tiny
-    theta /= (np.linalg.norm(theta, keepdims=True, axis=-1) + eps)
-    return theta.astype(radii.dtype)
-
   rng = utils.default_prng_key(rng)
-  seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
 
+  num_samples, dim = shape
   num_radii = int(math.sqrt(num_samples))
   num_sphere, num_0s = divmod(num_samples, num_radii)
 
   radii = jnp.linspace(
       1.0 / (num_radii + 1), num_radii / (num_radii + 1), num_radii
   )
-  out_struct = jax.ShapeDtypeStruct(shape=(num_sphere, dim), dtype=radii.dtype)
-  points_sphere = jax.pure_callback(sample, out_struct, num_sphere, dim, seed)
 
-  points = points_sphere[None] * radii[:, None, None]
+  if method == "random":
+    sphere = _random_sphere(num_sphere, d=dim, positive=True, rng=rng)
+  elif method == "sobol":
+    seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
+    out_struct = jax.ShapeDtypeStruct(
+        shape=(num_sphere, dim), dtype=radii.dtype
+    )
+    sphere = jax.pure_callback(_sobol_sphere, out_struct, num_sphere, dim, seed)
+  else:
+    raise ValueError(method)
+
+  points = sphere[None] * radii[:, None, None]
   points = points.reshape(-1, dim)
 
   weights = jnp.full(
@@ -170,6 +174,30 @@ def sobol_sphere(
     weights = weights.at[-1].set(num_0s / num_samples)
 
   return points, weights
+
+
+def _sobol_sphere(n: int, d: int, seed: int) -> np.ndarray:
+  n, d, seed = int(n), int(d), int(seed)
+  sampler = qmc.Sobol(d=d, seed=seed, scramble=True)
+
+  points = sampler.random_base2(m=math.ceil(math.log2(n)))[:n]
+  points = sp.special.ndtri(points)
+  points /= (
+      np.linalg.norm(points, keepdims=True, axis=-1) +
+      np.finfo(points.dtype).tiny
+  )
+  return points
+
+
+def _random_sphere(
+    n: int, d: int, positive: bool, rng: jax.Array
+) -> jnp.ndarray:
+  points = jax.random.normal(rng, (n, d))
+  points /= (
+      jnp.linalg.norm(points, keepdims=True, axis=-1) +
+      jnp.finfo(points.dtype).tiny
+  )
+  return jnp.abs(points) if positive else points
 
 
 def classification_score(y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
