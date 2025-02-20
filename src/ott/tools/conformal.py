@@ -37,7 +37,8 @@ class OTCPOutput:
   model: Callable[[jnp.ndarray],
                   jnp.ndarray] = dataclasses.field(metadata={"static": True})
   out: sinkhorn.SinkhornOutput
-  calib_scores: jnp.ndarray
+  x_calib: jnp.ndarray
+  y_calib: jnp.ndarray
   offset: jnp.ndarray = 0.0
   scale: jnp.ndarray = 1.0
 
@@ -45,7 +46,7 @@ class OTCPOutput:
     """TODO."""
     target = self.out.geom.y
     y_hat = self.model(jnp.atleast_2d(x))  # [B, D]
-    radius = jnp.quantile(self.calib_scores, q=1.0 - alpha)
+    radius = self.radius(alpha)
     candidates = self.transport(radius * target, forward=False)  # [C, D]
     candidates = self._rescale(candidates, forward=False)
     res = y_hat[:, None] - candidates[None]
@@ -58,9 +59,19 @@ class OTCPOutput:
     scores = self.transport(residuals, forward=True)
     return jnp.linalg.norm(scores, axis=-1)
 
+  def radius(self, alpha: float) -> jnp.ndarray:
+    """TODO."""
+    q = (1.0 - alpha) * (1 + 1.0 / self.x_calib.shape[0])
+    return jnp.quantile(self.calib_scores, q=q)
+
   def transport(self, x: jnp.ndarray, *, forward: bool = True):
     """TODO."""
     return self.out.to_dual_potentials().transport(x, forward=forward)
+
+  @property
+  def calib_scores(self) -> jnp.ndarray:
+    """Calibration scores."""
+    return self.get_scores(self.x_calib, self.y_calib)
 
   def _rescale(self, x: jnp.ndarray, *, forward: bool) -> jnp.ndarray:
     if forward:
@@ -93,15 +104,14 @@ def otcp(
 
   sink_out = linear.solve(geom, b=weights, **kwargs)
 
-  otcp_out = OTCPOutput(
+  return OTCPOutput(
       model=model,
       out=sink_out,
-      calib_scores=None,
+      x_calib=x_calib,
+      y_calib=y_calib,
       offset=offset,
       scale=scale,
   )
-  calib_scores = otcp_out.get_scores(x_calib, y_calib)
-  return dataclasses.replace(otcp_out, calib_scores=calib_scores)
 
 
 def sobol_sphere(
