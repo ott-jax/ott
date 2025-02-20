@@ -36,7 +36,7 @@ class OTCPOutput:
   """TODO."""
   model: Callable[[jnp.ndarray],
                   jnp.ndarray] = dataclasses.field(metadata={"static": True})
-  is_classifier: bool
+  is_classifier: bool = dataclasses.field(metadata={"static": True})
   out: sinkhorn.SinkhornOutput
   x_calib: jnp.ndarray
   y_calib: jnp.ndarray
@@ -45,51 +45,33 @@ class OTCPOutput:
 
   def predict(self, x: jnp.ndarray, alpha: float = 0.1) -> jnp.ndarray:
     """TODO."""
-    # TODO(michalk8): classif
     y_hat = self.model(jnp.atleast_2d(x))  # [B, D]
-    radius = self.radius(alpha)
+    quantile = jnp.quantile(self.calib_scores, q=1 - alpha)
     if self.is_classifier:
-      res = self._predict_classification(y_hat, radius)
+      res = self._predict_classification(y_hat, quantile)
     else:
-      res = self._predict_regression(y_hat, radius)
-
+      res = self._predict_regression(y_hat, quantile)
     return res.squeeze(0) if x.ndim == 1 else res
 
-  def _predict_classification(self, y_hat: jnp.ndarray, radius: float):
-    pass
+  def _predict_classification(self, y_hat: jnp.ndarray, quantile: float):
+    ys = jnp.eye(y_hat.shape[-1])  # candidates
+    score_fn = jax.vmap(self._get_scores, in_axes=[0, None])
+    score_fn = jax.vmap(score_fn, in_axes=[None, 0])
+    scores = score_fn(ys, y_hat)
+    return scores <= quantile
 
-  def _predict_classification_adaptive(
-      self, y_hat: jnp.ndarray, radius: float, sigma: float
-  ):
-    pass
-
-  def _predict_regression(self, y_hat: jnp.ndarray, radius: float):
-    candidates = self.transport(radius * self.target, forward=False)  # [C, D]
+  def _predict_regression(self, y_hat: jnp.ndarray, quantile: float):
+    candidates = self._transport(
+        quantile * self.target, forward=False
+    )  # [C, D]
     candidates = self._rescale(candidates, forward=False)
-    return y_hat[:, None] - candidates[None]
-
-  def get_scores(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """TODO."""
-    y_hat = self.model(x)
-    residuals = self.score_function(y, y_hat)
-    residuals = self._rescale(residuals, forward=True)
-    scores = self.transport(residuals, forward=True)
-    return jnp.linalg.norm(scores, axis=-1)
-
-  def radius(self, alpha: float) -> jnp.ndarray:
-    """TODO."""
-    # TODO(michalk8): optional correction?
-    q = (1.0 - alpha) * (1 + 1.0 / self.x_calib.shape[0])
-    return jnp.quantile(self.calib_scores, q=q)
-
-  def transport(self, x: jnp.ndarray, *, forward: bool = True):
-    """TODO."""
-    return self.out.to_dual_potentials().transport(x, forward=forward)
+    return y_hat[:, None] + candidates[None]
 
   @property
   def calib_scores(self) -> jnp.ndarray:
     """Calibration scores."""
-    return self.get_scores(self.x_calib, self.y_calib)
+    y_hat = self.model(self.x_calib)
+    return self._get_scores(self.y_calib, y_hat)
 
   @property
   def score_function(self) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
@@ -100,6 +82,18 @@ class OTCPOutput:
   def target(self) -> jnp.ndarray:
     """TODO."""
     return self.out.geom.y
+
+  def _get_scores(self, y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
+    """TODO."""
+    residuals = self.score_function(jnp.atleast_2d(y), jnp.atleast_2d(y_hat))
+    residuals = self._rescale(residuals, forward=True)
+    scores = self._transport(residuals, forward=True)
+    scores = jnp.linalg.norm(scores, axis=-1)
+    return scores.squeeze(0) if y.ndim == 1 else scores
+
+  def _transport(self, x: jnp.ndarray, *, forward: bool = True) -> jnp.ndarray:
+    """TODO."""
+    return self.out.to_dual_potentials().transport(x, forward=forward)
 
   def _rescale(self, x: jnp.ndarray, *, forward: bool) -> jnp.ndarray:
     if forward:
