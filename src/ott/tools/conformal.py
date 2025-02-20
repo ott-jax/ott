@@ -115,7 +115,7 @@ def otcp(
     num_target: int = 8192,
     rng: Optional[jax.Array] = None,
     **kwargs: Any
-) -> Callable[[jnp.ndarray, float], jnp.ndarray]:
+) -> OTCPOutput:
   """TODO."""
   assert y_trn.ndim == 2, y_trn.shape
   dim = y_trn.shape[-1]
