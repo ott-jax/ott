@@ -48,10 +48,25 @@ class OTCPOutput:
     # TODO(michalk8): classif
     y_hat = self.model(jnp.atleast_2d(x))  # [B, D]
     radius = self.radius(alpha)
+    if self.is_classifier:
+      res = self._predict_classification(y_hat, radius)
+    else:
+      res = self._predict_regression(y_hat, radius)
+
+    return res.squeeze(0) if x.ndim == 1 else res
+
+  def _predict_classification(self, y_hat: jnp.ndarray, radius: float):
+    pass
+
+  def _predict_classification_adaptive(
+      self, y_hat: jnp.ndarray, radius: float, sigma: float
+  ):
+    pass
+
+  def _predict_regression(self, y_hat: jnp.ndarray, radius: float):
     candidates = self.transport(radius * self.target, forward=False)  # [C, D]
     candidates = self._rescale(candidates, forward=False)
-    res = y_hat[:, None] - candidates[None]
-    return res.squeeze(0) if x.ndim == 1 else res
+    return y_hat[:, None] - candidates[None]
 
   def get_scores(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """TODO."""
@@ -153,7 +168,8 @@ def sample_target_measure(
   )
 
   if method == "random":
-    sphere = _random_sphere(num_sphere, d=dim, positive=True, rng=rng)
+    sphere = _random_sphere(num_sphere, d=dim, rng=rng)
+    sphere = jnp.abs(sphere)
   elif method == "sobol":
     seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
     out_struct = jax.ShapeDtypeStruct(
@@ -189,15 +205,12 @@ def _sobol_sphere(n: int, d: int, seed: int) -> np.ndarray:
   return points
 
 
-def _random_sphere(
-    n: int, d: int, positive: bool, rng: jax.Array
-) -> jnp.ndarray:
+def _random_sphere(n: int, d: int, rng: jax.Array) -> jnp.ndarray:
   points = jax.random.normal(rng, (n, d))
-  points /= (
+  return points / (
       jnp.linalg.norm(points, keepdims=True, axis=-1) +
       jnp.finfo(points.dtype).tiny
   )
-  return jnp.abs(points) if positive else points
 
 
 def classification_score(y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
