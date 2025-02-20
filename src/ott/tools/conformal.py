@@ -72,8 +72,7 @@ class OTCPOutput:
 
   def get_scores(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """TODO."""
-    y_hat = self.model(self.x_calib)
-    return self._get_scores(y, y_hat)
+    return self._get_scores(y, self.model(x))
 
   @property
   def calib_scores(self) -> jnp.ndarray:
