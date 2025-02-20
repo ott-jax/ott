@@ -45,7 +45,7 @@ class OTCPOutput:
 
   def predict(self, x: jnp.ndarray, alpha: float = 0.1) -> jnp.ndarray:
     """TODO."""
-    y_hat = self.model(jnp.atleast_2d(x))  # [B, D]
+    y_hat = self.model(jnp.atleast_2d(x))
     quantile = jnp.quantile(self.calib_scores, q=1 - alpha)
     if self.is_classifier:
       res = self._predict_classification(y_hat, quantile)
@@ -53,35 +53,37 @@ class OTCPOutput:
       res = self._predict_regression(y_hat, quantile)
     return res.squeeze(0) if x.ndim == 1 else res
 
-  def _predict_classification(self, y_hat: jnp.ndarray, quantile: float):
+  def _predict_classification(
+      self, y_hat: jnp.ndarray, quantile: float
+  ) -> jnp.ndarray:
     ys = jnp.eye(y_hat.shape[-1])  # candidates
     score_fn = jax.vmap(self._get_scores, in_axes=[0, None])
     score_fn = jax.vmap(score_fn, in_axes=[None, 0])
     scores = score_fn(ys, y_hat)
     return scores <= quantile
 
-  def _predict_regression(self, y_hat: jnp.ndarray, quantile: float):
-    candidates = self._transport(
-        quantile * self.target, forward=False
-    )  # [C, D]
+  def _predict_regression(
+      self, y_hat: jnp.ndarray, radius: float
+  ) -> jnp.ndarray:
+    target = self.out.geom.y
+    candidates = self._transport(radius * target, forward=False)
     candidates = self._rescale(candidates, forward=False)
     return y_hat[:, None] + candidates[None]
+
+  def get_scores(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    """TODO."""
+    y_hat = self.model(self.x_calib)
+    return self._get_scores(y, y_hat)
 
   @property
   def calib_scores(self) -> jnp.ndarray:
     """Calibration scores."""
-    y_hat = self.model(self.x_calib)
-    return self._get_scores(self.y_calib, y_hat)
+    return self.get_scores(self.x_calib, self.y_calib)
 
   @property
   def score_function(self) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
     """TODO."""
     return classification_score if self.is_classifier else regression_score
-
-  @property
-  def target(self) -> jnp.ndarray:
-    """TODO."""
-    return self.out.geom.y
 
   def _get_scores(self, y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
     """TODO."""
@@ -115,6 +117,7 @@ def otcp(
     **kwargs: Any
 ) -> Callable[[jnp.ndarray, float], jnp.ndarray]:
   """TODO."""
+  assert y_trn.ndim == 2, y_trn.shape
   dim = y_trn.shape[-1]
   if is_classifier:
     score_fn, sample_method = classification_score, "random"
@@ -122,16 +125,16 @@ def otcp(
     score_fn, sample_method = regression_score, "sobol"
 
   y_hat_trn = model(x_trn)
-  trn_residuals = score_fn(y_trn, y_hat_trn)
+  residuals = score_fn(y_trn, y_hat_trn)
 
-  offset = jnp.mean(trn_residuals, axis=0, keepdims=True)
-  scale = jnp.linalg.norm(trn_residuals - offset, axis=-1).max()
-  trn_residuals = (trn_residuals - offset) / scale
+  offset = jnp.mean(residuals, axis=0, keepdims=True)
+  scale = jnp.linalg.norm(residuals - offset, axis=-1).max()
+  residuals = (residuals - offset) / scale
 
   target, weights = sample_target_measure((num_target, dim),
                                           method=sample_method,
                                           rng=rng)
-  geom = pointcloud.PointCloud(trn_residuals, target, epsilon=epsilon)
+  geom = pointcloud.PointCloud(residuals, target, epsilon=epsilon)
 
   out = linear.solve(geom, b=weights, **kwargs)
   return OTCPOutput(
