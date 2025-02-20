@@ -36,6 +36,7 @@ class OTCPOutput:
   """TODO."""
   model: Callable[[jnp.ndarray],
                   jnp.ndarray] = dataclasses.field(metadata={"static": True})
+  is_classifier: bool
   out: sinkhorn.SinkhornOutput
   x_calib: jnp.ndarray
   y_calib: jnp.ndarray
@@ -44,23 +45,25 @@ class OTCPOutput:
 
   def predict(self, x: jnp.ndarray, alpha: float = 0.1) -> jnp.ndarray:
     """TODO."""
-    target = self.out.geom.y
+    # TODO(michalk8): classif
     y_hat = self.model(jnp.atleast_2d(x))  # [B, D]
     radius = self.radius(alpha)
-    candidates = self.transport(radius * target, forward=False)  # [C, D]
+    candidates = self.transport(radius * self.target, forward=False)  # [C, D]
     candidates = self._rescale(candidates, forward=False)
     res = y_hat[:, None] - candidates[None]
     return res.squeeze(0) if x.ndim == 1 else res
 
   def get_scores(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
     """TODO."""
-    residuals = y - self.model(x)
+    y_hat = self.model(x)
+    residuals = self.score_function(y, y_hat)
     residuals = self._rescale(residuals, forward=True)
     scores = self.transport(residuals, forward=True)
     return jnp.linalg.norm(scores, axis=-1)
 
   def radius(self, alpha: float) -> jnp.ndarray:
     """TODO."""
+    # TODO(michalk8): optional correction?
     q = (1.0 - alpha) * (1 + 1.0 / self.x_calib.shape[0])
     return jnp.quantile(self.calib_scores, q=q)
 
@@ -72,6 +75,16 @@ class OTCPOutput:
   def calib_scores(self) -> jnp.ndarray:
     """Calibration scores."""
     return self.get_scores(self.x_calib, self.y_calib)
+
+  @property
+  def score_function(self) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
+    """TODO."""
+    return classification_score if self.is_classifier else regression_score
+
+  @property
+  def target(self) -> jnp.ndarray:
+    """TODO."""
+    return self.out.geom.y
 
   def _rescale(self, x: jnp.ndarray, *, forward: bool) -> jnp.ndarray:
     if forward:
@@ -86,27 +99,31 @@ def otcp(
     y_trn: jnp.ndarray,
     x_calib: jnp.ndarray,
     y_calib: jnp.ndarray,
+    is_classifier: bool,
     epsilon: Optional[float] = 1e-1,
     num_target: int = 8192,
     rng: Optional[jax.Array] = None,
     **kwargs: Any
 ) -> Callable[[jnp.ndarray, float], jnp.ndarray]:
   """TODO."""
-  trn_residuals = y_trn - model(x_trn)
+  dim = y_trn.shape[-1]
+  score_fn = classification_score if is_classifier else regression_score
+
+  y_hat_trn = model(x_trn)
+  trn_residuals = score_fn(y_trn, y_hat_trn)
+
   offset = jnp.mean(trn_residuals, axis=0, keepdims=True)
   scale = jnp.linalg.norm(trn_residuals - offset, axis=-1).max()
-
   trn_residuals = (trn_residuals - offset) / scale
-  target, weights = sobol_sphere(
-      num_target, dim=trn_residuals.shape[-1], rng=rng
-  )
+
+  target, weights = sobol_sphere(num_target, dim=dim, rng=rng)
   geom = pointcloud.PointCloud(trn_residuals, target, epsilon=epsilon)
 
-  sink_out = linear.solve(geom, b=weights, **kwargs)
-
+  out = linear.solve(geom, b=weights, **kwargs)
   return OTCPOutput(
       model=model,
-      out=sink_out,
+      is_classifier=is_classifier,
+      out=out,
       x_calib=x_calib,
       y_calib=y_calib,
       offset=offset,
@@ -153,3 +170,13 @@ def sobol_sphere(
     weights = weights.at[-1].set(num_0s / num_samples)
 
   return points, weights
+
+
+def classification_score(y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
+  """TODO."""
+  return jnp.abs(y - y_hat)
+
+
+def regression_score(y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
+  """TODO."""
+  return y - y_hat
