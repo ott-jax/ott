@@ -33,7 +33,17 @@ __all__ = ["otcp", "OTCPOutput", "sample_target_measure"]
 @jtu.register_dataclass
 @dataclasses.dataclass
 class OTCPOutput:
-  """TODO."""
+  """Optimal transport conformal prediction output.
+
+  Args:
+    model: Prediction model.
+    is_classifier: Whether ``model`` is a classifier or a regressor.
+    out: Sinkhorn output.
+    x_calib: Calibration features of shape ``[num_calib, dim_x]``.
+    y_calib: Calibration targets of shape ``[num_calib, dim_y]``.
+    offset: Offset used when re-scaling the data.
+    scale: Scale when re-scaling the data.
+  """
   model: Callable[[jnp.ndarray],
                   jnp.ndarray] = dataclasses.field(metadata={"static": True})
   is_classifier: bool = dataclasses.field(metadata={"static": True})
@@ -44,7 +54,16 @@ class OTCPOutput:
   scale: jnp.ndarray = 1.0
 
   def predict(self, x: jnp.ndarray, alpha: float = 0.1) -> jnp.ndarray:
-    """TODO."""
+    """TODO.
+
+    Args:
+      x: Array of shape ``[n, dim_x]``.
+      alpha: Miscoverage level.
+
+    Returns:
+      Array of shape ``[n, num_cls]`` if model is a classifier, or an
+      array of shape ``[n, num_target, dim_y]`` otherwise.
+    """
     y_hat = self.model(jnp.atleast_2d(x))
     quantile = jnp.quantile(self.calib_scores, q=1 - alpha)
     if self.is_classifier:
@@ -80,7 +99,6 @@ class OTCPOutput:
     return self.get_scores(self.x_calib, self.y_calib)
 
   def _get_scores(self, y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
-    """TODO."""
     score_fn = classification_score if self.is_classifier else regression_score
     residuals = score_fn(jnp.atleast_2d(y), jnp.atleast_2d(y_hat))
     residuals = self._rescale(residuals, forward=True)
@@ -89,7 +107,6 @@ class OTCPOutput:
     return scores.squeeze(0) if y.ndim == 1 else scores
 
   def _transport(self, x: jnp.ndarray, *, forward: bool = True) -> jnp.ndarray:
-    """TODO."""
     return self.out.to_dual_potentials().transport(x, forward=forward)
 
   def _rescale(self, x: jnp.ndarray, *, forward: bool) -> jnp.ndarray:

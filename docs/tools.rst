@@ -62,6 +62,16 @@ ProgOT
     progot.get_epsilon_schedule
 
 
+Conformal Prediction
+--------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    conformal.otcp
+    conformal.OTCPOutput
+    conformal.sample_target_measure
+
+
 Soft Sorting Algorithms
 -----------------------
 .. autosummary::
