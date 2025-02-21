@@ -79,14 +79,10 @@ class OTCPOutput:
     """Calibration scores."""
     return self.get_scores(self.x_calib, self.y_calib)
 
-  @property
-  def score_function(self) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
-    """TODO."""
-    return classification_score if self.is_classifier else regression_score
-
   def _get_scores(self, y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
     """TODO."""
-    residuals = self.score_function(jnp.atleast_2d(y), jnp.atleast_2d(y_hat))
+    score_fn = classification_score if self.is_classifier else regression_score
+    residuals = score_fn(jnp.atleast_2d(y), jnp.atleast_2d(y_hat))
     residuals = self._rescale(residuals, forward=True)
     scores = self._transport(residuals, forward=True)
     scores = jnp.linalg.norm(scores, axis=-1)
