@@ -180,21 +180,19 @@ def sample_target_measure(
   if num_0s:
     points = jnp.vstack([points, jnp.zeros([1, dim])])
     weights = weights.at[-1].set(num_0s / num_samples)
-
   return points, weights
 
 
 def _sobol_sphere(n: int, d: int, seed: int) -> np.ndarray:
+  # convert because usually called from the `pure_callback`
   n, d, seed = int(n), int(d), int(seed)
   sampler = qmc.Sobol(d=d, seed=seed, scramble=True)
-
   points = sampler.random_base2(m=math.ceil(math.log2(n)))[:n]
   points = sp.special.ndtri(points)
-  points /= (
+  return points / (
       np.linalg.norm(points, keepdims=True, axis=-1) +
       np.finfo(points.dtype).tiny
   )
-  return points
 
 
 def _random_sphere(n: int, d: int, rng: jax.Array) -> jnp.ndarray:
