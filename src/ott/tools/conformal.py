@@ -36,7 +36,7 @@ class OTCPOutput:
   """Optimal transport conformal prediction output.
 
   Args:
-    model: Prediction model.
+    model: Fitted model.
     is_classifier: Whether ``model`` is a classifier or a regressor.
     out: Sinkhorn output.
     x_calib: Calibration features of shape ``[num_calib, dim_x]``.
@@ -54,7 +54,7 @@ class OTCPOutput:
   scale: jnp.ndarray = 1.0
 
   def predict(self, x: jnp.ndarray, alpha: float = 0.1) -> jnp.ndarray:
-    """TODO.
+    """Conformalize the model's prediction.
 
     Args:
       x: Array of shape ``[n, dim_x]``.
@@ -126,9 +126,25 @@ def otcp(
     epsilon: Optional[float] = 1e-1,
     num_target: int = 8192,
     rng: Optional[jax.Array] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> OTCPOutput:
-  """TODO."""
+  """TODO.
+
+  Args:
+    model: Fitted model.
+    x_trn: TODO.
+    y_trn: TODO.
+    x_calib: TODO.
+    y_calib: TODO.
+    is_classifier: Whether ``model`` is a classifier or a regressor.
+    epsilon: Epsilon regularization
+    num_target: Number of points in the target measure.
+    rng: Random number generator.
+    kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
+
+  Returns:
+    Optimal transport conformal prediction output.
+  """
   assert y_trn.ndim == 2, y_trn.shape
   dim = y_trn.shape[-1]
   if is_classifier:
@@ -165,7 +181,19 @@ def sample_target_measure(
     method: Literal["random", "sobol"],
     rng: Optional[jax.Array] = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """TODO."""
+  """TODO.
+
+  Args:
+    shape: Tuple of ``[num_samples, dim]``.
+    method: Method used to generate the measure:
+
+      - ``'random'`` - TODO.
+      - ``'sobol'`` - TODO.
+    rng: Random number generator.
+
+  Returns:
+    Points of shape ``[num_samples, dim]`` and weights ``[num_samples,]``.
+  """
   rng = utils.default_prng_key(rng)
 
   num_samples, dim = shape
