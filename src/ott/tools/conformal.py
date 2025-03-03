@@ -41,10 +41,10 @@ class OTCPOutput:
   Args:
     model: Fitted model.
     out: Sinkhorn output.
-    nonconformity_fn: Nonconformity score function with a
-      ``(target, prediction) -> score`` signature.
-    x_calib: Calibration features of shape ``[num_calib, dim_x]``.
-    y_calib: Calibration targets of shape ``[num_calib, dim_y]``.
+    nonconformity_fn: Multivariate nonconformity score function with a signature
+      ``(target, prediction) -> score``.
+    x_calib: Calibration features of shape ``[n_calib, dim_x]``.
+    y_calib: Calibration targets of shape ``[n_calib, dim_y]``.
     offset: Offset used when re-scaling the data.
     scale: Scale when re-scaling the data.
   """
@@ -86,8 +86,7 @@ class OTCPOutput:
   def _predict_backward(
       self, y_hat: jnp.ndarray, *, quantile: float
   ) -> jnp.ndarray:
-    target = self.out.geom.y
-    candidates = self._transport(quantile * target, forward=False)
+    candidates = self._transport(quantile * self.target, forward=False)
     candidates = self._rescale(candidates, forward=False)
     return y_hat[:, None] + candidates[None]
 
@@ -130,7 +129,7 @@ class OTCPOutput:
 
   @property
   def calibration_scores(self) -> jnp.ndarray:
-    """Nonconformity calibration scores of shape ``[n,]``."""
+    """Nonconformity calibration scores of shape ``[n_calib,]``."""
     return self.get_scores(self.x_calib, self.y_calib)
 
   @property
@@ -148,7 +147,7 @@ def otcp(
     y_calib: jnp.ndarray,
     nonconformity_fn: ScoreFn = operator.sub,
     epsilon: Optional[float] = 1e-1,
-    num_target: int = 8192,
+    n_target: int = 8192,
     rng: Optional[jax.Array] = None,
     **kwargs: Any,
 ) -> OTCPOutput:
@@ -158,12 +157,15 @@ def otcp(
     model: Fitted model.
     x_trn: Features of shape ``[n, dim_x]`` to fit the transport map.
     y_trn: Targets of shape ``[n, dim_y]`` to fit the transport map.
-    x_calib: Features of shape ``[m, dim_x]`` to compute the calibration scores.
-    y_calib: Targets of shape ``[m, dim_y]`` to compute the calibration scores.
-    nonconformity_fn: Multivariate nonconformity score function with a
-      ``(target, prediction) -> score`` signature.
+    x_calib: Features of shape ``[n_calib, dim_x]`` to compute
+      the calibration scores.
+    y_calib: Targets of shape ``[n_calib, dim_y]`` to compute
+      the calibration scores.
+    nonconformity_fn: Multivariate nonconformity score function with a signature
+      ``(target, prediction) -> score``.
     epsilon: Epsilon regularization
-    num_target: Number of points in the target measure.
+    n_target: Number of points when :func:`sampling <sample_target_measure>`
+      the target measure.
     rng: Random number generator.
     kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
 
@@ -179,7 +181,7 @@ def otcp(
   scale = jnp.linalg.norm(scores - offset, axis=-1).max()
   scores = (scores - offset) / scale
 
-  target, weights = sample_target_measure((num_target, dim), rng=rng)
+  target, weights = sample_target_measure((n_target, dim), rng=rng)
   geom = pointcloud.PointCloud(scores, target, epsilon=epsilon)
   out = linear.solve(geom, b=weights, **kwargs)
 
@@ -201,7 +203,7 @@ def sample_target_measure(
   """Sample target measure for :func:`otcp`.
 
   Args:
-    shape: Tuple of ``[num_samples, dim]``.
+    shape: Tuple of ``[n_samples, dim]``.
     rng: Random number generator.
 
   Returns:
@@ -209,27 +211,23 @@ def sample_target_measure(
   """
   rng = utils.default_prng_key(rng)
 
-  num_samples, dim = shape
-  num_radii = math.ceil(math.sqrt(num_samples))
-  num_sphere, num_0s = divmod(num_samples, num_radii)
+  n_samples, dim = shape
+  n_radii = math.ceil(math.sqrt(n_samples))
+  n_sphere, n_0s = divmod(n_samples, n_radii)
 
-  radii = jnp.linspace(
-      1.0 / (num_radii + 1), num_radii / (num_radii + 1), num_radii
-  )
+  radii = jnp.linspace(1.0 / (n_radii + 1), n_radii / (n_radii + 1), n_radii)
 
   seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
-  out_struct = jax.ShapeDtypeStruct(shape=(num_sphere, dim), dtype=radii.dtype)
-  sphere = jax.pure_callback(_sobol_sphere, out_struct, num_sphere, dim, seed)
+  out_struct = jax.ShapeDtypeStruct(shape=(n_sphere, dim), dtype=radii.dtype)
+  sphere = jax.pure_callback(_sobol_sphere, out_struct, n_sphere, dim, seed)
 
   points = sphere[None] * radii[:, None, None]
   points = points.reshape(-1, dim)
 
-  weights = jnp.full(
-      points.shape[0] + (num_0s > 0), fill_value=1.0 / num_samples
-  )
-  if num_0s:
+  weights = jnp.full(points.shape[0] + (n_0s > 0), fill_value=1.0 / n_samples)
+  if n_0s:
     points = jnp.vstack([points, jnp.zeros([1, dim])])
-    weights = weights.at[-1].set(num_0s / num_samples)
+    weights = weights.at[-1].set(n_0s / n_samples)
   return points, weights
 
 
