@@ -13,7 +13,8 @@
 # limitations under the License.
 import dataclasses
 import math
-from typing import Any, Callable, Literal, Optional, Tuple
+import operator
+from typing import Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -29,6 +30,8 @@ from ott.solvers.linear import sinkhorn
 
 __all__ = ["otcp", "OTCPOutput", "sample_target_measure"]
 
+ConformityScoreFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+
 
 @jtu.register_dataclass
 @dataclasses.dataclass
@@ -37,8 +40,8 @@ class OTCPOutput:
 
   Args:
     model: Fitted model.
-    is_classifier: Whether ``model`` is a classifier or a regressor.
     out: Sinkhorn output.
+    conformity_score_fn: TODO.
     x_calib: Calibration features of shape ``[num_calib, dim_x]``.
     y_calib: Calibration targets of shape ``[num_calib, dim_y]``.
     offset: Offset used when re-scaling the data.
@@ -46,18 +49,26 @@ class OTCPOutput:
   """
   model: Callable[[jnp.ndarray],
                   jnp.ndarray] = dataclasses.field(metadata={"static": True})
-  is_classifier: bool = dataclasses.field(metadata={"static": True})
   out: sinkhorn.SinkhornOutput
+  conformity_score_fn: ConformityScoreFn = dataclasses.field(
+      metadata={"static": True}
+  )
   x_calib: jnp.ndarray
   y_calib: jnp.ndarray
   offset: jnp.ndarray = 0.0
   scale: jnp.ndarray = 1.0
 
-  def predict(self, x: jnp.ndarray, alpha: float = 0.1) -> jnp.ndarray:
+  def predict(
+      self,
+      x: jnp.ndarray,
+      y_candidates: Optional[jnp.ndarray] = None,
+      alpha: float = 0.1
+  ) -> jnp.ndarray:
     """Conformalize the model's prediction.
 
     Args:
       x: Array of shape ``[n, dim_x]``.
+      y_candidates: TODO.
       alpha: Miscoverage level.
 
     Returns:
@@ -66,10 +77,11 @@ class OTCPOutput:
     """
     y_hat = self.model(jnp.atleast_2d(x))
     quantile = jnp.quantile(self.calib_scores, q=1 - alpha)
-    if self.is_classifier:
-      res = self._predict_classification(y_hat, quantile)
-    else:
+    if y_candidates is None:
+      # TODO
       res = self._predict_regression(y_hat, quantile)
+    else:
+      res = self._predict_classification(y_hat, quantile)
     return res.squeeze(0) if x.ndim == 1 else res
 
   def _predict_classification(
@@ -99,8 +111,9 @@ class OTCPOutput:
     return self.get_scores(self.x_calib, self.y_calib)
 
   def _get_scores(self, y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
-    score_fn = classification_score if self.is_classifier else regression_score
-    residuals = score_fn(jnp.atleast_2d(y), jnp.atleast_2d(y_hat))
+    residuals = self.conformity_score_fn(
+        jnp.atleast_2d(y), jnp.atleast_2d(y_hat)
+    )
     residuals = self._rescale(residuals, forward=True)
     scores = self._transport(residuals, forward=True)
     scores = jnp.linalg.norm(scores, axis=-1)
@@ -122,7 +135,7 @@ def otcp(
     y_trn: jnp.ndarray,
     x_calib: jnp.ndarray,
     y_calib: jnp.ndarray,
-    is_classifier: bool,
+    conformity_score_fn: ConformityScoreFn = operator.sub,
     epsilon: Optional[float] = 1e-1,
     num_target: int = 8192,
     rng: Optional[jax.Array] = None,
@@ -136,7 +149,7 @@ def otcp(
     y_trn: TODO.
     x_calib: TODO.
     y_calib: TODO.
-    is_classifier: Whether ``model`` is a classifier or a regressor.
+    conformity_score_fn: TODO.
     epsilon: Epsilon regularization
     num_target: Number of points in the target measure.
     rng: Random number generator.
@@ -147,28 +160,22 @@ def otcp(
   """
   assert y_trn.ndim == 2, y_trn.shape
   dim = y_trn.shape[-1]
-  if is_classifier:
-    score_fn, sample_method = classification_score, "random"
-  else:
-    score_fn, sample_method = regression_score, "sobol"
 
   y_hat_trn = model(x_trn)
-  residuals = score_fn(y_trn, y_hat_trn)
+  residuals = conformity_score_fn(y_trn, y_hat_trn)
 
   offset = jnp.mean(residuals, axis=0, keepdims=True)
   scale = jnp.linalg.norm(residuals - offset, axis=-1).max()
   residuals = (residuals - offset) / scale
 
-  target, weights = sample_target_measure((num_target, dim),
-                                          method=sample_method,
-                                          rng=rng)
+  target, weights = sample_target_measure((num_target, dim), rng=rng)
   geom = pointcloud.PointCloud(residuals, target, epsilon=epsilon)
 
   out = linear.solve(geom, b=weights, **kwargs)
   return OTCPOutput(
       model=model,
-      is_classifier=is_classifier,
       out=out,
+      conformity_score_fn=conformity_score_fn,
       x_calib=x_calib,
       y_calib=y_calib,
       offset=offset,
@@ -178,17 +185,12 @@ def otcp(
 
 def sample_target_measure(
     shape: Tuple[int, int],
-    method: Literal["random", "sobol"],
     rng: Optional[jax.Array] = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """TODO.
 
   Args:
     shape: Tuple of ``[num_samples, dim]``.
-    method: Method used to generate the measure:
-
-      - ``'random'`` - TODO.
-      - ``'sobol'`` - TODO.
     rng: Random number generator.
 
   Returns:
@@ -204,17 +206,9 @@ def sample_target_measure(
       1.0 / (num_radii + 1), num_radii / (num_radii + 1), num_radii
   )
 
-  if method == "random":
-    sphere = _random_sphere(num_sphere, d=dim, rng=rng)
-    sphere = jnp.abs(sphere)
-  elif method == "sobol":
-    seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
-    out_struct = jax.ShapeDtypeStruct(
-        shape=(num_sphere, dim), dtype=radii.dtype
-    )
-    sphere = jax.pure_callback(_sobol_sphere, out_struct, num_sphere, dim, seed)
-  else:
-    raise ValueError(method)
+  seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
+  out_struct = jax.ShapeDtypeStruct(shape=(num_sphere, dim), dtype=radii.dtype)
+  sphere = jax.pure_callback(_sobol_sphere, out_struct, num_sphere, dim, seed)
 
   points = sphere[None] * radii[:, None, None]
   points = points.reshape(-1, dim)
@@ -238,21 +232,3 @@ def _sobol_sphere(n: int, d: int, seed: int) -> np.ndarray:
       np.linalg.norm(points, keepdims=True, axis=-1) +
       np.finfo(points.dtype).tiny
   )
-
-
-def _random_sphere(n: int, d: int, rng: jax.Array) -> jnp.ndarray:
-  points = jax.random.normal(rng, (n, d))
-  return points / (
-      jnp.linalg.norm(points, keepdims=True, axis=-1) +
-      jnp.finfo(points.dtype).tiny
-  )
-
-
-def classification_score(y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
-  """TODO."""
-  return jnp.abs(y - y_hat)
-
-
-def regression_score(y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
-  """TODO."""
-  return y - y_hat
