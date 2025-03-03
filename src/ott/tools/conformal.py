@@ -151,7 +151,7 @@ def otcp(
     rng: Optional[jax.Array] = None,
     **kwargs: Any,
 ) -> OTCPOutput:
-  """Multivariate optimal transport conformal prediction.
+  """Multivariate optimal transport conformal prediction :cite:`klein:25`.
 
   Args:
     model: Fitted model.
