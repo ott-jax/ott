@@ -61,7 +61,6 @@ ProgOT
     progot.get_alpha_schedule
     progot.get_epsilon_schedule
 
-
 Conformal Prediction
 --------------------
 .. autosummary::
@@ -70,7 +69,6 @@ Conformal Prediction
     conformal.otcp
     conformal.OTCPOutput
     conformal.sample_target_measure
-
 
 Soft Sorting Algorithms
 -----------------------
