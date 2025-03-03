@@ -30,7 +30,7 @@ from ott.solvers.linear import sinkhorn
 
 __all__ = ["otcp", "OTCPOutput", "sample_target_measure"]
 
-ConformityScoreFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+ScoreFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
 
 @jtu.register_dataclass
@@ -41,7 +41,8 @@ class OTCPOutput:
   Args:
     model: Fitted model.
     out: Sinkhorn output.
-    conformity_score_fn: TODO.
+    nonconformity_fn: Nonconformity score function with a
+      ``(target, prediction) -> score`` signature.
     x_calib: Calibration features of shape ``[num_calib, dim_x]``.
     y_calib: Calibration targets of shape ``[num_calib, dim_y]``.
     offset: Offset used when re-scaling the data.
@@ -50,9 +51,7 @@ class OTCPOutput:
   model: Callable[[jnp.ndarray],
                   jnp.ndarray] = dataclasses.field(metadata={"static": True})
   out: sinkhorn.SinkhornOutput
-  conformity_score_fn: ConformityScoreFn = dataclasses.field(
-      metadata={"static": True}
-  )
+  nonconformity_fn: ScoreFn = dataclasses.field(metadata={"static": True})
   x_calib: jnp.ndarray
   y_calib: jnp.ndarray
   offset: jnp.ndarray = 0.0
@@ -67,13 +66,13 @@ class OTCPOutput:
     """Conformalize the model's prediction.
 
     Args:
-      x: Array of shape ``[..., dim_x]``.
-      y_candidates: Array of shape ``[m, dim_y]``.
+      x: Features of shape ``[..., dim_x]``.
+      y_candidates: Candidate targets of shape ``[m, dim_y]``.
       alpha: Miscoverage level.
 
     Returns:
-      Array of shape ``[..., num_target, dim_y]`` if ``y_candidates = None``,
-      otherwise a boolean array of shape ``[..., m]``.
+      If ``y_candidates = None``, return an array of shape
+      ``[..., n_target, dim_y]``, else a boolean array of shape ``[..., m]``.
     """
     assert x.ndim in (1, 2), x.shape
     y_hat = self.model(jnp.atleast_2d(x))
@@ -83,6 +82,14 @@ class OTCPOutput:
     else:
       res = self._predict_forward(y_hat, y_candidates, quantile=quantile)
     return res.squeeze(0) if x.ndim == 1 else res
+
+  def _predict_backward(
+      self, y_hat: jnp.ndarray, *, quantile: float
+  ) -> jnp.ndarray:
+    target = self.out.geom.y
+    candidates = self._transport(quantile * target, forward=False)
+    candidates = self._rescale(candidates, forward=False)
+    return y_hat[:, None] + candidates[None]
 
   def _predict_forward(
       self, y_hat: jnp.ndarray, y_candidates: jnp.ndarray, *, quantile: float
@@ -94,29 +101,22 @@ class OTCPOutput:
     scores = score_fn(y_candidates, y_hat)
     return scores <= quantile
 
-  def _predict_backward(
-      self, y_hat: jnp.ndarray, *, quantile: float
-  ) -> jnp.ndarray:
-    target = self.out.geom.y
-    candidates = self._transport(quantile * target, forward=False)
-    candidates = self._rescale(candidates, forward=False)
-    return y_hat[:, None] + candidates[None]
-
   def get_scores(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
-    """TODO."""
+    """Compute nonconformity scores.
+
+    Args:
+      x: Features of shape ``[n, dim_x]``.
+      y: Targets of shape ``[n, dim_y]``.
+
+    Returns:
+      Nonconformity scores of shape ``[n,]``.
+    """
     return self._get_scores(y, self.model(x))
 
-  @property
-  def calib_scores(self) -> jnp.ndarray:
-    """Calibration scores."""
-    return self.get_scores(self.x_calib, self.y_calib)
-
   def _get_scores(self, y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
-    residuals = self.conformity_score_fn(
-        jnp.atleast_2d(y), jnp.atleast_2d(y_hat)
-    )
-    residuals = self._rescale(residuals, forward=True)
-    scores = self._transport(residuals, forward=True)
+    scores = self.nonconformity_fn(jnp.atleast_2d(y), jnp.atleast_2d(y_hat))
+    scores = self._rescale(scores, forward=True)
+    scores = self._transport(scores, forward=True)
     scores = jnp.linalg.norm(scores, axis=-1)
     return scores.squeeze(0) if y.ndim == 1 else scores
 
@@ -128,6 +128,16 @@ class OTCPOutput:
       return (x - self.offset) / self.scale
     return (self.scale * x) + self.offset
 
+  @property
+  def calibration_scores(self) -> jnp.ndarray:
+    """Nonconformity calibration scores of shape ``[n,]``."""
+    return self.get_scores(self.x_calib, self.y_calib)
+
+  @property
+  def target_measure(self) -> jnp.ndarray:
+    """Target measure of shape ``[n_target, dim_y]``."""
+    return self.out.geom.y
+
 
 def otcp(
     model: Callable[[jnp.ndarray], jnp.ndarray],
@@ -136,21 +146,22 @@ def otcp(
     y_trn: jnp.ndarray,
     x_calib: jnp.ndarray,
     y_calib: jnp.ndarray,
-    conformity_score_fn: ConformityScoreFn = operator.sub,
+    nonconformity_fn: ScoreFn = operator.sub,
     epsilon: Optional[float] = 1e-1,
     num_target: int = 8192,
     rng: Optional[jax.Array] = None,
     **kwargs: Any,
 ) -> OTCPOutput:
-  """TODO.
+  """Multivariate optimal transport conformal prediction.
 
   Args:
     model: Fitted model.
-    x_trn: TODO.
-    y_trn: TODO.
-    x_calib: TODO.
-    y_calib: TODO.
-    conformity_score_fn: TODO.
+    x_trn: Features of shape ``[n, dim_x]`` to fit the transport map.
+    y_trn: Targets of shape ``[n, dim_y]`` to fit the transport map.
+    x_calib: Features of shape ``[m, dim_x]`` to compute the calibration scores.
+    y_calib: Targets of shape ``[m, dim_y]`` to compute the calibration scores.
+    nonconformity_fn: Multivariate nonconformity score function with a
+      ``(target, prediction) -> score`` signature.
     epsilon: Epsilon regularization
     num_target: Number of points in the target measure.
     rng: Random number generator.
@@ -163,20 +174,19 @@ def otcp(
   dim = y_trn.shape[-1]
 
   y_hat_trn = model(x_trn)
-  residuals = conformity_score_fn(y_trn, y_hat_trn)
-
-  offset = jnp.mean(residuals, axis=0, keepdims=True)
-  scale = jnp.linalg.norm(residuals - offset, axis=-1).max()
-  residuals = (residuals - offset) / scale
+  scores = nonconformity_fn(y_trn, y_hat_trn)
+  offset = jnp.mean(scores, axis=0, keepdims=True)
+  scale = jnp.linalg.norm(scores - offset, axis=-1).max()
+  scores = (scores - offset) / scale
 
   target, weights = sample_target_measure((num_target, dim), rng=rng)
-  geom = pointcloud.PointCloud(residuals, target, epsilon=epsilon)
-
+  geom = pointcloud.PointCloud(scores, target, epsilon=epsilon)
   out = linear.solve(geom, b=weights, **kwargs)
+
   return OTCPOutput(
       model=model,
       out=out,
-      conformity_score_fn=conformity_score_fn,
+      nonconformity_fn=nonconformity_fn,
       x_calib=x_calib,
       y_calib=y_calib,
       offset=offset,
@@ -188,19 +198,19 @@ def sample_target_measure(
     shape: Tuple[int, int],
     rng: Optional[jax.Array] = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """TODO.
+  """Sample target measure for :func:`otcp`.
 
   Args:
     shape: Tuple of ``[num_samples, dim]``.
     rng: Random number generator.
 
   Returns:
-    Points of shape ``[num_samples, dim]`` and weights ``[num_samples,]``.
+    Points of shape ``[n_S * n_R, dim]`` and weights ``[n_S * n_R,]``.
   """
   rng = utils.default_prng_key(rng)
 
   num_samples, dim = shape
-  num_radii = int(math.sqrt(num_samples))
+  num_radii = math.ceil(math.sqrt(num_samples))
   num_sphere, num_0s = divmod(num_samples, num_radii)
 
   radii = jnp.linspace(
