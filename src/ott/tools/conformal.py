@@ -67,37 +67,38 @@ class OTCPOutput:
     """Conformalize the model's prediction.
 
     Args:
-      x: Array of shape ``[n, dim_x]``.
-      y_candidates: TODO.
+      x: Array of shape ``[..., dim_x]``.
+      y_candidates: Array of shape ``[m, dim_y]``.
       alpha: Miscoverage level.
 
     Returns:
-      Array of shape ``[n, num_cls]`` if model is a classifier, or an
-      array of shape ``[n, num_target, dim_y]`` otherwise.
+      Array of shape ``[..., num_target, dim_y]`` if ``y_candidates = None``,
+      otherwise a boolean array of shape ``[..., m]``.
     """
+    assert x.ndim in (1, 2), x.shape
     y_hat = self.model(jnp.atleast_2d(x))
     quantile = jnp.quantile(self.calib_scores, q=1 - alpha)
     if y_candidates is None:
-      # TODO
-      res = self._predict_regression(y_hat, quantile)
+      res = self._predict_backward(y_hat, quantile=quantile)
     else:
-      res = self._predict_classification(y_hat, quantile)
+      res = self._predict_forward(y_hat, y_candidates, quantile=quantile)
     return res.squeeze(0) if x.ndim == 1 else res
 
-  def _predict_classification(
-      self, y_hat: jnp.ndarray, quantile: float
+  def _predict_forward(
+      self, y_hat: jnp.ndarray, y_candidates: jnp.ndarray, *, quantile: float
   ) -> jnp.ndarray:
-    ys = jnp.eye(y_hat.shape[-1])  # candidates
-    score_fn = jax.vmap(self._get_scores, in_axes=[0, None])
-    score_fn = jax.vmap(score_fn, in_axes=[None, 0])
-    scores = score_fn(ys, y_hat)
+    assert y_candidates.ndim == 2, y_candidates.shape
+    score_fn = jax.vmap(
+        jax.vmap(self._get_scores, in_axes=[0, None]), in_axes=[None, 0]
+    )
+    scores = score_fn(y_candidates, y_hat)
     return scores <= quantile
 
-  def _predict_regression(
-      self, y_hat: jnp.ndarray, radius: float
+  def _predict_backward(
+      self, y_hat: jnp.ndarray, *, quantile: float
   ) -> jnp.ndarray:
     target = self.out.geom.y
-    candidates = self._transport(radius * target, forward=False)
+    candidates = self._transport(quantile * target, forward=False)
     candidates = self._rescale(candidates, forward=False)
     return y_hat[:, None] + candidates[None]
 
