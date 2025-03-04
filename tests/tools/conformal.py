@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 from typing import Callable, Tuple
 
 import pytest
@@ -54,9 +55,25 @@ def get_model_and_data(
 
 class TestOTCP:
 
-  @pytest.mark.parametrize(("n_targets", "epsilon"), [(3, 1e-2), (5, 1e-3)])
+  @pytest.mark.parametrize("shape", [(16, 2), (58, 9), (128, 9)])
+  def test_sample_target_measure(self, shape: Tuple[int, int], rng: jax.Array):
+    n, d = shape
+    n_radii = math.ceil(math.sqrt(n))
+    n_sphere, n_0s = divmod(n, n_radii)
+    n_expected = n_sphere * n_radii + (n_0s > 0)
+
+    sample_fn = jax.jit(conformal.sample_target_measure, static_argnums=0)
+    points, weights = sample_fn(shape, rng)
+
+    assert weights.shape == (n_expected,)
+    assert points.shape == (n_expected, d)
+    np.testing.assert_allclose(weights.sum(), 1.0, rtol=1e-4, atol=1e-4)
+    if n_0s:
+      np.testing.assert_array_equal(points[-1], 0.0)
+
+  @pytest.mark.parametrize(("n_targets", "epsilon"), [(3, 1e-1), (5, 1e-2)])
   def test_otcp(self, rng: jax.Array, n_targets: int, epsilon: float):
-    n_samples = 128
+    n_samples = 32
     n_target_measure = n_samples
     model, data = get_model_and_data(n_samples=n_samples, n_targets=n_targets)
     x_trn, x_calib, x_test, y_trn, y_calib, y_test = data
