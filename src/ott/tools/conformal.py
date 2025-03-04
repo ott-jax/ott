@@ -192,9 +192,7 @@ class OTCP:
   @property
   def target_measure(self) -> Optional[jnp.ndarray]:
     """Target measure of shape ``[n_target, dim_y]``."""
-    if self.out is None:
-      return None
-    return self.out.geom.y
+    return None if self.out is None else self.out.geom.y
 
 
 def sample_target_measure(
