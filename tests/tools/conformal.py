@@ -54,9 +54,10 @@ def get_model_and_data(
 
 class TestOTCP:
 
-  @pytest.mark.parametrize("n_targets", [3, 5])
-  def test_otcp(self, rng: jax.Array, n_targets: int):
+  @pytest.mark.parametrize(("n_targets", "epsilon"), [(3, 1e-2), (5, 1e-3)])
+  def test_otcp(self, rng: jax.Array, n_targets: int, epsilon: float):
     n_samples = 128
+    n_target_measure = n_samples
     model, data = get_model_and_data(n_samples=n_samples, n_targets=n_targets)
     x_trn, x_calib, x_test, y_trn, y_calib, y_test = data
 
@@ -67,7 +68,8 @@ class TestOTCP:
         y_trn=y_trn,
         x_calib=x_calib,
         y_calib=y_calib,
-        n_target=n_samples,
+        epsilon=epsilon,
+        n_target=n_target_measure,
         rng=rng,
     )
     predict_fn = jax.jit(otcp_output.predict)
