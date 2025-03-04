@@ -222,7 +222,7 @@ def sample_target_measure(
   n_radii = math.ceil(math.sqrt(n_samples))
   n_sphere, n_0s = divmod(n_samples, n_radii)
 
-  radii = jnp.linspace(1.0 / (n_radii + 1), n_radii / (n_radii + 1), n_radii)
+  radii = jnp.linspace(1.0 / n_radii, 1.0, n_radii)
 
   seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
   out_struct = jax.ShapeDtypeStruct(shape=(n_sphere, dim), dtype=radii.dtype)
