@@ -61,7 +61,7 @@ class OTCPOutput:
       self,
       x: jnp.ndarray,
       y_candidates: Optional[jnp.ndarray] = None,
-      alpha: float = 0.1
+      alpha: float = 0.1,
   ) -> jnp.ndarray:
     """Conformalize the model's prediction.
 
@@ -76,7 +76,7 @@ class OTCPOutput:
     """
     assert x.ndim in (1, 2), x.shape
     y_hat = self.model(jnp.atleast_2d(x))
-    quantile = jnp.quantile(self.calib_scores, q=1 - alpha)
+    quantile = jnp.quantile(self.calibration_scores, q=1 - alpha)
     if y_candidates is None:
       res = self._predict_backward(y_hat, quantile=quantile)
     else:
@@ -84,14 +84,21 @@ class OTCPOutput:
     return res.squeeze(0) if x.ndim == 1 else res
 
   def _predict_backward(
-      self, y_hat: jnp.ndarray, *, quantile: float
+      self,
+      y_hat: jnp.ndarray,
+      *,
+      quantile: float,
   ) -> jnp.ndarray:
-    candidates = self._transport(quantile * self.target, forward=False)
+    candidates = self._transport(quantile * self.target_measure, forward=False)
     candidates = self._rescale(candidates, forward=False)
     return y_hat[:, None] + candidates[None]
 
   def _predict_forward(
-      self, y_hat: jnp.ndarray, y_candidates: jnp.ndarray, *, quantile: float
+      self,
+      y_hat: jnp.ndarray,
+      y_candidates: jnp.ndarray,
+      *,
+      quantile: float,
   ) -> jnp.ndarray:
     assert y_candidates.ndim == 2, y_candidates.shape
     score_fn = jax.vmap(
