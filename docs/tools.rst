@@ -66,8 +66,7 @@ Conformal Prediction
 .. autosummary::
     :toctree: _autosummary
 
-    conformal.otcp
-    conformal.OTCPOutput
+    conformal.OTCP
     conformal.sample_target_measure
 
 Soft Sorting Algorithms

@@ -27,13 +27,13 @@ from ott.tools import conformal
 def get_model_and_data(
     *,
     n_samples: int,
-    n_targets: int,
+    target_dim: int,
     random_state: int = 0,
 ) -> Tuple[Callable[[jnp.ndarray], jnp.ndarray], Tuple[jnp.ndarray, ...]]:
   x, y = datasets.make_regression(
       n_samples=n_samples,
       n_features=5,
-      n_targets=n_targets,
+      n_targets=target_dim,
       random_state=random_state
   )
   x_trn, x_calib, y_trn, y_calib = model_selection.train_test_split(
@@ -71,38 +71,30 @@ class TestOTCP:
     if n_0s:
       np.testing.assert_array_equal(points[-1], 0.0)
 
-  @pytest.mark.parametrize(("n_targets", "epsilon"), [(3, 1e-1), (5, 1e-2)])
-  def test_otcp(self, rng: jax.Array, n_targets: int, epsilon: float):
+  @pytest.mark.parametrize(("target_dim", "epsilon"), [(3, 1e-1), (5, 1e-2)])
+  def test_otcp(self, rng: jax.Array, target_dim: int, epsilon: float):
     n_samples = 32
     n_target_measure = n_samples
-    model, data = get_model_and_data(n_samples=n_samples, n_targets=n_targets)
+    model, data = get_model_and_data(n_samples=n_samples, target_dim=target_dim)
     x_trn, x_calib, x_test, y_trn, y_calib, y_test = data
 
-    otcp_fn = jax.jit(conformal.otcp, static_argnames=["model", "n_target"])
-    otcp_output: conformal.OTCPOutput = otcp_fn(
-        model,
-        x_trn=x_trn,
-        y_trn=y_trn,
-        x_calib=x_calib,
-        y_calib=y_calib,
-        epsilon=epsilon,
-        n_target=n_target_measure,
-        rng=rng,
-    )
-    predict_fn = jax.jit(otcp_output.predict)
+    otcp = conformal.OTCP(model)
+    otcp = jax.jit(
+        otcp.fit_transport, static_argnames=["n_target"]
+    )(x_trn, y_trn, epsilon=epsilon, n_target=n_target_measure, rng=rng)
+    otcp = jax.jit(otcp.calibrate)(x_calib, y_calib)
+    predict_fn = jax.jit(otcp.predict)
 
-    calib_scores = otcp_output.calibration_scores
+    calib_scores = otcp.calibration_scores
     np.testing.assert_array_equal(
-        otcp_output.get_scores(x_calib, y_calib), calib_scores
+        jax.jit(otcp.get_scores)(x_calib, y_calib), calib_scores
     )
 
     # predict backward
     preds = predict_fn(x_test[0])
-    assert preds.shape == (len(otcp_output.target_measure), n_targets)
+    assert preds.shape == (len(otcp.target_measure), target_dim)
     preds = predict_fn(x_test)  # vectorized
-    assert preds.shape == (
-        len(x_test), len(otcp_output.target_measure), n_targets
-    )
+    assert preds.shape == (len(x_test), len(otcp.target_measure), target_dim)
 
     # predict forward
     preds = predict_fn(x_test[0], y_candidates=y_test)
