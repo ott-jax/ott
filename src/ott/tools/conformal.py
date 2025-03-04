@@ -199,7 +199,7 @@ def sample_target_measure(
     shape: Tuple[int, int],
     rng: Optional[jax.Array] = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """Sample target measure for :func:`otcp`.
+  """Sample target measure for :class:`OTCP`.
 
   Args:
     shape: Tuple of ``[n_samples, dim]``.
