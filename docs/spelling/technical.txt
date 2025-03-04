@@ -3,6 +3,7 @@ Brenier
 Bures
 Chebyshev
 Cholesky
+Conformalize
 DTW
 Danskin
 Datasets

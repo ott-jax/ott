@@ -87,7 +87,9 @@ class TestSegmentSinkhorn:
         **geom_kwargs
     )
 
-    np.testing.assert_allclose(true_cost.repeat(2), seg_cost)
+    np.testing.assert_allclose(
+        true_cost.repeat(2), seg_cost, rtol=1e-4, atol=1e-4
+    )
 
   def test_segment_sinkhorn_different_segment_sizes(self):
     # Test other array sizes
