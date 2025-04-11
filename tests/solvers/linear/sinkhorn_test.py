@@ -20,8 +20,10 @@ from typing import Optional, Tuple
 import pytest
 
 import jax
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import numpy as np
+import scipy as sp
 
 from ott import utils
 from ott.geometry import costs, epsilon_scheduler, geometry, grid, pointcloud
@@ -49,6 +51,30 @@ class TestSinkhorn:
     b = b.at[3].set(0)
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
+
+  def test_SqEucl_matches_hungarian(self):
+    """Test that Sinkhorn matches Hungarian for low regularization."""
+    x = self.x
+    y = jax.random.uniform(self.rng, x.shape)
+    epsilon = .01
+    geom = pointcloud.PointCloud(
+        self.x, y, cost_fn=costs.SqEuclidean(), epsilon=epsilon
+    )
+    geom2 = pointcloud.PointCloud(
+        self.x, y, cost_fn=costs.Dotp(), epsilon=epsilon
+    )
+    cost_matrix = geom.cost_matrix
+    row_ixs, col_ixs = sp.optimize.linear_sum_assignment(cost_matrix)
+    paired_ids = jnp.stack((row_ixs, col_ixs)).swapaxes(0, 1)
+    unit_mass = jnp.ones((self.n,)) / self.n
+    out_h = jesp.BCOO((unit_mass, paired_ids),
+                      shape=(self.n, self.n)).todense().ravel()
+
+    out1_m = linear.solve(geom).matrix.ravel()
+    out2_m = linear.solve(geom2).matrix.ravel()
+    cos_cost = costs.Cosine()
+    np.testing.assert_array_less(cos_cost(out1_m, out2_m), 0.02)
+    np.testing.assert_array_less(cos_cost(out1_m, out_h), 0.2)
 
   @pytest.mark.fast.with_args(tau_a=[1.0, 0.93], tau_b=[1.0, 0.91], only_fast=0)
   def test_lse_matches(self, tau_a, tau_b):

@@ -141,8 +141,10 @@ linkcheck_ignore = [
     "https://doi.org/10.1145/2516971.2516977",
     "https://doi.org/10.1145/2766963",
     "https://keras.io/examples/nlp/pretrained_word_embeddings/",
-    "https://proceedings.neurips.cc/",
     "https://www.gnu.org/software/gsl/doc/html/statistics.html#weighted-samples",
+    "https://doi.org/10.3390/a13090212",
+    "https://doi.org/10.3390/a14050143",
+    "https://www.mdpi.com/1999-4893/13/9/212",
 ]
 linkcheck_report_timeouts_as_broken = False
 

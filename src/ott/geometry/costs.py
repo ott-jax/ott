@@ -375,6 +375,23 @@ class EuclideanP(TICost):
 
 
 @jtu.register_pytree_node_class
+class Dotp(CostFn):
+  r"""Negative Dot-product cost.
+
+  Should yield similar results to :class:`~ott.geometry.costs.SqEuclidean`.
+
+  .. math::
+    c(x,y) = - \langle x, y\rangle
+  """
+
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    return -jnp.vdot(x, y)
+
+  def twist_operator(self, vec, dual_vec, variable) -> jnp.ndarray:
+    return -vec if variable else -dual_vec
+
+
+@jtu.register_pytree_node_class
 class RegTICost(TICost):
   r"""Regularized translation-invariant cost.
 
