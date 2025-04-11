@@ -55,7 +55,7 @@ class TestSinkhorn:
   def test_SqEucl_matches_hungarian(self):
     """Test that Sinkhorn matches Hungarian for low regularization."""
     x = self.x
-    y = jax.random.uniform(jax.random.split(self.rng, 10)[-1], x.shape)
+    y = jax.random.uniform(self.rng, x.shape)
     epsilon = .01
     geom = pointcloud.PointCloud(
         self.x, y, cost_fn=costs.SqEuclidean(), epsilon=epsilon
