@@ -53,7 +53,7 @@ class OTCP:
   nonconformity_fn: ScoreFn = dataclasses.field(
       default=operator.sub, metadata={"static": True}
   )
-  out: Optional[sinkhorn.SinkhornOutput] = None
+  sinkhorn_output: Optional[sinkhorn.SinkhornOutput] = None
   offset: jnp.ndarray = 0.0
   scale: jnp.ndarray = 1.0
   calibration_scores: Optional[jnp.ndarray] = None
@@ -181,8 +181,10 @@ class OTCP:
     return scores.squeeze(0) if y.ndim == 1 else scores
 
   def _transport(self, x: jnp.ndarray, *, forward: bool = True) -> jnp.ndarray:
-    assert self.out is not None, "Run `.fit_transport()` first."
-    return self.out.to_dual_potentials().transport(x, forward=forward)
+    assert self.sinkhorn_output is not None, "Run `.fit_transport()` first."
+    return self.sinkhorn_output.to_dual_potentials().transport(
+        x, forward=forward
+    )
 
   def _rescale(self, x: jnp.ndarray, *, forward: bool) -> jnp.ndarray:
     if forward:
@@ -192,7 +194,7 @@ class OTCP:
   @property
   def target_measure(self) -> Optional[jnp.ndarray]:
     """Target measure of shape ``[n_target, dim_y]``."""
-    return None if self.out is None else self.out.geom.y
+    return None if self.sinkhorn_output is None else self.sinkhorn_output.geom.y
 
 
 def sample_target_measure(
