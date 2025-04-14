@@ -42,7 +42,7 @@ class OTCP:
     model: Fitted model.
     nonconformity_fn: Multivariate nonconformity score function with a signature
       ``(target, prediction) -> score``.
-    out: Sinkhorn output computed in :meth:`fit_transport`.
+    sinkhorn_out: Sinkhorn output computed in :meth:`fit_transport`.
     offset: Offset used when re-scaling the data.
     scale: Scale when re-scaling the data.
     calibration_scores: Nonconformity calibration scores computed in
@@ -64,6 +64,7 @@ class OTCP:
       y: jnp.ndarray,
       epsilon: float = 1e-1,
       n_target: int = 8192,
+      n_per_radius: Optional[int] = None,
       rng: Optional[jax.Array] = None,
       **kwargs: Any,
   ) -> "OTCP":
@@ -73,13 +74,14 @@ class OTCP:
       x: Features of shape ``[n, dim_x]`` to fit the transport map.
       y: Targets of shape ``[n, dim_y]`` to fit the transport map.
       epsilon: Epsilon regularization
-      n_target: Number of points when :func:`sampling <sample_target_measure>`
-        the target measure.
+      n_target: Total number of points used when
+        :func:`sampling <sample_target_measure>` the target measure.
+      n_per_radius: Number of points selected in a given radius.
       rng: Random number generator.
       kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
 
     Returns:
-      Self and updates :attr:`out`, :attr:`offset` and :attr:`scale`.
+      Self and updates :attr:`sinkhorn_output`, :attr:`offset`, :attr:`scale`.
     """
     assert y.ndim == 2, y.shape
     dim = y.shape[-1]
@@ -90,11 +92,15 @@ class OTCP:
     scale = jnp.linalg.norm(scores - offset, axis=-1).max()
     scores = (scores - offset) / scale
 
-    target, weights = sample_target_measure((n_target, dim), rng=rng)
+    target, weights = sample_target_measure(
+        shape=(n_target, dim), n_per_radius=n_per_radius, rng=rng
+    )
     geom = pointcloud.PointCloud(scores, target, epsilon=epsilon)
     out = linear.solve(geom, b=weights, **kwargs)
 
-    return dataclasses.replace(self, out=out, offset=offset, scale=scale)
+    return dataclasses.replace(
+        self, sinkhorn_output=out, offset=offset, scale=scale
+    )
 
   def calibrate(self, x: jnp.ndarray, y: jnp.ndarray) -> "OTCP":
     """Compute calibration scores.
@@ -199,12 +205,14 @@ class OTCP:
 
 def sample_target_measure(
     shape: Tuple[int, int],
+    n_per_radius: Optional[int] = None,
     rng: Optional[jax.Array] = None,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Sample target measure for :class:`OTCP`.
 
   Args:
     shape: Tuple of ``[n_samples, dim]``.
+    n_per_radius: Optionally specify how many samples by radius
     rng: Random number generator.
 
   Returns:
@@ -213,16 +221,20 @@ def sample_target_measure(
   rng = utils.default_prng_key(rng)
 
   n_samples, dim = shape
-  n_radii = math.ceil(math.sqrt(n_samples))
-  n_sphere, n_0s = divmod(n_samples, n_radii)
+  n_per_radius = math.ceil(
+      math.sqrt(n_samples)
+  ) if n_per_radius is None else n_per_radius
+  n_sphere, n_0s = divmod(n_samples, n_per_radius)
 
-  radii = jnp.linspace(1.0 / n_radii, 1.0, n_radii)
+  radius_grid = jnp.linspace(1.0 / n_per_radius, 1.0, n_per_radius)
 
   seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
-  out_struct = jax.ShapeDtypeStruct(shape=(n_sphere, dim), dtype=radii.dtype)
+  out_struct = jax.ShapeDtypeStruct(
+      shape=(n_sphere, dim), dtype=radius_grid.dtype
+  )
   sphere = jax.pure_callback(_sobol_sphere, out_struct, n_sphere, dim, seed)
 
-  points = sphere[None] * radii[:, None, None]
+  points = sphere[None] * radius_grid[:, None, None]
   points = points.reshape(-1, dim)
 
   weights = jnp.full(points.shape[0] + (n_0s > 0), fill_value=1.0 / n_samples)

@@ -58,12 +58,12 @@ class TestOTCP:
   @pytest.mark.parametrize("shape", [(16, 2), (58, 9), (128, 9)])
   def test_sample_target_measure(self, shape: Tuple[int, int], rng: jax.Array):
     n, d = shape
-    n_radii = math.ceil(math.sqrt(n))
-    n_sphere, n_0s = divmod(n, n_radii)
-    n_expected = n_sphere * n_radii + (n_0s > 0)
+    n_per_radius = math.ceil(math.sqrt(n))
+    n_sphere, n_0s = divmod(n, n_per_radius)
+    n_expected = n_sphere * n_per_radius + (n_0s > 0)
 
     sample_fn = jax.jit(conformal.sample_target_measure, static_argnums=0)
-    points, weights = sample_fn(shape, rng)
+    points, weights = sample_fn(shape, n_per_radius=None, rng=rng)
 
     assert weights.shape == (n_expected,)
     assert points.shape == (n_expected, d)
