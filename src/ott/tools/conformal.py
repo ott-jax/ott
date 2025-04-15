@@ -24,7 +24,7 @@ import scipy as sp
 from scipy.stats import qmc
 
 from ott import utils
-from ott.geometry import pointcloud
+from ott.geometry import costs, pointcloud
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
 
@@ -95,7 +95,9 @@ class OTCP:
     target, weights = sample_target_measure(
         shape=(n_target, dim), n_per_radius=n_per_radius, rng=rng
     )
-    geom = pointcloud.PointCloud(scores, target, epsilon=epsilon)
+    geom = pointcloud.PointCloud(
+        scores, target, epsilon=epsilon, cost_fn=costs.Dotp()
+    )
     out = linear.solve(geom, b=weights, **kwargs)
 
     return dataclasses.replace(
