@@ -132,8 +132,7 @@ class OTCP:
       x: Features of shape ``[n, dim_x]`` to fit the transport map.
       y: Targets of shape ``[n, dim_y]`` to fit the transport map.
       epsilon: Epsilon regularization
-      n_target: Total number of points used when
-        :func:`sampling <sample_target_measure>` the target measure.
+      n_target: Total number of points used to create the target measure.
       n_per_radius: Number of points selected in a given radius.
       rng: Random number generator.
       sampler_kwargs: keyword arguments passed for sampler.

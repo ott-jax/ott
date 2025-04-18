@@ -56,7 +56,7 @@ def get_model_and_data(
 class TestOTCP:
 
   @pytest.mark.parametrize("shape", [(16, 2), (58, 9), (128, 9)])
-  def test_sample_target_measure(self, shape: Tuple[int, int], rng: jax.Array):
+  def test_sobol_ball_sampler(self, shape: Tuple[int, int], rng: jax.Array):
     n, d = shape
     n_per_radius = math.ceil(math.sqrt(n))
     n_sphere, n_0s = divmod(n, n_per_radius)
