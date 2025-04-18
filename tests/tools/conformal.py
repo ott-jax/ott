@@ -62,8 +62,8 @@ class TestOTCP:
     n_sphere, n_0s = divmod(n, n_per_radius)
     n_expected = n_sphere * n_per_radius + (n_0s > 0)
 
-    sample_fn = jax.jit(conformal.sample_target_measure, static_argnums=0)
-    points, weights = sample_fn(shape, n_per_radius=None, rng=rng)
+    sample_fn = jax.jit(conformal.sobol_ball_sampler, static_argnames="shape")
+    points, weights = sample_fn(rng, shape, n_per_radius=None)
 
     assert weights.shape == (n_expected,)
     assert points.shape == (n_expected, d)
@@ -71,14 +71,20 @@ class TestOTCP:
     if n_0s:
       np.testing.assert_array_equal(points[-1], 0.0)
 
-  @pytest.mark.parametrize(("target_dim", "epsilon"), [(3, 1e-1), (5, 1e-2)])
-  def test_otcp(self, rng: jax.Array, target_dim: int, epsilon: float):
+  @pytest.mark.parametrize(("target_dim", "epsilon", "sampler_fn"),
+                           [(3, 1e-1, True), (5, 1e-2, False)])
+  def test_otcp(
+      self, rng: jax.Array, target_dim: int, epsilon: float, sampler_fn: bool
+  ):
+    sampler = jax.tree_util.Partial(
+        conformal.sobol_ball_sampler, n_per_radius=10
+    ) if sampler_fn else None
     n_samples = 32
     n_target_measure = n_samples
     model, data = get_model_and_data(n_samples=n_samples, target_dim=target_dim)
     x_trn, x_calib, x_test, y_trn, y_calib, y_test = data
 
-    otcp = conformal.OTCP(model)
+    otcp = conformal.OTCP(model, sampler=sampler)
     otcp = jax.jit(
         otcp.fit_transport, static_argnames=["n_target"]
     )(x_trn, y_trn, epsilon=epsilon, n_target=n_target_measure, rng=rng)
