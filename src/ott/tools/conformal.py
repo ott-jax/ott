@@ -28,9 +28,62 @@ from ott.geometry import costs, pointcloud
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
 
-__all__ = ["OTCP", "sample_target_measure"]
+__all__ = ["OTCP", "sobol_ball_sampler"]
 
 ScoreFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+
+
+def sobol_ball_sampler(
+    rng: Optional[jax.Array],
+    shape: Tuple[int, int],
+    n_per_radius: Optional[int] = None,
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  """Sample target measure for :class:`OTCP`.
+
+  Args:
+    rng: Random number generator.
+    shape: Tuple of ``[n_samples, dim]``.
+    n_per_radius: Optionally specify how many samples by radius
+
+  Returns:
+    Points of shape ``[n_S * n_R, dim]`` and weights ``[n_S * n_R,]``.
+  """
+  rng = utils.default_prng_key(rng)
+
+  n_samples, dim = shape
+  n_per_radius = math.ceil(
+      math.sqrt(n_samples)
+  ) if n_per_radius is None else n_per_radius
+  n_sphere, n_0s = divmod(n_samples, n_per_radius)
+
+  radius_grid = jnp.linspace(1.0 / n_per_radius, 1.0, n_per_radius)
+
+  seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
+  out_struct = jax.ShapeDtypeStruct(
+      shape=(n_sphere, dim), dtype=radius_grid.dtype
+  )
+  sphere = jax.pure_callback(_sobol_sphere, out_struct, n_sphere, dim, seed)
+
+  points = sphere[None] * radius_grid[:, None, None]
+  points = points.reshape(-1, dim)
+
+  weights = jnp.full(points.shape[0] + (n_0s > 0), fill_value=1.0 / n_samples)
+  if n_0s:
+    points = jnp.vstack([points, jnp.zeros([1, dim])])
+    weights = weights.at[-1].set(n_0s / n_samples)
+  return points, weights
+
+
+def _sobol_sphere(n: int, d: int, seed: int) -> np.ndarray:
+  # convert because usually called from the `pure_callback`
+  n, d, seed = int(n), int(d), int(seed)
+  sampler = qmc.Sobol(d=d, seed=seed, scramble=True)
+  points = sampler.random_base2(m=math.ceil(math.log2(n)))[:n]
+  points = sp.special.ndtri(points)
+  return points / (
+      np.linalg.norm(points, keepdims=True, axis=-1) +
+      np.finfo(points.dtype).tiny
+  )
 
 
 @jtu.register_dataclass
@@ -43,6 +96,9 @@ class OTCP:
     nonconformity_fn: Multivariate nonconformity score function with a signature
       ``(target, prediction) -> score``.
     sinkhorn_out: Sinkhorn output computed in :meth:`fit_transport`.
+    sampler: sampler function used to sample points from a reference measure.
+      :func:`~ott.tools.conformal.sobol_ball_sampler` used by default. Must
+      be wrapped with :func:`jax.tree_util.Partial` to be jittable.
     offset: Offset used when re-scaling the data.
     scale: Scale when re-scaling the data.
     calibration_scores: Nonconformity calibration scores computed in
@@ -54,6 +110,8 @@ class OTCP:
       default=operator.sub, metadata={"static": True}
   )
   sinkhorn_output: Optional[sinkhorn.SinkhornOutput] = None
+  sampler: Optional[Callable[[jax.random.PRNGKey, Tuple[int, int]],
+                             jax.Array]] = None
   offset: jnp.ndarray = 0.0
   scale: jnp.ndarray = 1.0
   calibration_scores: Optional[jnp.ndarray] = None
@@ -64,8 +122,8 @@ class OTCP:
       y: jnp.ndarray,
       epsilon: float = 1e-1,
       n_target: int = 8192,
-      n_per_radius: Optional[int] = None,
       rng: Optional[jax.Array] = None,
+      sampler_kwargs: Optional[Any] = None,
       **kwargs: Any,
   ) -> "OTCP":
     """Fit the transport map.
@@ -74,10 +132,10 @@ class OTCP:
       x: Features of shape ``[n, dim_x]`` to fit the transport map.
       y: Targets of shape ``[n, dim_y]`` to fit the transport map.
       epsilon: Epsilon regularization
-      n_target: Total number of points used when
-        :func:`sampling <sample_target_measure>` the target measure.
+      n_target: Total number of points used to create the target measure.
       n_per_radius: Number of points selected in a given radius.
       rng: Random number generator.
+      sampler_kwargs: keyword arguments passed for sampler.
       kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
 
     Returns:
@@ -92,9 +150,11 @@ class OTCP:
     scale = jnp.linalg.norm(scores - offset, axis=-1).max()
     scores = (scores - offset) / scale
 
-    target, weights = sample_target_measure(
-        shape=(n_target, dim), n_per_radius=n_per_radius, rng=rng
-    )
+    sampler_kwargs = {} if sampler_kwargs is None else sampler_kwargs
+    sampler = jax.tree_util.Partial(
+        sobol_ball_sampler
+    ) if self.sampler is None else self.sampler
+    target, weights = sampler(rng=rng, shape=(n_target, dim), **sampler_kwargs)
     geom = pointcloud.PointCloud(
         scores, target, epsilon=epsilon, cost_fn=costs.Dotp()
     )
@@ -203,56 +263,3 @@ class OTCP:
   def target_measure(self) -> Optional[jnp.ndarray]:
     """Target measure of shape ``[n_target, dim_y]``."""
     return None if self.sinkhorn_output is None else self.sinkhorn_output.geom.y
-
-
-def sample_target_measure(
-    shape: Tuple[int, int],
-    n_per_radius: Optional[int] = None,
-    rng: Optional[jax.Array] = None,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  """Sample target measure for :class:`OTCP`.
-
-  Args:
-    shape: Tuple of ``[n_samples, dim]``.
-    n_per_radius: Optionally specify how many samples by radius
-    rng: Random number generator.
-
-  Returns:
-    Points of shape ``[n_S * n_R, dim]`` and weights ``[n_S * n_R,]``.
-  """
-  rng = utils.default_prng_key(rng)
-
-  n_samples, dim = shape
-  n_per_radius = math.ceil(
-      math.sqrt(n_samples)
-  ) if n_per_radius is None else n_per_radius
-  n_sphere, n_0s = divmod(n_samples, n_per_radius)
-
-  radius_grid = jnp.linspace(1.0 / n_per_radius, 1.0, n_per_radius)
-
-  seed = jax.random.randint(rng, shape=(), minval=0, maxval=2 ** 16 - 1)
-  out_struct = jax.ShapeDtypeStruct(
-      shape=(n_sphere, dim), dtype=radius_grid.dtype
-  )
-  sphere = jax.pure_callback(_sobol_sphere, out_struct, n_sphere, dim, seed)
-
-  points = sphere[None] * radius_grid[:, None, None]
-  points = points.reshape(-1, dim)
-
-  weights = jnp.full(points.shape[0] + (n_0s > 0), fill_value=1.0 / n_samples)
-  if n_0s:
-    points = jnp.vstack([points, jnp.zeros([1, dim])])
-    weights = weights.at[-1].set(n_0s / n_samples)
-  return points, weights
-
-
-def _sobol_sphere(n: int, d: int, seed: int) -> np.ndarray:
-  # convert because usually called from the `pure_callback`
-  n, d, seed = int(n), int(d), int(seed)
-  sampler = qmc.Sobol(d=d, seed=seed, scramble=True)
-  points = sampler.random_base2(m=math.ceil(math.log2(n)))[:n]
-  points = sp.special.ndtri(points)
-  return points / (
-      np.linalg.norm(points, keepdims=True, axis=-1) +
-      np.finfo(points.dtype).tiny
-  )
