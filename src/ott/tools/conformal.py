@@ -43,7 +43,7 @@ def sobol_ball_sampler(
   Args:
     rng: Random number generator.
     shape: Tuple of ``[n_samples, dim]``.
-    n_per_radius: Optionally specify how many samples by radius
+    n_per_radius: Optionally specify how many samples to sample per radius.
 
   Returns:
     Points of shape ``[n_S * n_R, dim]`` and weights ``[n_S * n_R,]``.
@@ -95,10 +95,9 @@ class OTCP:
     model: Fitted model.
     nonconformity_fn: Multivariate nonconformity score function with a signature
       ``(target, prediction) -> score``.
-    sinkhorn_out: Sinkhorn output computed in :meth:`fit_transport`.
+    sinkhorn_output: Sinkhorn output computed in :meth:`fit_transport`.
     sampler: sampler function used to sample points from a reference measure.
-      :func:`~ott.tools.conformal.sobol_ball_sampler` used by default. Must
-      be wrapped with :func:`jax.tree_util.Partial` to be jittable.
+      :func:`~ott.tools.conformal.sobol_ball_sampler` is used by default.
     offset: Offset used when re-scaling the data.
     scale: Scale when re-scaling the data.
     calibration_scores: Nonconformity calibration scores computed in
@@ -111,7 +110,9 @@ class OTCP:
   )
   sinkhorn_output: Optional[sinkhorn.SinkhornOutput] = None
   sampler: Optional[Callable[[jax.random.PRNGKey, Tuple[int, int]],
-                             jax.Array]] = None
+                             jax.Array]] = dataclasses.field(
+                                 default=None, metadata={"static": True}
+                             )
   offset: jnp.ndarray = 0.0
   scale: jnp.ndarray = 1.0
   calibration_scores: Optional[jnp.ndarray] = None
@@ -133,9 +134,8 @@ class OTCP:
       y: Targets of shape ``[n, dim_y]`` to fit the transport map.
       epsilon: Epsilon regularization
       n_target: Total number of points used to create the target measure.
-      n_per_radius: Number of points selected in a given radius.
       rng: Random number generator.
-      sampler_kwargs: keyword arguments passed for sampler.
+      sampler_kwargs: Keyword arguments passed for the :attr:`sampler`.
       kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
 
     Returns:
@@ -150,10 +150,9 @@ class OTCP:
     scale = jnp.linalg.norm(scores - offset, axis=-1).max()
     scores = (scores - offset) / scale
 
-    sampler_kwargs = {} if sampler_kwargs is None else sampler_kwargs
-    sampler = jax.tree_util.Partial(
-        sobol_ball_sampler
-    ) if self.sampler is None else self.sampler
+    sampler_kwargs = sampler_kwargs or {}
+    sampler = sobol_ball_sampler if self.sampler is None else self.sampler
+
     target, weights = sampler(rng=rng, shape=(n_target, dim), **sampler_kwargs)
     geom = pointcloud.PointCloud(
         scores, target, epsilon=epsilon, cost_fn=costs.Dotp()

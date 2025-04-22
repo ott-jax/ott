@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 import math
 from typing import Callable, Tuple
 
@@ -71,20 +72,19 @@ class TestOTCP:
     if n_0s:
       np.testing.assert_array_equal(points[-1], 0.0)
 
-  @pytest.mark.parametrize(("target_dim", "epsilon", "sampler_fn"),
-                           [(3, 1e-1, True), (5, 1e-2, False)])
+  @pytest.mark.parametrize(("target_dim", "epsilon", "sampler_fn"), [(
+      3, 1e-1, functools.partial(conformal.sobol_ball_sampler, n_per_radius=10)
+  ), (5, 1e-2, None)])
   def test_otcp(
-      self, rng: jax.Array, target_dim: int, epsilon: float, sampler_fn: bool
+      self, rng: jax.Array, target_dim: int, epsilon: float,
+      sampler_fn: Callable
   ):
-    sampler = jax.tree_util.Partial(
-        conformal.sobol_ball_sampler, n_per_radius=10
-    ) if sampler_fn else None
     n_samples = 32
     n_target_measure = n_samples
     model, data = get_model_and_data(n_samples=n_samples, target_dim=target_dim)
     x_trn, x_calib, x_test, y_trn, y_calib, y_test = data
 
-    otcp = conformal.OTCP(model, sampler=sampler)
+    otcp = conformal.OTCP(model, sampler=sampler_fn)
     otcp = jax.jit(
         otcp.fit_transport, static_argnames=["n_target"]
     )(x_trn, y_trn, epsilon=epsilon, n_target=n_target_measure, rng=rng)
