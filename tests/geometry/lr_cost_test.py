@@ -86,6 +86,7 @@ class TestLRGeometry:
 
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.Dotp())
     geom_lr = geom.to_LRCGeometry()
+    assert isinstance(geom_lr, low_rank.LRCGeometry)
 
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):

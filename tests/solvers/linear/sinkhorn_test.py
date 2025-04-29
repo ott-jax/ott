@@ -602,7 +602,7 @@ class TestSinkhorn:
     cost = jnp.sum(out.matrix * out.geom.cost_matrix)
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
 
-  @pytest.mark.fast.with_args(cost_fn=[costs.SqEuclidean(), costs.Dotp()],)
+  @pytest.mark.fast.with_args(cost_fn=[costs.SqEuclidean(), costs.Dotp()])
   def test_entropy(self, cost_fn):
     """Test computation of entropy of solution."""
     geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn, epsilon=1e-3)
@@ -618,7 +618,7 @@ class TestSinkhorn:
         ent_transport, out.entropy_exact, atol=1e-3, rtol=1e-3
     )
 
-  @pytest.mark.fast.with_args(cost_fn=[costs.SqEuclidean(), costs.Dotp()],)
+  @pytest.mark.fast.with_args(cost_fn=[costs.SqEuclidean(), costs.Dotp()])
   def test_norm_entropy(self, cost_fn):
     """Test computation of entropy of solution."""
     geom = pointcloud.PointCloud(self.x, self.x)
