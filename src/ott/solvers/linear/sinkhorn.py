@@ -492,6 +492,34 @@ class SinkhornOutput(NamedTuple):
     """The second dual potential."""
     return self.potentials[1]
 
+  @property
+  def entropy_proxy(self) -> jnp.ndarray:
+    """Entropy of the coupling when the problem is balanced.
+
+    This proxy computation assumes convergence of the Sinkhorn algorithm (it
+    leverages the identity that the dual and primal formulations of EOT
+    coincide). As a result, it does not require materializing the transport
+    matrix, just applying it to the cost itself, which can be significantly
+    cheaper when the cost matrix admits a low-rank factorization.
+    """
+    assert self.ot_prob.is_balanced, "Entropy only valid for balanced problems."
+    return (self.primal_cost - self.ent_reg_cost) / self.geom.epsilon
+
+  @property
+  def entropy_exact(self) -> jnp.ndarray:
+    """Exact entropy of the coupling when the problem is balanced.
+
+    Materializes transport matrix.
+    """
+    return jnp.sum(jsp.special.entr(self.matrix))
+
+  @property
+  def normalized_entropy(self) -> jnp.ndarray:
+    """Renormalized entropy of coupling when the problem is assignment."""
+    is_assign = self.ot_prob.is_assignment
+    assert is_assign, "Normalized entropy only valid for assignment problem."
+    return self.entropy_proxy / jnp.log(self.geom.shape[0]) - 1.0
+
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:
