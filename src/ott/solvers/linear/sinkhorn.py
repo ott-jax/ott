@@ -507,7 +507,7 @@ class SinkhornOutput(NamedTuple):
 
   @property
   def entropy_exact(self) -> jnp.ndarray:
-    """Eaxct entropy of the coupling when the problem is balanced.
+    """Exact entropy of the coupling when the problem is balanced.
 
     Materializes transport matrix.
     """
