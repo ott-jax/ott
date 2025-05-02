@@ -93,6 +93,11 @@ class LinearProblem:
     return self.geom.shape[0] == self.geom.shape[1]
 
   @property
+  def is_assignment(self) -> bool:
+    """True if assignment problem."""
+    return self.is_equal_size and self.is_uniform and self.is_balanced
+
+  @property
   def epsilon(self) -> float:
     """Entropic regularization."""
     return self.geom.epsilon

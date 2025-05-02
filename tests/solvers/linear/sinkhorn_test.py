@@ -22,6 +22,7 @@ import pytest
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
+import jax.scipy as jsp
 import numpy as np
 import scipy as sp
 
@@ -600,6 +601,30 @@ class TestSinkhorn:
                                atol=1e-1)
     cost = jnp.sum(out.matrix * out.geom.cost_matrix)
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
+
+  @pytest.mark.fast.with_args(cost_fn=[costs.SqEuclidean(), costs.Dotp()])
+  def test_entropy(self, cost_fn):
+    """Test computation of entropy of solution."""
+    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn, epsilon=1e-3)
+
+    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    solver = sinkhorn.Sinkhorn(threshold=1e-4)
+    out = solver(lin_prob)
+    ent_transport = jnp.sum(jsp.special.entr(out.matrix))
+    np.testing.assert_allclose(
+        ent_transport, out.entropy, atol=1e-2, rtol=1e-2
+    )
+
+  @pytest.mark.fast.with_args(cost_fn=[costs.SqEuclidean(), costs.Dotp()])
+  def test_norm_entropy(self, cost_fn):
+    """Test computation of entropy of solution."""
+    geom = pointcloud.PointCloud(self.x, self.x)
+    out = linear.solve(geom)
+    ent_transport = jnp.sum(jsp.special.entr(out.matrix))
+    norm_ent = ent_transport / jnp.log(geom.shape[0]) - 1.0
+    np.testing.assert_allclose(
+        norm_ent, out.normalized_entropy, atol=1e-3, rtol=1e-3
+    )
 
   @pytest.mark.parametrize("lse_mode", [False, True])
   def test_f_potential_is_zero_centered(self, lse_mode: bool):

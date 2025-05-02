@@ -492,6 +492,24 @@ class SinkhornOutput(NamedTuple):
     """The second dual potential."""
     return self.potentials[1]
 
+  @property
+  def entropy(self) -> jnp.ndarray:
+    """Entropy of the coupling."""
+    marginal_a = self.marginal(1)
+    marginal_b = self.marginal(0)
+    safe_f = jnp.where(jnp.isfinite(self.f), self.f, 0.0)
+    safe_g = jnp.where(jnp.isfinite(self.g), self.g, 0.0)
+    return (self.primal_cost 
+            - jnp.dot(safe_f, marginal_a)
+            - jnp.dot(safe_g, marginal_b)) / self.geom.epsilon
+
+  @property
+  def normalized_entropy(self) -> jnp.ndarray:
+    """Renormalized entropy of coupling when the problem is assignment."""
+    is_assign = self.ot_prob.is_assignment
+    assert is_assign, "Normalized entropy only valid for assignment problem."
+    return self.entropy / jnp.log(self.geom.shape[0]) - 1.0
+
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:

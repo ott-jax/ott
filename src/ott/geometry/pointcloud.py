@@ -288,6 +288,10 @@ class PointCloud(geometry.Geometry):
       # we don't update the `scale_factor` because in GW, the linear cost
       # is first materialized and then scaled by `fused_penalty` afterwards
       return self
+    if self.is_dotp:
+      if self._check_LRC_dim:
+        return self._dotp_to_lr(scale)
+      return self
     return super().to_LRCGeometry(scale=scale, **kwargs)
 
   def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
@@ -307,6 +311,19 @@ class PointCloud(geometry.Geometry):
     return low_rank.LRCGeometry(
         cost_1=cost_1,
         cost_2=cost_2,
+        scale_factor=scale,
+        epsilon=self._epsilon_init,
+        relative_epsilon=self._relative_epsilon,
+        scale_cost=self._scale_cost,
+    )
+
+  def _dotp_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
+    assert self.is_dotp, "Geometry must be (minus) Dot-product."
+    n, m = self.shape
+
+    return low_rank.LRCGeometry(
+        cost_1=-self.x,
+        cost_2=self.y,
         scale_factor=scale,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
@@ -345,17 +362,19 @@ class PointCloud(geometry.Geometry):
     if self._scale_cost == "max_bound":
       norm_x = self.cost_fn.norm(self.x)
       norm_y = self.cost_fn.norm(self.y)
+      x_max = jnp.max(norm_x)
+      y_max = jnp.max(norm_y)
+
       if self.is_squared_euclidean:
-        x_argmax = jnp.argmax(norm_x)
-        y_argmax = jnp.argmax(norm_y)
-        max_bound = (
-            norm_x[x_argmax] + norm_y[y_argmax] +
-            2 * jnp.sqrt(norm_x[x_argmax] * norm_y[y_argmax])
-        )
+        max_bound = (x_max + y_max + 2 * jnp.sqrt(x_max * y_max))
         return 1.0 / max_bound
+      if self.is_dotp:
+        max_bound = (jnp.sqrt(x_max * y_max))
+        return 1.0 / max_bound
+
       raise NotImplementedError(
           "Using max_bound as scaling factor for "
-          "the cost matrix when the cost is not squared euclidean "
+          "the cost matrix when the cost is not squared euclidean or dotp "
           "is not implemented."
       )
     if utils.is_scalar(self._scale_cost):
@@ -396,8 +415,12 @@ class PointCloud(geometry.Geometry):
     return isinstance(self.cost_fn, costs.SqEuclidean)
 
   @property
+  def is_dotp(self) -> bool:  # noqa: D102
+    return isinstance(self.cost_fn, costs.Dotp)
+
+  @property
   def can_LRC(self):  # noqa: D102
-    return self.is_squared_euclidean and self._check_LRC_dim
+    return (self.is_squared_euclidean or self.is_dotp) and self._check_LRC_dim
 
   @property
   def _check_LRC_dim(self):
