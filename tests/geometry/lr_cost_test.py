@@ -44,25 +44,50 @@ class TestLRGeometry:
             rtol=1e-4
         )
 
-  @pytest.mark.parametrize(
-      "scale_cost", ["mean", "max_cost", "max_bound", 42.0]
-  )
+  @pytest.mark.parametrize("scale_cost", ["mean", "max_cost", "max_bound", 4.7])
   def test_conversion_pointcloud(
-      self, rng: jax.Array, scale_cost: Union[str, float]
+      self,
+      rng: jax.Array,
+      scale_cost: Union[str, float],
   ):
     """Test conversion from PointCloud to LRCGeometry."""
+    cost_fn = costs.SqEuclidean()
+
     n, m, d = 17, 11, 3
     rngs = jax.random.split(rng, 3)
-    x = jax.random.normal(rngs[0], (n, d))
+    x = jax.random.normal(rngs[0], (n, d)) + .1
     y = jax.random.normal(rngs[1], (m, d))
 
-    geom = pointcloud.PointCloud(x, y, scale_cost=scale_cost)
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, scale_cost=scale_cost)
     geom_lr = geom.to_LRCGeometry()
 
     assert geom._scale_cost == geom_lr._scale_cost
     np.testing.assert_allclose(
         geom.inv_scale_cost, geom_lr.inv_scale_cost, rtol=1e-6, atol=1e-6
     )
+    for dim, axis in ((m, 1), (n, 0)):
+      for mat_shape in ((dim, 2), (dim,)):
+        mat = jax.random.normal(rngs[2], mat_shape)
+        np.testing.assert_allclose(
+            geom.apply_cost(mat, axis=axis),
+            geom_lr.apply_cost(mat, axis=axis),
+            rtol=1e-4
+        )
+
+  def test_conversion_pointcloud_dotp(
+      self,
+      rng: jax.Array,
+  ):
+    """Test conversion from PointCloud to LRCGeometry."""
+    n, m, d = 17, 11, 3
+    rngs = jax.random.split(rng, 3)
+    x = jax.random.normal(rngs[0], (n, d)) + .1
+    y = jax.random.normal(rngs[1], (m, d))
+
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.Dotp())
+    geom_lr = geom.to_LRCGeometry()
+    assert isinstance(geom_lr, low_rank.LRCGeometry)
+
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
         mat = jax.random.normal(rngs[2], mat_shape)
