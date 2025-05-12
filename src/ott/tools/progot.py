@@ -84,9 +84,7 @@ class ProgOTOutput(NamedTuple):
       dp = self.get_output(it).to_dual_potentials()
 
       t_x = dp.transport(x, forward=True)
-      next_x = _interpolate(
-          x=x, t_x=t_x, alpha=alpha, cost_fn=self.prob.geom.cost_fn
-      )
+      next_x = (1.0-alpha)*x + alpha*t_x
 
       if return_intermediate:
         return (next_x, None), (next_x, t_x)
@@ -247,7 +245,7 @@ class ProgOT:
         eps = out.geom.epsilon
 
       t_x = out.to_dual_potentials().transport(state.x, forward=True)
-      next_x = _interpolate(x=state.x, t_x=t_x, alpha=alpha, cost_fn=cost_fn)
+      next_x = (1.0-alpha)*x + alpha*t_x
 
       next_init = ((1.0 - alpha) * out.f,
                    (1.0 - alpha) * out.g) if warm_start else None
@@ -423,11 +421,3 @@ def _sinkhorn_divergence(
       solve_kwargs=kwargs,
   )
   return out
-
-
-def _interpolate(
-    x: jnp.ndarray, t_x: jnp.ndarray, alpha: float, cost_fn: costs.TICost
-) -> jnp.ndarray:
-  xx, weights = jnp.stack([x, t_x]), jnp.array([1.0 - alpha, alpha])
-  xx, _ = cost_fn.barycenter(weights=weights, xs=xx)
-  return xx
