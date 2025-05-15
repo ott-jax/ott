@@ -219,7 +219,7 @@ class MongeGapEstimator:
       logging: bool = False,
       valid_freq: int = 500,
       rng: Optional[jax.Array] = None,
-      dim_cond: Optional[int]=None,
+      # dim_cond: Optional[int]=None,
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
@@ -240,19 +240,19 @@ class MongeGapEstimator:
       optimizer = optax.adam(learning_rate=0.001)
 
     # setup training
-    self.setup(dim_data, model, optimizer, dim_cond)
+    self.setup(dim_data, model, optimizer)
 
   def setup(
       self,
       dim_data: int,
       neural_net: potentials.BasePotential,
       optimizer: optax.OptState,
-      dim_cond: Union[None, int]
+      # dim_cond: Union[None, int]
   ):
     """Setup all components required to train the network."""
     # neural network
     self.state_neural_net = neural_net.create_train_state(
-        self.rng, optimizer, dim_data, dim_cond
+        self.rng, optimizer, dim_data
     )
 
     # step function
@@ -367,14 +367,14 @@ class MongeGapEstimator:
     ) -> Tuple[float, Dict[str, float]]:
       """Loss function."""
       # map samples with the fitted map
-      mapped_samples = apply_fn({"params": params}, batch["source"]["X"], batch["source"]["c"])
+      mapped_samples = apply_fn({"params": params}, batch["source"])
 
       # compute the loss
       val_fitting_loss, log_fitting_loss = self.fitting_loss(
           mapped_samples, batch["target"]
       )
       val_regularizer, log_regularizer = self.regularizer(
-          batch["source"]["X"], mapped_samples, batch["target"]["c"]
+          batch["source"], mapped_samples
       )
       val_tot_loss = (
           val_fitting_loss + self.regularizer_strength[step] * val_regularizer

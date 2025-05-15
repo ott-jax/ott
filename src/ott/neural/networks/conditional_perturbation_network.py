@@ -1,4 +1,4 @@
-from typing import Any, Callable, Iterable, Sequence, Tuple
+from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 import flax.linen as nn
 import jax.numpy as jnp
@@ -30,8 +30,8 @@ class ConditionalPerturbationNetwork(BasePotential):
 
     @nn.compact
     def __call__(
-        self, x: jnp.ndarray, c: jnp.ndarray
-    ) -> jnp.ndarray:  # noqa: D102
+        self, x: jnp.ndarray, c: Optional[jnp.ndarray]=None
+    ) -> Union[jnp.ndarray, Dict[str, jnp.ndarray]]:  # noqa: D102
         """
         Args:
             x (jnp.ndarray): The input data of shape bs x dim_data
@@ -42,6 +42,12 @@ class ConditionalPerturbationNetwork(BasePotential):
         Returns:
             jnp.ndarray: _description_
         """
+        return_batch = False
+        if isinstance(x, dict):
+            c = x["c"]
+            x = x["X"]
+            return_batch = True
+        
         n_input = x.shape[-1]
 
         # Chunk the inputs
@@ -93,18 +99,22 @@ class ConditionalPerturbationNetwork(BasePotential):
             z = self.act_fn(wx(z))
         wx = nn.Dense(n_input, use_bias=True)
 
-        return x + wx(z)
+        y = x + wx(z)
+
+        if return_batch:
+            return {"X": y, "c": c}
+        else:
+            return y
 
     def create_train_state(
         self,
         rng: jnp.ndarray,
         optimizer: optax.OptState,
         dim_data: int,
-        dim_cond: int,
         **kwargs: Any,
     ) -> PotentialTrainState:
         """Create initial `TrainState`."""
-        c = jnp.ones((1, dim_cond))  # (n_batch, embed_dim)
+        c = jnp.ones((1, self.dim_cond))  # (n_batch, embed_dim)
         x = jnp.ones((1, dim_data))  # (n_batch, data_dim)
         params = self.init(rng, x=x, c=c)["params"]
         return PotentialTrainState.create(
