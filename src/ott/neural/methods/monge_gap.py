@@ -219,7 +219,6 @@ class MongeGapEstimator:
       logging: bool = False,
       valid_freq: int = 500,
       rng: Optional[jax.Array] = None,
-      # dim_cond: Optional[int]=None,
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
@@ -247,7 +246,6 @@ class MongeGapEstimator:
       dim_data: int,
       neural_net: potentials.BasePotential,
       optimizer: optax.OptState,
-      # dim_cond: Union[None, int]
   ):
     """Setup all components required to train the network."""
     # neural network
