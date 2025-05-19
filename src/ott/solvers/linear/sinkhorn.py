@@ -499,9 +499,10 @@ class SinkhornOutput(NamedTuple):
     marginal_b = self.marginal(0)
     safe_f = jnp.where(jnp.isfinite(self.f), self.f, 0.0)
     safe_g = jnp.where(jnp.isfinite(self.g), self.g, 0.0)
-    return (self.primal_cost 
-            - jnp.dot(safe_f, marginal_a)
-            - jnp.dot(safe_g, marginal_b)) / self.geom.epsilon
+    return (
+        self.primal_cost - jnp.dot(safe_f, marginal_a) -
+        jnp.dot(safe_g, marginal_b)
+    ) / self.geom.epsilon
 
   @property
   def normalized_entropy(self) -> jnp.ndarray:

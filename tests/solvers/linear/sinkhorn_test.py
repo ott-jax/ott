@@ -611,9 +611,7 @@ class TestSinkhorn:
     solver = sinkhorn.Sinkhorn(threshold=1e-4)
     out = solver(lin_prob)
     ent_transport = jnp.sum(jsp.special.entr(out.matrix))
-    np.testing.assert_allclose(
-        ent_transport, out.entropy, atol=1e-2, rtol=1e-2
-    )
+    np.testing.assert_allclose(ent_transport, out.entropy, atol=1e-2, rtol=1e-2)
 
   @pytest.mark.fast.with_args(cost_fn=[costs.SqEuclidean(), costs.Dotp()])
   def test_norm_entropy(self, cost_fn):
