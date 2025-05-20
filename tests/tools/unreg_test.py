@@ -48,8 +48,8 @@ class TestHungarian:
     x, y = gen_data(rng1, n, m, dim)
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p=p))
     cost_hung, _ = jax.jit(unreg.hungarian)(geom)
-    w_p = jax.jit(unreg.wassdis_p)(x, y, p)
-    np.testing.assert_allclose(w_p, cost_hung ** 1. / p, rtol=1e-3, atol=1e-3)
+    w_p = jax.jit(unreg.wassdis_p)(x, y, p=p)
+    np.testing.assert_allclose(w_p, cost_hung ** (1. / p), rtol=1e-3, atol=1e-3)
 
 
 def gen_data(rng: jax.Array, n: int, m: int,
