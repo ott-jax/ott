@@ -155,7 +155,7 @@ class OTCP:
 
     target, weights = sampler(rng=rng, shape=(n_target, dim), **sampler_kwargs)
     geom = pointcloud.PointCloud(
-        scores, target, epsilon=epsilon, cost_fn=costs.Dotp()
+        scores, target, epsilon=epsilon, cost_fn=costs.SqEuclidean()
     )
     out = linear.solve(geom, b=weights, **kwargs)
 
