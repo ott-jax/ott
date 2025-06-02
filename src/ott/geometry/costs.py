@@ -363,7 +363,7 @@ class EuclideanP(TICost):
     self.p = p
 
   def h(self, z: jnp.ndarray) -> float:  # noqa: D102
-    return mu.norm(z, ord=2) ** (self.p)
+    return mu.norm(z, ord=2) ** self.p
 
   def tree_flatten(self):  # noqa: D102
     return (), (self.p,)
@@ -389,6 +389,10 @@ class Dotp(CostFn):
 
   def twist_operator(self, vec, dual_vec, variable) -> jnp.ndarray:
     return -vec if variable else -dual_vec
+
+  def norm(self, x: jnp.ndarray) -> jnp.ndarray:
+    """Compute squared Euclidean norm for vector. Only used for rescaling."""
+    return jnp.sum(x ** 2, axis=-1)
 
 
 @jtu.register_pytree_node_class

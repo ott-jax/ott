@@ -66,7 +66,7 @@ def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
   return jnp.sum(geom.cost_matrix[i, j]) / n, hungarian_out
 
 
-def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, p: float = 2.0) -> float:
+def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, *, p: float = 2.0) -> float:
   """Compute the :term:`Wasserstein distance`, uses :term:`Hungarian algorithm`.
 
   Uses :func:`hungarian` to solve the :term:`optimal matching problem` between
@@ -83,8 +83,8 @@ def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, p: float = 2.0) -> float:
     p: order of the Wasserstein distance, non-negative float.
 
   Returns:
-    The p-Wasserstein distance between these point clouds.hungarian
+    The `p`-Wasserstein distance between these point clouds.
   """
-  geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p))
+  geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p=p))
   cost, _ = hungarian(geom)
-  return cost ** 1. / p
+  return cost ** (1. / p)
