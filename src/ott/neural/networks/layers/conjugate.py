@@ -94,10 +94,10 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
       y: jnp.ndarray,
       x_init: Optional[jnp.array] = None
   ) -> ConjugateResults:
-    assert y.ndim == 1, y.ndim
+    assert y.ndim
 
     solver = LBFGS(
-        fun=lambda x: f(x) - x.dot(y),
+        fun=lambda x: f(x) - x.ravel().dot(y.ravel()),
         tol=self.gtol,
         maxiter=self.max_iter,
         linesearch=self.linesearch_type,
