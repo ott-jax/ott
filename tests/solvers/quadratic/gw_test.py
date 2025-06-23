@@ -531,10 +531,15 @@ class TestGromovWasserstein:
       geom_yy = pointcloud.PointCloud(y)
       prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy)
 
+      # TODO(michalk8): passing `progress_fn` in linear/quadratic solver
+      # raises: ValueError: Reverse-mode differentiation does not work for
+      # lax.while_loop or lax.fori_loop with dynamic start/stop values.
       linear_solver = sinkhorn.Sinkhorn(progress_fn=utils.default_progress_fn())
       quad_solver = gromov_wasserstein.GromovWasserstein(
           linear_solver,
           progress_fn=utils.default_progress_fn(),
+          min_iterations=5,
+          max_iterations=5,
           # needs to be explicitly set
           store_inner_errors=True,
       )
@@ -542,6 +547,7 @@ class TestGromovWasserstein:
       return quad_solver(prob).reg_gw_cost
 
     fn = jax.grad(callback) if grad else callback
+    fn = jax.jit(fn)
     res = fn(self.x, self.y)
 
     np.testing.assert_array_equal(jnp.isfinite(res), True)
