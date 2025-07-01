@@ -12,3 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from . import fixed_point_loop, matrix_square_root, unbalanced_functions, utils
+from ._lbfgs import lbfgs
+from ._legendre import legendre
+
+__all__ = [
+    "lbfgs",
+    "legendre",
+]
