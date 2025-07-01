@@ -190,7 +190,7 @@ class TICost(CostFn):
       f: Concave function.
       ridge: Regularizer to ensure strong convexity of the objective.
       solver: Solver with the signature ``(func, x_init, **kwargs) -> sol``.
-        If :obj:`None`, use :fun:`math.lfbgs`.
+        If :obj:`None`, use :fun:`math.lbfgs`.
 
     Returns:
       The h-transform :math:`f_h` of :math:`f`.
@@ -214,7 +214,7 @@ class TICost(CostFn):
       Returns:
         The :math:`h`-transform of :math:`f`, :math:`f_h(x)`.
       """
-      x_init = x if x_init is None else x
+      x_init = x if x_init is None else x_init
 
       def fun(z: jnp.ndarray) -> float:
         return self.h(z) - f(x - z)
