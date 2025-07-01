@@ -53,7 +53,7 @@ def legendre(fun):
     Returns:
         The Legendre transform of :math:`f` evaluated at :math:`x`.
     """
-    x_init = x if x_init is None else x
+    x_init = x if x_init is None else x_init
 
     def mod_fun(z: jnp.ndarray) -> float:
       """Conjugate maximizes <x,z> - fun(z), here minimize fun(z) - <x,z>."""

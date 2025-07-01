@@ -188,7 +188,6 @@ class TICost(CostFn):
 
     Args:
       f: Concave function.
-      ridge: Regularizer to ensure strong convexity of the objective.
       solver: Solver with the signature ``(func, x_init, **kwargs) -> sol``.
         If :obj:`None`, use :fun:`math.lbfgs`.
 

@@ -205,7 +205,7 @@ class TestTICost:
     else:
       concave = lambda z: 0.5 * (-cost_fn.h(z) + jnp.dot(z, u))
 
-    pred = jax.jit(jax.vmap(jax.grad(cost_fn.h_transform(concave, ridge=1e-6))))
+    pred = jax.jit(jax.vmap(jax.grad(cost_fn.h_transform(concave))))
     gt = jax.jit(jax.vmap(jax.grad(gt_cost.h_transform(concave_gt))))
 
     np.testing.assert_allclose(pred(x), gt(x), rtol=1e-5, atol=1e-5)
@@ -213,11 +213,9 @@ class TestTICost:
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.5)])
   def test_h_transform_solver(self, rng: jax.Array, cost_fn: costs.TICost):
 
-    def gd_solver(
-        fun, x: jnp.ndarray, x_init: jnp.ndarray, **kwargs: Any
-    ) -> jnp.ndarray:
+    def gd_solver(fun, x_init: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
       solver = jaxopt.GradientDescent(fun=fun, **kwargs)
-      return solver.run(x, x_init).params
+      return solver.run(x_init).params
 
     n, d = 21, 6
     rngs = jax.random.split(rng, 2)
