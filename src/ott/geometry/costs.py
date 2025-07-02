@@ -218,7 +218,7 @@ class TICost(CostFn):
       def fun(z: jnp.ndarray) -> float:
         return self.h(z) - f(x - z)
 
-      z = solver(fun=fun, x_init=x_init, **kwargs)
+      z = solver(fun, x_init, **kwargs)
       z = jax.lax.stop_gradient(z)
       return fun(z)
 
