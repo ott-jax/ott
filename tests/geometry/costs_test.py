@@ -226,7 +226,9 @@ class TestTICost:
     u = jnp.abs(jax.random.uniform(rngs[0], (d,)))
     x = jax.random.normal(rngs[1], (n, d))
 
-    concave_fn = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
+    concave_fn = lambda z: -cost_fn.h(z) - (
+        jnp.dot(z, u) + 1e-2 * jnp.sum(z ** 2)
+    )
 
     expected = jax.vmap(cost_fn.h_transform(concave_fn, solver=None))
     actual = jax.vmap(cost_fn.h_transform(concave_fn, solver=gd_solver))
