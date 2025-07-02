@@ -198,12 +198,16 @@ class TestTICost:
     x = jax.random.normal(rngs[1], (n, d))
 
     gt_cost = costs.RegTICost(regularizers.SqL2(), lam=0.0)
-    concave_gt = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
+    concave_gt = lambda z: (
+        -cost_fn.h(z) + jnp.dot(z, u) - 1e-8 * jnp.sum(z ** 2)
+    )
 
     if isinstance(cost_fn, costs.PNormP):
       concave = concave_gt
     else:
-      concave = lambda z: 0.5 * (-cost_fn.h(z) + jnp.dot(z, u))
+      concave = lambda z: 0.5 * (
+          -cost_fn.h(z) + jnp.dot(z, u) - 1e-8 * jnp.sum(z ** 2)
+      )
 
     pred = jax.jit(jax.vmap(jax.grad(cost_fn.h_transform(concave))))
     gt = jax.jit(jax.vmap(jax.grad(gt_cost.h_transform(concave_gt))))
