@@ -188,8 +188,9 @@ class TICost(CostFn):
 
     Args:
       f: Concave function.
-      solver: Solver with the signature ``(func, x_init, **kwargs) -> sol``.
-        If :obj:`None`, use :func:`math.lbfgs`.
+      solver: Solver with the signature
+      ``(func, x_init, **kwargs) -> (sol, aux)``.
+      If :obj:`None`, use :func:`~ott.math.lbfgs`.
 
     Returns:
       The h-transform :math:`f_h` of :math:`f`.
@@ -213,12 +214,12 @@ class TICost(CostFn):
       Returns:
         The :math:`h`-transform of :math:`f`, :math:`f_h(x)`.
       """
-      x_init = x if x_init is None else x_init
 
       def fun(z: jnp.ndarray) -> float:
         return self.h(z) - f(x - z)
 
-      z = solver(fun, x_init, **kwargs)
+      x_init = x if x_init is None else x_init
+      z, state = solver(fun, x_init, **kwargs)
       z = jax.lax.stop_gradient(z)
       return fun(z)
 

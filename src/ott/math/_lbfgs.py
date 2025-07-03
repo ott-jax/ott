@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Tuple
+from typing import Any, Callable, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -25,9 +25,9 @@ __all__ = ["lbfgs"]
 
 
 def run_opt(
-    opt: optax.GradientTransformationExtraArgs, x_init: jnp.array,
-    fun: Callable, max_iter: int, tol: float
-):
+    opt: optax.GradientTransformationExtraArgs, x_init: jnp.ndarray,
+    fun: Callable[[jnp.ndarray], jnp.ndarray], max_iter: int, tol: float
+) -> Tuple[jnp.ndarray, optax.OptState]:
   """Runs an optimization algorithm on a function.
 
   Args:
@@ -59,17 +59,19 @@ def run_opt(
     return (iter_num == 0) | ((iter_num < max_iter) & (err >= tol))
 
   init_carry = (x_init, opt.init(x_init))
-  final_params, _ = jax.lax.while_loop(continuing_criterion, step, init_carry)
-  return final_params
+  final_params, final_state = jax.lax.while_loop(
+      continuing_criterion, step, init_carry
+  )
+  return final_params, final_state
 
 
 def lbfgs(
-    fun: Callable,
-    x_init: jax.Array,
+    fun: Callable[[jnp.ndarray], jnp.ndarray],
+    x_init: jnp.ndarray,
     max_iter: int = 100,
     tol: float = 1e-4,
-    **kwargs
-) -> Tuple[jax.Array, optax.OptState]:
+    **kwargs: Any,
+) -> Tuple[jnp.ndarray, optax.OptState]:
   """Runs optax's L-BFGS optimization on function.
 
   Args:
@@ -77,10 +79,10 @@ def lbfgs(
     x_init: Initial point to start optimization.
     max_iter: Maximum number of iterations.
     tol: Tolerance for convergence.
-    **kwargs: Additional arguments for the L-BFGS optimizer class.
+    kwargs: Additional arguments for :func:`optax.lbfgs` optimizer constructor.
 
   Returns:
-    Final optimization variable obtained after running L-BFGS.
+    Final optimization variable obtained after running L-BFGS and state.
   """
   opt = optax.lbfgs(**kwargs)
   return run_opt(opt, x_init, fun, max_iter=max_iter, tol=tol)

@@ -210,9 +210,9 @@ class TestTICost:
     x = jax.random.normal(rngs[1], (n, d))
     concave_fn = lambda z: -jnp.dot(z ** 2, u) - mu.logsumexp(z)
 
-    solver = lambda fun, x, tol: optimize.minimize(
-        fun, x, method="BFGS", tol=tol
-    ).x
+    solver = lambda fun, x, tol: (
+        optimize.minimize(fun, x, method="BFGS", tol=tol).x, None
+    )
 
     actual = jax.vmap(
         lambda x, tol: cost_fn.h_transform(concave_fn, solver=solver)

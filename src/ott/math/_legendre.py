@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 import jax
 import jax.numpy as jnp
@@ -21,7 +21,13 @@ from ott.math import _lbfgs as lbfgs
 __all__ = ["legendre"]
 
 
-def legendre(fun):
+def legendre(
+    fun: Callable[[
+        jnp.ndarray,
+    ], jnp.ndarray]
+) -> Callable[[
+    jnp.ndarray,
+], jnp.ndarray]:
   """Legendre transform (a.k.a. Fenchel transform) of a function.
 
   The solution is computed numerically using L-BFGS.
@@ -40,18 +46,18 @@ def legendre(fun):
       x_init: Optional[jnp.ndarray] = None,
       **kwargs: Any
   ) -> float:
-    """Legendre transform of function `fun`.
+    """Runs optimization to compute the Legendre transform of ``fun`` at ``x``.
 
     Args:
       x: Array of shape ``[d,]`` where to evaluate the function.
       x_init: Initialization for optimization, of the same size of ``x``.
         If :obj:`None`, use ``x``.
-      kwargs: Keyword arguments for the L-BFGS solver, e.g. maximal iterations
-        ``max_iters``, convergence tolerance ``tol`` or :func:`optax.lbfgs`
-        parameters.
+      kwargs: Keyword arguments for :func:`~ott.math.lbfgs`, e.g. maximal
+      iterations ``max_iters``, convergence tolerance ``tol`` or
+      :func:`optax.lbfgs` parameters.
 
     Returns:
-        The Legendre transform of :math:`f` evaluated at :math:`x`.
+        The Legendre transform of ``fun`` evaluated at ``x``.
     """
     x_init = x if x_init is None else x_init
 
@@ -61,6 +67,7 @@ def legendre(fun):
 
     z = lbfgs.lbfgs(fun=mod_fun, x_init=x_init, **kwargs)
     z = jax.lax.stop_gradient(z)
+    # Flip sign again to revert to maximization convention
     return -mod_fun(z)
 
   return fun_star
