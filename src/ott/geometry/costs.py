@@ -189,8 +189,8 @@ class TICost(CostFn):
     Args:
       f: Concave function.
       solver: Solver with the signature
-      ``(func, x_init, **kwargs) -> (sol, aux)``.
-      If :obj:`None`, use :func:`~ott.math.lbfgs`.
+        ``(func, x_init, **kwargs) -> (sol, aux)``. If :obj:`None`, use
+        :func:`~ott.math.lbfgs`.
 
     Returns:
       The h-transform :math:`f_h` of :math:`f`.

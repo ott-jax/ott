@@ -65,9 +65,8 @@ def legendre(
       """Conjugate maximizes <x,z> - fun(z), here minimize fun(z) - <x,z>."""
       return fun(z) - jnp.dot(x, z)
 
-    z = lbfgs.lbfgs(fun=mod_fun, x_init=x_init, **kwargs)
-    z = jax.lax.stop_gradient(z)
-    # Flip sign again to revert to maximization convention
-    return -mod_fun(z)
+    z, _ = lbfgs.lbfgs(fun=mod_fun, x_init=x_init, **kwargs)
+    # Flip sign again to revert to maximization convention, stop gradient.
+    return -mod_fun(jax.lax.stop_gradient(z))
 
   return fun_star
