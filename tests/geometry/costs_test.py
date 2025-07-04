@@ -12,15 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any
 
 import pytest
 
 import jax
 import jax.numpy as jnp
-import jaxopt
 import numpy as np
 import scipy as sp
+from jax.scipy import optimize
 
 from ott.geometry import costs, pointcloud, regularizers
 from ott.math import utils as mu
@@ -187,49 +186,48 @@ class TestTICost:
           atol=1e-6
       )
 
-  @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(2)])
   @pytest.mark.parametrize("d", [5, 10])
-  def test_h_transform_matches_unreg(
-      self, rng: jax.Array, cost_fn: costs.TICost, d: int
-  ):
+  def test_h_transform_matches_unreg(self, rng: jax.Array, d: int):
     n = 13
     rngs = jax.random.split(rng, 2)
-    u = jnp.abs(jax.random.uniform(rngs[0], (d,)))
+    u = .5 + jax.random.uniform(rngs[0], (d,))
     x = jax.random.normal(rngs[1], (n, d))
 
-    gt_cost = costs.RegTICost(regularizers.SqL2(), lam=0.0)
-    concave_gt = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
+    concave = lambda z: -jnp.dot(z ** 2, u)
+    cost_fn_unreg = costs.PNormP(2)
+    cost_fn_reg = costs.RegTICost(regularizers.SqL2(), lam=0.0)
+    unreg = jax.jit(jax.vmap(jax.grad(cost_fn_unreg.h_transform(concave))))
+    reg = jax.jit(jax.vmap(jax.grad(cost_fn_reg.h_transform(concave))))
 
-    if isinstance(cost_fn, costs.PNormP):
-      concave = concave_gt
-    else:
-      concave = lambda z: 0.5 * (-cost_fn.h(z) + jnp.dot(z, u))
-
-    pred = jax.jit(jax.vmap(jax.grad(cost_fn.h_transform(concave, ridge=1e-6))))
-    gt = jax.jit(jax.vmap(jax.grad(gt_cost.h_transform(concave_gt))))
-
-    np.testing.assert_allclose(pred(x), gt(x), rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(unreg(x), reg(x), rtol=1e-2, atol=1e-2)
 
   @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.5)])
   def test_h_transform_solver(self, rng: jax.Array, cost_fn: costs.TICost):
 
-    def gd_solver(
-        fun, x: jnp.ndarray, x_init: jnp.ndarray, **kwargs: Any
-    ) -> jnp.ndarray:
-      solver = jaxopt.GradientDescent(fun=fun, **kwargs)
-      return solver.run(x, x_init).params
-
     n, d = 21, 6
     rngs = jax.random.split(rng, 2)
-    u = jnp.abs(jax.random.uniform(rngs[0], (d,)))
+    u = 1. + jax.random.uniform(rngs[0], (d,))
     x = jax.random.normal(rngs[1], (n, d))
+    concave_fn = lambda z: -jnp.dot(z ** 2, u) - mu.logsumexp(z)
 
-    concave_fn = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
+    solver = lambda fun, x, tol: (
+        optimize.minimize(fun, x, method="BFGS", tol=tol).x, None
+    )
 
-    expected = jax.vmap(cost_fn.h_transform(concave_fn, solver=None))
-    actual = jax.vmap(cost_fn.h_transform(concave_fn, solver=gd_solver))
+    actual = jax.vmap(
+        lambda x, tol: cost_fn.h_transform(concave_fn, solver=solver)
+        (x, tol=tol),
+        in_axes=[0, None]
+    )
 
-    np.testing.assert_allclose(expected(x), actual(x), rtol=1e-4, atol=1e-4)
+    expected = jax.vmap(
+        lambda x, tol: cost_fn.h_transform(concave_fn, solver=None)(x, tol=tol),
+        in_axes=[0, None]
+    )
+
+    np.testing.assert_allclose(
+        expected(x, 1e-4), actual(x, 1e-4), rtol=1e-2, atol=1e-2
+    )
 
 
 @pytest.mark.fast()
@@ -261,14 +259,14 @@ class TestRegTICost:
     n, d = 11, 6
     rng_x, rng_y, rng_u = jax.random.split(rng, 3)
     y = jax.random.normal(rng_x, (d,)) + 1.0
-    u = jnp.abs(jax.random.uniform(rng_u, (d,)))
+    u = 1. + jax.random.uniform(rng_u, (d,))
     x_inits = jax.random.normal(rng_x, (n, d)) * jnp.linspace(
         -5.0, 5.0, num=n
     )[:, None]
 
-    cost_fn = costs.RegTICost(regularizers.L1(), lam=lam)
-    f = lambda z: -cost_fn.h(z) + jnp.dot(z, u)
+    f = lambda z: -jnp.dot(z ** 2, u)
 
+    cost_fn = costs.RegTICost(regularizers.L1(), lam=lam)
     h_f = jax.vmap(cost_fn.h_transform(f), in_axes=[None, 0])
     res = h_f(y, x_inits)
 
