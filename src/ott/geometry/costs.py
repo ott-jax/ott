@@ -22,6 +22,7 @@ import jax.tree_util as jtu
 import jaxopt
 import numpy as np
 
+from ott import math as ott_math
 from ott.geometry import regularizers
 from ott.math import fixed_point_loop, matrix_square_root
 from ott.math import utils as mu
@@ -166,7 +167,6 @@ class TICost(CostFn):
   def h_transform(
       self,
       f: Func,
-      ridge: float = 1e-8,
       solver: Optional[Callable[[Func, jnp.ndarray, jnp.ndarray, Any],
                                 jnp.ndarray]] = None,
   ) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], float]:
@@ -188,22 +188,15 @@ class TICost(CostFn):
 
     Args:
       f: Concave function.
-      ridge: Regularizer to ensure strong convexity of the objective.
-      solver: Solver with the signature ``(func, x, x_init, **kwargs) -> sol``.
-        If :obj:`None`, use an :class:`~jaxopt.LBFGS` wrapper.
+      solver: Solver with the signature
+        ``(func, x_init, **kwargs) -> (sol, aux)``. If :obj:`None`, use
+        :func:`~ott.math.lbfgs`.
 
     Returns:
       The h-transform :math:`f_h` of :math:`f`.
     """
-
-    def lbfgs(
-        fun: Func, x: jnp.ndarray, x_init: jnp.ndarray, **kwargs: Any
-    ) -> jnp.ndarray:
-      solver = jaxopt.LBFGS(fun=fun, **kwargs)
-      return solver.run(x_init, x=x).params
-
-    def fun(z: jnp.ndarray, x: jnp.ndarray) -> float:
-      return self.h(z) + ridge * jnp.sum(z ** 2) - f(x - z)
+    if solver is None:
+      solver = ott_math.lbfgs
 
     def f_h(
         x: jnp.ndarray,
@@ -214,20 +207,21 @@ class TICost(CostFn):
 
       Args:
         x: Array of shape ``[d,]`` where to evaluate the function.
-        x_init: Initial estimate. If :obj:`None`, use ``x``.
-        kwargs: Keyword arguments for the solver.
+        x_init: Initialization for optimization. If :obj:`None`, use ``x``.
+        kwargs: Keyword arguments for the solver, e.g. maximal iterations or
+          tolerance.
 
       Returns:
-        The output :math:`f_h(x)`.
+        The :math:`h`-transform of :math:`f`, :math:`f_h(x)`.
       """
-      if x_init is None:
-        x_init = x
-      z = solver(fun, x, x_init, **kwargs)
-      z = jax.lax.stop_gradient(z)
-      return fun(z, x)
 
-    if solver is None:
-      solver = lbfgs
+      def fun(z: jnp.ndarray) -> float:
+        return self.h(z) - f(x - z)
+
+      x_init = x if x_init is None else x_init
+      z, _ = solver(fun, x_init, **kwargs)
+      z = jax.lax.stop_gradient(z)
+      return fun(z)
 
     return f_h
 

@@ -170,6 +170,7 @@ ignore_roles = [
     "class",
     "doc",
     "mod",
+    "func",
     "cite",
     "term",
 ]
