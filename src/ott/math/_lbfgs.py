@@ -17,7 +17,6 @@ import jax
 import jax.numpy as jnp
 
 import optax
-import optax.tree
 
 __all__ = ["lbfgs"]
 
@@ -25,8 +24,11 @@ __all__ = ["lbfgs"]
 
 
 def run_opt(
-    opt: optax.GradientTransformationExtraArgs, x_init: jnp.ndarray,
-    fun: Callable[[jnp.ndarray], jnp.ndarray], max_iter: int, tol: float
+    opt: optax.GradientTransformationExtraArgs,
+    x_init: jnp.ndarray,
+    fun: Callable[[jnp.ndarray], jnp.ndarray],
+    max_iter: int,
+    tol: float,
 ) -> Tuple[jnp.ndarray, optax.OptState]:
   """Runs an optimization algorithm on a function.
 
@@ -79,7 +81,7 @@ def lbfgs(
     x_init: Initial point to start optimization.
     max_iter: Maximum number of iterations.
     tol: Tolerance for convergence.
-    kwargs: Additional arguments for :func:`optax.lbfgs` optimizer constructor.
+    kwargs: Keyword arguments for :func:`optax.lbfgs`.
 
   Returns:
     Final optimization variable obtained after running L-BFGS and state.

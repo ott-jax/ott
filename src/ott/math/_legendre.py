@@ -22,13 +22,9 @@ __all__ = ["legendre"]
 
 
 def legendre(
-    fun: Callable[[
-        jnp.ndarray,
-    ], jnp.ndarray]
-) -> Callable[[
-    jnp.ndarray,
-], jnp.ndarray]:
-  """Legendre transform (a.k.a. Fenchel transform) of a function.
+    fun: Callable[[jnp.ndarray], jnp.ndarray],
+) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  """Legendre (Fenchel) transform of a function.
 
   The solution is computed numerically using L-BFGS.
 
@@ -44,7 +40,7 @@ def legendre(
   def fun_star(
       x: jnp.ndarray,
       x_init: Optional[jnp.ndarray] = None,
-      **kwargs: Any
+      **kwargs: Any,
   ) -> float:
     """Runs optimization to compute the Legendre transform of ``fun`` at ``x``.
 
@@ -54,7 +50,7 @@ def legendre(
         If :obj:`None`, use ``x``.
       kwargs: Keyword arguments for :func:`~ott.math.lbfgs`, e.g. maximal
       iterations ``max_iters``, convergence tolerance ``tol`` or
-      :func:`optax.lbfgs` parameters.
+      :func:`optax.lbfgs` arguments.
 
     Returns:
         The Legendre transform of ``fun`` evaluated at ``x``.

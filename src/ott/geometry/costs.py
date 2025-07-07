@@ -219,7 +219,7 @@ class TICost(CostFn):
         return self.h(z) - f(x - z)
 
       x_init = x if x_init is None else x_init
-      z, state = solver(fun, x_init, **kwargs)
+      z, _ = solver(fun, x_init, **kwargs)
       z = jax.lax.stop_gradient(z)
       return fun(z)
 
