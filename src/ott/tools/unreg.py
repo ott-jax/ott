@@ -16,8 +16,6 @@ from typing import NamedTuple, Optional, Tuple
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 
-from optax import assignment
-
 from ott.geometry import costs, geometry, pointcloud
 
 from . import hungarian_jax
@@ -50,7 +48,7 @@ class HungarianOutput(NamedTuple):
 
 
 def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
-  """Solve matching problem using :term:`Hungarian algorithm` from :mod:`optax`.
+  """Solve matching problem using :term:`Hungarian algorithm` from :mod:`scenic`.
 
   Args:
     geom: Geometry object with square (shape ``[n,n]``)
