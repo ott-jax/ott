@@ -20,6 +20,8 @@ from optax import assignment
 
 from ott.geometry import costs, geometry, pointcloud
 
+from . import hungarian_jax
+
 __all__ = ["hungarian"]
 
 
@@ -60,7 +62,7 @@ def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
   """
   n, m = geom.shape
   assert n == m, f"Hungarian can only match same # of points, got {n} and {m}."
-  i, j = assignment.hungarian_algorithm(geom.cost_matrix)
+  i, j = hungarian_jax.hungarian_single(geom.cost_matrix)
 
   hungarian_out = HungarianOutput(geom=geom, paired_indices=jnp.stack((i, j)))
   return jnp.sum(geom.cost_matrix[i, j]) / n, hungarian_out
