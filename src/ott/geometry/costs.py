@@ -374,7 +374,7 @@ class Dotp(CostFn):
     return -jnp.vdot(x, y)
 
   def twist_operator(self, vec, dual_vec, variable) -> jnp.ndarray:
-    """Twise operator for negative dot-product cost."""
+    """Twist operator for negative dot-product cost."""
     return -vec if variable else -dual_vec
 
   def norm(self, x: jnp.ndarray) -> jnp.ndarray:
