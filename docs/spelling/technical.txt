@@ -30,6 +30,9 @@ Postcomposition
 SGD
 Schrödinger
 Schur
+sharding
+sharded
+shard
 Seidel
 Sinkhorn
 UNet
