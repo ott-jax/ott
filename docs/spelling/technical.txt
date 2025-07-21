@@ -30,9 +30,6 @@ Postcomposition
 SGD
 Schrödinger
 Schur
-sharding
-sharded
-shard
 Seidel
 Sinkhorn
 UNet
@@ -153,6 +150,9 @@ runtime
 scRNA
 scalings
 semidefinite
+shard
+sharded
+sharding
 sigmoid
 simplicial
 softplus
