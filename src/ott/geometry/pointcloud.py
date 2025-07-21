@@ -444,10 +444,9 @@ class PointCloud(geometry.Geometry):
   def is_online(self) -> bool:
     """Whether the cost/kernel is computed on-the-fly."""
     return self.batch_size is not None
-  
+
   @property
   def diag_cost(self) -> jnp.ndarray:
     """Diagonal of the cost matrix."""
     assert self.is_square, "Cost matrix must be square to compute diagonal."
     return jax.vmap(self.cost_fn, in_axes=(0, 0))(self.x, self.y)
-

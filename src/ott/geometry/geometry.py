@@ -216,7 +216,6 @@ class Geometry:
     n, m = self.shape
     return (n == m)
 
-
   @property
   def inv_scale_cost(self) -> jnp.ndarray:
     """Compute and return inverse of scaling factor for cost matrix."""

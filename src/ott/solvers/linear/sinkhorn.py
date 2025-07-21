@@ -514,9 +514,12 @@ class SinkhornOutput(NamedTuple):
   @property
   def diag(self) -> jnp.ndarray:
     """Diagonal of the transport matrix."""
-    assert self.ot_prob.geom.is_square, "Problem must be square for transport matrix to have a diag."
+    assert self.ot_prob.geom.is_square, (
+        "Problem must be square for ", "transport  matrix to have a diag."
+    )
     diag = self.ot_prob.geom.diag_cost
-    return jnp.exp((-diag + self.f + self.g)/self.geom.epsilon)
+    return jnp.exp((-diag + self.f + self.g) / self.geom.epsilon)
+
 
 @jax.tree_util.register_pytree_node_class
 class Sinkhorn:
