@@ -53,6 +53,19 @@ class TestSinkhorn:
     self.a = a / jnp.sum(a)
     self.b = b / jnp.sum(b)
 
+  def test_diag_sum(self):
+    """Test that Diag sum high when comparing PC with itself for low eps."""
+    x = self.x
+    epsilon = .01
+    geom = pointcloud.PointCloud(
+        x, epsilon=epsilon
+    )
+    out = linear.solve(geom)
+    
+    np.testing.assert_array_less(.99, jnp.sum(out.diag))
+    np.testing.assert_array_less(jnp.sum(out.diag), 1.0)
+
+
   def test_SqEucl_matches_hungarian(self):
     """Test that Sinkhorn matches Hungarian for low regularization."""
     x = self.x
@@ -614,8 +627,8 @@ class TestSinkhorn:
     np.testing.assert_allclose(ent_transport, out.entropy, atol=1e-2, rtol=1e-2)
 
   @pytest.mark.fast.with_args(cost_fn=[costs.SqEuclidean(), costs.Dotp()])
-  def test_norm_entropy(self, cost_fn):
-    """Test computation of entropy of solution."""
+  def test_normalized_entropy(self, cost_fn):
+    """Test computation of normalized entropy of solution."""
     geom = pointcloud.PointCloud(self.x, self.x)
     out = linear.solve(geom)
     ent_transport = jnp.sum(jsp.special.entr(out.matrix))

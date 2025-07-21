@@ -38,6 +38,7 @@ __all__ = [
     "Bures",
     "UnbalancedBures",
     "SoftDTW",
+    "Dotp"
 ]
 
 # TODO(michalk8): norm check
