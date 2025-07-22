@@ -116,6 +116,12 @@ class LRCGeometry(geometry.Geometry):
       return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
+  @property
+  def diag_cost(self) -> jnp.ndarray:
+    """Diagonal of the cost matrix."""
+    assert self.is_square, "Diagonal cost only available for square geometries."
+    return jnp.sum(self._cost_1 * self._cost_2, axis=-1)
+
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""
     (n, m), r = self.shape, self.cost_rank

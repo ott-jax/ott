@@ -54,14 +54,16 @@ class TestSinkhorn:
     self.b = b / jnp.sum(b)
 
   def test_diag_sum(self):
-    """Test that Diag sum high when comparing PC with itself for low eps."""
+    """Test Diag sum high when comparing PC (to LRC) with itself for low eps."""
     x = self.x
     epsilon = .01
     geom = pointcloud.PointCloud(x, epsilon=epsilon)
-    out = linear.solve(geom)
+    geom_lr = geom.to_LRCGeometry()
 
-    np.testing.assert_array_less(.99, jnp.sum(out.diag))
-    np.testing.assert_array_less(jnp.sum(out.diag), 1.0)
+    for g in (geom, geom_lr):
+      out = linear.solve(g)
+      np.testing.assert_array_less(.99, jnp.sum(out.diag))
+      np.testing.assert_array_less(jnp.sum(out.diag), 1.0)
 
   def test_SqEucl_matches_hungarian(self):
     """Test that Sinkhorn matches Hungarian for low regularization."""
