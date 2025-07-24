@@ -150,6 +150,9 @@ runtime
 scRNA
 scalings
 semidefinite
+shard
+sharded
+sharding
 sigmoid
 simplicial
 softplus

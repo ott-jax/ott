@@ -207,9 +207,14 @@ class Geometry:
   @property
   def is_symmetric(self) -> bool:
     """Whether geometry cost/kernel is a symmetric matrix."""
-    n, m = self.shape
     mat = self.kernel_matrix if self.cost_matrix is None else self.cost_matrix
-    return (n == m) and jnp.all(mat == mat.T)
+    return self.is_square and jnp.all(mat == mat.T)
+
+  @property
+  def is_square(self) -> bool:
+    """Whether geometry cost/kernel is a square matrix."""
+    n, m = self.shape
+    return (n == m)
 
   @property
   def inv_scale_cost(self) -> jnp.ndarray:
@@ -223,6 +228,12 @@ class Geometry:
     if utils.is_scalar(self._scale_cost):
       return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
+
+  @property
+  def diag_cost(self) -> jnp.ndarray:
+    """Diagonal of the cost matrix."""
+    assert self.is_square, "Cost matrix must be square to compute diagonal."
+    return jnp.diag(self.cost_matrix)
 
   def set_scale_cost(self, scale_cost: Union[float, str]) -> "Geometry":
     """Modify how to rescale of the :attr:`cost_matrix`."""

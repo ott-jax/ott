@@ -28,16 +28,8 @@ from ott.math import fixed_point_loop, matrix_square_root
 from ott.math import utils as mu
 
 __all__ = [
-    "PNormP",
-    "SqPNorm",
-    "Euclidean",
-    "SqEuclidean",
-    "RegTICost",
-    "Cosine",
-    "Arccos",
-    "Bures",
-    "UnbalancedBures",
-    "SoftDTW",
+    "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "RegTICost", "Cosine",
+    "Arccos", "Bures", "UnbalancedBures", "SoftDTW", "Dotp"
 ]
 
 # TODO(michalk8): norm check
@@ -378,10 +370,11 @@ class Dotp(CostFn):
     c(x,y) = - \langle x, y\rangle
   """
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:  # noqa: D102
     return -jnp.vdot(x, y)
 
   def twist_operator(self, vec, dual_vec, variable) -> jnp.ndarray:
+    """Twist operator for negative dot-product cost."""
     return -vec if variable else -dual_vec
 
   def norm(self, x: jnp.ndarray) -> jnp.ndarray:
