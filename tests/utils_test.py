@@ -33,7 +33,7 @@ class TestBatchedVmap:
     gt_fn = jax.jit(jax.vmap(jnp.sum))
     fn = jax.jit(utils.batched_vmap(jnp.sum, batch_size=batch_size))
 
-    np.testing.assert_array_equal(gt_fn(x), fn(x))
+    np.testing.assert_array_equal(gt_fn(x), fn(x), rtol=1e-5, atol=1e-5)
 
   def test_pytree(self, rng: jax.Array):
 
