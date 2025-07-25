@@ -153,7 +153,7 @@ Packages
     :alt: Coverage
 
 .. _Just-in-time (JIT) compilation: https://jax.readthedocs.io/en/latest/jax.html#just-in-time-compilation-jit
-.. _auto-vectorization (VMAP): https://jax.readthedocs.io/en/latest/jax.html#vectorization-vmap
+.. _auto-vectorization (VMAP): https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html#jax.vmap
 .. _automatic: https://jax.readthedocs.io/en/latest/jax.html#automatic-differentiation
 .. _implicit: https://jax.readthedocs.io/en/latest/_autosummary/jax.custom_jvp.html#jax.custom_jvp
 .. _conda: https://anaconda.org/conda-forge/ott-jax

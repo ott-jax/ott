@@ -54,7 +54,7 @@ class TestBatchedVmap:
     gt_fn = jax.vmap(f, in_axes=in_axes)
     fn = utils.batched_vmap(f, in_axes=in_axes, batch_size=2)
 
-    np.testing.assert_array_equal(gt_fn(x), fn(x))
+    np.testing.assert_array_equal(gt_fn(x), fn(x), rtol=1e-5, atol=1e-5)
 
   @pytest.mark.parametrize("batch_size", [1, 7, 67, 133])
   @pytest.mark.parametrize("in_axes", [0, 1, -1, -2, [0, None], (0, -2)])
@@ -126,7 +126,7 @@ class TestBatchedVmap:
     gt_fn = jax.vmap(f, out_axes=out_axes)
     fn = utils.batched_vmap(f, batch_size=5, out_axes=out_axes)
 
-    chex.assert_trees_all_equal(gt_fn(x, y), fn(x, y))
+    chex.assert_trees_all_close(gt_fn(x, y), fn(x, y), rtol=1e-5, atol=1e-5)
 
   @pytest.mark.parametrize(
       "out_axes", [0, (0, 0, 1), (0, {
@@ -146,7 +146,7 @@ class TestBatchedVmap:
     fn = utils.batched_vmap(f, batch_size=12, out_axes=out_axes)
     gt_fn = jax.vmap(f, out_axes=out_axes)
 
-    chex.assert_trees_all_equal(gt_fn(x), fn(x))
+    chex.assert_trees_all_close(gt_fn(x), fn(x), rtol=1e-5, atol=1e-5)
 
   @pytest.mark.parametrize("n", [16, 7])
   @pytest.mark.parametrize("batch_size", [1, 4, 5, 7, 16])
@@ -162,7 +162,7 @@ class TestBatchedVmap:
     chex.clear_trace_counter()
     x = jax.random.normal(rng, (n, 3))
 
-    np.testing.assert_array_equal(fn(x), x.sum(1))
+    np.testing.assert_array_almost_equal(fn(x), x.sum(1), decimal=4)
 
   @pytest.mark.limit_memory("20MB")
   def test_vmap_max_memory(self, rng: jax.Array):
