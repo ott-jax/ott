@@ -54,7 +54,7 @@ class TestBatchedVmap:
     gt_fn = jax.vmap(f, in_axes=in_axes)
     fn = utils.batched_vmap(f, in_axes=in_axes, batch_size=2)
 
-    np.testing.assert_array_equal(gt_fn(x), fn(x), rtol=1e-5, atol=1e-5)
+    np.testing.assert_array_almost_equal(gt_fn(x), fn(x), decimal=4)
 
   @pytest.mark.parametrize("batch_size", [1, 7, 67, 133])
   @pytest.mark.parametrize("in_axes", [0, 1, -1, -2, [0, None], (0, -2)])
