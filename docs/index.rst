@@ -144,8 +144,8 @@ Packages
     :target: https://github.com/ott-jax/ott/actions/workflows/tests.yml
     :alt: Documentation
 
-.. |Docs| image:: https://img.shields.io/readthedocs/ott-jax/latest
-    :target: https://ott-jax.readthedocs.io/en/latest/
+.. |Docs| image:: https://img.shields.io/readthedocs/ott-jax
+    :target: https://ott-jax.readthedocs.io
     :alt: Documentation
 
 .. |Coverage| image:: https://img.shields.io/codecov/c/github/ott-jax/ott/main

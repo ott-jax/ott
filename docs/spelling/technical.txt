@@ -87,6 +87,7 @@ initializations
 initializer
 initializers
 instantiation
+interpretable
 invertible
 iso
 iteratively
@@ -142,6 +143,7 @@ reparameterization
 reproducibility
 rescale
 rescaled
+rescales
 rescaling
 reweighted
 reweighting
