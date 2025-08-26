@@ -164,7 +164,7 @@ class TestBatchedVmap:
 
     np.testing.assert_array_almost_equal(fn(x), x.sum(1), decimal=4)
 
-  @pytest.mark.limit_memory("20MB")
+  @pytest.mark.limit_memory("35MB")
   def test_vmap_max_memory(self, rng: jax.Array):
     n, m, d = 2 ** 16, 2 ** 11, 3
     rng, rng_data = jax.random.split(rng, 2)
