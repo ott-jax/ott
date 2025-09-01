@@ -33,12 +33,11 @@ def _min_operator(
     g: jax.Array,
     x: jax.Array,
     y: jax.Array,
-    *,
     epsilon: Optional[float],
     cost_fn: costs.CostFn,
 ) -> jax.Array:
   m = y.shape[0]
-  assert g.shape == (m,), g.shape
+  assert g.shape == (m,), (g.shape, y.shape)
   cost = cost_fn.all_pairs(x, y)  # [n, m]
   if epsilon is None:  # hard min
     z = g[None, :] - cost
@@ -52,7 +51,6 @@ def _semidiscrete_loss(
     g: jax.Array,
     x: jax.Array,
     y: jax.Array,
-    *,
     epsilon: float,
     cost_fn: costs.CostFn,
 ) -> jax.Array:
