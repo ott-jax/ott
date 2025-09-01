@@ -378,6 +378,19 @@ def batched_vmap(
   Returns:
     The vectorized function.
   """
+  vmapped_fun = jax.vmap(fun, in_axes=in_axes, out_axes=out_axes)
+  return _batched_map(
+      vmapped_fun, batch_size=batch_size, in_axes=in_axes, out_axes=out_axes
+  )
+
+
+def _batched_map(
+    fun: Callable[P, R],
+    *,
+    batch_size: int,
+    in_axes: Optional[Union[int, Sequence[int], Any]] = 0,
+    out_axes: Any = 0,
+) -> Callable[P, R]:
 
   def unbatch(axis: int, x: jnp.ndarray) -> jnp.ndarray:
     x = jnp.moveaxis(x, 0, axis)
@@ -407,7 +420,7 @@ def batched_vmap(
       )
       batched = jax.tree.map(unbatch, out_axes_, batched)
     if has_remainder:
-      remainder = vmapped_fun(*remainder, **kwargs)
+      remainder = fun(*remainder, **kwargs)
 
     if has_batched and has_remainder:
       return jax.tree.map(concat, out_axes_, batched, remainder)
@@ -419,8 +432,7 @@ def batched_vmap(
   if isinstance(in_axes, list):
     in_axes = tuple(in_axes)
 
-  vmapped_fun = jax.vmap(fun, in_axes=in_axes, out_axes=out_axes)
-  batched_fun = _apply_scan(vmapped_fun, in_axes=in_axes)
+  batched_fun = _apply_scan(fun, in_axes=in_axes)
 
   return wrapper
 
