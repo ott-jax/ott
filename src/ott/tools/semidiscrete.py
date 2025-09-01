@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Iterable, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, Literal, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -25,7 +25,8 @@ from ott.math import utils as math_utils
 
 __all__ = ["semidiscrete"]
 
-Callback = Callable[[jax.Array, int, jax.Array, jax.Array, jax.Array], None]
+Stats = Dict[Literal["loss", "grad_norm"], float]
+Callback = Callable[[jax.Array, int, jax.Array, Stats], None]
 
 
 def _min_operator(
@@ -47,7 +48,7 @@ def _min_operator(
   return -epsilon * math_utils.logsumexp(z, axis=-1)
 
 
-# TODO(michalk8): custom JVP
+# TODO(michalk8): custom JVP?
 def _semidiscrete_loss(
     g: jax.Array,
     x: jax.Array,
@@ -84,14 +85,14 @@ def semidiscrete(
       g: jax.Array,
       x: jax.Array,
       opt_state: Any,
-  ) -> Tuple[jax.Array, Any, Tuple[jax.Array, jax.Array]]:
+  ) -> Tuple[jax.Array, Any, Dict[str, jax.Array]]:
     loss, grads = jax.value_and_grad(_semidiscrete_loss)(
         g, x, y, epsilon=epsilon, cost_fn=cost_fn
     )
     grad_norm = jnp.linalg.norm(grads)
     updates, opt_state = optimizer.update(grads, opt_state, g)
     g = optax.apply_updates(g, updates)
-    return g, opt_state, (loss, grad_norm)
+    return g, opt_state, {"loss": loss, "grad_norm": grad_norm}
 
   n, *rest = y.shape
   x_shape = (batch_size, *rest)
@@ -110,12 +111,15 @@ def semidiscrete(
   for it in range(num_iters):
     rng, rng_dist, *rng_callbacks = jr.split(rng, 2 + len(callbacks))
     x = sampler(rng_dist, x_shape)
-    g, opt_state, (loss, grad_norm) = update_potential(g, x, opt_state)
+    g, opt_state, stats = update_potential(g, x, opt_state)
+    stats = jax.tree.map(
+        lambda x: x.item()
+        if isinstance(x, jax.Array) and x.ndim == 0 else x, stats
+    )
 
-    # TODO(michalk8): don't pass grad_norm?
     # TODO(michalk8): track losses + return
     for rng_cb, callback in zip(rng_callbacks, callbacks):
-      callback(rng_cb, it, g, loss, grad_norm)
+      callback(rng_cb, it, g, stats)
 
   return g
 
@@ -127,13 +131,13 @@ def print_callback(print_every: int = 1000) -> Callback:
       rng: jax.Array,
       it: int,
       g: jax.Array,
-      loss: jax.Array,
-      grad_norm: jax.Array,
+      stats: Stats,
   ) -> None:
     del rng, g
     if it % print_every == 0:
+      loss, grad_norm = stats["loss"], stats["grad_norm"]
       print(  # noqa: T201
-          f"It. {it}, loss={loss.item():.5f}, grad_norm={grad_norm:.5f}"
+          f"It. {it}, loss={loss:.5f}, grad_norm={grad_norm:.5f}"
       )
 
   return callback
