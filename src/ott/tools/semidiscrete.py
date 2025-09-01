@@ -48,7 +48,6 @@ def _min_operator(
   return -epsilon * math_utils.logsumexp(z, axis=-1)
 
 
-# TODO(michalk8): custom JVP?
 def _semidiscrete_loss(
     g: jax.Array,
     x: jax.Array,
