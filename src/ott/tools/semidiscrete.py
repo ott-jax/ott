@@ -66,6 +66,7 @@ def semidiscrete(
     sampler: Callable[[jax.Array, tuple[int, ...]], jax.Array],
     y: jax.Array,
     optimizer: optax.GradientTransformation,
+    opt_state: Optional[Any] = None,
     g: Optional[jax.Array] = None,
     num_iters: int = 1000,
     batch_size: int = 32,
@@ -78,13 +79,14 @@ def semidiscrete(
 
   @functools.partial(
       jax.jit,
-      in_shardings=(data_sharding, data_sharding, None),
+      in_shardings=(data_sharding, None, None),
       out_shardings=(data_sharding, None, None),
+      donate_argnums=(0, 1),
   )
   def update_potential(
       g: jax.Array,
-      x: jax.Array,
       opt_state: Any,
+      x: jax.Array,
   ) -> Tuple[jax.Array, Any, Dict[str, jax.Array]]:
     loss, grads = jax.value_and_grad(_semidiscrete_loss)(
         g, x, y, epsilon=epsilon, cost_fn=cost_fn
@@ -106,12 +108,16 @@ def semidiscrete(
 
   if cost_fn is None:
     cost_fn = costs.SqEuclidean()
+  if opt_state is None:
+    opt_state = optimizer.init(g)
 
-  opt_state = optimizer.init(g)
   for it in range(num_iters):
     rng, rng_dist, *rng_callbacks = jr.split(rng, 2 + len(callbacks))
+    # TODO(michalk8): sharding?
     x = sampler(rng_dist, x_shape)
-    g, opt_state, stats = update_potential(g, x, opt_state)
+
+    g, opt_state, stats = update_potential(g, opt_state, x)
+
     stats = jax.tree.map(
         lambda x: x.item()
         if isinstance(x, jax.Array) and x.ndim == 0 else x, stats
@@ -124,6 +130,7 @@ def semidiscrete(
   return g
 
 
+# TODO(michalk8): add marginal TV/chi-squared error
 # TODO(michalk8): format, etc.
 def print_callback(print_every: int = 1000) -> Callback:
 
