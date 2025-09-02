@@ -39,7 +39,6 @@ def _min_operator(
 ) -> Tuple[jax.Array, jax.Array]:
   m = y.shape[0]
   assert g.shape == (m,), (g.shape, y.shape)
-  m = 20_000
   cost = cost_fn.all_pairs(x, y)  # [n, m]
   if epsilon is None:  # hard min
     z = g[None, :] - cost
@@ -79,9 +78,13 @@ def _semidiscrete_loss_bwd(
   (z, n, m) = res
   if epsilon is not None:
     grad = jsp.special.softmax(z, axis=-1).sum(0)
-    grad = grad * (1.0 / n) - (1.0 / m)
-    return g * grad, None, None
-  raise NotImplementedError("TODO")
+  else:
+    max_val = jnp.max(z, axis=-1, keepdims=True)
+    is_max = jnp.abs(z - max_val) <= 1e-8
+    num_max = jnp.sum(is_max, axis=-1, keepdims=True)
+    grad = jnp.sum(is_max / num_max, axis=0)
+  grad = grad * (1.0 / n) - (1.0 / m)
+  return g * grad, None, None
 
 
 _semidiscrete_loss.defvjp(_semidiscrete_loss_fwd, _semidiscrete_loss_bwd)
