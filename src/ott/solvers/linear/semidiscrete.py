@@ -16,6 +16,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import jax.scipy as jsp
 import jax.tree_util as jtu
 
@@ -27,13 +28,20 @@ from ott.problems.linear import linear_problem, semidiscrete_linear_problem
 Stats = Dict[str, jax.Array]
 
 
+@jtu.register_dataclass
 @dataclasses.dataclass
 class SemidiscreteState:
   """TODO."""
-  step: jax.Array
   g: jax.Array
   opt_state: Any
-  rng: jax.Array
+
+
+@jtu.register_dataclass
+@dataclasses.dataclass
+class SemidiscreteOutput:
+  """TODO."""
+  g: jax.Array
+  prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
 
 
 @jtu.register_dataclass
@@ -51,12 +59,22 @@ class SemidiscreteSolver:
       rng: jax.Array,
       prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
       g_init: Optional[jax.Array] = None,
-  ):
+  ) -> Tuple[SemidiscreteOutput, Stats]:
     """TODO."""
 
-    def step(carry: SemidiscreteState,
+    def step(state: SemidiscreteState,
              it: jax.Array) -> Tuple[SemidiscreteState, Stats]:
-      return ...
+      rng_it = jr.fold_in(rng, it)
+      lin_prob = prob.materialize(rng_it, self.batch_size)
+      g = state.g
+
+      loss, grads = jax.value_and_grad(_semidiscrete_loss)(g, lin_prob)
+
+      updates, opt_state = self.optimizer.update(grads, state.opt_state, g)
+      g = optax.apply_updates(g, updates)
+
+      state = SemidiscreteState(g=g, opt_state=opt_state)
+      return state, {"loss": loss}
 
     _, m = prob.geom.shape
     if g_init is None:
@@ -64,16 +82,11 @@ class SemidiscreteSolver:
     else:
       assert g_init.shape == (m,), (g_init.shape, (m,))
 
-    state = SemidiscreteState(
-        step=jnp.array(0, dtype=int),
-        g=g_init,
-        opt_state=self.optimizer.init(g_init),
-        rng=rng,
-    )
-    state, _stats = jax.lax.scan(
-        step, init=state, xs=jnp.arange(self.num_iters)
-    )
-    return state
+    state = SemidiscreteState(g=g_init, opt_state=self.optimizer.init(g_init))
+    state, stats = jax.lax.scan(step, init=state, xs=jnp.arange(self.num_iters))
+    out = SemidiscreteOutput(g=state.g, prob=prob)
+
+    return out, stats
 
 
 def _c_transform(
@@ -106,7 +119,7 @@ def _semidiscrete_loss_fwd(
     prob: linear_problem.LinearProblem,
 ) -> Tuple[jax.Array, Tuple[jax.Array, Tuple[int, int]]]:
   z, tmp = _c_transform(g, prob)
-  return -jnp.mean(z) - jnp.dot(g, prob.b), (tmp, prob.shape)
+  return -jnp.mean(z) - jnp.dot(g, prob.b), (tmp, prob.geom.shape)
 
 
 def _semidiscrete_loss_bwd(

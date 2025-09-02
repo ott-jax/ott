@@ -61,4 +61,4 @@ class SemidiscreteLinearProblem:
   def tree_unflatten(  # noqa: D102
       cls, aux_data, children
   ) -> "SemidiscreteLinearProblem":
-    return cls(children, **aux_data)
+    return cls(*children, **aux_data)
