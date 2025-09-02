@@ -146,11 +146,7 @@ def semidiscrete(
     x = sampler(rng_dist, x_shape)
 
     g, opt_state, stats = update_potential(g, opt_state, x)
-
-    stats = jax.tree.map(
-        lambda x: x.item()
-        if isinstance(x, jax.Array) and x.ndim == 0 else x, stats
-    )
+    stats = jax.tree.map(lambda x: x.item() if jnp.isscalar(x) else x, stats)
 
     # TODO(michalk8): track losses + return
     for rng_cb, callback in zip(rng_callbacks, callbacks):
