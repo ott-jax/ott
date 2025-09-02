@@ -17,6 +17,7 @@ from typing import Any, Callable, Dict, Iterable, Literal, Optional, Tuple
 import jax
 import jax.numpy as jnp
 import jax.random as jr
+import jax.scipy as jsp
 
 import optax
 
@@ -35,18 +36,20 @@ def _min_operator(
     y: jax.Array,
     epsilon: Optional[float],
     cost_fn: costs.CostFn,
-) -> jax.Array:
+) -> Tuple[jax.Array, jax.Array]:
   m = y.shape[0]
   assert g.shape == (m,), (g.shape, y.shape)
+  m = 20_000
   cost = cost_fn.all_pairs(x, y)  # [n, m]
   if epsilon is None:  # hard min
     z = g[None, :] - cost
-    return -jnp.max(z, axis=-1)
+    return -jnp.max(z, axis=-1), z
   # soft min
   z = (g[None, :] - cost) / epsilon - jnp.log(m)
-  return -epsilon * math_utils.logsumexp(z, axis=-1)
+  return -epsilon * math_utils.logsumexp(z, axis=-1), z
 
 
+@functools.partial(jax.custom_vjp, nondiff_argnums=(3, 4))
 def _semidiscrete_loss(
     g: jax.Array,
     x: jax.Array,
@@ -54,8 +57,34 @@ def _semidiscrete_loss(
     epsilon: float,
     cost_fn: costs.CostFn,
 ) -> jax.Array:
-  z = _min_operator(g, x, y, epsilon=epsilon, cost_fn=cost_fn)
+  z, _ = _min_operator(g, x, y, epsilon=epsilon, cost_fn=cost_fn)
   return -jnp.mean(z) - jnp.mean(g)
+
+
+def _semidiscrete_loss_fwd(
+    g: jax.Array,
+    x: jax.Array,
+    y: jax.Array,
+    epsilon: float,
+    cost_fn: costs.CostFn,
+) -> Tuple[jax.Array, Tuple[jax.Array, int, int]]:
+  z, tmp = _min_operator(g, x, y, epsilon=epsilon, cost_fn=cost_fn)
+  save = (tmp, x.shape[0], y.shape[0])
+  return -jnp.mean(z) - jnp.mean(g), save
+
+
+def _semidiscrete_loss_bwd(
+    epsilon: Optional[float], _, res: Tuple[jax.Array, int, int], g: jax.Array
+) -> Tuple[jax.Array, None, None]:
+  (z, n, m) = res
+  if epsilon is not None:
+    grad = jsp.special.softmax(z, axis=-1).sum(0)
+    grad = grad * (1.0 / n) - (1.0 / m)
+    return g * grad, None, None
+  raise NotImplementedError("TODO")
+
+
+_semidiscrete_loss.defvjp(_semidiscrete_loss_fwd, _semidiscrete_loss_bwd)
 
 
 def semidiscrete(
