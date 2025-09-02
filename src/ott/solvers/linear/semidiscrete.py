@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -25,7 +25,7 @@ import optax
 from ott.math import utils as math_utils
 from ott.problems.linear import linear_problem, semidiscrete_linear_problem
 
-Stats = Dict[str, jax.Array]
+Stats = Dict[Literal["loss", "grad_norm"], float]
 
 
 @jtu.register_dataclass
@@ -70,11 +70,12 @@ class SemidiscreteSolver:
 
       loss, grads = jax.value_and_grad(_semidiscrete_loss)(g, lin_prob)
 
+      grad_norm = jnp.linalg.norm(grads)
       updates, opt_state = self.optimizer.update(grads, state.opt_state, g)
       g = optax.apply_updates(g, updates)
 
       state = SemidiscreteState(g=g, opt_state=opt_state)
-      return state, {"loss": loss}
+      return state, {"loss": loss, "grad_norm": grad_norm}
 
     _, m = prob.geom.shape
     if g_init is None:

@@ -18,7 +18,6 @@ from . import (
     plot,
     progot,
     segment_sinkhorn,
-    semidiscrete,
     sinkhorn_divergence,
     sliced,
     soft_sort,
