@@ -24,6 +24,7 @@ import optax
 
 from ott.math import utils as math_utils
 from ott.problems.linear import linear_problem, semidiscrete_linear_problem
+from ott.solvers.linear import sinkhorn
 
 Stats = Dict[Literal["loss", "grad_norm"], float]
 
@@ -42,6 +43,21 @@ class SemidiscreteOutput:
   """TODO."""
   g: jax.Array
   prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
+
+  def materialize(
+      self, rng: jax.Array, num_samples: int
+  ) -> sinkhorn.SinkhornOutput:
+    """TODO."""
+    prob = self.prob.materialize(rng, num_samples)
+    # TODO(michalk8): verify
+    f, _ = _c_transform(self.g, prob)
+    out = sinkhorn.SinkhornOutput(
+        potentials=(f, self.g),
+        ot_prob=prob,
+        # TODO(michalk8): populate more fields?
+    )
+    # TODO(michalk8): pass?
+    return out.set_cost(prob, lse_mode=True, use_danskin=True)
 
 
 @jtu.register_dataclass
