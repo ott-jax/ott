@@ -11,4 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from . import barycenter_problem, linear_problem, potentials
+from . import (
+    barycenter_problem,
+    linear_problem,
+    potentials,
+    semidiscrete_linear_problem,
+)

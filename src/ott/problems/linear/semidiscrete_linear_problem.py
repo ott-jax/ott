@@ -18,6 +18,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 
 from ott.geometry import semidiscrete_pointcloud
+from ott.problems.linear import linear_problem
 
 __all__ = ["SemidiscreteLinearProblem"]
 
@@ -35,6 +36,15 @@ class SemidiscreteLinearProblem:
     self.geom = geom
     self._b = b
     self.tau_b = tau_b
+
+  def materialize(
+      self, rng: jax.Array, num_samples: int
+  ) -> linear_problem.LinearProblem:
+    """TODO."""
+    geom = self.geom.materialize(rng, num_samples)
+    return linear_problem.LinearProblem(
+        geom, a=None, b=self._b, tau_a=1.0, tau_b=self.tau_b
+    )
 
   @property
   def b(self) -> jnp.ndarray:

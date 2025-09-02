@@ -15,7 +15,6 @@ import dataclasses
 from typing import Callable, Tuple, Union
 
 import jax
-import jax.numpy as jnp
 import jax.tree_util as jtu
 
 from ott.geometry import costs, pointcloud
@@ -48,4 +47,4 @@ class SemidiscretePointCloud:
   @property
   def shape(self) -> tuple[float, int]:
     """TODO."""
-    return jnp.inf, self.y.shape[0]
+    return float("inf"), self.y.shape[0]
