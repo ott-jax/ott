@@ -117,15 +117,16 @@ def _semidiscrete_loss(
 def _semidiscrete_loss_fwd(
     g: jax.Array,
     prob: linear_problem.LinearProblem,
-) -> Tuple[jax.Array, Tuple[jax.Array, Tuple[int, int]]]:
+) -> Tuple[jax.Array, Tuple[jax.Array, linear_problem.LinearProblem]]:
   z, tmp = _c_transform(g, prob)
-  return -jnp.mean(z) - jnp.dot(g, prob.b), (tmp, prob.geom.shape)
+  return -jnp.mean(z) - jnp.dot(g, prob.b), (tmp, prob)
 
 
 def _semidiscrete_loss_bwd(
-    res: Tuple[jax.Array, Tuple[int, int]], g: jax.Array
+    res: Tuple[jax.Array, linear_problem.LinearProblem], g: jax.Array
 ) -> Tuple[jax.Array, None]:
-  z, (n, m) = res
+  z, prob = res
+  n, _ = prob.geom.shape
   if True:  # TODO(michalk8):
     grad = jsp.special.softmax(z, axis=-1).sum(0)
   else:
@@ -133,8 +134,8 @@ def _semidiscrete_loss_bwd(
     is_max = jnp.abs(z - max_val) <= 1e-8
     num_max = jnp.sum(is_max, axis=-1, keepdims=True)
     grad = jnp.sum(is_max / num_max, axis=0)
-  # TODO(michalk8)
-  grad = grad * (1.0 / n) - (1.0 / m)
+  # TODO(michalk8): check
+  grad = grad * (1.0 / n) - prob.b
   return g * grad, None
 
 
