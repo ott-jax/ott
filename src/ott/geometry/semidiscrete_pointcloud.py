@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-import functools
 from typing import Callable, Tuple, Union
 
 import jax
+import jax.numpy as jnp
 import jax.tree_util as jtu
 
 from ott.geometry import costs, pointcloud
@@ -23,12 +23,12 @@ from ott.geometry import costs, pointcloud
 __all__ = ["SemidiscretePointCloud"]
 
 
-@functools.partial(jtu.register_dataclass, meta_fields=["sampler"])
+@jtu.register_dataclass
 @dataclasses.dataclass
 class SemidiscretePointCloud:
   """TODO."""
-
-  sampler: Callable[[jax.Array, Tuple[int, ...]], jax.Array]
+  sampler: Callable[[jax.Array, Tuple[int, ...]],
+                    jax.Array] = dataclasses.field(metadata={"static": True})
   y: jax.Array
   epsilon: Union[float, jax.Array]
   cost_fn: costs.CostFn = costs.SqEuclidean()
@@ -44,3 +44,8 @@ class SemidiscretePointCloud:
         cost_fn=self.cost_fn,
         epsilon=self.epsilon,
     )
+
+  @property
+  def shape(self) -> tuple[float, int]:
+    """TODO."""
+    return jnp.inf, self.y.shape[0]
