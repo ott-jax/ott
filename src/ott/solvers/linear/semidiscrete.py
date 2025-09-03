@@ -34,6 +34,7 @@ Stats = Dict[Literal["loss", "grad_norm"], float]
 class SemidiscreteState:
   """TODO."""
   g: jax.Array
+  g_avg: Optional[jax.Array]
   opt_state: Any
 
 
@@ -69,6 +70,9 @@ class SemidiscreteSolver:
   optimizer: optax.GradientTransformation = dataclasses.field(
       metadata={"static": True}
   )
+  warmup_iters: Optional[int] = dataclasses.field(
+      default=None, metadata={"static": True}
+  )
 
   def __call__(
       self,
@@ -90,18 +94,34 @@ class SemidiscreteSolver:
       updates, opt_state = self.optimizer.update(grads, state.opt_state, g)
       g = optax.apply_updates(g, updates)
 
-      state = SemidiscreteState(g=g, opt_state=opt_state)
+      if self.warmup_iters is None:
+        g_avg = None
+      else:
+        w = it - self.warmup_iters
+        g_avg = jax.lax.cond(
+            it < self.warmup_iters, lambda g, g_avg: g, lambda g, g_avg:
+            (1.0 / (w + 1)) * g + (w / (w + 1)) * g_avg, g, state.g_avg
+        )
+
+      state = SemidiscreteState(g=g, g_avg=g_avg, opt_state=opt_state)
       return state, {"loss": loss, "grad_norm": grad_norm}
 
+    use_averaging = self.warmup_iters is not None
     _, m = prob.geom.shape
     if g_init is None:
       g_init = jnp.zeros(m)
     else:
       assert g_init.shape == (m,), (g_init.shape, (m,))
 
-    state = SemidiscreteState(g=g_init, opt_state=self.optimizer.init(g_init))
+    state = SemidiscreteState(
+        g=g_init,
+        g_avg=g_init if use_averaging else None,
+        opt_state=self.optimizer.init(g_init)
+    )
     state, stats = jax.lax.scan(step, init=state, xs=jnp.arange(self.num_iters))
-    out = SemidiscreteOutput(g=state.g, prob=prob)
+
+    g = state.g_avg if use_averaging else state.g
+    out = SemidiscreteOutput(g=g, prob=prob)
 
     return out, stats
 
