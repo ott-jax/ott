@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Callable, Tuple, Union
+from typing import Callable, Literal, Optional, Tuple, Union
 
 import jax
 import jax.tree_util as jtu
@@ -30,7 +30,14 @@ class SemidiscretePointCloud:
                     jax.Array] = dataclasses.field(metadata={"static": True})
   y: jax.Array
   epsilon: Union[float, jax.Array]
+  relative_epsilon: Optional[Literal["mean", "std"]] = dataclasses.field(
+      default=None, metadata={"static": True}
+  )
   cost_fn: costs.CostFn = costs.SqEuclidean()
+  scale_cost: Union[float, Literal["mean", "max_norm", "max_bound", "max_cost",
+                                   "median"]] = dataclasses.field(
+                                       default=1.0, metadata={"static": True}
+                                   )
 
   def materialize(
       self, rng: jax.Array, num_samples: int
@@ -42,6 +49,8 @@ class SemidiscretePointCloud:
         self.y,
         cost_fn=self.cost_fn,
         epsilon=self.epsilon,
+        relative_epsilon=self.relative_epsilon,
+        scale_cost=self.scale_cost,
     )
 
   @property
