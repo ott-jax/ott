@@ -65,7 +65,7 @@ class SemidiscreteOutput:
       *,
       num_iters: int,
       batch_size: int,
-  ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
+  ) -> Tuple[jax.Array, Dict[Literal["perp", "tv"], jax.Array]]:
     """TODO."""
 
     def body(carry: Dict[str, jax.Array],
