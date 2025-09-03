@@ -45,33 +45,90 @@ class SemidiscreteOutput:
   g: jax.Array
   prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
 
-  def assign(self, x: jnp.ndarray, epsilon: Optional[float] = None):
+  def matrix(
+      self,
+      rng: jax.Array,
+      num_samples: int,
+      *,
+      epsilon: Optional[float] = None,
+  ) -> jax.Array:
     """TODO."""
-    if epsilon is None:
-      epsilon = self.prob.geom.epsilon
+    assert epsilon is None, "Not yet implemented."
+    if self.is_entropy_regularized:
+      out = self.materialize(rng, num_samples)
+      return out.matrix
 
-    if epsilon == 0.0:
-      raise NotImplementedError("TODO")
+    geom = self.prob.materialize(rng, num_samples).geom
+    z = self.g[None, :] - geom.cost_matrix
+    return _hardmax(z)
 
-    out = self._from_samples(x, epsilon)
-    return out.apply(x.T, lse_mode=True, axis=0).T
+  def marginal_chi2_error(
+      self,
+      rng: jax.Array,
+      *,
+      num_iters: int,
+      batch_size: int,
+  ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
+    """TODO."""
 
-  def _from_samples(
-      self, x: jax.Array, epsilon: float
+    def body(carry: Dict[str, jax.Array],
+             it: jax.Array) -> Tuple[Dict[str, jax.Array], None]:
+      rng_it = jr.fold_in(rng, it)
+      matrix = self.matrix(rng_it, batch_size)
+
+      # TODO(michalk8): check (esp. the -1)
+      p2 = m * (matrix @ matrix.T)
+      chi2 = (p2.sum() - p2.trace()) / (batch_size * (batch_size - 1)) - 1.0
+
+      marginal_b = matrix.sum(0)
+
+      perp = jnp.exp(-jsp.special.xlogy(matrix, matrix).sum(-1)).mean()
+
+      carry = jax.tree.map(
+          lambda x, y: x + y / num_iters,
+          carry,
+          {
+              "chi2": chi2,
+              "perp": perp,
+              "marginal_b": marginal_b
+          },
+      )
+      return carry, None
+
+    _, m = self.prob.geom.shape
+    init = {
+        "chi2": jnp.zeros(()),
+        "perp": jnp.zeros(()),
+        "marginal_b": jnp.zeros((m,)),
+    }
+
+    res, _ = jax.lax.scan(body, init=init, xs=jnp.arange(num_iters))
+    marginal_err = jnp.linalg.norm(res["marginal_b"] - self.prob.b, ord=jnp.inf)
+    return res["chi2"], {"perp": res["perp"], "tv": marginal_err}
+
+  @property
+  def is_entropy_regularized(self) -> bool:
+    """TODO."""
+    return self.prob.geom.epsilon != 0.0
+
+  def materialize(
+      self, rng: jax.Array, num_samples: int
   ) -> sinkhorn.SinkhornOutput:
-    n = x.shape[0]
-    prob = self.prob._from_samples(x)
+    """TODO."""
+    epsilon = self.prob.geom.epsilon
+    prob = self.prob.materialize(rng, num_samples)
 
     f, _ = _c_transform(self.g, prob)
     # TODO(michalk8): comment on why
-    f_tilde = f + epsilon * jnp.log(1.0 / n)
+    f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
     g_tilde = self.g + epsilon * jnp.log(self.prob.b)
 
-    out = sinkhorn.SinkhornOutput(
+    # TODO(michalk8): enable this?
+    # return out.set_cost(prob, lse_mode=True, use_danskin=True)
+    return sinkhorn.SinkhornOutput(
         potentials=(f_tilde, g_tilde),
         ot_prob=prob,
     )
-    return out.set_cost(prob, lse_mode=True, use_danskin=True)
 
 
 @jtu.register_dataclass
@@ -177,16 +234,19 @@ def _semidiscrete_loss_bwd(
 ) -> Tuple[jax.Array, None]:
   z, prob = res
   n, _ = prob.geom.shape
-  if True:  # TODO(michalk8):
-    grad = jsp.special.softmax(z, axis=-1).sum(0)
+  if prob.geom.epsilon != 0.0:
+    grad = jsp.special.softmax(z, axis=-1)
   else:
-    max_val = jnp.max(z, axis=-1, keepdims=True)
-    is_max = jnp.abs(z - max_val) <= 1e-8
-    num_max = jnp.sum(is_max, axis=-1, keepdims=True)
-    grad = jnp.sum(is_max / num_max, axis=0)
-  # TODO(michalk8): check
-  grad = grad * (1.0 / n) - prob.b
+    grad = _hardmax(z)
+  grad = grad.sum(0) * (1.0 / n) - prob.b
   return g * grad, None
+
+
+def _hardmax(z: jax.Array) -> jax.Array:
+  max_val = jnp.max(z, axis=-1, keepdims=True)
+  is_max = jnp.abs(z - max_val) <= 1e-8
+  num_max = jnp.sum(is_max, axis=-1, keepdims=True)
+  return is_max / num_max
 
 
 _semidiscrete_loss.defvjp(_semidiscrete_loss_fwd, _semidiscrete_loss_bwd)
