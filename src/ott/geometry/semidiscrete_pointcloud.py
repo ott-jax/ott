@@ -44,6 +44,9 @@ class SemidiscretePointCloud:
   ) -> pointcloud.PointCloud:
     """TODO."""
     x = self.sampler(rng, (num_samples, *self.y.shape[1:]))
+    return self._from_samples(x)
+
+  def _from_samples(self, x: jax.Array) -> pointcloud.PointCloud:
     return pointcloud.PointCloud(
         x,
         self.y,

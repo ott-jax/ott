@@ -41,7 +41,11 @@ class SemidiscreteLinearProblem:
       self, rng: jax.Array, num_samples: int
   ) -> linear_problem.LinearProblem:
     """TODO."""
-    geom = self.geom.materialize(rng, num_samples)
+    x = self.geom.sampler(rng, (num_samples, *self.geom.y.shape[1:]))
+    return self._from_samples(x)
+
+  def _from_samples(self, x: jax.Array) -> linear_problem.LinearProblem:
+    geom = self.geom._from_samples(x)
     return linear_problem.LinearProblem(
         geom, a=None, b=self._b, tau_a=1.0, tau_b=self.tau_b
     )

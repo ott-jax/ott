@@ -45,18 +45,31 @@ class SemidiscreteOutput:
   g: jax.Array
   prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
 
-  def materialize(
-      self, rng: jax.Array, num_samples: int
-  ) -> sinkhorn.SinkhornOutput:
+  def assign(self, x: jnp.ndarray, epsilon: Optional[float] = None):
     """TODO."""
-    prob = self.prob.materialize(rng, num_samples)
-    # pot = potentials.EntropicPotentials(None, g_xy=self.g, prob=prob)
-    # f = pot.f(prob.geom.x)
+    if epsilon is None:
+      epsilon = self.prob.geom.epsilon
+
+    if epsilon == 0.0:
+      raise NotImplementedError("TODO")
+
+    out = self._from_samples(x, epsilon)
+    return out.apply(x.T, lse_mode=True, axis=0).T
+
+  def _from_samples(
+      self, x: jax.Array, epsilon: float
+  ) -> sinkhorn.SinkhornOutput:
+    n = x.shape[0]
+    prob = self.prob._from_samples(x)
+
     f, _ = _c_transform(self.g, prob)
+    # TODO(michalk8): comment on why
+    f_tilde = f + epsilon * jnp.log(1.0 / n)
+    g_tilde = self.g + epsilon * jnp.log(self.prob.b)
+
     out = sinkhorn.SinkhornOutput(
-        potentials=(f, self.g),
+        potentials=(f_tilde, g_tilde),
         ot_prob=prob,
-        # TODO(michalk8): populate more fields?
     )
     return out.set_cost(prob, lse_mode=True, use_danskin=True)
 
@@ -129,12 +142,12 @@ class SemidiscreteSolver:
 def _c_transform(
     g: jax.Array, prob: linear_problem.LinearProblem
 ) -> Tuple[jax.Array, jax.Array]:
-  _, m = prob.geom.shape
+  n, m = prob.geom.shape
   assert g.shape == (m,), (g.shape, (m,))
   cost = prob.geom.cost_matrix
   epsilon = prob.geom.epsilon
 
-  if epsilon is None:
+  if epsilon == 0.0:
     # hard min
     z = g[None, :] - cost
     return -jnp.max(z, axis=-1), z
