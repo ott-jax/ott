@@ -49,11 +49,8 @@ class SemidiscreteOutput:
       self,
       rng: jax.Array,
       num_samples: int,
-      *,
-      epsilon: Optional[float] = None,
   ) -> jax.Array:
     """TODO."""
-    assert epsilon is None, "Not yet implemented."
     if self.is_entropy_regularized:
       out = self.materialize(rng, num_samples)
       return out.matrix
