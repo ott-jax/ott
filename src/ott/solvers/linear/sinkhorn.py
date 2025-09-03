@@ -475,7 +475,7 @@ class SinkhornOutput(NamedTuple):
     """Return reg-OT cost for matrix, evaluated at other cost matrix."""
     return (
         jnp.sum(self.matrix * other_geom.cost_matrix) -
-        self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix))
+        self.geom.epsilon * jnp.sum(jsp.special.entr(self.matrix))
     )
 
   def to_dual_potentials(self) -> potentials.EntropicPotentials:

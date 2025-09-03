@@ -49,14 +49,14 @@ class SemidiscreteOutput:
   ) -> sinkhorn.SinkhornOutput:
     """TODO."""
     prob = self.prob.materialize(rng, num_samples)
-    # TODO(michalk8): verify
+    # pot = potentials.EntropicPotentials(None, g_xy=self.g, prob=prob)
+    # f = pot.f(prob.geom.x)
     f, _ = _c_transform(self.g, prob)
     out = sinkhorn.SinkhornOutput(
         potentials=(f, self.g),
         ot_prob=prob,
         # TODO(michalk8): populate more fields?
     )
-    # TODO(michalk8): pass?
     return out.set_cost(prob, lse_mode=True, use_danskin=True)
 
 
@@ -127,16 +127,16 @@ def _c_transform(
 def _semidiscrete_loss(
     g: jax.Array, prob: linear_problem.LinearProblem
 ) -> jax.Array:
-  z, _ = _c_transform(g, prob)
-  return -jnp.mean(z) - jnp.dot(g, prob.b)
+  f, _ = _c_transform(g, prob)
+  return -jnp.mean(f) - jnp.dot(g, prob.b)
 
 
 def _semidiscrete_loss_fwd(
     g: jax.Array,
     prob: linear_problem.LinearProblem,
 ) -> Tuple[jax.Array, Tuple[jax.Array, linear_problem.LinearProblem]]:
-  z, tmp = _c_transform(g, prob)
-  return -jnp.mean(z) - jnp.dot(g, prob.b), (tmp, prob)
+  f, tmp = _c_transform(g, prob)
+  return -jnp.mean(f) - jnp.dot(g, prob.b), (tmp, prob)
 
 
 def _semidiscrete_loss_bwd(
