@@ -212,6 +212,7 @@ class SemidiscreteSolver:
         g=g_init,
         g_avg=g_init if use_averaging else None,
         opt_state=self.optimizer.init(g_init),
+        # TODO(michalk8): default value?
         losses=jnp.full((self.max_iterations,), fill_value=-1.0),
         # TODO(michalk8)
         errors=None,
