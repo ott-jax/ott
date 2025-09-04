@@ -31,10 +31,12 @@ from ott.solvers.linear import sinkhorn
 @dataclasses.dataclass
 class SemidiscreteState:
   """TODO."""
+  it: jax.Array
   g: jax.Array
   g_avg: Optional[jax.Array]
   opt_state: Any
   losses: jax.Array
+  errors: Optional[jax.Array] = None
 
 
 @jtu.register_dataclass
@@ -137,16 +139,18 @@ class SemidiscreteSolver:
   optimizer: optax.GradientTransformation = dataclasses.field(
       metadata={"static": True}
   )
+  inner_iterations: Optional[int] = dataclasses.field(
+      default=None, metadata={"static": True}
+  )
   threshold: Optional[float] = dataclasses.field(
       default=None, metadata={"static": True}
   )
   warmup_iters: Optional[int] = dataclasses.field(
       default=None, metadata={"static": True}
   )
-  callback: Callable[[jax.Array, jax.Array, SemidiscreteState],
-                     None] = dataclasses.field(
-                         default=None, metadata={"static": True}
-                     )
+  callback: Callable[[jax.Array, SemidiscreteState], None] = dataclasses.field(
+      default=None, metadata={"static": True}
+  )
 
   # TODO(michalk8): can't directly JIT this
   def __call__(
@@ -157,8 +161,9 @@ class SemidiscreteSolver:
   ) -> SemidiscreteOutput:
     """TODO."""
 
-    def for_body_fn(state: SemidiscreteState,
-                    it: jax.Array) -> Tuple[SemidiscreteState, None]:
+    def body_fn(state: SemidiscreteState,
+                _: Optional[jax.Array]) -> Tuple[SemidiscreteState, None]:
+      it = state.it
       rng_it = jr.fold_in(rng, it)
       rng_mat, rng_err, rng_cb = jr.split(rng_it, 3)
       lin_prob = prob.materialize(rng_mat, self.batch_size)
@@ -180,27 +185,20 @@ class SemidiscreteSolver:
 
       losses = state.losses.at[it].set(loss)
       state = SemidiscreteState(
+          it=it + 1,
           g=g,
           g_avg=g_avg,
           opt_state=opt_state,
           losses=losses,
       )
       if self.callback is not None:
-        jax.debug.callback(self.callback, rng_it, it, state)
+        jax.debug.callback(self.callback, rng_it, state)
 
       return state, None
 
-    def cond_fn(state_it: Tuple[SemidiscreteState, jax.Array]) -> jax.Array:
+    def cond_fn(state: SemidiscreteState) -> jax.Array:
       # TODO(michalk8)
-      _, it = state_it
-      return it < self.max_iterations
-
-    def while_body_fn(
-        state_it: Tuple[SemidiscreteState, jax.Array]
-    ) -> Tuple[SemidiscreteState, jax.Array]:
-      state, it = state_it
-      state, _ = for_body_fn(state, it)
-      return state, it + 1
+      return state.it < self.max_iterations
 
     use_averaging = self.warmup_iters is not None
     _, m = prob.geom.shape
@@ -210,19 +208,24 @@ class SemidiscreteSolver:
       assert g_init.shape == (m,), (g_init.shape, (m,))
 
     state = SemidiscreteState(
+        it=jnp.array(0),
         g=g_init,
         g_avg=g_init if use_averaging else None,
         opt_state=self.optimizer.init(g_init),
         losses=jnp.full((self.max_iterations,), fill_value=-1.0),
+        # TODO(michalk8)
+        errors=None,
     )
 
     if self.threshold is None:
       state, _ = jax.lax.scan(
-          for_body_fn, init=state, xs=jnp.arange(self.max_iterations)
+          body_fn, init=state, xs=jnp.arange(self.max_iterations)
       )
     else:
-      state, _ = jax.lax.while_loop(
-          cond_fn, while_body_fn, (state, jnp.array(0))
+      state = jax.lax.while_loop(
+          cond_fn,
+          body_fun=lambda s: body_fn(s, None)[0],
+          init_val=state,
       )
     g = state.g_avg if use_averaging else state.g
 
