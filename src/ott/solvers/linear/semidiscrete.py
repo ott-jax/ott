@@ -126,7 +126,10 @@ class SemidiscreteSolver:
   optimizer: optax.GradientTransformation = dataclasses.field(
       metadata={"static": True}
   )
-  inner_iterations: Optional[int] = dataclasses.field(
+  inner_iterations: int = dataclasses.field(
+      default=1000, metadata={"static": True}
+  )
+  error_iterations: int = dataclasses.field(
       default=1000, metadata={"static": True}
   )
   threshold: float = dataclasses.field(default=1e-3, metadata={"static": True})
@@ -151,13 +154,12 @@ class SemidiscreteSolver:
         prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
         state: SemidiscreteState,
     ) -> jax.Array:
-      # TODO
       del prob
       loss = state.losses[it - 1]
-      err = jnp.abs(state.errors[it // self.max_iterations])
+      err = jnp.abs(state.errors[it // self.inner_iterations - 1])
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
-      jax.debug.print("{} {} {}", it, loss, err)
+      # continue iff
       return jnp.logical_or(
           it == 0, jnp.logical_and(not_converged, not_diverged)
       )
@@ -171,9 +173,10 @@ class SemidiscreteSolver:
       rng_it = jr.fold_in(rng, it)
       rng_mat, rng_err, rng_cb = jr.split(rng_it, 3)
       lin_prob = prob.materialize(rng_mat, self.batch_size)
-      g = state.g
+      g, g_avg = state.g, state.g_avg
 
       loss, grads = jax.value_and_grad(_semidiscrete_loss)(g, lin_prob)
+      losses = state.losses.at[it].set(loss)
 
       updates, opt_state = self.optimizer.update(grads, state.opt_state, g)
       g = optax.apply_updates(g, updates)
@@ -183,24 +186,23 @@ class SemidiscreteSolver:
         g_avg, g_err = None, g
       else:
         w = it - self.warmup_iterations
-        g_avg = jax.lax.cond(
+        g_avg = g_err = jax.lax.cond(
             it < self.warmup_iterations,
             (lambda g, g_avg: g),
             (lambda g, g_avg: (1.0 / (w + 1)) * g + (w / (w + 1)) * g_avg),
-            g, state.g_avg
+            g, g_avg
         )
-        g_err = g_avg
 
       error = jax.lax.cond(
           compute_error,
           lambda: _marginal_chi2_error(
-              rng_err, g_err, prob, num_iters=100, batch_size=self.batch_size
+              rng_err, g_err, prob,
+              num_iters=self.error_iterations, batch_size=self.batch_size,
           ),
           lambda: jnp.array(jnp.inf, dtype=g.dtype),
       )
       # fmt: on
       errors = state.errors.at[it // self.inner_iterations].set(error)
-      losses = state.losses.at[it].set(loss)
 
       state = SemidiscreteState(
           it=it,
@@ -314,14 +316,16 @@ def _marginal_chi2_error(
 
   def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
     rng_it = jr.fold_in(rng, it)
-    matrix = SemidiscreteOutput(g, prob, None, None).matrix(rng_it, batch_size)
-    m = matrix.shape[1]
+    matrix = out.matrix(rng_it, batch_size)
 
-    p2 = m * (batch_size ** 2) * (matrix @ matrix.T)
+    p2 = m * (batch_size * batch_size) * (matrix @ matrix.T)
     chi2 = (p2.sum() - p2.trace()) / (batch_size * (batch_size - 1)) - 1.0
 
     chi2_err_avg = chi2_err_avg + chi2 / num_iters
     return chi2_err_avg, None
+
+  out = SemidiscreteOutput(g, prob, None, None)
+  _, m = prob.geom.shape
 
   chi2_err = jnp.zeros(())
   chi2_err, _ = jax.lax.scan(body, init=chi2_err, xs=jnp.arange(num_iters))
