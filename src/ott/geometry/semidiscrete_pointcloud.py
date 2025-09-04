@@ -29,7 +29,8 @@ class SemidiscretePointCloud:
   sampler: Callable[[jax.Array, Tuple[int, ...]],
                     jax.Array] = dataclasses.field(metadata={"static": True})
   y: jax.Array
-  epsilon: Union[float, jax.Array]
+  epsilon: Union[float,
+                 jax.Array] = dataclasses.field(metadata={"static": True})
   relative_epsilon: Optional[Literal["mean", "std"]] = dataclasses.field(
       default=None, metadata={"static": True}
   )

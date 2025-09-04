@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, Literal, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -140,6 +140,10 @@ class SemidiscreteSolver:
   warmup_iters: Optional[int] = dataclasses.field(
       default=None, metadata={"static": True}
   )
+  callback: Callable[[jax.Array, jax.Array, SemidiscreteState],
+                     None] = dataclasses.field(
+                         default=None, metadata={"static": True}
+                     )
 
   def __call__(
       self,
@@ -152,7 +156,8 @@ class SemidiscreteSolver:
     def step(state: SemidiscreteState,
              it: jax.Array) -> Tuple[SemidiscreteState, Stats]:
       rng_it = jr.fold_in(rng, it)
-      lin_prob = prob.materialize(rng_it, self.batch_size)
+      rng_mat, rng_err, rng_cb = jr.split(rng_it, 3)
+      lin_prob = prob.materialize(rng_mat, self.batch_size)
       g = state.g
 
       loss, grads = jax.value_and_grad(_semidiscrete_loss)(g, lin_prob)
@@ -171,6 +176,9 @@ class SemidiscreteSolver:
         )
 
       state = SemidiscreteState(g=g, g_avg=g_avg, opt_state=opt_state)
+      if self.callback is not None:
+        jax.debug.callback(self.callback, rng_cb, it, state)
+
       return state, {"loss": loss, "grad_norm": grad_norm}
 
     use_averaging = self.warmup_iters is not None
