@@ -145,6 +145,7 @@ class SemidiscreteSolver:
                          default=None, metadata={"static": True}
                      )
 
+  # TODO(michalk8): can't directly JIT this
   def __call__(
       self,
       rng: jax.Array,
