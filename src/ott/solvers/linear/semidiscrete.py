@@ -26,8 +26,6 @@ from ott.math import utils as math_utils
 from ott.problems.linear import linear_problem, semidiscrete_linear_problem
 from ott.solvers.linear import sinkhorn
 
-Stats = Dict[Literal["loss", "grad_norm"], float]
-
 
 @jtu.register_dataclass
 @dataclasses.dataclass
@@ -36,6 +34,7 @@ class SemidiscreteState:
   g: jax.Array
   g_avg: Optional[jax.Array]
   opt_state: Any
+  losses: jax.Array
 
 
 @jtu.register_dataclass
@@ -44,6 +43,7 @@ class SemidiscreteOutput:
   """TODO."""
   g: jax.Array
   prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
+  losses: jax.Array
 
   def matrix(
       self,
@@ -133,9 +133,12 @@ class SemidiscreteOutput:
 class SemidiscreteSolver:
   """TODO."""
   batch_size: int = dataclasses.field(metadata={"static": True})
-  num_iters: int = dataclasses.field(metadata={"static": True})
+  max_iterations: int = dataclasses.field(metadata={"static": True})
   optimizer: optax.GradientTransformation = dataclasses.field(
       metadata={"static": True}
+  )
+  threshold: Optional[float] = dataclasses.field(
+      default=None, metadata={"static": True}
   )
   warmup_iters: Optional[int] = dataclasses.field(
       default=None, metadata={"static": True}
@@ -151,11 +154,11 @@ class SemidiscreteSolver:
       rng: jax.Array,
       prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
       g_init: Optional[jax.Array] = None,
-  ) -> Tuple[SemidiscreteOutput, Stats]:
+  ) -> SemidiscreteOutput:
     """TODO."""
 
-    def step(state: SemidiscreteState,
-             it: jax.Array) -> Tuple[SemidiscreteState, Stats]:
+    def for_body_fn(state: SemidiscreteState,
+                    it: jax.Array) -> Tuple[SemidiscreteState, None]:
       rng_it = jr.fold_in(rng, it)
       rng_mat, rng_err, rng_cb = jr.split(rng_it, 3)
       lin_prob = prob.materialize(rng_mat, self.batch_size)
@@ -163,7 +166,6 @@ class SemidiscreteSolver:
 
       loss, grads = jax.value_and_grad(_semidiscrete_loss)(g, lin_prob)
 
-      grad_norm = jnp.linalg.norm(grads)
       updates, opt_state = self.optimizer.update(grads, state.opt_state, g)
       g = optax.apply_updates(g, updates)
 
@@ -176,11 +178,29 @@ class SemidiscreteSolver:
             (1.0 / (w + 1)) * g + (w / (w + 1)) * g_avg, g, state.g_avg
         )
 
-      state = SemidiscreteState(g=g, g_avg=g_avg, opt_state=opt_state)
+      losses = state.losses.at[it].set(loss)
+      state = SemidiscreteState(
+          g=g,
+          g_avg=g_avg,
+          opt_state=opt_state,
+          losses=losses,
+      )
       if self.callback is not None:
-        jax.debug.callback(self.callback, rng_cb, it, state)
+        jax.debug.callback(self.callback, rng_it, it, state)
 
-      return state, {"loss": loss, "grad_norm": grad_norm}
+      return state, None
+
+    def cond_fn(state_it: Tuple[SemidiscreteState, jax.Array]) -> jax.Array:
+      # TODO(michalk8)
+      _, it = state_it
+      return it < self.max_iterations
+
+    def while_body_fn(
+        state_it: Tuple[SemidiscreteState, jax.Array]
+    ) -> Tuple[SemidiscreteState, jax.Array]:
+      state, it = state_it
+      state, _ = for_body_fn(state, it)
+      return state, it + 1
 
     use_averaging = self.warmup_iters is not None
     _, m = prob.geom.shape
@@ -192,14 +212,21 @@ class SemidiscreteSolver:
     state = SemidiscreteState(
         g=g_init,
         g_avg=g_init if use_averaging else None,
-        opt_state=self.optimizer.init(g_init)
+        opt_state=self.optimizer.init(g_init),
+        losses=jnp.full((self.max_iterations,), fill_value=-1.0),
     )
-    state, stats = jax.lax.scan(step, init=state, xs=jnp.arange(self.num_iters))
 
+    if self.threshold is None:
+      state, _ = jax.lax.scan(
+          for_body_fn, init=state, xs=jnp.arange(self.max_iterations)
+      )
+    else:
+      state, _ = jax.lax.while_loop(
+          cond_fn, while_body_fn, (state, jnp.array(0))
+      )
     g = state.g_avg if use_averaging else state.g
-    out = SemidiscreteOutput(g=g, prob=prob)
 
-    return out, stats
+    return SemidiscreteOutput(g=g, prob=prob, losses=state.losses)
 
 
 def _c_transform(
