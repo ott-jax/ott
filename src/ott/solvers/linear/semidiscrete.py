@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Any, Callable, Dict, Literal, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -81,7 +81,7 @@ class SemidiscreteOutput:
       *,
       num_iters: int,
       batch_size: int,
-  ) -> Tuple[jax.Array, Dict[Literal["perp", "tv"], jax.Array]]:
+  ) -> jax.Array:
     """TODO."""
     return _marginal_chi2_error(
         rng,
@@ -153,11 +153,14 @@ class SemidiscreteSolver:
     ) -> jax.Array:
       # TODO
       del prob
-      loss, err = state.losses[it], state.errors[it // self.max_iterations - 1]
-      not_converged = jnp.logical_and(jnp.isfinite(err), err > self.threshold)
+      loss = state.losses[it - 1]
+      err = jnp.abs(state.errors[it // self.max_iterations])
+      not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
-      jax.debug.print("{}", it)
-      return jnp.logical_and(not_converged, not_diverged)
+      jax.debug.print("{} {} {}", it, loss, err)
+      return jnp.logical_or(
+          it == 0, jnp.logical_and(not_converged, not_diverged)
+      )
 
     def body_fn(
         it: jax.Array,
@@ -177,8 +180,7 @@ class SemidiscreteSolver:
 
       # fmt: off
       if self.warmup_iterations is None:
-        g_avg = None
-        g_err = g
+        g_avg, g_err = None, g
       else:
         w = it - self.warmup_iterations
         g_avg = jax.lax.cond(
@@ -192,8 +194,8 @@ class SemidiscreteSolver:
       error = jax.lax.cond(
           compute_error,
           lambda: _marginal_chi2_error(
-              rng_err, g_err, prob, num_iters=1000, batch_size=self.batch_size
-          )[0],
+              rng_err, g_err, prob, num_iters=100, batch_size=self.batch_size
+          ),
           lambda: jnp.array(jnp.inf, dtype=g.dtype),
       )
       # fmt: on
@@ -308,40 +310,19 @@ def _marginal_chi2_error(
     *,
     num_iters: int,
     batch_size: int,
-) -> Tuple[jax.Array, Dict[Literal["perp", "tv"], jax.Array]]:
+) -> jax.Array:
 
-  def body(carry: Dict[str, jax.Array],
-           it: jax.Array) -> Tuple[Dict[str, jax.Array], None]:
+  def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
     rng_it = jr.fold_in(rng, it)
     matrix = SemidiscreteOutput(g, prob, None, None).matrix(rng_it, batch_size)
+    m = matrix.shape[1]
 
-    # TODO(michalk8): check (esp. the -1)
-    p2 = m * (matrix @ matrix.T)
+    p2 = m * (batch_size ** 2) * (matrix @ matrix.T)
     chi2 = (p2.sum() - p2.trace()) / (batch_size * (batch_size - 1)) - 1.0
 
-    # TODO(michalk8): compute the error here?
-    marginal_b = matrix.sum(0)
+    chi2_err_avg = chi2_err_avg + chi2 / num_iters
+    return chi2_err_avg, None
 
-    perp = jnp.exp(-jsp.special.xlogy(matrix, matrix).sum(-1)).mean()
-
-    carry = jax.tree.map(
-        lambda x, y: x + y / num_iters,
-        carry,
-        {
-            "chi2": chi2,
-            "perp": perp,
-            "marginal_b": marginal_b
-        },
-    )
-    return carry, None
-
-  _, m = prob.geom.shape
-  init = {
-      "chi2": jnp.zeros(()),
-      "perp": jnp.zeros(()),
-      "marginal_b": jnp.zeros((m,)),
-  }
-
-  res, _ = jax.lax.scan(body, init=init, xs=jnp.arange(num_iters))
-  marginal_err = jnp.linalg.norm(res["marginal_b"] - prob.b, ord=jnp.inf)
-  return res["chi2"], {"perp": res["perp"], "tv": marginal_err}
+  chi2_err = jnp.zeros(())
+  chi2_err, _ = jax.lax.scan(body, init=chi2_err, xs=jnp.arange(num_iters))
+  return chi2_err
