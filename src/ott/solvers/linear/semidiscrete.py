@@ -159,7 +159,7 @@ class SemidiscreteSolver:
       err = jnp.abs(state.errors[it // self.inner_iterations - 1])
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
-      # continue iff
+      # continue if
       return jnp.logical_or(
           it == 0, jnp.logical_and(not_converged, not_diverged)
       )
