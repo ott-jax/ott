@@ -33,19 +33,16 @@ class SemidiscreteLinearProblem:
       b: Optional[jax.Array] = None,
       tau_b: float = 1.0,
   ):
+    assert tau_b == 1.0, "Unbalanced semi-discrete problem is not supported."
     self.geom = geom
     self._b = b
     self.tau_b = tau_b
 
-  def materialize(
+  def sample(
       self, rng: jax.Array, num_samples: int
   ) -> linear_problem.LinearProblem:
     """TODO."""
-    x = self.geom.sampler(rng, (num_samples, *self.geom.y.shape[1:]))
-    return self._from_samples(x)
-
-  def _from_samples(self, x: jax.Array) -> linear_problem.LinearProblem:
-    geom = self.geom._from_samples(x)
+    geom = self.geom.sample(rng, num_samples)
     return linear_problem.LinearProblem(
         geom, a=None, b=self._b, tau_a=1.0, tau_b=self.tau_b
     )
