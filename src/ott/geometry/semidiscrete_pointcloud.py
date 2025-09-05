@@ -92,17 +92,18 @@ class SemidiscretePointCloud:
     return self.y.dtype
 
   def tree_flatten(self):  # noqa: D102
-    return (self.y, self.cost_fn), {
-        "sampler": self.sampler,
-        "epsilon": self._epsilon,
-        "relative_epsilon": self._relative_epsilon,
-        "scale_cost": self._scale_cost,
-        "epsilon_rng": self._epsilon_rng,
-        "epsilon_num_samples": self._epsilon_num_samples,
-    }
+    return (self.y, self.cost_fn), (
+        self.sampler, {
+            "epsilon": self._epsilon,
+            "relative_epsilon": self._relative_epsilon,
+            "scale_cost": self._scale_cost,
+            "epsilon_rng": self._epsilon_rng,
+            "epsilon_num_samples": self._epsilon_num_samples,
+        }
+    )
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     y, cost_fn = children
-    sampler = aux_data.pop("sampler")
+    sampler, aux_data = aux_data
     return cls(sampler, y, cost_fn=cost_fn, **aux_data)
