@@ -13,9 +13,10 @@
 # limitations under the License.
 import dataclasses
 import functools
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import jax.random as jr
 import jax.scipy as jsp
@@ -58,15 +59,21 @@ class SemidiscreteOutput:
       self,
       rng: jax.Array,
       num_samples: int,
-  ) -> jax.Array:
+  ) -> Union[jax.Array, jesp.BCOO]:
     """TODO."""
     if self.prob.geom.is_entropy_regularized:
-      out = self.materialize(rng, num_samples)
-      return out.matrix
+      return self.materialize(rng, num_samples).matrix
 
-    geom = self.prob.materialize(rng, num_samples).geom
+    geom = self.prob.geom.sample(rng, num_samples)
     z = self.g[None, :] - geom.cost_matrix
-    return _hardmax(z)
+
+    row_ixs = jnp.arange(num_samples)
+    col_ixs = jnp.argmax(z, axis=-1)
+
+    return jesp.BCOO(
+        (jnp.ones(num_samples, dtype=z.dtype), jnp.c_[row_ixs, col_ixs]),
+        shape=geom.shape,
+    )
 
   def marginal_chi2_error(
       self,
@@ -88,6 +95,7 @@ class SemidiscreteOutput:
       self, rng: jax.Array, num_samples: int
   ) -> sinkhorn.SinkhornOutput:
     """TODO."""
+    assert self.prob.geom.is_entropy_regularized, "TODO."
     epsilon = self.prob.geom.epsilon
     prob = self.prob.sample(rng, num_samples)
 
@@ -264,7 +272,7 @@ def _semidiscrete_loss(
     prob: linear_problem.LinearProblem,
     is_soft: bool,
 ) -> jax.Array:
-  f = _soft_c_transform(g, prob) if is_soft else _hard_c_transform(g, prob)
+  f, _ = _soft_c_transform(g, prob) if is_soft else _hard_c_transform(g, prob)
   return -jnp.mean(f) - jnp.dot(g, prob.b)
 
 
@@ -283,18 +291,17 @@ def _semidiscrete_loss_bwd(
     g: jax.Array,
 ) -> Tuple[jax.Array, None]:
   z, prob = res
-  n, _ = prob.geom.shape
-  grad = jsp.special.softmax(z, axis=-1) if is_soft else _hardmax(z)
-  grad = grad.sum(0) * (1.0 / n) - prob.b
+  n, m = prob.geom.shape
+  if is_soft:
+    grad = jsp.special.softmax(z, axis=-1).sum(0)
+  else:
+    ixs = jnp.argmax(z, axis=-1)
+    grad = jax.ops.segment_sum(
+        jnp.ones(n, dtype=z.dtype), segment_ids=ixs, num_segments=m
+    )
+  assert grad.shape == (m,), (grad.shape, (m,))
+  grad = grad * (1.0 / n) - prob.b
   return g * grad, None
-
-
-# TODO(michalk8):
-def _hardmax(z: jax.Array) -> jax.Array:
-  max_val = jnp.max(z, axis=-1, keepdims=True)
-  is_max = jnp.abs(z - max_val) <= 1e-8
-  num_max = jnp.sum(is_max, axis=-1, keepdims=True)
-  return is_max / num_max
 
 
 _semidiscrete_loss.defvjp(_semidiscrete_loss_fwd, _semidiscrete_loss_bwd)
@@ -309,21 +316,28 @@ def _marginal_chi2_error(
     batch_size: int,
 ) -> jax.Array:
 
+  def compute_chi2(matrix: Union[jax.Array, jesp.BCOO]) -> jax.Array:
+    p2 = m * (batch_size * batch_size) * (matrix @ matrix.T)
+    # sparse-friendly trace
+    trace = p2[jnp.arange(batch_size), jnp.arange(batch_size)].sum()
+    return (p2.sum() - trace) / (batch_size * (batch_size - 1)) - 1.0
+
   def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
     rng_it = jr.fold_in(rng, it)
     matrix = out.matrix(rng_it, batch_size)
-
-    p2 = m * (batch_size * batch_size) * (matrix @ matrix.T)
-    chi2 = (p2.sum() - p2.trace()) / (batch_size * (batch_size - 1)) - 1.0
-
+    chi2 = compute_chi2(matrix)
     chi2_err_avg = chi2_err_avg + chi2 / num_iters
     return chi2_err_avg, None
+
+  if not prob.geom.is_entropy_regularized:
+    # matrix will BCOO
+    compute_chi2 = jesp.sparsify(compute_chi2)
 
   out = SemidiscreteOutput(
       it=-1, g=g, prob=prob, losses=None, errors=None, converged=False
   )
   _, m = prob.geom.shape
 
-  chi2_err = jnp.zeros(())
+  chi2_err = jnp.zeros((), dtype=g.dtype)
   chi2_err, _ = jax.lax.scan(body, init=chi2_err, xs=jnp.arange(num_iters))
   return chi2_err
