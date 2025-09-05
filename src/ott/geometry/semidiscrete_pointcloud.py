@@ -36,7 +36,7 @@ class SemidiscretePointCloud:
       relative_epsilon: Optional[Literal["mean", "std"]] = None,
       scale_cost: Union[float, Literal["mean", "max_norm", "max_bound",
                                        "max_cost", "median"]] = 1.0,
-      epsilon_rng: Optional[jax.Array] = None,
+      epsilon_seed: int = 0,
       epsilon_num_samples: int = 1024,
   ):
     assert epsilon_num_samples > 0, \
@@ -47,7 +47,7 @@ class SemidiscretePointCloud:
     self._epsilon = epsilon
     self._relative_epsilon = relative_epsilon
     self._scale_cost = scale_cost
-    self._epsilon_rng = epsilon_rng
+    self._epsilon_seed = epsilon_seed
     self._epsilon_num_samples = epsilon_num_samples
 
   def sample(self, rng: jax.Array, num_samples: int) -> pointcloud.PointCloud:
@@ -71,7 +71,7 @@ class SemidiscretePointCloud:
   @property
   def epsilon(self) -> float:
     """TODO."""
-    rng = jr.key(0) if self._epsilon_rng is None else self._epsilon_rng
+    rng = jr.key(self._epsilon_seed)
     x = self.sampler(rng, (self._epsilon_num_samples, *self.y.shape[1:]))
     geom = self._from_samples(x, self._epsilon)
     return geom.epsilon
@@ -97,7 +97,7 @@ class SemidiscretePointCloud:
             "epsilon": self._epsilon,
             "relative_epsilon": self._relative_epsilon,
             "scale_cost": self._scale_cost,
-            "epsilon_rng": self._epsilon_rng,
+            "epsilon_seed": self._epsilon_seed,
             "epsilon_num_samples": self._epsilon_num_samples,
         }
     )
