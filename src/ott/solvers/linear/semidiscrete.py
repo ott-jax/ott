@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
+import functools
 from typing import Any, Callable, Optional, Tuple
 
 import jax
@@ -27,6 +28,8 @@ from ott.math import utils as math_utils
 from ott.problems.linear import linear_problem, semidiscrete_linear_problem
 from ott.solvers.linear import sinkhorn
 
+__all__ = ["SemidiscreteState", "SemidiscreteOutput", "SemidiscreteSolver"]
+
 
 @jtu.register_dataclass
 @dataclasses.dataclass
@@ -34,32 +37,22 @@ class SemidiscreteState:
   """TODO."""
   it: jax.Array
   g: jax.Array
-  g_avg: Optional[jax.Array]
+  g_ema: jax.Array
   opt_state: Any
   losses: jax.Array
   errors: jax.Array
-
-  def to_output(  # noqa: D102
-      self, prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
-  ) -> "SemidiscreteOutput":
-    g = self.g if self.g_avg is None else self.g_avg
-    # TODO(michalk8): convergence
-    return SemidiscreteOutput(
-        g=g,
-        prob=prob,
-        losses=self.losses,
-        errors=self.errors,
-    )
 
 
 @jtu.register_dataclass
 @dataclasses.dataclass
 class SemidiscreteOutput:
   """TODO."""
+  it: int
   g: jax.Array
   prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
   losses: jax.Array
   errors: jax.Array
+  converged: bool
 
   def matrix(
       self,
@@ -67,7 +60,7 @@ class SemidiscreteOutput:
       num_samples: int,
   ) -> jax.Array:
     """TODO."""
-    if self.is_entropy_regularized:
+    if self.prob.geom.is_entropy_regularized:
       out = self.materialize(rng, num_samples)
       return out.matrix
 
@@ -91,54 +84,44 @@ class SemidiscreteOutput:
         batch_size=batch_size,
     )
 
-  @property
-  def is_entropy_regularized(self) -> bool:
-    """TODO."""
-    return self.prob.geom.epsilon != 0.0
-
   def materialize(
       self, rng: jax.Array, num_samples: int
   ) -> sinkhorn.SinkhornOutput:
     """TODO."""
     epsilon = self.prob.geom.epsilon
-    prob = self.prob.materialize(rng, num_samples)
+    prob = self.prob.sample(rng, num_samples)
 
-    f, _ = _c_transform(self.g, prob)
-    # TODO(michalk8): comment on why
+    f, _ = _soft_c_transform(self.g, prob)
+    # SinkhornOutput's potentials must contain
+    # probability weight normalization
     f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
     g_tilde = self.g + epsilon * jnp.log(self.prob.b)
 
-    # TODO(michalk8): enable this?
-    # return out.set_cost(prob, lse_mode=True, use_danskin=True)
     return sinkhorn.SinkhornOutput(
         potentials=(f_tilde, g_tilde),
         ot_prob=prob,
     )
 
+  @property
+  def dual_loss(self) -> jax.Array:
+    """TODO."""
+    return self.losses[self.it]
 
-@jtu.register_dataclass
+
+@jtu.register_static
 @dataclasses.dataclass
 class SemidiscreteSolver:
   """TODO."""
-  batch_size: int = dataclasses.field(metadata={"static": True})
-  min_iterations: int = dataclasses.field(metadata={"static": True})
-  max_iterations: int = dataclasses.field(metadata={"static": True})
-  optimizer: optax.GradientTransformation = dataclasses.field(
-      metadata={"static": True}
-  )
-  inner_iterations: int = dataclasses.field(
-      default=1000, metadata={"static": True}
-  )
-  error_iterations: int = dataclasses.field(
-      default=1000, metadata={"static": True}
-  )
-  threshold: float = dataclasses.field(default=1e-3, metadata={"static": True})
-  warmup_iterations: Optional[int] = dataclasses.field(
-      default=None, metadata={"static": True}
-  )
-  callback: Callable[[jax.Array, SemidiscreteState], None] = dataclasses.field(
-      default=None, metadata={"static": True}
-  )
+  batch_size: int
+  min_iterations: int
+  max_iterations: int
+  optimizer: optax.GradientTransformation
+  inner_iterations: int = 1000
+  error_iterations: int = 1000
+  error_batch_size: Optional[int] = None
+  threshold: float = 1e-3
+  potential_ema: float = 0.99
+  callback: Optional[Callable[[SemidiscreteState], None]] = None
 
   # TODO(michalk8): can't directly JIT this
   def __call__(
@@ -150,93 +133,91 @@ class SemidiscreteSolver:
     """TODO."""
 
     def cond_fn(
-        it: jax.Array,
+        it: int,
         prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
         state: SemidiscreteState,
-    ) -> jax.Array:
+    ) -> bool:
       del prob
       loss = state.losses[it - 1]
       err = jnp.abs(state.errors[it // self.inner_iterations - 1])
+
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
-      # continue if
+      # continue if not converged and not diverged
       return jnp.logical_or(
           it == 0, jnp.logical_and(not_converged, not_diverged)
       )
 
     def body_fn(
-        it: jax.Array,
+        it: int,
         prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
         state: SemidiscreteState,
-        compute_error: jax.Array,
+        compute_error: bool,
     ) -> SemidiscreteState:
       rng_it = jr.fold_in(rng, it)
-      rng_mat, rng_err, rng_cb = jr.split(rng_it, 3)
-      lin_prob = prob.materialize(rng_mat, self.batch_size)
-      g, g_avg = state.g, state.g_avg
 
-      loss, grads = jax.value_and_grad(_semidiscrete_loss)(g, lin_prob)
+      lin_prob = prob.sample(rng_it, self.batch_size)
+      g_old = state.g
+
+      loss, grads = jax.value_and_grad(_semidiscrete_loss)(
+          g_old, lin_prob, prob.geom.is_entropy_regularized
+      )
       losses = state.losses.at[it].set(loss)
 
-      updates, opt_state = self.optimizer.update(grads, state.opt_state, g)
-      g = optax.apply_updates(g, updates)
+      updates, opt_state = self.optimizer.update(grads, state.opt_state, g_old)
+      g_new = optax.apply_updates(g_old, updates)
+      g_ema = optax.incremental_update(g_new, state.g_ema, self.potential_ema)
 
       # fmt: off
-      if self.warmup_iterations is None:
-        g_avg, g_err = None, g
-      else:
-        w = it - self.warmup_iterations
-        g_avg = g_err = jax.lax.cond(
-            it < self.warmup_iterations,
-            (lambda g, g_avg: g),
-            (lambda g, g_avg: (1.0 / (w + 1)) * g + (w / (w + 1)) * g_avg),
-            g, g_avg
-        )
-
       error = jax.lax.cond(
           compute_error,
           lambda: _marginal_chi2_error(
-              rng_err, g_err, prob,
-              num_iters=self.error_iterations, batch_size=self.batch_size,
+              # use same rng to evaluate the errors
+              rng_chi2, g_ema, prob,
+              num_iters=self.error_iterations,
+              batch_size=self.error_batch_size or self.batch_size,
           ),
-          lambda: jnp.array(jnp.inf, dtype=g.dtype),
+          lambda: jnp.array(jnp.inf, dtype=dtype),
       )
       # fmt: on
       errors = state.errors.at[it // self.inner_iterations].set(error)
 
       state = SemidiscreteState(
           it=it,
-          g=g,
-          g_avg=g_avg,
+          g=g_new,
+          g_ema=g_ema,
           opt_state=opt_state,
           losses=losses,
           errors=errors,
       )
 
       if self.callback is not None:
-        jax.debug.callback(self.callback, rng_it, state)
+        jax.debug.callback(self.callback, state)
 
       return state
 
-    use_averaging = self.warmup_iterations is not None
     _, m = prob.geom.shape
+    dtype = prob.geom.dtype
+
     if g_init is None:
-      g_init = jnp.zeros(m)
+      g_init = jnp.zeros(m, dtype=dtype)
     else:
       assert g_init.shape == (m,), (g_init.shape, (m,))
 
     state = SemidiscreteState(
         it=jnp.array(0),
         g=g_init,
-        g_avg=g_init if use_averaging else None,
+        g_ema=g_init,
         opt_state=self.optimizer.init(g_init),
-        # TODO(michalk8): default values?
-        losses=jnp.full((self.max_iterations,), fill_value=jnp.inf),
+        losses=jnp.full((self.max_iterations,), fill_value=jnp.inf,
+                        dtype=dtype),
         errors=jnp.full((self.max_iterations // self.inner_iterations),
-                        fill_value=jnp.inf),
+                        fill_value=jnp.inf,
+                        dtype=dtype),
     )
 
-    state = fixed_point_loop.fixpoint_iter(
+    rng, rng_chi2 = jr.split(rng, 2)
+    state: SemidiscreteState = fixed_point_loop.fixpoint_iter(
         cond_fn,
         body_fn,
         min_iterations=self.min_iterations,
@@ -246,55 +227,69 @@ class SemidiscreteSolver:
         state=state,
     )
 
-    return state.to_output(prob)
+    below_thr = state.errors[state.it // self.inner_iterations
+                            ] <= self.threshold
+    finite_loss = jnp.isfinite(state.losses[state.it])
+
+    return SemidiscreteOutput(
+        it=state.it,
+        g=state.g_ema,
+        prob=prob,
+        losses=state.losses,
+        errors=state.errors,
+        converged=jnp.logical_and(below_thr, finite_loss),
+    )
 
 
-def _c_transform(
+def _soft_c_transform(
     g: jax.Array, prob: linear_problem.LinearProblem
 ) -> Tuple[jax.Array, jax.Array]:
-  n, m = prob.geom.shape
-  assert g.shape == (m,), (g.shape, (m,))
   cost = prob.geom.cost_matrix
   epsilon = prob.geom.epsilon
-
-  if epsilon == 0.0:
-    # hard min
-    z = g[None, :] - cost
-    return -jnp.max(z, axis=-1), z
-  # soft min
   z = (g[None, :] - cost) / epsilon
   return -epsilon * math_utils.logsumexp(z, b=prob.b, axis=-1), z
 
 
-@jax.custom_vjp
-def _semidiscrete_loss(
+def _hard_c_transform(
     g: jax.Array, prob: linear_problem.LinearProblem
+) -> Tuple[jax.Array, jax.Array]:
+  cost = prob.geom.cost_matrix
+  z = g[None, :] - cost
+  return -jnp.max(z, axis=-1), z
+
+
+@functools.partial(jax.custom_vjp, nondiff_argnums=(2,))
+def _semidiscrete_loss(
+    g: jax.Array,
+    prob: linear_problem.LinearProblem,
+    is_soft: bool,
 ) -> jax.Array:
-  f, _ = _c_transform(g, prob)
+  f = _soft_c_transform(g, prob) if is_soft else _hard_c_transform(g, prob)
   return -jnp.mean(f) - jnp.dot(g, prob.b)
 
 
 def _semidiscrete_loss_fwd(
     g: jax.Array,
     prob: linear_problem.LinearProblem,
+    is_soft: bool,
 ) -> Tuple[jax.Array, Tuple[jax.Array, linear_problem.LinearProblem]]:
-  f, tmp = _c_transform(g, prob)
-  return -jnp.mean(f) - jnp.dot(g, prob.b), (tmp, prob)
+  f, z = _soft_c_transform(g, prob) if is_soft else _hard_c_transform(g, prob)
+  return -jnp.mean(f) - jnp.dot(g, prob.b), (z, prob)
 
 
 def _semidiscrete_loss_bwd(
-    res: Tuple[jax.Array, linear_problem.LinearProblem], g: jax.Array
+    is_soft: bool,
+    res: jax.Array,
+    g: jax.Array,
 ) -> Tuple[jax.Array, None]:
   z, prob = res
   n, _ = prob.geom.shape
-  if prob.geom.epsilon != 0.0:
-    grad = jsp.special.softmax(z, axis=-1)
-  else:
-    grad = _hardmax(z)
+  grad = jsp.special.softmax(z, axis=-1) if is_soft else _hardmax(z)
   grad = grad.sum(0) * (1.0 / n) - prob.b
   return g * grad, None
 
 
+# TODO(michalk8):
 def _hardmax(z: jax.Array) -> jax.Array:
   max_val = jnp.max(z, axis=-1, keepdims=True)
   is_max = jnp.abs(z - max_val) <= 1e-8
@@ -324,7 +319,9 @@ def _marginal_chi2_error(
     chi2_err_avg = chi2_err_avg + chi2 / num_iters
     return chi2_err_avg, None
 
-  out = SemidiscreteOutput(g, prob, None, None)
+  out = SemidiscreteOutput(
+      it=-1, g=g, prob=prob, losses=None, errors=None, converged=False
+  )
   _, m = prob.geom.shape
 
   chi2_err = jnp.zeros(())
