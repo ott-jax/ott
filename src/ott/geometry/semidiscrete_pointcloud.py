@@ -14,6 +14,7 @@
 from typing import Callable, Literal, Optional, Tuple, Union
 
 import jax
+import jax.numpy as jnp
 import jax.random as jr
 import jax.tree_util as jtu
 
@@ -84,6 +85,11 @@ class SemidiscretePointCloud:
   def shape(self) -> tuple[float, int]:
     """TODO."""
     return float("inf"), self.y.shape[0]
+
+  @property
+  def dtype(self) -> jnp.dtype:
+    """TODO."""
+    return self.y.dtype
 
   def tree_flatten(self):  # noqa: D102
     return (self.y, self.cost_fn), {
