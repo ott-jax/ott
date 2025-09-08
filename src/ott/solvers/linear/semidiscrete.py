@@ -110,11 +110,6 @@ class SemidiscreteOutput:
         ot_prob=prob,
     )
 
-  @property
-  def dual_loss(self) -> jax.Array:
-    """TODO."""
-    return self.losses[self.it]
-
 
 @jtu.register_static
 @dataclasses.dataclass
