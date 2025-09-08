@@ -69,12 +69,43 @@ class SemidiscreteOutput:
   errors: jax.Array
   converged: bool
 
-  def materialize(
+  def sample(
       self, rng: jax.Array, num_samples: int
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
     """TODO."""
     prob = self.prob.sample(rng, num_samples)
+    return self._output_from_problem(prob)
 
+  def marginal_chi2_error(
+      self,
+      rng: jax.Array,
+      *,
+      num_iters: int,
+      batch_size: int,
+  ) -> jax.Array:
+    """TODO."""
+    return _marginal_chi2_error(
+        rng,
+        self.g,
+        self.prob,
+        num_iters=num_iters,
+        batch_size=batch_size,
+    )
+
+  def _output_from_samples(
+      self, x: jax.Array
+  ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
+    epsilon = self.prob.geom.epsilon
+    geom = self.prob.geom._from_samples(x, epsilon)
+    prob = linear_problem.LinearProblem(
+        geom, a=None, b=self.prob.b, tau_a=1.0, tau_b=self.prob.tau_b
+    )
+    return self._output_from_problem(prob)
+
+  def _output_from_problem(
+      self, prob: linear_problem.LinearProblem
+  ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
+    num_samples, _ = prob.geom.shape
     if not self.prob.geom.is_entropy_regularized:
       z = self.g[None, :] - prob.geom.cost_matrix
       row_ixs = jnp.arange(num_samples)
@@ -97,22 +128,6 @@ class SemidiscreteOutput:
     return sinkhorn.SinkhornOutput(
         potentials=(f_tilde, g_tilde),
         ot_prob=prob,
-    )
-
-  def marginal_chi2_error(
-      self,
-      rng: jax.Array,
-      *,
-      num_iters: int,
-      batch_size: int,
-  ) -> jax.Array:
-    """TODO."""
-    return _marginal_chi2_error(
-        rng,
-        self.g,
-        self.prob,
-        num_iters=num_iters,
-        batch_size=batch_size,
     )
 
 
@@ -328,7 +343,7 @@ def _marginal_chi2_error(
 
   def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
     rng_it = jr.fold_in(rng, it)
-    matrix = out.materialize(rng_it, batch_size).matrix
+    matrix = out.sample(rng_it, batch_size).matrix
     chi2 = compute_chi2(matrix)
     chi2_err_avg = chi2_err_avg + chi2 / num_iters
     return chi2_err_avg, None
