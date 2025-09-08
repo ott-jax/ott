@@ -314,12 +314,12 @@ def _marginal_chi2_error(
   def compute_chi2(matrix: Union[jax.Array, jesp.BCOO]) -> jax.Array:
     # we assume each rows sums to one
     # also convert to flow to avoid integer overflows
-    p2 = m * (float(batch_size) * float(batch_size)) * (matrix @ matrix.T)
+    matrix = batch_size * matrix
+    p2 = m * (matrix @ matrix.T)
     if isinstance(p2, jesp.BCOO):
       # no trace impl. for BCOO, densify
       p2 = p2.todense()
-    trace = p2.trace()
-    return (p2.sum() - trace) / (batch_size * (batch_size - 1.0)) - 1.0
+    return (p2.sum() - p2.trace()) / (batch_size * (batch_size - 1.0)) - 1.0
 
   def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
     rng_it = jr.fold_in(rng, it)
@@ -332,7 +332,6 @@ def _marginal_chi2_error(
       it=-1, g=g, prob=prob, losses=None, errors=None, converged=False
   )
   _, m = prob.geom.shape
-  m = float(m)
 
   chi2_err = jnp.zeros((), dtype=g.dtype)
   chi2_err, _ = jax.lax.scan(body, init=chi2_err, xs=jnp.arange(num_iters))
