@@ -29,7 +29,10 @@ from ott.math import utils as math_utils
 from ott.problems.linear import linear_problem, semidiscrete_linear_problem
 from ott.solvers.linear import sinkhorn
 
-__all__ = ["SemidiscreteState", "SemidiscreteOutput", "SemidiscreteSolver"]
+__all__ = [
+    "SemidiscreteState", "HardAssignmentOutput", "SemidiscreteOutput",
+    "SemidiscreteSolver"
+]
 
 
 @jtu.register_dataclass
@@ -46,6 +49,17 @@ class SemidiscreteState:
 
 @jtu.register_dataclass
 @dataclasses.dataclass
+class HardAssignmentOutput:
+  """TODO."""
+  prob: linear_problem.LinearProblem
+  matrix: jesp.BCOO
+
+  # TODO(michalk8): add some properties (primal cost, etc.)
+  # TODO(michalk8): consider refactoring `UnivariateOutput` instead
+
+
+@jtu.register_dataclass
+@dataclasses.dataclass
 class SemidiscreteOutput:
   """TODO."""
   it: int
@@ -55,24 +69,34 @@ class SemidiscreteOutput:
   errors: jax.Array
   converged: bool
 
-  def matrix(
-      self,
-      rng: jax.Array,
-      num_samples: int,
-  ) -> Union[jax.Array, jesp.BCOO]:
+  def materialize(
+      self, rng: jax.Array, num_samples: int
+  ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
     """TODO."""
-    if self.prob.geom.is_entropy_regularized:
-      return self.materialize(rng, num_samples).matrix
+    prob = self.prob.sample(rng, num_samples)
 
-    geom = self.prob.geom.sample(rng, num_samples)
-    z = self.g[None, :] - geom.cost_matrix
+    if not self.prob.geom.is_entropy_regularized:
+      z = self.g[None, :] - prob.geom.cost_matrix
+      row_ixs = jnp.arange(num_samples)
+      col_ixs = jnp.argmax(z, axis=-1)
+      matrix = jesp.BCOO(
+          (jnp.ones(num_samples, dtype=z.dtype), jnp.c_[row_ixs, col_ixs]),
+          shape=prob.geom.shape,
+      )
+      return HardAssignmentOutput(prob, matrix)
 
-    row_ixs = jnp.arange(num_samples)
-    col_ixs = jnp.argmax(z, axis=-1)
+    assert self.prob.geom.is_entropy_regularized, "TODO."
+    epsilon = self.prob.geom.epsilon
 
-    return jesp.BCOO(
-        (jnp.ones(num_samples, dtype=z.dtype), jnp.c_[row_ixs, col_ixs]),
-        shape=geom.shape,
+    f, _ = _soft_c_transform(self.g, prob)
+    # SinkhornOutput's potentials must contain
+    # probability weight normalization
+    f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
+    g_tilde = self.g + epsilon * jnp.log(self.prob.b)
+
+    return sinkhorn.SinkhornOutput(
+        potentials=(f_tilde, g_tilde),
+        ot_prob=prob,
     )
 
   def marginal_chi2_error(
@@ -89,25 +113,6 @@ class SemidiscreteOutput:
         self.prob,
         num_iters=num_iters,
         batch_size=batch_size,
-    )
-
-  def materialize(
-      self, rng: jax.Array, num_samples: int
-  ) -> sinkhorn.SinkhornOutput:
-    """TODO."""
-    assert self.prob.geom.is_entropy_regularized, "TODO."
-    epsilon = self.prob.geom.epsilon
-    prob = self.prob.sample(rng, num_samples)
-
-    f, _ = _soft_c_transform(self.g, prob)
-    # SinkhornOutput's potentials must contain
-    # probability weight normalization
-    f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
-    g_tilde = self.g + epsilon * jnp.log(self.prob.b)
-
-    return sinkhorn.SinkhornOutput(
-        potentials=(f_tilde, g_tilde),
-        ot_prob=prob,
     )
 
 
@@ -323,7 +328,7 @@ def _marginal_chi2_error(
 
   def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
     rng_it = jr.fold_in(rng, it)
-    matrix = out.matrix(rng_it, batch_size)
+    matrix = out.materialize(rng_it, batch_size).matrix
     chi2 = compute_chi2(matrix)
     chi2_err_avg = chi2_err_avg + chi2 / num_iters
     return chi2_err_avg, None
