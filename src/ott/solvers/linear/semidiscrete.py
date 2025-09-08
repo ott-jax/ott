@@ -51,7 +51,7 @@ class SemidiscreteState:
 @dataclasses.dataclass
 class HardAssignmentOutput:
   """TODO."""
-  prob: linear_problem.LinearProblem
+  ot_prob: linear_problem.LinearProblem
   matrix: jesp.BCOO
 
   # TODO(michalk8): add some properties (primal cost, etc.)
