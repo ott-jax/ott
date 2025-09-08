@@ -79,7 +79,7 @@ class SemidiscretePointCloud:
   @property
   def is_entropy_regularized(self) -> bool:
     """TODO."""
-    return self._epsilon is not None and self._epsilon > 0.0
+    return self._epsilon == 0.0
 
   @property
   def shape(self) -> tuple[float, int]:
