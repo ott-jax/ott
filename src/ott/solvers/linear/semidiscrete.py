@@ -62,12 +62,12 @@ class HardAssignmentOutput:
 @dataclasses.dataclass
 class SemidiscreteOutput:
   """TODO."""
-  it: int
   g: jax.Array
   prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
-  losses: jax.Array
-  errors: jax.Array
-  converged: bool
+  it: Optional[int] = None
+  losses: Optional[jax.Array] = None
+  errors: Optional[jax.Array] = None
+  converged: Optional[bool] = None
 
   def sample(
       self, rng: jax.Array, num_samples: int
@@ -255,9 +255,9 @@ class SemidiscreteSolver:
     finite_loss = jnp.isfinite(state.losses[state.it])
 
     return SemidiscreteOutput(
-        it=state.it,
         g=state.g_ema,
         prob=prob,
+        it=state.it,
         losses=state.losses,
         errors=state.errors,
         converged=jnp.logical_and(below_thr, finite_loss),
