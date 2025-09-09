@@ -26,7 +26,8 @@ import optax
 
 from ott.math import fixed_point_loop
 from ott.math import utils as math_utils
-from ott.problems.linear import linear_problem, semidiscrete_linear_problem
+from ott.problems.linear import linear_problem
+from ott.problems.linear import semidiscrete_linear_problem as sdlp
 from ott.solvers.linear import sinkhorn
 
 __all__ = [
@@ -44,6 +45,7 @@ class SemidiscreteState:
   g_ema: jax.Array
   opt_state: Any
   losses: jax.Array
+  grad_norms: jax.Array
   errors: jax.Array
 
 
@@ -63,7 +65,7 @@ class HardAssignmentOutput:
 class SemidiscreteOutput:
   """TODO."""
   g: jax.Array
-  prob: semidiscrete_linear_problem.SemidiscreteLinearProblem
+  prob: sdlp.SemidiscreteLinearProblem
   it: Optional[int] = None
   losses: Optional[jax.Array] = None
   errors: Optional[jax.Array] = None
@@ -150,14 +152,14 @@ class SemidiscreteSolver:
   def __call__(
       self,
       rng: jax.Array,
-      prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
+      prob: sdlp.SemidiscreteLinearProblem,
       g_init: Optional[jax.Array] = None,
   ) -> SemidiscreteOutput:
     """TODO."""
 
     def cond_fn(
         it: int,
-        prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
+        prob: sdlp.SemidiscreteLinearProblem,
         state: SemidiscreteState,
     ) -> bool:
       del prob
@@ -173,7 +175,7 @@ class SemidiscreteSolver:
 
     def body_fn(
         it: int,
-        prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
+        prob: sdlp.SemidiscreteLinearProblem,
         state: SemidiscreteState,
         compute_error: bool,
     ) -> SemidiscreteState:
@@ -185,7 +187,9 @@ class SemidiscreteSolver:
       loss, grads = jax.value_and_grad(_semidiscrete_loss)(
           g_old, lin_prob, prob.geom.is_entropy_regularized
       )
+      grad_norm = jnp.linalg.norm(grads)
       losses = state.losses.at[it].set(loss)
+      grad_norms = state.grad_norms.at[it].set(grad_norm)
 
       updates, opt_state = self.optimizer.update(grads, state.opt_state, g_old)
       g_new = optax.apply_updates(g_old, updates)
@@ -211,6 +215,7 @@ class SemidiscreteSolver:
           g_ema=g_ema,
           opt_state=opt_state,
           losses=losses,
+          grad_norms=grad_norms,
           errors=errors,
       )
 
@@ -234,6 +239,9 @@ class SemidiscreteSolver:
         opt_state=self.optimizer.init(g_init),
         losses=jnp.full((self.max_iterations,), fill_value=jnp.inf,
                         dtype=dtype),
+        grad_norms=jnp.full((self.max_iterations,),
+                            fill_value=jnp.inf,
+                            dtype=dtype),
         errors=jnp.full((self.max_iterations // self.inner_iterations),
                         fill_value=jnp.inf,
                         dtype=dtype),
@@ -250,14 +258,18 @@ class SemidiscreteSolver:
         state=state,
     )
 
-    below_thr = state.errors[state.it // self.inner_iterations
-                            ] <= self.threshold
-    finite_loss = jnp.isfinite(state.losses[state.it])
+    return self._to_output(state, prob)
 
+  def _to_output(
+      self, state: SemidiscreteState, prob: sdlp.SemidiscreteLinearProblem
+  ) -> SemidiscreteOutput:
+    it = state.it
+    below_thr = state.errors[it // self.inner_iterations] <= self.threshold
+    finite_loss = jnp.isfinite(state.losses[it])
     return SemidiscreteOutput(
         g=state.g_ema,
         prob=prob,
-        it=state.it,
+        it=it,
         losses=state.losses,
         errors=state.errors,
         converged=jnp.logical_and(below_thr, finite_loss),
@@ -325,7 +337,7 @@ _semidiscrete_loss.defvjp(_semidiscrete_loss_fwd, _semidiscrete_loss_bwd)
 def _marginal_chi2_error(
     rng: jax.Array,
     g: jax.Array,
-    prob: semidiscrete_linear_problem.SemidiscreteLinearProblem,
+    prob: sdlp.SemidiscreteLinearProblem,
     *,
     num_iters: int,
     batch_size: int,
