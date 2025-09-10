@@ -25,7 +25,20 @@ __all__ = ["SemidiscretePointCloud"]
 
 @jtu.register_pytree_node_class
 class SemidiscretePointCloud:
-  """TODO."""
+  """TODO.
+
+  Args:
+    sampler: Function with a signature ``(rng, shape) -> array`` to sample
+      from some distribution.
+    y: Array of shape ``[m, ...]``.
+    cost_fn: Cost function.
+    epsilon: Regularization parameter. If :math:`0`, ...
+    relative_epsilon: Whether ``epsilon`` refers to a fraction of the
+      :attr:`mean_cost_matrix` or :attr:`std_cost_matrix`.
+    scale_cost: Option to rescale the cost matrix.
+    epsilon_seed: Random seed when estimating the :attr:`epsilon`.
+    epsilon_num_samples: Number of samples when estimating the :attr:`epsilon`.
+  """
 
   def __init__(
       self,
@@ -51,7 +64,21 @@ class SemidiscretePointCloud:
     self._epsilon_num_samples = epsilon_num_samples
 
   def sample(self, rng: jax.Array, num_samples: int) -> pointcloud.PointCloud:
-    """TODO."""
+    """TODO.
+
+    .. warning::
+      When :attr:`is_entropy_regularized` is false, some methods and
+      attributes of the sampled point cloud are not meaningful.
+      However, this does not impact the usage of the
+      :class:`~ott.solvers.linear.semidiscrete.SemidiscreteSolver`.
+
+    Args:
+      rng: Random seed.
+      num_samples: Number of samples.
+
+    Returns:
+      The sampled point cloud.
+    """
     assert num_samples > 0, "Number of samples must be positive."
     x = self.sampler(rng, (num_samples, *self.y.shape[1:]))
     return self._from_samples(x, self.epsilon)
@@ -70,7 +97,7 @@ class SemidiscretePointCloud:
 
   @property
   def epsilon(self) -> float:
-    """TODO."""
+    """Epsilon regularization value."""
     rng = jr.key(self._epsilon_seed)
     x = self.sampler(rng, (self._epsilon_num_samples, *self.y.shape[1:]))
     geom = self._from_samples(x, self._epsilon)
@@ -78,17 +105,17 @@ class SemidiscretePointCloud:
 
   @property
   def is_entropy_regularized(self) -> bool:
-    """TODO."""
-    return self._epsilon is not None and self._epsilon > 0.0
+    """Whether ``epsilon > 0``."""
+    return self._epsilon is None or self._epsilon > 0.0
 
   @property
   def shape(self) -> tuple[float, int]:
-    """TODO."""
+    """Shape of the geometry."""
     return float("inf"), self.y.shape[0]
 
   @property
   def dtype(self) -> jnp.dtype:
-    """TODO."""
+    """The data type."""
     return self.y.dtype
 
   def tree_flatten(self):  # noqa: D102
