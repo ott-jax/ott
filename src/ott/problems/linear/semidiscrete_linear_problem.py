@@ -25,7 +25,14 @@ __all__ = ["SemidiscreteLinearProblem"]
 
 @jtu.register_pytree_node_class
 class SemidiscreteLinearProblem:
-  """TODO."""
+  """Semi-discrete OT problem.
+
+  Args:
+    geom: Semi-discrete point cloud geometry.
+    b: The second marginal. If :obj:`None`, it will be uniform.
+    tau_b: If :math:`< 1`, defines how much unbalanced the problem is
+      on the second marginal.
+  """
 
   def __init__(
       self,
@@ -39,9 +46,19 @@ class SemidiscreteLinearProblem:
     self.tau_b = tau_b
 
   def sample(
-      self, rng: jax.Array, num_samples: int
+      self,
+      rng: jax.Array,
+      num_samples: int,
   ) -> linear_problem.LinearProblem:
-    """TODO."""
+    """Sample a linear OT problem.
+
+    Args:
+      rng: Random seed.
+      num_samples: Number of samples.
+
+    Returns:
+      The sampled linear problem.
+    """
     geom = self.geom.sample(rng, num_samples)
     return linear_problem.LinearProblem(
         geom, a=None, b=self._b, tau_a=1.0, tau_b=self.tau_b
