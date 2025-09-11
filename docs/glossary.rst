@@ -224,7 +224,6 @@ Glossary
         alternatively. These updates are themselves carried out by solving an
         :term:`entropy-regularized optimal transport` problem.
 
-
     matching
         A bijective pairing between two families of points of the same size
         :math:`N`, parameterized using a permutation of size :math:`N`.
@@ -355,3 +354,6 @@ Glossary
         ) if the  :term:`ground cost` is itself a distance to a power
         :math:`p\leq 1`, and the :math:`p` root of the objective of the
         :term:`Kantorovich problem` is used.
+
+    semi-discrete optimal transport problem
+        TODO(mcuturi)
