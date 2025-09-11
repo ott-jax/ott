@@ -18,6 +18,7 @@ OT Problems
     :toctree: _autosummary
 
     linear_problem.LinearProblem
+    semidiscrete_problem.SemidiscreteProblem
     barycenter_problem.FixedBarycenterProblem
     barycenter_problem.FreeBarycenterProblem
 

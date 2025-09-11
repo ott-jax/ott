@@ -43,6 +43,7 @@ Geometries
 
     geometry.Geometry
     pointcloud.PointCloud
+    semidiscrete_pointcloud.SemidiscretePointCloud
     grid.Grid
     graph.Graph
     geodesic.Geodesic

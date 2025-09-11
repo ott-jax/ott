@@ -44,6 +44,15 @@ Univariate Solvers
     univariate.north_west_solver
     univariate.UnivariateOutput
 
+Semi-discrete Solvers
+---------------------
+.. autosummary::
+    :toctree: _autosummary
+
+    semidiscrete.SemidiscreteSolver
+    semidiscrete.SemidiscreteState
+    semidiscrete.SemidiscreteOutput
+
 Sinkhorn Acceleration
 ---------------------
 .. autosummary::
