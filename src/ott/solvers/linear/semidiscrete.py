@@ -179,24 +179,27 @@ class SemidiscreteSolver:
   """Semi-discrete optimal transport solver.
 
   Args:
-    batch_size: TODO.
-    min_iterations: TODO.
-    max_iterations: TODO.
-    optimizer: TODO.
-    inner_iterations: TODO.
-    error_iterations: TODO.
-    error_batch_size: TODO.
-    threshold: TODO.
-    potential_ema: TODO.
-    callback TODO.
+    batch_size: Number of points to sample at each iteration.
+    min_iterations: Minimum number of iterations.
+    max_iterations: Maximum number of iterations.
+    optimizer: Optimizer.
+    inner_iterations: Number of iterations to run between the error computation.
+    error_batch_size: Batch size to use when computing
+      the marginal chi-squared error. If :obj:`None`, use ``batch_size``.
+    error_iterations: Number of iterations used to estimate
+      the marginal chi-squared error.
+    threshold: Convergence threshold for the marginal chi-squared error.
+    potential_ema: Exponential moving average of the dual potential.
+    callback: Callback with a signature ``(state) -> None`` that is called
+      at every iteration.
   """
   batch_size: int
   min_iterations: int
   max_iterations: int
   optimizer: optax.GradientTransformation
   inner_iterations: int = 1000
-  error_iterations: int = 1000
   error_batch_size: Optional[int] = None
+  error_iterations: int = 1000
   threshold: float = 1e-3
   potential_ema: float = 0.99
   callback: Optional[Callable[[SemidiscreteState], None]] = None
