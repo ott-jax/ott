@@ -53,7 +53,7 @@ class SemidiscreteLinearProblem:
     """Sample a linear OT problem.
 
     Args:
-      rng: Random seed.
+      rng: Random key used for seeding.
       num_samples: Number of samples.
 
     Returns:

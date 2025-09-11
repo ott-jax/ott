@@ -39,7 +39,17 @@ __all__ = [
 @jtu.register_dataclass
 @dataclasses.dataclass
 class SemidiscreteState:
-  """TODO."""
+  """State of the :class:`SemidiscreteSolver`.
+
+  Args:
+    it: Iteration number:
+    g: Dual potential.
+    g_ema: EMA of the dual potential.
+    opt_state: State of the optimizer.
+    losses: Dual losses.
+    grad_norms: Norms of the gradients.
+    errors: Marginal deviation errors.
+  """
   it: jax.Array
   g: jax.Array
   g_ema: jax.Array
@@ -52,7 +62,12 @@ class SemidiscreteState:
 @jtu.register_dataclass
 @dataclasses.dataclass
 class HardAssignmentOutput:
-  """TODO."""
+  """TODO.
+
+  Args:
+    ot_prob: Linear OT problem.
+    matrix: Transport matrix.
+  """
   ot_prob: linear_problem.LinearProblem
   matrix: jesp.BCOO
 
@@ -63,7 +78,16 @@ class HardAssignmentOutput:
 @jtu.register_dataclass
 @dataclasses.dataclass
 class SemidiscreteOutput:
-  """TODO."""
+  """Output of the :class:`SemidiscreteSolver`.
+
+  Args:
+    g: Dual potential.
+    prob: Semi-discrete OT problem.
+    it: Final iteration number.
+    losses: Dual losses.
+    errors: Marginal deviation errors.
+    converged: Whether the solver converged.
+  """
   g: jax.Array
   prob: sdlp.SemidiscreteLinearProblem
   it: Optional[int] = None
@@ -74,7 +98,15 @@ class SemidiscreteOutput:
   def sample(
       self, rng: jax.Array, num_samples: int
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
-    """TODO."""
+    """TODO.
+
+    Args:
+      rng: Random key used for seeding.
+      num_samples: Number of samples.
+
+    Returns:
+      The sampled output.
+    """
     prob = self.prob.sample(rng, num_samples)
     return self._output_from_problem(prob)
 
@@ -85,7 +117,17 @@ class SemidiscreteOutput:
       num_iters: int,
       batch_size: int,
   ) -> jax.Array:
-    """TODO."""
+    """TODO.
+
+    Args:
+      rng: Random key used for seeding.
+      num_iters: Number of iterations used to estimate the error.
+      batch_size: Number of points to sample from the source distribution
+        at each iteration.
+
+    Returns:
+      The marginal chi-squared error.
+    """
     return _marginal_chi2_error(
         rng,
         self.g,
@@ -118,9 +160,7 @@ class SemidiscreteOutput:
       )
       return HardAssignmentOutput(prob, matrix)
 
-    assert self.prob.geom.is_entropy_regularized, "TODO."
     epsilon = self.prob.geom.epsilon
-
     f, _ = _soft_c_transform(self.g, prob)
     # SinkhornOutput's potentials must contain
     # probability weight normalization
@@ -136,7 +176,20 @@ class SemidiscreteOutput:
 @jtu.register_static
 @dataclasses.dataclass
 class SemidiscreteSolver:
-  """TODO."""
+  """Semi-discrete optimal transport solver.
+
+  Args:
+    batch_size: TODO.
+    min_iterations: TODO.
+    max_iterations: TODO.
+    optimizer: TODO.
+    inner_iterations: TODO.
+    error_iterations: TODO.
+    error_batch_size: TODO.
+    threshold: TODO.
+    potential_ema: TODO.
+    callback TODO.
+  """
   batch_size: int
   min_iterations: int
   max_iterations: int
@@ -155,7 +208,16 @@ class SemidiscreteSolver:
       prob: sdlp.SemidiscreteLinearProblem,
       g_init: Optional[jax.Array] = None,
   ) -> SemidiscreteOutput:
-    """TODO."""
+    """Run the semi-discrete solver.
+
+    Args:
+      rng: Random key used for seeding.
+      prob: Semi-discrete problem.
+      g_init: Initial potential value of shape ``[m,]``.
+
+    Returns:
+      The semi-discrete output.
+    """
 
     def cond_fn(
         it: int,

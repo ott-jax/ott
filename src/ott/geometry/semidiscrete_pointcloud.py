@@ -78,7 +78,7 @@ class SemidiscretePointCloud:
       :class:`~ott.solvers.linear.semidiscrete.SemidiscreteSolver`.
 
     Args:
-      rng: Random seed.
+      rng: Random key used for seeding.
       num_samples: Number of samples.
 
     Returns:
