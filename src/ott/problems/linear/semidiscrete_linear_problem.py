@@ -25,13 +25,13 @@ __all__ = ["SemidiscreteLinearProblem"]
 
 @jtu.register_pytree_node_class
 class SemidiscreteLinearProblem:
-  """Semi-discrete OT problem.
+  """Semi-discrete linear OT problem.
 
   Args:
     geom: Semi-discrete point cloud geometry.
     b: The second marginal. If :obj:`None`, it will be uniform.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
-      on the second marginal.
+      on the second marginal. Currently not implemented.
   """
 
   def __init__(

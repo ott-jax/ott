@@ -43,12 +43,12 @@ Geometries
 
     geometry.Geometry
     pointcloud.PointCloud
-    semidiscrete_pointcloud.SemidiscretePointCloud
     grid.Grid
     graph.Graph
     geodesic.Geodesic
     low_rank.LRCGeometry
     low_rank.LRKGeometry
+    semidiscrete_pointcloud.SemidiscretePointCloud
     epsilon_scheduler.Epsilon
     epsilon_scheduler.DEFAULT_EPSILON_SCALE
 

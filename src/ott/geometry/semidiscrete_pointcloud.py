@@ -30,8 +30,8 @@ class SemidiscretePointCloud:
   Instances of this geometry can be sampled using the :meth:`sample` method.
 
   Args:
-    sampler: Function with a signature ``(rng, shape) -> array`` to sample
-      from corresponding to the source distribution.
+    sampler: Function with a signature ``(rng, shape) -> array``
+      corresponding to the source distribution.
     y: Array of shape ``[m, ...]`` corresponding to the target distribution.
     cost_fn: Cost function. If :obj:`None`,
       use :class:`~ott.geometry.costs.SqEuclidean`.
@@ -71,7 +71,7 @@ class SemidiscretePointCloud:
   def sample(self, rng: jax.Array, num_samples: int) -> pointcloud.PointCloud:
     """Sample a point cloud.
 
-    .. warning::
+    .. info::
       When :attr:`is_entropy_regularized` is false, some methods and
       attributes of the sampled :class:`~ott.geometry.pointcloud.PointCloud`
       are not meaningful. However, this does not impact the usage of the
