@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import Optional, Tuple
 
 import pytest
 
 import jax
 import jax.numpy as jnp
 import jax.random as jr
+import numpy as np
 
 from ott.geometry import pointcloud
 from ott.geometry import semidiscrete_pointcloud as sdpc
@@ -95,6 +96,19 @@ class TestSemidiscretePointCloud:
   def test_jit(self, rng: jax.Array):
 
     @jax.jit
-    def fn(geom):
+    def sample(
+        geom: sdpc.SemidiscretePointCloud
+    ) -> Tuple[sdpc.SemidiscretePointCloud, pointcloud.PointCloud, jax.Array]:
+      pc = geom.sample(rng_sample, 32)
+      return geom, pc, geom.epsilon
 
-      return geom
+    rng_data, rng_sample = jr.split(rng, 2)
+    y = jr.normal(rng_data, (11, 5))
+
+    geom = sdpc.SemidiscretePointCloud(jr.normal, y=y)
+
+    geom2, pc, epsilon = sample(geom)
+
+    np.testing.assert_allclose(geom.epsilon, geom2.epsilon, rtol=1e-5, atol=0.0)
+    np.testing.assert_allclose(geom.epsilon, epsilon, rtol=1e-5, atol=0.0)
+    np.testing.assert_allclose(pc.epsilon, epsilon, rtol=1e-5, atol=0.0)
