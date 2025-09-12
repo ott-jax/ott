@@ -85,7 +85,7 @@ class SemidiscretePointCloud:
     Returns:
       The sampled point cloud.
     """
-    assert num_samples > 0, "Number of samples must be positive."
+    assert num_samples > 0, f"Number of samples must > 0, got {num_samples}."
     shape = (num_samples, *self.y.shape[1:])
     x = self.sampler(rng, shape, self.dtype)
     return self._from_samples(x, self.epsilon)
@@ -105,6 +105,8 @@ class SemidiscretePointCloud:
   @property
   def epsilon(self) -> jax.Array:
     """Epsilon regularization value."""
+    if not self.is_entropy_regularized:
+      return 0.0
     rng = jr.key(self._epsilon_seed)
     shape = (self._epsilon_num_samples, *self.y.shape[1:])
     x = self.sampler(rng, shape, self.dtype)
