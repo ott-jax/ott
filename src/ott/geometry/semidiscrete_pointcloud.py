@@ -85,7 +85,7 @@ class SemidiscretePointCloud:
     Returns:
       The sampled point cloud.
     """
-    assert num_samples > 0, f"Number of samples must > 0, got {num_samples}."
+    assert num_samples > 0, f"Number of samples must be > 0, got {num_samples}."
     shape = (num_samples, *self.y.shape[1:])
     x = self.sampler(rng, shape, self.dtype)
     return self._from_samples(x, self.epsilon)

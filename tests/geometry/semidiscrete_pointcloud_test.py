@@ -16,6 +16,7 @@ from typing import Optional
 import pytest
 
 import jax
+import jax.numpy as jnp
 import jax.random as jr
 
 from ott.geometry import pointcloud
@@ -26,9 +27,9 @@ class TestSemidiscretePointCloud:
 
   @pytest.mark.parametrize("num_samples", [0, 12])
   def test_sample(self, rng: jax.Array, num_samples: int):
-    n, d = 128, 3
+    m, d = 16, 3
     rng_data, rng_sample = jr.split(rng, 2)
-    y = jr.normal(rng, (n, d))
+    y = jr.normal(rng, (m, d))
 
     geom = sdpc.SemidiscretePointCloud(sampler=jr.normal, y=y)
 
@@ -40,11 +41,11 @@ class TestSemidiscretePointCloud:
     pc = geom.sample(rng_sample, num_samples)
 
     assert isinstance(pc, pointcloud.PointCloud), type(pc)
-    assert pc.shape == (num_samples, n)
+    assert pc.shape == (num_samples, m)
 
   @pytest.mark.parametrize("epsilon", [0.0, None, 1e-2])
   def epsilon(self, rng: jax.Array, epsilon: Optional[float]):
-    n, d = 128, 3
+    n, d = 32, 5
     y = jr.normal(rng, (n, d))
 
     geom = sdpc.SemidiscretePointCloud(
@@ -60,10 +61,21 @@ class TestSemidiscretePointCloud:
       assert geom.is_entropy_regularized, epsilon
       assert isinstance(geom.epsilon, jax.Array), type(geom.epsilon)
 
-  def test_shape(self, rng: jax.Array):
-    pass
+  @pytest.mark.parametrize(("n", "m", "d"), [(11, 12, 4), (1, 32, 7)])
+  def test_shape(self, rng: jax.Array, n: int, m: int, d: int):
+    rng_data, rng_sample = jr.split(rng, 2)
+    y = jr.normal(rng_data, (m, d))
+    geom = sdpc.SemidiscretePointCloud(jr.normal, y=y)
 
-  def test_dtype(self, rng: jax.Array):
+    assert geom.shape == (float("inf"), m)
+    pc = geom.sample(rng_sample, n)
+
+    assert pc.x.shape == (n, d)
+    assert pc.y.shape == (m, d)
+    assert pc.shape == (n, m)
+
+  @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16, jnp.float32])
+  def test_dtype(self, rng: jax.Array, dtype: jnp.dtype):
     pass
 
   def test_jit(self, rng: jax.Array):
