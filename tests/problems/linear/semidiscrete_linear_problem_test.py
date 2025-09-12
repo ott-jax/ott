@@ -16,14 +16,17 @@ import pytest
 import jax
 import jax.random as jr
 
+from ott.geometry import pointcloud
 from ott.geometry import semidiscrete_pointcloud as sdpc
+from ott.problems.linear import linear_problem
 from ott.problems.linear import semidiscrete_linear_problem as sdlp
 
 
+@pytest.mark.fast()
 class TestSemidiscreteLinearProblem:
 
   @pytest.mark.parametrize("tau_b", [0.5, 0.999, 1.0])
-  def unbalanced_not_supported(self, rng: jax.Array, tau_b: float):
+  def test_unbalanced_not_supported(self, rng: jax.Array, tau_b: float):
     y = jr.normal(rng, (12, 3))
     geom = sdpc.SemidiscretePointCloud(jr.normal, y)
 
@@ -36,5 +39,18 @@ class TestSemidiscreteLinearProblem:
     else:
       _ = sdlp.SemidiscreteLinearProblem(geom, tau_b=tau_b)
 
-  def test_sample(self):
-    pass
+  @pytest.mark.parametrize("num_samples", [12, 17])
+  def test_sample(self, rng: jax.Array, num_samples):
+    rng_data, rng_samples = jr.split(rng, 2)
+    m, d = 15, 7
+    y = jr.normal(rng_data, (m, d))
+    geom = sdpc.SemidiscretePointCloud(jr.uniform, y=y)
+    prob = sdlp.SemidiscreteLinearProblem(geom)
+
+    sampled_prob = prob.sample(rng_samples, num_samples)
+
+    assert isinstance(sampled_prob,
+                      linear_problem.LinearProblem), type(sampled_prob)
+    assert isinstance(sampled_prob.geom,
+                      pointcloud.PointCloud), type(sampled_prob.geom)
+    assert sampled_prob.geom.shape == (num_samples, m)

@@ -24,6 +24,7 @@ from ott.geometry import pointcloud
 from ott.geometry import semidiscrete_pointcloud as sdpc
 
 
+@pytest.mark.fast()
 class TestSemidiscretePointCloud:
 
   @pytest.mark.parametrize("num_samples", [0, 12])
