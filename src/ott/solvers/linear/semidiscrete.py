@@ -65,7 +65,7 @@ class SemidiscreteState:
 @jtu.register_dataclass
 @dataclasses.dataclass(frozen=True)
 class HardAssignmentOutput:
-  """TODO.
+  """Unregularized linear OT solution.
 
   Args:
     ot_prob: Linear OT problem.
