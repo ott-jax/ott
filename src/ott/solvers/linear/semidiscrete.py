@@ -435,9 +435,7 @@ def _marginal_chi2_error(
     chi2_err_avg = chi2_err_avg + chi2 / num_iters
     return chi2_err_avg, None
 
-  out = SemidiscreteOutput(
-      it=-1, g=g, prob=prob, losses=None, errors=None, converged=False
-  )
+  out = SemidiscreteOutput(g=g, prob=prob)
   _, m = prob.geom.shape
 
   chi2_err = jnp.zeros((), dtype=g.dtype)
