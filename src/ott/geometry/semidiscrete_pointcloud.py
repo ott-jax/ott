@@ -47,7 +47,8 @@ class SemidiscretePointCloud:
 
   def __init__(
       self,
-      sampler: Callable[[jax.Array, Tuple[int, ...], jnp.dtype], jax.Array],
+      sampler: Callable[[jax.Array, Tuple[int, ...], Optional[jnp.dtype]],
+                        jax.Array],
       y: jax.Array,
       cost_fn: Optional[costs.CostFn] = None,
       epsilon: Optional[Union[float, jax.Array]] = None,
