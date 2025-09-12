@@ -87,7 +87,7 @@ def _sobol_sphere(n: int, d: int, seed: int) -> np.ndarray:
 
 
 @jtu.register_dataclass
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class OTCP:
   """Optimal transport conformal prediction :cite:`klein:25`.
 

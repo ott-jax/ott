@@ -40,7 +40,7 @@ __all__ = [
 
 
 @jtu.register_dataclass
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class SemidiscreteState:
   """State of the :class:`SemidiscreteSolver`.
 
@@ -63,7 +63,7 @@ class SemidiscreteState:
 
 
 @jtu.register_dataclass
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class HardAssignmentOutput:
   """TODO.
 
@@ -87,7 +87,7 @@ class HardAssignmentOutput:
 
 
 @jtu.register_dataclass
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class SemidiscreteOutput:
   """Output of the :class:`SemidiscreteSolver`.
 
@@ -109,7 +109,7 @@ class SemidiscreteOutput:
   def sample(
       self, rng: jax.Array, num_samples: int
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
-    """TODO.
+    """Sample a point cloud and compute the OT solution.
 
     Args:
       rng: Random key used for seeding.
@@ -185,7 +185,7 @@ class SemidiscreteOutput:
 
 
 @jtu.register_static
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class SemidiscreteSolver:
   """Semi-discrete optimal transport solver.
 
@@ -215,7 +215,6 @@ class SemidiscreteSolver:
   potential_ema: float = 0.99
   callback: Optional[Callable[[SemidiscreteState], None]] = None
 
-  # TODO(michalk8): can't directly JIT this
   def __call__(
       self,
       rng: jax.Array,
