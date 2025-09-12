@@ -30,7 +30,7 @@ class SemidiscretePointCloud:
   Instances of this geometry can be sampled using the :meth:`sample` method.
 
   Args:
-    sampler: Function with a signature ``(rng, shape) -> array``
+    sampler: Function with a signature ``(rng, shape, dtype) -> array``
       corresponding to the source distribution.
     y: Array of shape ``[m, ...]`` corresponding to the target distribution.
     cost_fn: Cost function. If :obj:`None`,
@@ -47,7 +47,7 @@ class SemidiscretePointCloud:
 
   def __init__(
       self,
-      sampler: Callable[[jax.Array, Tuple[int, ...]], jax.Array],
+      sampler: Callable[[jax.Array, Tuple[int, ...], jnp.dtype], jax.Array],
       y: jax.Array,
       cost_fn: Optional[costs.CostFn] = None,
       epsilon: Optional[Union[float, jax.Array]] = None,
@@ -85,7 +85,8 @@ class SemidiscretePointCloud:
       The sampled point cloud.
     """
     assert num_samples > 0, "Number of samples must be positive."
-    x = self.sampler(rng, (num_samples, *self.y.shape[1:]))
+    shape = (num_samples, *self.y.shape[1:])
+    x = self.sampler(rng, shape, self.dtype)
     return self._from_samples(x, self.epsilon)
 
   def _from_samples(
@@ -104,7 +105,8 @@ class SemidiscretePointCloud:
   def epsilon(self) -> float:
     """Epsilon regularization value."""
     rng = jr.key(self._epsilon_seed)
-    x = self.sampler(rng, (self._epsilon_num_samples, *self.y.shape[1:]))
+    shape = (self._epsilon_num_samples, *self.y.shape[1:])
+    x = self.sampler(rng, shape, self.dtype)
     geom = self._from_samples(x, self._epsilon)
     return geom.epsilon
 
