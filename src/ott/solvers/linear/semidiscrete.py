@@ -24,6 +24,7 @@ import jax.tree_util as jtu
 
 import optax
 
+from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
 from ott.math import utils as math_utils
 from ott.problems.linear import linear_problem
@@ -31,8 +32,10 @@ from ott.problems.linear import semidiscrete_linear_problem as sdlp
 from ott.solvers.linear import sinkhorn
 
 __all__ = [
-    "SemidiscreteState", "HardAssignmentOutput", "SemidiscreteOutput",
-    "SemidiscreteSolver"
+    "SemidiscreteState",
+    "HardAssignmentOutput",
+    "SemidiscreteOutput",
+    "SemidiscreteSolver",
 ]
 
 
@@ -71,8 +74,16 @@ class HardAssignmentOutput:
   ot_prob: linear_problem.LinearProblem
   matrix: jesp.BCOO
 
-  # TODO(michalk8): add some properties (primal cost, etc.)
-  # TODO(michalk8): consider refactoring `UnivariateOutput` instead
+  @property
+  def primal_cost(self) -> jax.Array:
+    """Transport cost of the linear OT solution."""
+    geom = self.ot_prob.geom
+    assert isinstance(geom, pointcloud.PointCloud), type(geom)
+    weights = self.matrix.data  #
+    row_ixs = self.matrix.indices[:, 0]
+    col_ixs = self.matrix.indices[:, 1]
+    x, y = geom.x[row_ixs], geom.y[col_ixs]
+    return jnp.sum(weights * jax.vmap(geom.cost_fn, in_axes=[0, 0])(x, y))
 
 
 @jtu.register_dataclass
@@ -117,7 +128,7 @@ class SemidiscreteOutput:
       num_iters: int,
       batch_size: int,
   ) -> jax.Array:
-    """TODO.
+    """Compute the marginal chi-squared error.
 
     Args:
       rng: Random key used for seeding.
