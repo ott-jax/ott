@@ -74,9 +74,23 @@ class TestSemidiscretePointCloud:
     assert pc.y.shape == (m, d)
     assert pc.shape == (n, m)
 
-  @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16, jnp.float32])
-  def test_dtype(self, rng: jax.Array, dtype: jnp.dtype):
-    pass
+  @pytest.mark.parametrize(("epsilon", "dtype"), [(0.0, jnp.float16),
+                                                  (None, jnp.bfloat16),
+                                                  (0.2, jnp.float32)])
+  def test_dtype(
+      self, rng: jax.Array, epsilon: Optional[float], dtype: jnp.dtype
+  ):
+    rng_data, rng_sample = jr.split(rng, 2)
+    m, d = 15, 1
+    y = jr.normal(rng_data, (m, d), dtype=dtype)
+    geom = sdpc.SemidiscretePointCloud(jr.normal, y=y, epsilon=epsilon)
+    pc = geom.sample(rng_sample, 12)
+
+    assert geom.dtype == dtype
+    assert geom.epsilon.dtype == dtype
+
+    assert pc.dtype == dtype
+    assert pc.cost_matrix.dtype == dtype
 
   def test_jit(self, rng: jax.Array):
 

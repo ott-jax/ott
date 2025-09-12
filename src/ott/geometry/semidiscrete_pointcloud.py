@@ -106,7 +106,7 @@ class SemidiscretePointCloud:
   def epsilon(self) -> jax.Array:
     """Epsilon regularization value."""
     if not self.is_entropy_regularized:
-      return 0.0
+      return jnp.array(0.0, dtype=self.dtype)
     rng = jr.key(self._epsilon_seed)
     shape = (self._epsilon_num_samples, *self.y.shape[1:])
     x = self.sampler(rng, shape, self.dtype)
