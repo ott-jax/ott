@@ -402,7 +402,9 @@ def _semidiscrete_loss_bwd(
         jnp.ones(n, dtype=z.dtype), segment_ids=ixs, num_segments=m
     )
   assert grad.shape == (m,), (grad.shape, (m,))
+  # TODO(michalk8): double-check
   grad = grad * (1.0 / n) - prob.b
+  grad = jnp.where(prob.b > 0.0, grad, 0.0)
   return g * grad, None
 
 
