@@ -184,7 +184,7 @@ class TestSemidiscreteSolver:
     out = jax.jit(solver)(rng_solver, prob)
     out_init = jax.jit(solver)(rng_solver, prob, out.g)
 
-    assert out_init.losses[-1] < out.losses[-1]
+    np.testing.assert_array_less(out_init.losses, out.losses)
 
   def test_soft_output(self, rng: jax.Array):
     pass
