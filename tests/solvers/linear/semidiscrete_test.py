@@ -186,8 +186,35 @@ class TestSemidiscreteSolver:
 
     np.testing.assert_array_less(out_init.losses, out.losses)
 
-  def test_soft_output(self, rng: jax.Array):
-    pass
+  @pytest.mark.parametrize("n", [17, 35])
+  def test_soft_output(self, rng: jax.Array, n: int):
+    m, d, epsilon = 32, 3, 0.2
+    rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
+    prob = _random_problem(rng_prob, m=m, d=d, epsilon=epsilon)
+
+    solver = semidiscrete.SemidiscreteSolver(
+        min_iterations=50,
+        max_iterations=50,
+        inner_iterations=50,
+        error_iterations=10,
+        batch_size=32,
+        optimizer=optax.adagrad(0.1),
+    )
+
+    out = solver(rng_solver, prob)
+    for _ in range(5):
+      rng_sample, rng_sample_it = jr.split(rng_sample, 2)
+      out_sampled = out.sample(rng_sample_it, n)
+      out_sampled = out_sampled.set_cost(
+          out_sampled.ot_prob, lse_mode=True, use_danskin=True
+      )
+
+      assert isinstance(out_sampled, sinkhorn.SinkhornOutput)
+      assert out_sampled.geom.shape == (n, m)
+      assert jnp.all(jnp.isfinite(out_sampled.matrix))
+      assert jnp.all(jnp.isfinite(out_sampled.reg_ot_cost))
+
+      assert jnp.isclose(out_sampled.transport_mass, 1.0, rtol=1e-5, atol=1e-5)
 
   def test_hard_output(self, rng: jax.Array):
     pass
