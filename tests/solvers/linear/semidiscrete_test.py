@@ -167,11 +167,30 @@ class TestSemidiscreteSolver:
     else:
       assert isinstance(out_sampled, semidiscrete.HardAssignmentOutput)
 
-  def test_convergence(self):
-    pass
+  def test_optimizer(self, rng: jax.Array):
+    rng_prob, rng_solver = jr.split(rng, 2)
+    prob = _random_problem(rng_prob, m=22, d=3)
+    lr = 5e-2
 
-  def test_optimizer(self):
-    pass
+    kwargs = {
+        "min_iterations": 100,
+        "max_iterations": 100,
+        "inner_iterations": 100,
+        "error_iterations": 5,
+        "batch_size": 5,
+    }
+
+    sgd_solver = semidiscrete.SemidiscreteSolver(
+        optimizer=optax.sgd(lr), **kwargs
+    )
+    adam_solver = semidiscrete.SemidiscreteSolver(
+        optimizer=optax.adam(lr, b1=0.5, b2=0.9), **kwargs
+    )
+
+    sgd_out = jax.jit(sgd_solver)(rng_solver, prob)
+    adam_out = jax.jit(adam_solver)(rng_solver, prob)
+
+    assert adam_out.losses[-1] < sgd_out.losses[-1]
 
   def test_soft_output(self):
     pass
