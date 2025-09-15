@@ -113,8 +113,30 @@ class TestSemidiscreteSolver:
     assert sampled_out.ot_prob.geom.dtype == dtype
     assert sampled_out.ot_prob.geom.cost_matrix.dtype == dtype
 
-  def test_callback(self):
-    pass
+  def test_callback(self, capsys, rng: jax.Array):
+
+    def print_state(state: semidiscrete.SemidiscreteState) -> None:
+      print(state.it)  # noqa: T201
+
+    rng_prob, rng_solver = jr.split(rng, 2)
+    prob = _random_problem(rng_prob, m=12, d=2)
+    max_iters = 10
+
+    solver = semidiscrete.SemidiscreteSolver(
+        min_iterations=1,
+        max_iterations=max_iters,
+        inner_iterations=5,
+        batch_size=5,
+        optimizer=optax.sgd(1e-1),
+        callback=print_state,
+    )
+
+    _ = solver(rng_solver, prob)
+
+    expected = "\n".join(str(i) for i in range(max_iters)) + "\n"
+    actual = capsys.readouterr()
+    assert actual.out == expected
+    assert actual.err == ""
 
   def test_convergence(self):
     pass
