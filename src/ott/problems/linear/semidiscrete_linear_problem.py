@@ -27,6 +27,8 @@ __all__ = ["SemidiscreteLinearProblem"]
 class SemidiscreteLinearProblem:
   """Semi-discrete linear OT problem.
 
+  Instances of this problem can be sampled using the :meth:`sample` method.
+
   Args:
     geom: Semi-discrete point cloud geometry.
     b: The second marginal. If :obj:`None`, it will be uniform.
