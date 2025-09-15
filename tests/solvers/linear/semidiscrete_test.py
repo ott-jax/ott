@@ -202,15 +202,15 @@ class TestSemidiscreteSolver:
     )
 
     out = solver(rng_solver, prob)
-    for _ in range(5):
+    for i in range(10, 15):
       rng_sample, rng_sample_it = jr.split(rng_sample, 2)
-      out_sampled = out.sample(rng_sample_it, n)
+      out_sampled = out.sample(rng_sample_it, n + i)
       out_sampled = out_sampled.set_cost(
           out_sampled.ot_prob, lse_mode=True, use_danskin=True
       )
 
       assert isinstance(out_sampled, sinkhorn.SinkhornOutput)
-      assert out_sampled.geom.shape == (n, m)
+      assert out_sampled.geom.shape == (n + i, m)
       assert jnp.all(jnp.isfinite(out_sampled.matrix))
       assert jnp.all(jnp.isfinite(out_sampled.reg_ot_cost))
 
