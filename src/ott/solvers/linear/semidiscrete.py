@@ -375,7 +375,8 @@ def _semidiscrete_loss(
     is_soft: bool,
 ) -> jax.Array:
   f, _ = _soft_c_transform(g, prob) if is_soft else _hard_c_transform(g, prob)
-  return -jnp.mean(f) - jnp.dot(g, prob.b)
+  # we assume uniform weights for `prob.a`
+  return -(jnp.mean(f) + jnp.dot(g, prob.b))
 
 
 def _semidiscrete_loss_fwd(
@@ -384,7 +385,8 @@ def _semidiscrete_loss_fwd(
     is_soft: bool,
 ) -> Tuple[jax.Array, Tuple[jax.Array, linear_problem.LinearProblem]]:
   f, z = _soft_c_transform(g, prob) if is_soft else _hard_c_transform(g, prob)
-  return -jnp.mean(f) - jnp.dot(g, prob.b), (z, prob)
+  # we assume uniform weights for `prob.a`
+  return -(jnp.mean(f) + jnp.dot(g, prob.b)), (z, prob)
 
 
 def _semidiscrete_loss_bwd(
@@ -395,17 +397,30 @@ def _semidiscrete_loss_bwd(
   z, prob = res
   n, m = prob.geom.shape
   if is_soft:
-    grad = jsp.special.softmax(z, axis=-1).sum(0)
+    b = None if prob._b is None else prob.b[None, :]
+    grad = _weighted_softmax(z, b, axis=-1).sum(0)
   else:
     ixs = jnp.argmax(z, axis=-1)
     grad = jax.ops.segment_sum(
         jnp.ones(n, dtype=z.dtype), segment_ids=ixs, num_segments=m
     )
   assert grad.shape == (m,), (grad.shape, (m,))
-  # TODO(michalk8): double-check
   grad = grad * (1.0 / n) - prob.b
-  grad = jnp.where(prob.b > 0.0, grad, 0.0)
   return g * grad, None
+
+
+def _weighted_softmax(
+    x: jax.Array, b: Optional[jax.Array], axis: int = -1
+) -> jax.Array:
+  if b is None:
+    return jsp.special.softmax(x, axis=axis)
+  where = b > 0.0
+  x_max = jnp.max(x, axis=axis, keepdims=True, where=where, initial=-jnp.inf)
+  unnormalized = b * jnp.exp(x - x_max)
+  softmax = unnormalized / unnormalized.sum(
+      axis=axis, keepdims=True, where=where
+  )
+  return jnp.where(where, softmax, 0.0)
 
 
 _semidiscrete_loss.defvjp(_semidiscrete_loss_fwd, _semidiscrete_loss_bwd)

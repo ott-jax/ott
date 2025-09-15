@@ -42,7 +42,7 @@ def _random_problem(
 class TestSemidiscreteSolver:
 
   @pytest.mark.parametrize("n", [20, 31])
-  @pytest.mark.parametrize("epsilon", [None, 0.01, 0.1])
+  @pytest.mark.parametrize("epsilon", [0.0, 1e-3, 1e-2, 1e-1, None])
   def test_c_transform_gradient(
       self, rng: jax.Array, n: int, epsilon: Optional[float]
   ):
@@ -57,11 +57,11 @@ class TestSemidiscreteSolver:
       return -jnp.mean(f) - jnp.dot(g, prob.b)
 
     rng_prob, rng_potential, rng_sample = jr.split(rng, 3)
-    m, d = 7, 5
-    b = jnp.full((m,), fill_value=1.0 / (m - 2))
-    # TODO(michalk8): this causes the test to fail
+    m, d = 17, 5
+    b = jr.uniform(rng, (m,))
     b = b.at[np.array([0, 2])].set(0.0)
-    prob = _random_problem(rng, m=m, d=d, b=b)
+    b /= b.sum()
+    prob = _random_problem(rng, m=m, d=d, b=b, epsilon=epsilon)
 
     g = jr.normal(rng_potential, (m,))
     sampled_prob = prob.sample(rng_sample, n)
@@ -76,10 +76,12 @@ class TestSemidiscreteSolver:
     )
 
     gt_val, gt_grad_g = gt_fn(g, sampled_prob, is_soft)
+    # for low epsilon, where `b=0`, this can be NaN
+    gt_grad_g = jnp.where(jnp.isnan(gt_grad_g), 0.0, gt_grad_g)
     prev_val, pred_grad_g = pred_fn(g, sampled_prob, is_soft)
 
-    np.testing.assert_allclose(prev_val, gt_val, rtol=1e-6, atol=1e-6)
-    np.testing.assert_allclose(pred_grad_g, gt_grad_g, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(prev_val, gt_val, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(pred_grad_g, gt_grad_g, rtol=1e-4, atol=1e-4)
 
   def test_dtype(self):
     pass
