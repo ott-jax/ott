@@ -25,7 +25,7 @@ import optax
 from ott.geometry import semidiscrete_pointcloud as sdpc
 from ott.problems.linear import linear_problem
 from ott.problems.linear import semidiscrete_linear_problem as sdlp
-from ott.solvers.linear import semidiscrete
+from ott.solvers.linear import semidiscrete, sinkhorn
 
 
 def _random_problem(
@@ -100,10 +100,11 @@ class TestSemidiscreteSolver:
         min_iterations=1,
         max_iterations=10,
         inner_iterations=5,
+        error_iterations=3,
         batch_size=32,
         optimizer=optax.sgd(1e-3),
     )
-    out = solver(rng_solver, prob)
+    out = jax.jit(solver)(rng_solver, prob)
     sampled_out = out.sample(rng_sample, 17)
 
     assert out.g.dtype == dtype
@@ -123,28 +124,53 @@ class TestSemidiscreteSolver:
     max_iters = 10
 
     solver = semidiscrete.SemidiscreteSolver(
-        min_iterations=1,
+        min_iterations=max_iters,
         max_iterations=max_iters,
         inner_iterations=5,
+        error_iterations=3,
         batch_size=5,
         optimizer=optax.sgd(1e-1),
         callback=print_state,
     )
 
-    _ = solver(rng_solver, prob)
+    _ = jax.jit(solver)(rng_solver, prob)
 
     expected = "\n".join(str(i) for i in range(max_iters)) + "\n"
     actual = capsys.readouterr()
     assert actual.out == expected
     assert actual.err == ""
 
+  @pytest.mark.parametrize("epsilon", [0.0, 1e-2, None])
+  def test_epsilon(self, rng: jax.Array, epsilon: Optional[float]):
+    rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
+
+    prob = _random_problem(rng_prob, m=15, d=4, epsilon=epsilon)
+    if epsilon == 0.0:
+      assert not prob.geom.is_entropy_regularized
+    else:
+      assert prob.geom.is_entropy_regularized
+
+    solver = semidiscrete.SemidiscreteSolver(
+        min_iterations=5,
+        max_iterations=10,
+        inner_iterations=5,
+        error_iterations=3,
+        batch_size=5,
+        optimizer=optax.sgd(1e-1),
+    )
+
+    out = jax.jit(solver)(rng_solver, prob)
+    out_sampled = out.sample(rng_sample, 1)
+
+    if out.prob.geom.is_entropy_regularized:
+      assert isinstance(out_sampled, sinkhorn.SinkhornOutput)
+    else:
+      assert isinstance(out_sampled, semidiscrete.HardAssignmentOutput)
+
   def test_convergence(self):
     pass
 
   def test_optimizer(self):
-    pass
-
-  def test_epsilon(self):
     pass
 
   def test_soft_output(self):
