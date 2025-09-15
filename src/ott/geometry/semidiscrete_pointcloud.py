@@ -41,9 +41,9 @@ class SemidiscretePointCloud:
       :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix` or
       :attr:`~ott.geometry.pointcloud.PointCloud.std_cost_matrix`.
     scale_cost: Option to rescale the cost matrix.
-    relative_epsilon_seed: Random seed when estimating :attr:`epsilon`.
+    relative_epsilon_seed: Random seed when estimating the :attr:`epsilon`.
     relative_epsilon_num_samples: Number of samples when estimating
-      :attr:`epsilon`.
+      the :attr:`epsilon`.
   """
 
   def __init__(

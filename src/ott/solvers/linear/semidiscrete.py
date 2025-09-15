@@ -46,9 +46,9 @@ class SemidiscreteState:
   """State of the :class:`SemidiscreteSolver`.
 
   Args:
-    it: Iteration number:
+    it: Iteration number.
     g: Dual potential.
-    g_ema: EMA of the dual potential.
+    g_ema: Exponential moving average of the dual potential.
     opt_state: State of the optimizer.
     losses: Dual losses.
     grad_norms: Norms of the gradients.
