@@ -52,6 +52,7 @@ Semi-discrete Solvers
     semidiscrete.SemidiscreteSolver
     semidiscrete.SemidiscreteState
     semidiscrete.SemidiscreteOutput
+    semidiscrete.HardAssignmentOutput
 
 Sinkhorn Acceleration
 ---------------------
