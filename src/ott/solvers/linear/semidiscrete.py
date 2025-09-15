@@ -69,9 +69,13 @@ class HardAssignmentOutput:
   """Unregularized linear OT solution.
 
   Args:
+    f: The first dual potential.
+    g: The second dual potential.
     ot_prob: Linear OT problem.
     matrix: Transport matrix.
   """
+  f: jax.Array
+  g: jax.Array
   ot_prob: linear_problem.LinearProblem
   matrix: jesp.BCOO
 
@@ -85,6 +89,16 @@ class HardAssignmentOutput:
     col_ixs = self.matrix.indices[:, 1]
     x, y = geom.x[row_ixs], geom.y[col_ixs]
     return jnp.sum(weights * jax.vmap(geom.cost_fn, in_axes=[0, 0])(x, y))
+
+  @property
+  def dual_cost(self) -> jax.Array:
+    """Dual transport cost."""
+    return jnp.dot(self.ot_prob.a, self.f) + jnp.dot(self.ot_prob.b, self.g)
+
+  @property
+  def geom(self) -> pointcloud.PointCloud:  # noqa: D102
+    """Geometry."""
+    return self.ot_prob.geom
 
 
 @jtu.register_dataclass
@@ -162,26 +176,33 @@ class SemidiscreteOutput:
       self, prob: linear_problem.LinearProblem
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
     num_samples, _ = prob.geom.shape
-    if not self.prob.geom.is_entropy_regularized:
-      z = self.g[None, :] - prob.geom.cost_matrix
-      row_ixs = jnp.arange(num_samples)
-      col_ixs = jnp.argmax(z, axis=-1)
-      matrix = jesp.BCOO(
-          (jnp.ones(num_samples, dtype=z.dtype), jnp.c_[row_ixs, col_ixs]),
-          shape=prob.geom.shape,
+
+    if self.prob.geom.is_entropy_regularized:
+      epsilon = self.prob.geom.epsilon
+      f, _ = _soft_c_transform(self.g, prob)
+      # SinkhornOutput's potentials must contain
+      # probability weight normalization
+      f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
+      g_tilde = self.g + epsilon * jnp.log(self.prob.b)
+      return sinkhorn.SinkhornOutput(
+          potentials=(f_tilde, g_tilde),
+          ot_prob=prob,
       )
-      return HardAssignmentOutput(prob, matrix)
 
-    epsilon = self.prob.geom.epsilon
-    f, _ = _soft_c_transform(self.g, prob)
-    # SinkhornOutput's potentials must contain
-    # probability weight normalization
-    f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
-    g_tilde = self.g + epsilon * jnp.log(self.prob.b)
-
-    return sinkhorn.SinkhornOutput(
-        potentials=(f_tilde, g_tilde),
+    f, _ = _hard_c_transform(self.g, prob)
+    z = self.g[None, :] - prob.geom.cost_matrix
+    data = jnp.full((num_samples,), fill_value=1.0 / num_samples, dtype=z.dtype)
+    row_ixs = jnp.arange(num_samples)
+    col_ixs = jnp.argmax(z, axis=-1)
+    matrix = jesp.BCOO(
+        (data, jnp.c_[row_ixs, col_ixs]),
+        shape=prob.geom.shape,
+    )
+    return HardAssignmentOutput(
+        f=f,
+        g=self.g,
         ot_prob=prob,
+        matrix=matrix,
     )
 
 

@@ -16,6 +16,7 @@ from typing import Any, Optional
 import pytest
 
 import jax
+import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
@@ -186,35 +187,51 @@ class TestSemidiscreteSolver:
 
     np.testing.assert_array_less(out_init.losses, out.losses)
 
-  @pytest.mark.parametrize("n", [17, 35])
-  def test_soft_output(self, rng: jax.Array, n: int):
-    m, d, epsilon = 32, 3, 0.2
+  @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
+                                              (35, None)])
+  def test_output(self, rng: jax.Array, n: int, epsilon: Optional[float]):
+    m, d = 32, 3
     rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
     prob = _random_problem(rng_prob, m=m, d=d, epsilon=epsilon)
 
     solver = semidiscrete.SemidiscreteSolver(
-        min_iterations=50,
-        max_iterations=50,
-        inner_iterations=50,
+        min_iterations=100,
+        max_iterations=100,
+        inner_iterations=10,
         error_iterations=10,
-        batch_size=32,
-        optimizer=optax.adagrad(0.1),
+        batch_size=16,
+        optimizer=optax.adam(0.01, b1=0.5, b2=0.99),
     )
 
-    out = solver(rng_solver, prob)
+    out = jax.jit(solver)(rng_solver, prob)
     for i in range(10, 15):
       rng_sample, rng_sample_it = jr.split(rng_sample, 2)
       out_sampled = out.sample(rng_sample_it, n + i)
-      out_sampled = out_sampled.set_cost(
-          out_sampled.ot_prob, lse_mode=True, use_danskin=True
-      )
 
-      assert isinstance(out_sampled, sinkhorn.SinkhornOutput)
-      assert out_sampled.geom.shape == (n + i, m)
-      assert jnp.all(jnp.isfinite(out_sampled.matrix))
-      assert jnp.all(jnp.isfinite(out_sampled.reg_ot_cost))
+      assert out_sampled.ot_prob.geom.shape == (n + i, m)
 
-      assert jnp.isclose(out_sampled.transport_mass, 1.0, rtol=1e-5, atol=1e-5)
+      if out.prob.geom.is_entropy_regularized:
+        out_sampled = out_sampled.set_cost(
+            out_sampled.ot_prob, lse_mode=True, use_danskin=True
+        )
 
-  def test_hard_output(self, rng: jax.Array):
-    pass
+        assert isinstance(out_sampled, sinkhorn.SinkhornOutput)
+        assert jnp.all(jnp.isfinite(out_sampled.reg_ot_cost))
+        assert jnp.isclose(
+            out_sampled.transport_mass, 1.0, rtol=1e-4, atol=1e-4
+        )
+        assert jnp.all(jnp.isfinite(out_sampled.matrix))
+      else:
+        expected_primal_cost = jnp.sum(
+            out_sampled.matrix.todense() * out_sampled.ot_prob.geom.cost_matrix
+        )
+
+        assert isinstance(out_sampled, semidiscrete.HardAssignmentOutput)
+        assert isinstance(out_sampled.matrix, jesp.BCOO)
+        np.testing.assert_allclose(
+            out_sampled.primal_cost, expected_primal_cost, rtol=1e-4, atol=1e-4
+        )
+        assert out_sampled.matrix.nse == n + i
+        np.testing.assert_allclose(
+            out_sampled.matrix.sum(), 1.0, rtol=1e-5, atol=1e-5
+        )
