@@ -13,6 +13,7 @@
 # limitations under the License.
 import dataclasses
 import functools
+import math
 from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
@@ -317,9 +318,11 @@ class SemidiscreteSolver:
         grad_norms=jnp.full((self.max_iterations,),
                             fill_value=jnp.inf,
                             dtype=dtype),
-        errors=jnp.full((self.max_iterations // self.inner_iterations),
-                        fill_value=jnp.inf,
-                        dtype=dtype),
+        errors=jnp.full(
+            math.ceil(self.max_iterations / self.inner_iterations),
+            fill_value=jnp.inf,
+            dtype=dtype
+        ),
     )
 
     rng, rng_chi2 = jr.split(rng, 2)

@@ -20,6 +20,8 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
+import optax
+
 from ott.geometry import semidiscrete_pointcloud as sdpc
 from ott.problems.linear import linear_problem
 from ott.problems.linear import semidiscrete_linear_problem as sdlp
@@ -27,13 +29,18 @@ from ott.solvers.linear import semidiscrete
 
 
 def _random_problem(
-    rng: jax.Array, *, m: int, d: int, **kwargs: Any
+    rng: jax.Array,
+    *,
+    m: int,
+    d: int,
+    dtype: Optional[jnp.dtype] = None,
+    **kwargs: Any
 ) -> sdlp.SemidiscreteLinearProblem:
   rng_b, rng_y = jr.split(rng, 2)
-  b = jr.uniform(rng_b, (m,))
+  b = jr.uniform(rng_b, (m,), dtype=dtype)
   b = b.at[np.array([0, 2])].set(0.0)
   b /= b.sum()
-  y = jr.normal(rng_y, (m, d))
+  y = jr.normal(rng_y, (m, d), dtype=dtype)
   geom = sdpc.SemidiscretePointCloud(jr.normal, y, **kwargs)
   return sdlp.SemidiscreteLinearProblem(geom, b=b)
 
@@ -79,9 +86,32 @@ class TestSemidiscreteSolver:
     np.testing.assert_allclose(prev_val, gt_val, rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(pred_grad_g, gt_grad_g, rtol=1e-4, atol=1e-4)
 
-  @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16, jnp.float32])
-  def test_dtype(self, rng: jax.Array, dtype: jnp.dtype):
-    pass
+  @pytest.mark.parametrize(("dtype", "epsilon"), [(jnp.float16, 0.0),
+                                                  (jnp.bfloat16, 0.5),
+                                                  (jnp.float32, None)])
+  def test_dtype(
+      self, rng: jax.Array, dtype: jnp.dtype, epsilon: Optional[float]
+  ):
+    m, d = 22, 3
+    rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
+    prob = _random_problem(rng_prob, m=m, d=d, epsilon=epsilon, dtype=dtype)
+
+    solver = semidiscrete.SemidiscreteSolver(
+        min_iterations=1,
+        max_iterations=10,
+        inner_iterations=5,
+        batch_size=32,
+        optimizer=optax.sgd(1e-3),
+    )
+    out = solver(rng_solver, prob)
+    sampled_out = out.sample(rng_sample, 17)
+
+    assert out.g.dtype == dtype
+    assert out.losses.dtype == dtype
+    assert out.errors.dtype == dtype
+    assert sampled_out.matrix.dtype == dtype
+    assert sampled_out.ot_prob.geom.dtype == dtype
+    assert sampled_out.ot_prob.geom.cost_matrix.dtype == dtype
 
   def test_callback(self):
     pass
