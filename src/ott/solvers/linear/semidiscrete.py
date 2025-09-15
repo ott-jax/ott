@@ -207,32 +207,31 @@ class SemidiscreteOutput:
 
 
 @jtu.register_static
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass(frozen=True, kw_only=True)
 class SemidiscreteSolver:
   """Semi-discrete optimal transport solver.
 
   Args:
+    num_iterations: Number of iterations.
     batch_size: Number of points to sample at each iteration.
-    min_iterations: Minimum number of iterations.
-    max_iterations: Maximum number of iterations.
     optimizer: Optimizer.
-    inner_iterations: Number of iterations to run between the error computation.
+    error_eval_every: Compute the chi-squared error every ``error_eval_every``
+      iterations.
     error_batch_size: Batch size to use when computing
       the marginal chi-squared error. If :obj:`None`, use ``batch_size``.
-    error_iterations: Number of iterations used to estimate
+    error_num_iterations: Number of iterations used to estimate
       the marginal chi-squared error.
     threshold: Convergence threshold for the marginal chi-squared error.
     potential_ema: Exponential moving average of the dual potential.
     callback: Callback with a signature ``(state) -> None`` that is called
       at every iteration.
   """
+  num_iterations: int
   batch_size: int
-  min_iterations: int
-  max_iterations: int
   optimizer: optax.GradientTransformation
-  inner_iterations: int = 1000
+  error_eval_every: int = 1000
   error_batch_size: Optional[int] = None
-  error_iterations: int = 1000
+  error_num_iterations: int = 1000
   threshold: float = 1e-3
   potential_ema: float = 0.99
   callback: Optional[Callable[[SemidiscreteState], None]] = None
@@ -261,7 +260,7 @@ class SemidiscreteSolver:
     ) -> bool:
       del prob
       loss = state.losses[it - 1]
-      err = jnp.abs(state.errors[it // self.inner_iterations - 1])
+      err = jnp.abs(state.errors[it // self.error_eval_every - 1])
 
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
@@ -298,13 +297,13 @@ class SemidiscreteSolver:
           lambda: _marginal_chi2_error(
               # use same rng to evaluate the errors
               rng_chi2, g_ema, prob,
-              num_iters=self.error_iterations,
+              num_iters=self.error_num_iterations,
               batch_size=self.error_batch_size or self.batch_size,
           ),
           lambda: jnp.array(jnp.inf, dtype=dtype),
       )
       # fmt: on
-      errors = state.errors.at[it // self.inner_iterations].set(error)
+      errors = state.errors.at[it // self.error_eval_every].set(error)
 
       state = SemidiscreteState(
           it=it,
@@ -334,13 +333,13 @@ class SemidiscreteSolver:
         g=g_init,
         g_ema=g_init,
         opt_state=self.optimizer.init(g_init),
-        losses=jnp.full((self.max_iterations,), fill_value=jnp.inf,
+        losses=jnp.full((self.num_iterations,), fill_value=jnp.inf,
                         dtype=dtype),
-        grad_norms=jnp.full((self.max_iterations,),
+        grad_norms=jnp.full((self.num_iterations,),
                             fill_value=jnp.inf,
                             dtype=dtype),
         errors=jnp.full(
-            math.ceil(self.max_iterations / self.inner_iterations),
+            math.ceil(self.num_iterations / self.error_eval_every),
             fill_value=jnp.inf,
             dtype=dtype
         ),
@@ -350,9 +349,9 @@ class SemidiscreteSolver:
     state: SemidiscreteState = fixed_point_loop.fixpoint_iter(
         cond_fn,
         body_fn,
-        min_iterations=self.min_iterations,
-        max_iterations=self.max_iterations,
-        inner_iterations=self.inner_iterations,
+        min_iterations=0,
+        max_iterations=self.num_iterations,
+        inner_iterations=self.error_eval_every,
         constants=prob,
         state=state,
     )
@@ -363,7 +362,7 @@ class SemidiscreteSolver:
       self, state: SemidiscreteState, prob: sdlp.SemidiscreteLinearProblem
   ) -> SemidiscreteOutput:
     it = state.it
-    below_thr = state.errors[it // self.inner_iterations] <= self.threshold
+    leq_thr = state.errors[it // self.error_eval_every] <= self.threshold
     finite_loss = jnp.isfinite(state.losses[it])
     return SemidiscreteOutput(
         g=state.g_ema,
@@ -371,7 +370,7 @@ class SemidiscreteSolver:
         it=it,
         losses=state.losses,
         errors=state.errors,
-        converged=jnp.logical_and(below_thr, finite_loss),
+        converged=jnp.logical_and(leq_thr, finite_loss),
     )
 
 

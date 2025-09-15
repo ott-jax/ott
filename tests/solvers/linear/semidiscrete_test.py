@@ -48,6 +48,7 @@ def _random_problem(
 
 class TestSemidiscreteSolver:
 
+  @pytest.mark.fast()
   @pytest.mark.parametrize("n", [20, 31])
   @pytest.mark.parametrize("epsilon", [0.0, 1e-3, 1e-2, 1e-1, None])
   def test_c_transform_gradient(
@@ -98,12 +99,11 @@ class TestSemidiscreteSolver:
     prob = _random_problem(rng_prob, m=m, d=d, epsilon=epsilon, dtype=dtype)
 
     solver = semidiscrete.SemidiscreteSolver(
-        min_iterations=1,
-        max_iterations=10,
-        inner_iterations=5,
-        error_iterations=3,
+        num_iterations=10,
         batch_size=32,
         optimizer=optax.sgd(1e-3),
+        error_eval_every=5,
+        error_num_iterations=3,
     )
     out = jax.jit(solver)(rng_solver, prob)
     sampled_out = out.sample(rng_sample, 17)
@@ -122,21 +122,20 @@ class TestSemidiscreteSolver:
 
     rng_prob, rng_solver = jr.split(rng, 2)
     prob = _random_problem(rng_prob, m=12, d=2)
-    max_iters = 10
+    num_iters = 10
 
     solver = semidiscrete.SemidiscreteSolver(
-        min_iterations=max_iters,
-        max_iterations=max_iters,
-        inner_iterations=5,
-        error_iterations=3,
+        num_iterations=num_iters,
         batch_size=5,
+        error_eval_every=5,
+        error_num_iterations=1,
         optimizer=optax.sgd(1e-1),
         callback=print_state,
     )
 
     _ = jax.jit(solver)(rng_solver, prob)
 
-    expected = "\n".join(str(i) for i in range(max_iters)) + "\n"
+    expected = "\n".join(str(i) for i in range(num_iters)) + "\n"
     actual = capsys.readouterr()
     assert actual.out == expected
     assert actual.err == ""
@@ -152,11 +151,10 @@ class TestSemidiscreteSolver:
       assert prob.geom.is_entropy_regularized
 
     solver = semidiscrete.SemidiscreteSolver(
-        min_iterations=5,
-        max_iterations=10,
-        inner_iterations=5,
-        error_iterations=3,
+        num_iterations=10,
         batch_size=5,
+        error_eval_every=5,
+        error_num_iterations=3,
         optimizer=optax.sgd(1e-1),
     )
 
@@ -174,11 +172,10 @@ class TestSemidiscreteSolver:
     prob = _random_problem(rng_prob, m=32, d=3, epsilon=epsilon)
 
     solver = semidiscrete.SemidiscreteSolver(
-        min_iterations=10,
-        max_iterations=10,
-        inner_iterations=10,
-        error_iterations=5,
+        num_iterations=10,
         batch_size=64,
+        error_eval_every=10,
+        error_num_iterations=5,
         optimizer=optax.adam(5e-2, b1=0.5, b2=0.9),
     )
 
@@ -195,11 +192,9 @@ class TestSemidiscreteSolver:
     prob = _random_problem(rng_prob, m=m, d=d, epsilon=epsilon)
 
     solver = semidiscrete.SemidiscreteSolver(
-        min_iterations=100,
-        max_iterations=100,
-        inner_iterations=10,
-        error_iterations=10,
+        num_iterations=100,
         batch_size=16,
+        error_eval_every=10,
         optimizer=optax.adam(0.01, b1=0.5, b2=0.99),
     )
 
