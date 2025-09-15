@@ -74,9 +74,10 @@ class SemidiscretePointCloud:
     """Sample a point cloud.
 
     .. note::
-      When :attr:`is_entropy_regularized` is false, some methods and
-      attributes of the sampled :class:`~ott.geometry.pointcloud.PointCloud`
-      are not meaningful. However, this does not impact the usage of the
+      When :attr:`is_entropy_regularized = False <is_entropy_regularized>`,
+      some methods and attributes of the sampled
+      :class:`~ott.geometry.pointcloud.PointCloud` are not meaningful.
+      However, this does not impact the usage of the
       :class:`~ott.solvers.linear.semidiscrete.SemidiscreteSolver`.
 
     Args:

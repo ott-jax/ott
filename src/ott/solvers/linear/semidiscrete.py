@@ -246,8 +246,9 @@ class SemidiscreteSolver:
 
     Args:
       rng: Random key used for seeding.
-      prob: Semi-discrete problem.
-      g_init: Initial potential value of shape ``[m,]``.
+      prob: Semi-discrete OT problem.
+      g_init: Initial potential value of shape ``[m,]``. If :obj:`None`,
+        use an array of 0s.
 
     Returns:
       The semi-discrete output.
