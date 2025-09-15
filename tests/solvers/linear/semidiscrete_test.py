@@ -27,14 +27,13 @@ from ott.solvers.linear import semidiscrete
 
 
 def _random_problem(
-    rng: jax.Array,
-    *,
-    m: int,
-    d: int,
-    b: Optional[jnp.ndarray] = None,
-    **kwargs: Any
+    rng: jax.Array, *, m: int, d: int, **kwargs: Any
 ) -> sdlp.SemidiscreteLinearProblem:
-  y = jr.normal(rng, (m, d))
+  rng_b, rng_y = jr.split(rng, 2)
+  b = jr.uniform(rng_b, (m,))
+  b = b.at[np.array([0, 2])].set(0.0)
+  b /= b.sum()
+  y = jr.normal(rng_y, (m, d))
   geom = sdpc.SemidiscretePointCloud(jr.normal, y, **kwargs)
   return sdlp.SemidiscreteLinearProblem(geom, b=b)
 
@@ -58,10 +57,7 @@ class TestSemidiscreteSolver:
 
     rng_prob, rng_potential, rng_sample = jr.split(rng, 3)
     m, d = 17, 5
-    b = jr.uniform(rng, (m,))
-    b = b.at[np.array([0, 2])].set(0.0)
-    b /= b.sum()
-    prob = _random_problem(rng, m=m, d=d, b=b, epsilon=epsilon)
+    prob = _random_problem(rng_prob, m=m, d=d, epsilon=epsilon)
 
     g = jr.normal(rng_potential, (m,))
     sampled_prob = prob.sample(rng_sample, n)
@@ -83,7 +79,8 @@ class TestSemidiscreteSolver:
     np.testing.assert_allclose(prev_val, gt_val, rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(pred_grad_g, gt_grad_g, rtol=1e-4, atol=1e-4)
 
-  def test_dtype(self):
+  @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16, jnp.float32])
+  def test_dtype(self, rng: jax.Array, dtype: jnp.dtype):
     pass
 
   def test_callback(self):
