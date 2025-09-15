@@ -167,33 +167,27 @@ class TestSemidiscreteSolver:
     else:
       assert isinstance(out_sampled, semidiscrete.HardAssignmentOutput)
 
-  def test_optimizer(self, rng: jax.Array):
+  @pytest.mark.parametrize("epsilon", [0.0, 1e-2, None])
+  def test_initial_potential(self, rng: jax.Array, epsilon: Optional[float]):
     rng_prob, rng_solver = jr.split(rng, 2)
-    prob = _random_problem(rng_prob, m=22, d=3)
-    lr = 5e-2
+    prob = _random_problem(rng_prob, m=32, d=3, epsilon=epsilon)
 
-    kwargs = {
-        "min_iterations": 100,
-        "max_iterations": 100,
-        "inner_iterations": 100,
-        "error_iterations": 5,
-        "batch_size": 5,
-    }
-
-    sgd_solver = semidiscrete.SemidiscreteSolver(
-        optimizer=optax.sgd(lr), **kwargs
-    )
-    adam_solver = semidiscrete.SemidiscreteSolver(
-        optimizer=optax.adam(lr, b1=0.5, b2=0.9), **kwargs
+    solver = semidiscrete.SemidiscreteSolver(
+        min_iterations=10,
+        max_iterations=10,
+        inner_iterations=10,
+        error_iterations=5,
+        batch_size=64,
+        optimizer=optax.adam(5e-2, b1=0.5, b2=0.9),
     )
 
-    sgd_out = jax.jit(sgd_solver)(rng_solver, prob)
-    adam_out = jax.jit(adam_solver)(rng_solver, prob)
+    out = jax.jit(solver)(rng_solver, prob)
+    out_init = jax.jit(solver)(rng_solver, prob, out.g)
 
-    assert adam_out.losses[-1] < sgd_out.losses[-1]
+    assert out_init.losses[-1] < out.losses[-1]
 
-  def test_soft_output(self):
+  def test_soft_output(self, rng: jax.Array):
     pass
 
-  def test_hard_output(self):
+  def test_hard_output(self, rng: jax.Array):
     pass
