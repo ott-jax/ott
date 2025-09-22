@@ -22,7 +22,7 @@ from . import (
     sinkhorn_lr,
     univariate,
 )
-from ._solve import solve, solve_univariate
+from ._solve import solve, solve_semidiscrete, solve_univariate
 
 __all__ = [
     "acceleration",
@@ -36,4 +36,5 @@ __all__ = [
     "univariate",
     "solve",
     "solve_univariate",
+    "solve_semidiscrete",
 ]
