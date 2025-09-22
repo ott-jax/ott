@@ -33,7 +33,7 @@ class TestSemidiscreteLinearProblem:
     if tau_b != 1.0:
       with pytest.raises(
           AssertionError,
-          match=r"Unbalanced semi-discrete problem is not supported."
+          match=r"Unbalanced semidiscrete problem is not supported."
       ):
         _ = sdlp.SemidiscreteLinearProblem(geom, tau_b=tau_b)
     else:

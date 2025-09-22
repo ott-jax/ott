@@ -44,11 +44,12 @@ Univariate Solvers
     univariate.north_west_solver
     univariate.UnivariateOutput
 
-Semi-discrete Solvers
----------------------
+Semidiscrete Solvers
+--------------------
 .. autosummary::
     :toctree: _autosummary
 
+    solve.solve_semidiscrete
     semidiscrete.SemidiscreteSolver
     semidiscrete.SemidiscreteState
     semidiscrete.SemidiscreteOutput

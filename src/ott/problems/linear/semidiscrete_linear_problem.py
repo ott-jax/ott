@@ -25,12 +25,12 @@ __all__ = ["SemidiscreteLinearProblem"]
 
 @jtu.register_pytree_node_class
 class SemidiscreteLinearProblem:
-  """Semi-discrete linear OT problem.
+  """Semidiscrete linear OT problem.
 
   Instances of this problem can be sampled using the :meth:`sample` method.
 
   Args:
-    geom: Semi-discrete point cloud geometry.
+    geom: Semidiscrete point cloud geometry.
     b: The second marginal. If :obj:`None`, it will be uniform.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
       on the second marginal. Currently not implemented.
@@ -42,7 +42,7 @@ class SemidiscreteLinearProblem:
       b: Optional[jax.Array] = None,
       tau_b: float = 1.0,
   ):
-    assert tau_b == 1.0, "Unbalanced semi-discrete problem is not supported."
+    assert tau_b == 1.0, "Unbalanced semidiscrete problem is not supported."
     self.geom = geom
     self._b = b
     self.tau_b = tau_b

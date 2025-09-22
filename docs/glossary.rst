@@ -355,5 +355,5 @@ Glossary
         :math:`p\leq 1`, and the :math:`p` root of the objective of the
         :term:`Kantorovich problem` is used.
 
-    semi-discrete optimal transport problem
+    semidiscrete optimal transport problem
         TODO(mcuturi)

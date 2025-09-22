@@ -25,7 +25,7 @@ __all__ = ["SemidiscretePointCloud"]
 
 @jtu.register_pytree_node_class
 class SemidiscretePointCloud:
-  """Semi-discrete point cloud geometry.
+  """Semidiscrete point cloud geometry.
 
   Instances of this geometry can be sampled using the :meth:`sample` method.
 
@@ -36,7 +36,7 @@ class SemidiscretePointCloud:
     cost_fn: Cost function. If :obj:`None`,
       use :class:`~ott.geometry.costs.SqEuclidean`.
     epsilon: Regularization parameter. Can be set to :math:`0` to solve the
-      unregularized :term:`semi-discrete optimal transport problem`.
+      unregularized :term:`semidiscrete optimal transport problem`.
     relative_epsilon: Whether ``epsilon`` refers to a fraction of the
       :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix` or
       :attr:`~ott.geometry.pointcloud.PointCloud.std_cost_matrix`.

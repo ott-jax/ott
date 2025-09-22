@@ -108,7 +108,7 @@ class SemidiscreteOutput:
 
   Args:
     g: Dual potential.
-    prob: Semi-discrete OT problem.
+    prob: Semidiscrete OT problem.
     it: Final iteration number.
     losses: Dual losses.
     errors: Marginal deviation errors.
@@ -209,7 +209,7 @@ class SemidiscreteOutput:
 @jtu.register_static
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class SemidiscreteSolver:
-  """Semi-discrete optimal transport solver.
+  """Semidiscrete optimal transport solver.
 
   Args:
     num_iterations: Number of iterations.
@@ -242,16 +242,16 @@ class SemidiscreteSolver:
       prob: sdlp.SemidiscreteLinearProblem,
       g_init: Optional[jax.Array] = None,
   ) -> SemidiscreteOutput:
-    """Run the semi-discrete solver.
+    """Run the semidiscrete solver.
 
     Args:
       rng: Random key used for seeding.
-      prob: Semi-discrete OT problem.
+      prob: Semidiscrete OT problem.
       g_init: Initial potential value of shape ``[m,]``. If :obj:`None`,
         use an array of 0s.
 
     Returns:
-      The semi-discrete output.
+      The semidiscrete output.
     """
 
     def cond_fn(
