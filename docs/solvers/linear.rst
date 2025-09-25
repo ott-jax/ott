@@ -16,6 +16,7 @@ Sinkhorn Solvers
     :toctree: _autosummary
 
     solve
+    solve_semidiscrete
     sinkhorn.Sinkhorn
     sinkhorn.SinkhornState
     sinkhorn.SinkhornOutput
@@ -49,7 +50,6 @@ Semidiscrete Solvers
 .. autosummary::
     :toctree: _autosummary
 
-    solve.solve_semidiscrete
     semidiscrete.SemidiscreteSolver
     semidiscrete.SemidiscreteState
     semidiscrete.SemidiscreteOutput
