@@ -421,8 +421,11 @@ def _semidiscrete_loss_bwd(
   z, prob = res
   n, m = prob.geom.shape
   if is_soft:
-    b = None if prob._b is None else prob.b[None, :]
-    grad = _weighted_softmax(z, b, axis=-1).sum(0)
+    if prob._b is None:  # uniform weights
+      grad = jsp.special.softmax(z, axis=-1)
+    else:
+      grad = _weighted_softmax(z, b=prob.b, axis=-1)
+    grad = grad.sum(0)
   else:
     ixs = jnp.argmax(z, axis=-1)
     grad = jax.ops.segment_sum(
@@ -433,11 +436,7 @@ def _semidiscrete_loss_bwd(
   return g * grad, None
 
 
-def _weighted_softmax(
-    x: jax.Array, b: Optional[jax.Array], axis: int = -1
-) -> jax.Array:
-  if b is None:
-    return jsp.special.softmax(x, axis=axis)
+def _weighted_softmax(x: jax.Array, b: jax.Array, axis: int = -1) -> jax.Array:
   where = b > 0.0
   x_max = jnp.max(x, axis=axis, keepdims=True, where=where, initial=-jnp.inf)
   unnormalized = b * jnp.exp(x - x_max)
