@@ -26,6 +26,7 @@ import optax
 from ott.geometry import semidiscrete_pointcloud as sdpc
 from ott.problems.linear import linear_problem
 from ott.problems.linear import semidiscrete_linear_problem as sdlp
+from ott.solvers import linear
 from ott.solvers.linear import semidiscrete, sinkhorn
 
 
@@ -183,6 +184,15 @@ class TestSemidiscreteSolver:
     out_init = jax.jit(solver)(rng_solver, prob, out.g)
 
     np.testing.assert_array_less(out_init.losses, out.losses)
+
+  @pytest.mark.fast()
+  def test_solver_wrapper(self, rng: jax.Array):
+    rng_prob, rng_solver = jr.split(rng, 2)
+    geom = _random_problem(rng_prob, m=32, d=3, epsilon=0.0).geom
+    out = linear.solve_semidiscrete(
+        geom, num_iterations=5, batch_size=7, optimizer=optax.sgd(1.0), rng=rng
+    )
+    np.testing.assert_array_equal(jnp.isfinite(out.losses), True)
 
   @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
                                               (35, None)])
