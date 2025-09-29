@@ -20,7 +20,7 @@ from optax import assignment
 
 from ott.geometry import costs, geometry, pointcloud
 
-__all__ = ["hungarian"]
+__all__ = ["HungarianOutput", "hungarian", "wassdis_p"]
 
 
 class HungarianOutput(NamedTuple):
@@ -42,17 +42,19 @@ class HungarianOutput(NamedTuple):
   def matrix(self) -> jesp.BCOO:
     """``[n, n]`` transport matrix  in sparse format, with ``n`` NNZ entries."""
     n, _ = self.geom.shape
-    unit_mass = jnp.ones((n,)) / n
-    indices = self.paired_indices.swapaxes(0, 1)
+    unit_mass = jnp.full(n, fill_value=1.0 / n, dtype=self.geom.dtype)
+    indices = self.paired_indices.T
     return jesp.BCOO((unit_mass, indices), shape=(n, n))
 
 
 def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
-  """Solve matching problem using :term:`Hungarian algorithm` from :mod:`optax`.
+  """Solve matching problem using the :term:`Hungarian algorithm`.
+
+  Uses the implementation from :mod:`optax`.
 
   Args:
-    geom: Geometry object with square (shape ``[n,n]``)
-      :attr:`~ott.geometry.geometry.Geomgetry.cost matrix`.
+    geom: Geometry object with square (shape ``[n, n]``)
+      :attr:`~ott.geometry.geometry.Geometry.cost_matrix`.
 
   Returns:
     The value of the unregularized OT problem, along with an output
@@ -60,10 +62,11 @@ def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
   """
   n, m = geom.shape
   assert n == m, f"Hungarian can only match same # of points, got {n} and {m}."
-  i, j = assignment.hungarian_algorithm(geom.cost_matrix)
-
-  hungarian_out = HungarianOutput(geom=geom, paired_indices=jnp.stack((i, j)))
-  return jnp.sum(geom.cost_matrix[i, j]) / n, hungarian_out
+  cost_matrix = geom.cost_matrix
+  i, j = assignment.hungarian_algorithm(cost_matrix)
+  transport_cost = cost_matrix[i, j].sum() / n
+  hungarian_out = HungarianOutput(geom=geom, paired_indices=jnp.stack([i, j]))
+  return transport_cost, hungarian_out
 
 
 def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, *, p: float = 2.0) -> float:
@@ -78,8 +81,8 @@ def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, *, p: float = 2.0) -> float:
     cast as an optimal matching problem.
 
   Args:
-    x: ``[n,d]`` point cloud
-    y: ``[n,d]`` point cloud of the same size
+    x: ``[n, d]`` point cloud.
+    y: ``[n, d]`` point cloud of the same size.
     p: order of the Wasserstein distance, non-negative float.
 
   Returns:
@@ -87,4 +90,4 @@ def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, *, p: float = 2.0) -> float:
   """
   geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p=p))
   cost, _ = hungarian(geom)
-  return cost ** (1. / p)
+  return cost ** (1.0 / p)
