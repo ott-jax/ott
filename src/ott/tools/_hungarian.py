@@ -12,18 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """JAX-based Hungarian matcher implementation."""
+from typing import Tuple
 
 import jax
 import jax.numpy as jnp
 
+__all__ = ["hungarian_matcher"]
 
-def hungarian_single(cost):
-  """Hungarian matcher for a single example."""
-  is_transpose = cost.shape[0] > cost.shape[1]
+MAX_VAL = float("inf")
+
+
+def hungarian_matcher(
+    cost: jax.Array
+) -> Tuple[jax.Array, Tuple[jax.Array, jax.Array]]:
+  """Hungarian matcher for a single example.
+
+  This implementation is taken from `scenic
+  <https://github.com/google-research/scenic/blob/main/scenic/model_lib/matchers/hungarian_jax.py#L21-L126>`_.
+
+  Args:
+    cost: Array of shape ``[n, m]``.
+
+  Returns:
+    The transport cost, row indices and column indices.
+  """
+  n, m = cost.shape
+  is_transpose = n > m
   if is_transpose:
     cost = cost.T
-
-  n, m = cost.shape
   one_hot_m = jnp.eye(m + 1)
 
   def row_scan_fn(state, i):
@@ -49,15 +65,16 @@ def hungarian_single(cost):
 
       # Update minv and path to it
       cur = cost[i0 - 1, :] - u[i0] - v[1:]
-      cur = jnp.where(used_slice, jnp.full_like(cur, 1e10), cur)
+      cur = jnp.where(used_slice, jnp.full_like(cur, MAX_VAL), cur)
       way = jnp.where(cur < minv, jnp.full_like(way, j0), way)
       minv = jnp.where(cur < minv, cur, minv)
+      jax.debug.print("{}", cur)
 
       # When finding an index with minimal minv, we need to mask out the visited
       # rows
-      masked_minv = jnp.where(used_slice, jnp.full_like(minv, 1e10), minv)
+      masked_minv = jnp.where(used_slice, jnp.full_like(minv, MAX_VAL), minv)
       j1 = jnp.argmin(masked_minv) + 1
-      delta = jnp.min(minv, initial=1e10, where=jnp.logical_not(used_slice))
+      delta = jnp.min(minv, initial=MAX_VAL, where=jnp.logical_not(used_slice))
 
       # Update potentials
       indices = jnp.where(used, parent, n + 1)  # deliberately out of bounds
@@ -65,16 +82,16 @@ def hungarian_single(cost):
       v = jnp.where(used, v - delta, v)
       minv = jnp.where(jnp.logical_not(used_slice), minv - delta, minv)
 
-      return (u, v, used, minv, way, j1)
+      return u, v, used, minv, way, j1
 
     def dfs_cond_fn(state):
       _, _, _, _, _, j0 = state
       return parent[j0] != 0
 
     # Run the inner while loop (i.e. DFS)
-    way = jnp.zeros((m,), dtype=jnp.int32)
+    way = jnp.zeros((m,), dtype=jnp.int_)
     used = jnp.zeros((m + 1,), dtype=jnp.bool_)
-    minv = jnp.full((m,), 1e10, dtype=jnp.float32)
+    minv = jnp.full((m,), MAX_VAL, dtype=cost.dtype)
     init_state = (u, v, used, minv, way, 0)
 
     state = jax.lax.while_loop(dfs_cond_fn, dfs_body_fn, init_state)
@@ -87,7 +104,7 @@ def hungarian_single(cost):
       parent = jax.lax.dynamic_update_index_in_dim(
           parent, parent[j1], j0, axis=0
       )
-      return (parent, j1)
+      return parent, j1
 
     def update_parent_cond_fn(state):
       """Condition function counterpart."""
@@ -103,16 +120,14 @@ def hungarian_single(cost):
     return (u, v, parent), None
 
   # Define the initial state
-  u = jnp.zeros((n + 2,), dtype=jnp.float32)
-  v = jnp.zeros((m + 1,), dtype=jnp.float32)
-  parent = jnp.zeros((m + 1,), dtype=jnp.int32)
+  u = jnp.zeros((n + 2,), dtype=cost.dtype)
+  v = jnp.zeros((m + 1,), dtype=cost.dtype)
+  parent = jnp.zeros((m + 1,), dtype=jnp.int_)
 
   init_state = (u, v, parent)
   (u, v,
    parent), _ = jax.lax.scan(row_scan_fn, init_state, jnp.arange(1, n + 1))
 
-  # -v[0] is the matching cost, but not returned to match the signature all
-  # other matchers.
   if n != m:
     # This is a costly operation, so skip it when possible (i.e. for square cost
     # matrices).
@@ -121,6 +136,7 @@ def hungarian_single(cost):
     parent, indices = parent[1:], jnp.arange(n)
   parent = parent - 1  # Switch back to 0-based indexing.
 
+  transport_cost = -v[0]
   if is_transpose:
-    return jnp.stack([indices, parent], axis=0)
-  return jnp.stack([parent, indices], axis=0)
+    return transport_cost, (indices, parent)
+  return transport_cost, (parent, indices)
