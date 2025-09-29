@@ -16,8 +16,9 @@ from typing import NamedTuple, Optional, Tuple
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 
+from optax import assignment
+
 from ott.geometry import costs, geometry, pointcloud
-from ott.tools import _hungarian as hungarian_jax
 
 __all__ = ["HungarianOutput", "hungarian", "wassdis_p"]
 
@@ -60,10 +61,10 @@ def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
   n, m = geom.shape
   assert n == m, f"Hungarian can only match same # of points, got {n} and {m}."
   cost_matrix = geom.cost_matrix
-  transport_cost, (i, j) = hungarian_jax.hungarian_matcher(cost_matrix)
-
+  i, j = assignment.hungarian_algorithm(cost_matrix)
+  transport_cost = cost_matrix[i, j].sum() / n
   hungarian_out = HungarianOutput(geom=geom, paired_indices=jnp.stack([i, j]))
-  return transport_cost / n, hungarian_out
+  return transport_cost, hungarian_out
 
 
 def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, *, p: float = 2.0) -> float:
@@ -87,4 +88,4 @@ def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, *, p: float = 2.0) -> float:
   """
   geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p=p))
   cost, _ = hungarian(geom)
-  return cost ** (1. / p)
+  return cost ** (1.0 / p)
