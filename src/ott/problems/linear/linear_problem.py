@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import geometry
+from ott.geometry import geometry, pointcloud
+from ott.math import utils as math_utils
 
 __all__ = ["LinearProblem"]
 
@@ -106,6 +107,56 @@ class LinearProblem:
   def dtype(self) -> jnp.dtype:
     """The data type of the geometry."""
     return self.geom.dtype
+
+  def c_transform(
+      self,
+      fg: jax.Array,
+      *,
+      epsilon: Optional[float] = None,
+      axis: Literal[0, 1],
+  ) -> Tuple[jax.Array, jax.Array]:
+    """TODO."""
+
+    def _soft_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
+      cost = self.geom.cost_matrix
+      z = (fg - cost) / epsilon
+      return -epsilon * math_utils.logsumexp(z, b=self.b, axis=axis), z
+
+    def _hard_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
+      cost = self.geom.cost_matrix
+      z = fg - cost
+      return -jnp.max(z, axis=axis), z
+
+    assert axis in (0, 1), axis
+    fg = jnp.expand_dims(fg, 1 - axis)
+    epsilon = self.geom.epsilon if epsilon is None else epsilon
+    return jax.lax.cond(epsilon > 0.0, _soft_c_transform, _hard_c_transform, fg)
+
+  def potential_fn_from_dual_vec(
+      self,
+      fg: jax.Array,
+      *,
+      epsilon: Optional[float] = None,
+      axis: Literal[0, 1],
+  ) -> Callable[[jax.Array], jax.Array]:
+    """TODO."""
+
+    def f_potential(x: jax.Array) -> jax.Array:
+      x, y = jnp.atleast_2d(x), self.geom.y
+      geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
+      prob = LinearProblem(geom, b=self.b)
+      f, _ = prob.c_transform(fg, epsilon=epsilon, axis=axis)
+      return f.squeeze(0)
+
+    def g_potential(y: jax.Array) -> jax.Array:
+      x, y = self.geom.x, jnp.atleast_2d(y)
+      geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
+      prob = LinearProblem(geom, a=self.a)
+      g, _ = prob.c_transform(fg, epsilon=epsilon, axis=axis)
+      return g.squeeze(0)
+
+    epsilon = self.geom.epsilon if epsilon is None else epsilon
+    return f_potential if axis == 1 else g_potential
 
   def get_transport_functions(
       self, lse_mode: bool

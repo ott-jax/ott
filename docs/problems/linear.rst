@@ -28,4 +28,3 @@ Dual Potentials
     :toctree: _autosummary
 
     potentials.DualPotentials
-    potentials.EntropicPotentials

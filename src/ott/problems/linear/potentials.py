@@ -11,28 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
+import dataclasses
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import jax.scipy as jsp
 import jax.tree_util as jtu
 import numpy as np
 
 from ott.geometry import costs
-from ott.problems.linear import linear_problem
 
-try:
+if TYPE_CHECKING:
   import matplotlib as mpl
   import matplotlib.pyplot as plt
-except ImportError:
-  mpl = plt = None
 
-__all__ = ["DualPotentials", "EntropicPotentials"]
-Potential_t = Callable[[jnp.ndarray], float]
+__all__ = ["DualPotentials"]
+
+PotentialFn = Callable[[jax.Array], jax.Array]
 
 
-@jtu.register_pytree_node_class
+@jtu.register_static
+@dataclasses.dataclass(frozen=True, repr=False)
 class DualPotentials:
   r"""The Kantorovich dual potential functions :math:`f` and :math:`g`.
 
@@ -43,26 +42,10 @@ class DualPotentials:
     f: The first dual potential function.
     g: The second dual potential function.
     cost_fn: The cost function used to solve the OT problem.
-    corr: Whether the duals solve the problem in distance form, or correlation
-      form (as used for instance for ICNNs, see, e.g., top right of p.3 in
-      :cite:`makkuva:20`)
   """
-
-  def __init__(
-      self,
-      f: Potential_t,
-      g: Potential_t,
-      *,
-      cost_fn: costs.CostFn,
-      corr: bool = False
-  ):
-    self._f = f
-    self._g = g
-    assert (
-        not corr or type(cost_fn) is costs.SqEuclidean
-    ), "Duals in `corr` form can only be used with a squared-Euclidean cost."
-    self.cost_fn = cost_fn
-    self._corr = corr
+  f: Optional[PotentialFn]
+  g: Optional[PotentialFn]
+  cost_fn: costs.CostFn
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
     r"""Transport ``vec`` according to Gangbo-McCann Brenier :cite:`brenier:91`.
@@ -84,13 +67,6 @@ class DualPotentials:
     one has :math:`h^*(\cdot) = \|.\|^2 / 4`, and therefore
     :math:`\nabla h^*(\cdot) = 0.5 \cdot\,`.
 
-    Note:
-      When the dual potentials are solved in correlation form, and marked
-      accordingly by setting ``corr`` to ``True``, the maps are
-      :math:`\nabla g` for forward, :math:`\nabla f` for backward map. This can
-      only make sense when using the squared-Euclidean
-      :class:`~ott.geometry.costs.SqEuclidean` cost.
-
     Args:
       vec: Points to transport, array of shape ``[n, d]``.
       forward: Whether to transport the points from source to the target
@@ -99,12 +75,7 @@ class DualPotentials:
     Returns:
       The transported points.
     """
-    from ott.geometry import costs
-
     vec = jnp.atleast_2d(vec)
-
-    if self._corr and isinstance(self.cost_fn, costs.SqEuclidean):
-      return self._grad_f(vec) if forward else self._grad_g(vec)
     twist_op = jax.vmap(self.cost_fn.twist_operator, in_axes=[0, 0, None])
     if forward:
       return twist_op(vec, self._grad_f(vec), False)
@@ -117,13 +88,6 @@ class DualPotentials:
     functions are provided in usual form. This expression is valid for any
     cost function.
 
-    When potentials are given in correlation form, as specified by the flag
-    ``corr``, the dual potentials solve the dual problem corresponding to the
-    minimization of the primal OT problem where the ground cost is
-    :math:`-2\langle x,y\rangle`. To recover the (squared) 2-Wasserstein
-    distance, terms are re-arranged and contributions from squared norms are
-    taken into account.
-
     Args:
       src: Samples from the source distribution, array of shape ``[n, d]``.
       tgt: Samples from the target distribution, array of shape ``[m, d]``.
@@ -132,23 +96,8 @@ class DualPotentials:
       Wasserstein distance using specified cost function.
     """
     src, tgt = jnp.atleast_2d(src), jnp.atleast_2d(tgt)
-    f = jax.vmap(self.f)
-    g = jax.vmap(self.g)
-    out = jnp.mean(f(src)) + jnp.mean(g(tgt))
-    if self._corr:
-      out = -2.0 * out + jnp.mean(jnp.sum(src ** 2, axis=-1))
-      out += jnp.mean(jnp.sum(tgt ** 2, axis=-1))
-    return out
-
-  @property
-  def f(self) -> Potential_t:
-    """The first dual potential function."""
-    return self._f
-
-  @property
-  def g(self) -> Potential_t:
-    """The second dual potential function."""
-    return self._g
+    f, g = jax.vmap(self.f), jax.vmap(self.g)
+    return jnp.mean(f(src)) + jnp.mean(g(tgt))
 
   @property
   def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
@@ -159,20 +108,6 @@ class DualPotentials:
   def _grad_g(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Vectorized gradient of the potential function :attr:`g`."""
     return jax.vmap(jax.grad(self.g, argnums=0))
-
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return [], {
-        "f": self._f,
-        "g": self._g,
-        "cost_fn": self.cost_fn,
-        "corr": self._corr
-    }
-
-  @classmethod
-  def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
-  ) -> "DualPotentials":
-    return cls(*children, **aux_data)
 
   def plot_ot_map(
       self,
@@ -202,8 +137,7 @@ class DualPotentials:
     Returns:
       Figure and axes.
     """
-    if mpl is None:
-      raise RuntimeError("Please install `matplotlib` first.")
+    import matplotlib.pyplot as plt
 
     if scatter_kwargs is None:
       scatter_kwargs = {"alpha": 0.5}
@@ -299,6 +233,8 @@ class DualPotentials:
     Returns:
       Figure and axes.
     """
+    import matplotlib.pyplot as plt
+
     if contourf_kwargs is None:
       contourf_kwargs = {}
 
@@ -328,108 +264,3 @@ class DualPotentials:
       fig.tight_layout()
     ax.set_title(r"$f$" if forward else r"$g$")
     return fig, ax
-
-
-@jtu.register_pytree_node_class
-class EntropicPotentials(DualPotentials):
-  """Dual potential functions from finite samples :cite:`pooladian:21`.
-
-  Args:
-    f_xy: The first dual potential vector of shape ``[n,]``.
-    g_xy: The second dual potential vector of shape ``[m,]``.
-    prob: Linear problem with :class:`~ott.geometry.pointcloud.PointCloud`
-      geometry that was used to compute the dual potentials using, e.g.,
-      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
-    f_xx: The first dual potential vector of shape ``[n,]`` used for debiasing
-      :cite:`pooladian:22`.
-    g_yy: The second dual potential vector of shape ``[m,]`` used for debiasing.
-  """
-
-  def __init__(
-      self,
-      f_xy: jnp.ndarray,
-      g_xy: jnp.ndarray,
-      prob: linear_problem.LinearProblem,
-      f_xx: Optional[jnp.ndarray] = None,
-      g_yy: Optional[jnp.ndarray] = None,
-  ):
-    # we pass directly the arrays and override the properties
-    # since only the properties need to be callable
-    super().__init__(f_xy, g_xy, cost_fn=prob.geom.cost_fn, corr=False)
-    self._prob = prob
-    self._f_xx = f_xx
-    self._g_yy = g_yy
-
-  @property
-  def f(self) -> Potential_t:  # noqa: D102
-    return self._potential_fn(kind="f")
-
-  @property
-  def g(self) -> Potential_t:  # noqa: D102
-    return self._potential_fn(kind="g")
-
-  def _potential_fn(self, *, kind: Literal["f", "g"]) -> Potential_t:
-    from ott.geometry import pointcloud
-
-    def callback(
-        x: jnp.ndarray,
-        *,
-        potential: jnp.ndarray,
-        y: jnp.ndarray,
-        weights: jnp.ndarray,
-        epsilon: float,
-    ) -> float:
-      x = jnp.atleast_2d(x)
-      assert x.shape[-1] == y.shape[-1], (x.shape, y.shape)
-      geom = pointcloud.PointCloud(x, y, cost_fn=self.cost_fn)
-      cost = geom.cost_matrix
-      z = (potential - cost) / epsilon
-      lse = -epsilon * jsp.special.logsumexp(z, b=weights, axis=-1)
-      return jnp.squeeze(lse)
-
-    assert isinstance(
-        self._prob.geom, pointcloud.PointCloud
-    ), f"Expected point cloud geometry, found `{type(self._prob.geom)}`."
-    x, y = self._prob.geom.x, self._prob.geom.y
-    a, b = self._prob.a, self._prob.b
-
-    # `f_xx` or `g_yy` can both be `None`, we check for this later
-    debiased_potentials = EntropicPotentials(self._f_xx, self._g_yy, self._prob)
-    if kind == "f":
-      # When seeking to evaluate 1st potential function,
-      # the 2nd set of potential values and support should be used,
-      # see proof of Prop. 2 in https://arxiv.org/pdf/2109.12004.pdf
-      potential, arr, weights = self._g, y, b
-      potential_other = None if self._f_xx is None else debiased_potentials.g
-    else:
-      potential, arr, weights = self._f, x, a
-      potential_other = None if self._g_yy is None else debiased_potentials.f
-
-    potential_xy = jax.tree_util.Partial(
-        callback,
-        potential=potential,
-        y=arr,
-        weights=weights,
-        epsilon=self.epsilon,
-    )
-
-    if potential_other is None:
-      return potential_xy
-    return lambda x: (potential_xy(x) - potential_other(x))
-
-  @property
-  def is_debiased(self) -> bool:
-    """Whether the :attr:`f` or :attr:`g` is debiased.
-
-    The :attr:`g` potential is **not** debiased when ``static_b = True`` is
-    passed in :func:`~ott.tools.sinkhorn_divergence.sinkhorn_divergence`.
-    """
-    return self._f_xx is not None or self._g_yy is not None
-
-  @property
-  def epsilon(self) -> float:
-    """Entropy regularizer."""
-    return self._prob.geom.epsilon
-
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
-    return [self._f, self._g, self._prob, self._f_xx, self._g_yy], {}

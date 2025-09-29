@@ -57,12 +57,9 @@ class TestSemidiscreteSolver:
   ):
 
     def semidiscrete_loss(
-        g: jax.Array, prob: linear_problem.LinearProblem, is_soft: bool
+        g: jax.Array, prob: linear_problem.LinearProblem
     ) -> jax.Array:
-      if is_soft:
-        f, _ = semidiscrete._soft_c_transform(g, prob)
-      else:
-        f, _ = semidiscrete._hard_c_transform(g, prob)
+      f, _ = prob.c_transform(g, axis=1)
       return -jnp.mean(f) - jnp.dot(g, prob.b)
 
     rng_prob, rng_potential, rng_sample = jr.split(rng, 3)
@@ -71,20 +68,15 @@ class TestSemidiscreteSolver:
 
     g = jr.normal(rng_potential, (m,))
     sampled_prob = prob.sample(rng_sample, n)
-    is_soft = prob.geom.is_entropy_regularized
 
-    gt_fn = jax.jit(
-        jax.value_and_grad(semidiscrete_loss), static_argnames=["is_soft"]
-    )
-    pred_fn = jax.jit(
-        jax.value_and_grad(semidiscrete._semidiscrete_loss),
-        static_argnames=["is_soft"]
-    )
+    gt_fn = jax.jit(jax.value_and_grad(semidiscrete_loss))
+    # has custom VJP
+    pred_fn = jax.jit(jax.value_and_grad(semidiscrete._semidiscrete_loss))
 
-    gt_val, gt_grad_g = gt_fn(g, sampled_prob, is_soft)
+    gt_val, gt_grad_g = gt_fn(g, sampled_prob)
     # for low epsilon, where `b=0`, this can be NaN
     gt_grad_g = jnp.where(jnp.isnan(gt_grad_g), 0.0, gt_grad_g)
-    prev_val, pred_grad_g = pred_fn(g, sampled_prob, is_soft)
+    prev_val, pred_grad_g = pred_fn(g, sampled_prob)
 
     np.testing.assert_allclose(prev_val, gt_val, rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(pred_grad_g, gt_grad_g, rtol=1e-4, atol=1e-4)
@@ -136,7 +128,7 @@ class TestSemidiscreteSolver:
 
     _ = jax.jit(solver)(rng_solver, prob)
 
-    expected = "\n".join(str(i) for i in range(num_iters)) + "\n"
+    expected = "\n".join(str(i) for i in range(1, num_iters + 1)) + "\n"
     actual = capsys.readouterr()
     assert actual.out == expected
     assert actual.err == ""

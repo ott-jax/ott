@@ -543,12 +543,16 @@ class W2NeuralDual:
       )
       return -f_value(grad_g_y) + jnp.dot(grad_g_y, y)
 
+    if not finetune_g or self.conjugate_solver is None:
+      g_value = g_value_prediction
+    else:
+      g_value = g_value_finetuned
+
+    # TODO(michalk8): handle corr
     return dual_potentials.DualPotentials(
         f=f_value,
-        g=g_value_prediction if not finetune_g or self.conjugate_solver is None
-        else g_value_finetuned,
+        g=g_value,
         cost_fn=costs.SqEuclidean(),
-        corr=True
     )
 
   @staticmethod

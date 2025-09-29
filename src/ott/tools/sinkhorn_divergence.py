@@ -73,22 +73,39 @@ class SinkhornDivergenceOutput:  # noqa: D101
   converged: Tuple[bool, bool, bool]
   n_iters: Tuple[int, int, int]
 
-  def to_dual_potentials(self) -> "potentials.EntropicPotentials":
+  def to_dual_potentials(
+      self, epsilon: Optional[float] = None
+  ) -> potentials.DualPotentials:
     """Return dual potential functions, :cite:`pooladian:22`.
 
-    Using vectors stored in ``potentials``, instantiate a
-    :class:`~ott.problems.linear.potentials.EntropicPotentials` object that will
-    provide approximations to optimal dual potential functions for the dual
-    OT problem defined for the geometry stored in ``geoms[0]``. These correspond
-    to Equation 8 in :cite:`pooladian:22`.
+    Using vectors stored in ``potentials``, instantiate a dual potentials object
+    that will provide approximations to optimal dual potential functions for
+    the dual OT problem defined for the geometry stored in ``geoms[0]``.
+    These correspond to Equation 8 in :cite:`pooladian:22`.
+
+    Args:
+      epsilon: TODO.
+
+    Returns:
+      TODO.
     """
     assert not self.is_low_rank, \
       "Dual potentials not available: divergence computed with low-rank solver."
     geom_xy, *_ = self.geoms
     prob_xy = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
-    return potentials.EntropicPotentials(
-        f_xy, g_xy, prob_xy, f_xx=f_x, g_yy=g_y
+
+    # TODO(michalk8): handle static_b
+    f_xy_fn = prob_xy.potential_fn_from_dual_vec(g_xy, epsilon=epsilon, axis=1)
+    g_xy_fn = prob_xy.potential_fn_from_dual_vec(f_xy, epsilon=epsilon, axis=0)
+
+    f_x_fn = prob_xy.potential_fn_from_dual_vec(g_y, epsilon=epsilon, axis=1)
+    g_y_fn = prob_xy.potential_fn_from_dual_vec(f_x, epsilon=epsilon, axis=0)
+
+    return potentials.DualPotentials(
+        f=lambda x: f_xy_fn(x) - g_y_fn(x),
+        g=lambda x: g_xy_fn(x) - f_x_fn(x),
+        cost_fn=geom_xy.cost_fn,
     )
 
   @property

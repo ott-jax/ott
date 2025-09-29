@@ -478,9 +478,18 @@ class SinkhornOutput(NamedTuple):
         self.geom.epsilon * jnp.sum(jsp.special.entr(self.matrix))
     )
 
-  def to_dual_potentials(self) -> potentials.EntropicPotentials:
+  def to_dual_potentials(
+      self, epsilon: Optional[float] = None
+  ) -> potentials.DualPotentials:
     """Return the entropic map estimator."""
-    return potentials.EntropicPotentials(self.f, self.g, self.ot_prob)
+    f_fn = self.ot_prob.potential_fn_from_dual_vec(
+        self.g, epsilon=epsilon, axis=1
+    )
+    g_fn = self.ot_prob.potential_fn_from_dual_vec(
+        self.f, epsilon=epsilon, axis=0
+    )
+    cost_fn = self.geom.cost_fn
+    return potentials.DualPotentials(f_fn, g_fn, cost_fn=cost_fn)
 
   @property
   def f(self) -> jnp.ndarray:

@@ -41,6 +41,8 @@ __all__ = ["ENOTPotentials", "PotentialModelWrapper", "ExpectileNeuralDual"]
 Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, dual_potentials.DualPotentials], None]
 
+# TODO(michalk8): update corr
+
 
 @jax.tree_util.register_pytree_node_class
 class ENOTPotentials(dual_potentials.DualPotentials):
@@ -72,7 +74,7 @@ class ENOTPotentials(dual_potentials.DualPotentials):
 
       return -g(y_hat) + (jnp.dot(x, y_hat) if corr else cost_fn(x, y_hat))
 
-    super().__init__(g_cost_conjugate, g, cost_fn=cost_fn, corr=corr)
+    super().__init__(g_cost_conjugate, g, cost_fn=cost_fn)
 
   @property
   def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:

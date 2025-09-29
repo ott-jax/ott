@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
@@ -65,6 +65,17 @@ class SemidiscreteLinearProblem:
     return linear_problem.LinearProblem(
         geom, a=None, b=self._b, tau_a=1.0, tau_b=self.tau_b
     )
+
+  def potential_fn_from_dual_vec(
+      self,
+      g: jax.Array,
+      *,
+      epsilon: Optional[float] = None
+  ) -> Callable[[jax.Array], jax.Array]:
+    """TODO."""
+    # TODO(michalk8): explain
+    prob = linear_problem.LinearProblem(self.geom, b=self.b)
+    return prob.potential_fn_from_dual_vec(g, epsilon=epsilon, axis=1)
 
   @property
   def b(self) -> jnp.ndarray:
