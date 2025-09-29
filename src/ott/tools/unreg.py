@@ -50,6 +50,8 @@ class HungarianOutput(NamedTuple):
 def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
   """Solve matching problem using the :term:`Hungarian algorithm`.
 
+  Uses the implementation from :mod:`optax`.
+
   Args:
     geom: Geometry object with square (shape ``[n, n]``)
       :attr:`~ott.geometry.geometry.Geometry.cost_matrix`.
