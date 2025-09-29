@@ -40,7 +40,6 @@ def hungarian_matcher(
   is_transpose = n > m
   if is_transpose:
     cost = cost.T
-  one_hot_m = jnp.eye(m + 1)
 
   def row_scan_fn(state, i):
     """Loop over the rows of the cost matrix."""
@@ -55,9 +54,7 @@ def hungarian_matcher(
       u, v, used, minv, way, j0 = state
 
       # Mark column as used
-      # used = jax.lax.dynamic_update_index_in_dim(used, True, j0, axis=0)
-      # used = jnp.logical_or(used, jnp.arange(m + 1) == j0)
-      used = jnp.logical_or(used, one_hot_m[j0])
+      used = used.at[j0].set(True)
       used_slice = used[1:]
 
       # Row paired to column j0
@@ -65,10 +62,9 @@ def hungarian_matcher(
 
       # Update minv and path to it
       cur = cost[i0 - 1, :] - u[i0] - v[1:]
-      cur = jnp.where(used_slice, jnp.full_like(cur, MAX_VAL), cur)
-      way = jnp.where(cur < minv, jnp.full_like(way, j0), way)
+      cur = jnp.where(used_slice, MAX_VAL, cur)
+      way = jnp.where(cur < minv, j0, way)
       minv = jnp.where(cur < minv, cur, minv)
-      jax.debug.print("{}", cur)
 
       # When finding an index with minimal minv, we need to mask out the visited
       # rows
