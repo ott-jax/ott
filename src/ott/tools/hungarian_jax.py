@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """JAX-based Hungarian matcher implementation."""
 
 import jax
@@ -20,7 +19,6 @@ import jax.numpy as jnp
 
 def hungarian_single(cost):
   """Hungarian matcher for a single example."""
-
   is_transpose = cost.shape[0] > cost.shape[1]
   if is_transpose:
     cost = cost.T
@@ -87,7 +85,8 @@ def hungarian_single(cost):
       parent, j0 = state
       j1 = way[j0 - 1]
       parent = jax.lax.dynamic_update_index_in_dim(
-          parent, parent[j1], j0, axis=0)
+          parent, parent[j1], j0, axis=0
+      )
       return (parent, j1)
 
     def update_parent_cond_fn(state):
@@ -98,7 +97,8 @@ def hungarian_single(cost):
     # Backtrack the DFS path
     init_state = (parent, j0)
     parent, _ = jax.lax.while_loop(
-        update_parent_cond_fn, update_parent_body_fn, init_state)
+        update_parent_cond_fn, update_parent_body_fn, init_state
+    )
 
     return (u, v, parent), None
 
@@ -108,8 +108,8 @@ def hungarian_single(cost):
   parent = jnp.zeros((m + 1,), dtype=jnp.int32)
 
   init_state = (u, v, parent)
-  (u, v, parent), _ = jax.lax.scan(
-      row_scan_fn, init_state, jnp.arange(1, n + 1))
+  (u, v,
+   parent), _ = jax.lax.scan(row_scan_fn, init_state, jnp.arange(1, n + 1))
 
   # -v[0] is the matching cost, but not returned to match the signature all
   # other matchers.
@@ -124,15 +124,3 @@ def hungarian_single(cost):
   if is_transpose:
     return jnp.stack([indices, parent], axis=0)
   return jnp.stack([parent, indices], axis=0)
-
-# 
-# def hungarian_scan(cost):
-#   """A scan-based batch version of the hungarian matching."""
-#   def hungarian_fn(_, cost):
-#     return None, hungarian_single(cost)
-#   _, indices = jax.lax.scan(hungarian_fn, None, cost, unroll=1)
-#   return indices
-# 
-# 
-# hungarian_tpu_matcher = jax.jit(jax.vmap(hungarian_single))
-# hungarian_scan_tpu_matcher = jax.jit(hungarian_scan)
