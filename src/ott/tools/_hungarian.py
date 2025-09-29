@@ -43,10 +43,6 @@ def hungarian_matcher(
 
   def row_scan_fn(state, i):
     """Loop over the rows of the cost matrix."""
-    u, v, parent = state
-
-    # parent[0] = i; note that i runs from 1 to n inclusive
-    parent = jax.lax.dynamic_update_index_in_dim(parent, i, 0, axis=0)
 
     def dfs_body_fn(state):
       # Row potential, column potential, used array, support array, path array
@@ -68,7 +64,7 @@ def hungarian_matcher(
 
       # When finding an index with minimal minv, we need to mask out the visited
       # rows
-      masked_minv = jnp.where(used_slice, jnp.full_like(minv, MAX_VAL), minv)
+      masked_minv = jnp.where(used_slice, MAX_VAL, minv)
       j1 = jnp.argmin(masked_minv) + 1
       delta = jnp.min(minv, initial=MAX_VAL, where=jnp.logical_not(used_slice))
 
@@ -84,8 +80,11 @@ def hungarian_matcher(
       _, _, _, _, _, j0 = state
       return parent[j0] != 0
 
+    u, v, parent = state
+    parent = jax.lax.dynamic_update_index_in_dim(parent, i, 0, axis=0)
+
     # Run the inner while loop (i.e. DFS)
-    way = jnp.zeros((m,), dtype=jnp.int_)
+    way = jnp.zeros((m,), dtype=int_dtype)
     used = jnp.zeros((m + 1,), dtype=jnp.bool_)
     minv = jnp.full((m,), MAX_VAL, dtype=cost.dtype)
     init_state = (u, v, used, minv, way, 0)
@@ -115,10 +114,11 @@ def hungarian_matcher(
 
     return (u, v, parent), None
 
+  int_dtype = jnp.int64 if jax.config.jax_enable_x64 else jnp.int32
   # Define the initial state
   u = jnp.zeros((n + 2,), dtype=cost.dtype)
   v = jnp.zeros((m + 1,), dtype=cost.dtype)
-  parent = jnp.zeros((m + 1,), dtype=jnp.int_)
+  parent = jnp.zeros((m + 1,), dtype=int_dtype)
 
   init_state = (u, v, parent)
   (u, v,
