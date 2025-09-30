@@ -192,12 +192,12 @@ class SemidiscreteOutput:
     num_samples, _ = prob.geom.shape
 
     if self.prob.geom.is_entropy_regularized:
-      epsilon = self.prob.geom.epsilon
+      b, epsilon = self.prob.b, self.prob.geom.epsilon
       f, _ = prob.c_transform(self.g, axis=1)
       # SinkhornOutput's potentials must contain
       # probability weight normalization
       f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
-      g_tilde = self.g + epsilon * jnp.log(self.prob.b)
+      g_tilde = self.g + epsilon * jnp.where(b, jnp.log(b), 0.0)
       return sinkhorn.SinkhornOutput(
           potentials=(f_tilde, g_tilde),
           ot_prob=prob,
