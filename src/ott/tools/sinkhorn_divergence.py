@@ -88,8 +88,7 @@ class SinkhornDivergenceOutput:  # noqa: D101
       will not be debiased.
 
     Args:
-      epsilon: Epsilon regularization. If :obj:`None`, use the one stored
-        in the :attr:`geom`.
+      epsilon: Epsilon regularization. If :obj:`None`, use in ``geoms[0]``.
 
     Returns:
       The debiased dual potential functions.
