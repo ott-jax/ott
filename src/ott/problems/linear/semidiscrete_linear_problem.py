@@ -72,8 +72,17 @@ class SemidiscreteLinearProblem:
       *,
       epsilon: Optional[float] = None
   ) -> Callable[[jax.Array], jax.Array]:
-    """TODO."""
-    # TODO(michalk8): explain
+    r"""Get the potential function :math:`f`.
+
+    Args:
+      g: Potential vector :math:`\mathbb{g}` of shape ``[m,]``.
+      epsilon: Epsilon regularization. If :obj:`None`, use in the :attr:`geom`.
+
+    Returns:
+      The dual potential function.
+    """
+    # `potential_fn_from_dual_vec` accesses only necessary properties of the
+    # problem/geometry, so we can pass the semidiscrete point cloud
     prob = linear_problem.LinearProblem(self.geom, b=self.b)
     return prob.potential_fn_from_dual_vec(g, epsilon=epsilon, axis=1)
 

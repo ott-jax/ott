@@ -59,7 +59,7 @@ class TestSemidiscreteSolver:
     def semidiscrete_loss(
         g: jax.Array, prob: linear_problem.LinearProblem
     ) -> jax.Array:
-      f, _ = prob.c_transform(g, axis=1)
+      f, _ = prob._c_transform(g, axis=1)
       return -jnp.mean(f) - jnp.dot(g, prob.b)
 
     rng_prob, rng_potential, rng_sample = jr.split(rng, 3)

@@ -195,17 +195,17 @@ class SemidiscreteOutput:
 
     if self.prob.geom.is_entropy_regularized:
       b, epsilon = self.prob.b, self.prob.geom.epsilon
-      f, _ = prob.c_transform(self.g, axis=1)
+      f, _ = prob._c_transform(self.g, axis=1)
       # SinkhornOutput's potentials must contain
       # probability weight normalization
       f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
-      g_tilde = self.g + epsilon * jnp.where(b > 0.0, jnp.log(b), 0.0)
+      g_tilde = self.g + epsilon * jnp.log(b)
       return sinkhorn.SinkhornOutput(
           potentials=(f_tilde, g_tilde),
           ot_prob=prob,
       )
 
-    f, _ = prob.c_transform(self.g, axis=1)
+    f, _ = prob._c_transform(self.g, axis=1)
     z = self.g[None, :] - prob.geom.cost_matrix
     data = jnp.full((num_samples,), fill_value=1.0 / num_samples, dtype=z.dtype)
     row_ixs = jnp.arange(num_samples)
@@ -427,7 +427,7 @@ def _semidiscrete_loss(
     g: jax.Array,
     prob: linear_problem.LinearProblem,
 ) -> jax.Array:
-  f, _ = prob.c_transform(g, axis=1)
+  f, _ = prob._c_transform(g, axis=1)
   # we assume uniform weights for `prob.a`
   return -(jnp.mean(f) + jnp.dot(g, prob.b))
 
@@ -436,7 +436,7 @@ def _semidiscrete_loss_fwd(
     g: jax.Array,
     prob: linear_problem.LinearProblem,
 ) -> Tuple[jax.Array, Tuple[jax.Array, linear_problem.LinearProblem]]:
-  f, z = prob.c_transform(g, axis=1)
+  f, z = prob._c_transform(g, axis=1)
   # we assume uniform weights for `prob.a`
   return -(jnp.mean(f) + jnp.dot(g, prob.b)), (z, prob)
 

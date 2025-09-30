@@ -108,14 +108,51 @@ class LinearProblem:
     """The data type of the geometry."""
     return self.geom.dtype
 
-  def c_transform(
+  def potential_fn_from_dual_vec(
+      self,
+      fg: jax.Array,
+      *,
+      epsilon: Optional[float] = None,
+      axis: Literal[0, 1],
+  ) -> Callable[[jax.Array], jax.Array]:
+    r"""Get the potential function from a dual vector.
+
+    Args:
+      fg: Potential vector :math:`\mathbb{f}` if ``axis = 0``
+        else :math:`\mathbb{g}` of shape ``[n,]`` or ``[m,]``, respectively.
+      epsilon: Epsilon regularization. If :obj:`None`, use in the :attr:`geom`.
+      axis: If ``axis = 0``, return the :math:`g`-potential function, otherwise
+        return the :math:`f`-potential function.
+
+    Returns:
+      The dual potential function.
+    """
+
+    def f_potential(x: jax.Array) -> jax.Array:
+      x, y = jnp.atleast_2d(x), self.geom.y
+      geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
+      prob = LinearProblem(geom, b=self.b)
+      f, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
+      return f.squeeze(0)
+
+    def g_potential(y: jax.Array) -> jax.Array:
+      x, y = self.geom.x, jnp.atleast_2d(y)
+      geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
+      prob = LinearProblem(geom, a=self.a)
+      g, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
+      return g.squeeze(0)
+
+    assert axis in (0, 1), axis
+    epsilon = self.geom.epsilon if epsilon is None else epsilon
+    return g_potential if axis == 0 else f_potential
+
+  def _c_transform(
       self,
       fg: jax.Array,
       *,
       epsilon: Optional[float] = None,
       axis: Literal[0, 1],
   ) -> Tuple[jax.Array, jax.Array]:
-    """TODO."""
 
     def _soft_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
       cost = self.geom.cost_matrix
@@ -131,32 +168,6 @@ class LinearProblem:
     fg = jnp.expand_dims(fg, 1 - axis)
     epsilon = self.geom.epsilon if epsilon is None else epsilon
     return jax.lax.cond(epsilon > 0.0, _soft_c_transform, _hard_c_transform, fg)
-
-  def potential_fn_from_dual_vec(
-      self,
-      fg: jax.Array,
-      *,
-      epsilon: Optional[float] = None,
-      axis: Literal[0, 1],
-  ) -> Callable[[jax.Array], jax.Array]:
-    """TODO."""
-
-    def f_potential(x: jax.Array) -> jax.Array:
-      x, y = jnp.atleast_2d(x), self.geom.y
-      geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
-      prob = LinearProblem(geom, b=self.b)
-      f, _ = prob.c_transform(fg, epsilon=epsilon, axis=axis)
-      return f.squeeze(0)
-
-    def g_potential(y: jax.Array) -> jax.Array:
-      x, y = self.geom.x, jnp.atleast_2d(y)
-      geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
-      prob = LinearProblem(geom, a=self.a)
-      g, _ = prob.c_transform(fg, epsilon=epsilon, axis=axis)
-      return g.squeeze(0)
-
-    epsilon = self.geom.epsilon if epsilon is None else epsilon
-    return f_potential if axis == 1 else g_potential
 
   def get_transport_functions(
       self, lse_mode: bool
