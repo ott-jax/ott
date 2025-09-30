@@ -93,7 +93,7 @@ class SemidiscretePointCloud:
     return self._from_samples(x, self.epsilon)
 
   def _from_samples(
-      self, x: jax.Array, epsilon: Union[float, jax.Array]
+      self, x: jax.Array, epsilon: jax.Array
   ) -> pointcloud.PointCloud:
     return pointcloud.PointCloud(
         x,
