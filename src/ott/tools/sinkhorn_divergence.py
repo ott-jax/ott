@@ -84,7 +84,8 @@ class SinkhornDivergenceOutput:  # noqa: D101
     These correspond to Equation 8 in :cite:`pooladian:22`.
 
     .. note::
-      When ``static_b=True``, the :math:`g` function will not be debiased.
+      When ``static_b=True``, the :math:`g` potential function
+      will not be debiased.
 
     Args:
       epsilon: Epsilon regularization. If :obj:`None`, use the one stored
