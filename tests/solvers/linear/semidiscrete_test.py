@@ -52,7 +52,7 @@ class TestSemidiscreteSolver:
   @pytest.mark.fast()
   @pytest.mark.parametrize("n", [20, 31])
   @pytest.mark.parametrize("epsilon", [0.0, 1e-3, 1e-2, 1e-1, None])
-  def test_c_transform_gradient(
+  def test_custom_gradient_semidiscrete_loss(
       self, rng: jax.Array, n: int, epsilon: Optional[float]
   ):
 

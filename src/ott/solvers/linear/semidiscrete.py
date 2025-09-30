@@ -452,7 +452,8 @@ def _semidiscrete_loss_bwd(
     return _weighted_softmax(z, b=prob.b, axis=-1).sum(0)
 
   def hard_grad(z: jax.Array) -> jax.Array:
-    ixs = jnp.argmax(z, axis=-1)
+    pos_weights = prob.b[None, :] > 0.0
+    ixs = jnp.argmax(jnp.where(pos_weights, z, -jnp.inf), axis=-1)
     return jax.ops.segment_sum(
         jnp.ones(n, dtype=z.dtype), segment_ids=ixs, num_segments=m
     )

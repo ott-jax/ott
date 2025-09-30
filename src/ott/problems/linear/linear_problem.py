@@ -162,7 +162,8 @@ class LinearProblem:
     def _hard_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
       cost = self.geom.cost_matrix
       z = fg - cost
-      return -jnp.max(z, axis=axis), z
+      pos_weights = self.b[None, :] > 0.0
+      return -jnp.max(z, initial=-jnp.inf, where=pos_weights, axis=axis), z
 
     assert axis in (0, 1), axis
     fg = jnp.expand_dims(fg, 1 - axis)
