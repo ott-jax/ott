@@ -115,7 +115,7 @@ class LinearProblem:
       epsilon: Optional[float] = None,
       axis: Literal[0, 1],
   ) -> Callable[[jax.Array], jax.Array]:
-    r"""Get the potential function from a dual vector.
+    r"""Get potential function from a dual vector using the :term:`c-transform`.
 
     Args:
       fg: Potential vector :math:`\mathbb{f}` if ``axis = 0``

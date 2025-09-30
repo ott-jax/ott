@@ -357,3 +357,6 @@ Glossary
 
     semidiscrete optimal transport problem
         TODO(mcuturi)
+
+    c-transform
+        TODO(mcuturi)

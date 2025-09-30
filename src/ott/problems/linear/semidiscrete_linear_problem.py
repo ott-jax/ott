@@ -72,14 +72,14 @@ class SemidiscreteLinearProblem:
       *,
       epsilon: Optional[float] = None
   ) -> Callable[[jax.Array], jax.Array]:
-    r"""Get the potential function :math:`f`.
+    r"""Get potential function from a dual vector using the :term:`c-transform`.
 
     Args:
       g: Potential vector :math:`\mathbb{g}` of shape ``[m,]``.
       epsilon: Epsilon regularization. If :obj:`None`, use in the :attr:`geom`.
 
     Returns:
-      The dual potential function.
+      The dual potential function :math:`f`.
     """
     # `potential_fn_from_dual_vec` accesses only necessary properties of the
     # problem/geometry, so we can pass the semidiscrete point cloud
