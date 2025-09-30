@@ -62,6 +62,7 @@ Cost Functions
     costs.SqPNorm
     costs.PNormP
     costs.SqEuclidean
+    costs.NegDotProduct
     costs.RegTICost
     costs.Euclidean
     costs.EuclideanP
