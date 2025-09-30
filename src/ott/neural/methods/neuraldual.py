@@ -548,11 +548,11 @@ class W2NeuralDual:
     else:
       g_value = g_value_finetuned
 
-    # TODO(michalk8): handle corr
+    # switch from grad-convex potentials to quadratic - convex parameterization
     return dual_potentials.DualPotentials(
-        f=f_value,
-        g=g_value,
-        cost_fn=costs.NegDotProduct(),
+        f=lambda x: 0.5 * jnp.sum(x ** 2) - f_value(x),
+        g=lambda x: 0.5 * jnp.sum(x ** 2) - g_value(x),
+        cost_fn=costs.SqEuclidean(),
     )
 
   @staticmethod
