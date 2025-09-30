@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -21,9 +21,11 @@ import numpy as np
 
 from ott.geometry import costs
 
-if TYPE_CHECKING:
+try:
   import matplotlib as mpl
   import matplotlib.pyplot as plt
+except ImportError:
+  mpl = plt = None
 
 __all__ = ["DualPotentials"]
 
