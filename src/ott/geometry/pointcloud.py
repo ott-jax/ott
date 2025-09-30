@@ -289,7 +289,7 @@ class PointCloud(geometry.Geometry):
       # we don't update the `scale_factor` because in GW, the linear cost
       # is first materialized and then scaled by `fused_penalty` afterwards
       return self
-    if self.is_dotp:
+    if self.is_neg_dotp:
       if self._check_LRC_dim:
         return self._dotp_to_lr(scale)
       return self
@@ -319,7 +319,7 @@ class PointCloud(geometry.Geometry):
     )
 
   def _dotp_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
-    assert self.is_dotp, "Geometry must be (minus) Dot-product."
+    assert self.is_neg_dotp, "Geometry must be (minus) Dot-product."
     n, m = self.shape
 
     return low_rank.LRCGeometry(
@@ -369,7 +369,7 @@ class PointCloud(geometry.Geometry):
       if self.is_squared_euclidean:
         max_bound = (x_max + y_max + 2 * jnp.sqrt(x_max * y_max))
         return 1.0 / max_bound
-      if self.is_dotp:
+      if self.is_neg_dotp:
         max_bound = (jnp.sqrt(x_max * y_max))
         return 1.0 / max_bound
 
@@ -416,12 +416,14 @@ class PointCloud(geometry.Geometry):
     return isinstance(self.cost_fn, costs.SqEuclidean)
 
   @property
-  def is_dotp(self) -> bool:  # noqa: D102
-    return isinstance(self.cost_fn, costs.Dotp)
+  def is_neg_dotp(self) -> bool:  # noqa: D102
+    return isinstance(self.cost_fn, costs.NegDotProduct)
 
   @property
   def can_LRC(self):  # noqa: D102
-    return (self.is_squared_euclidean or self.is_dotp) and self._check_LRC_dim
+    return (
+        self.is_squared_euclidean or self.is_neg_dotp
+    ) and self._check_LRC_dim
 
   @property
   def _check_LRC_dim(self):

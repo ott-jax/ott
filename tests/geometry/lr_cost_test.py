@@ -84,7 +84,7 @@ class TestLRGeometry:
     x = jax.random.normal(rngs[0], (n, d)) + .1
     y = jax.random.normal(rngs[1], (m, d))
 
-    geom = pointcloud.PointCloud(x, y, cost_fn=costs.Dotp())
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.NegDotProduct())
     geom_lr = geom.to_LRCGeometry()
     assert isinstance(geom_lr, low_rank.LRCGeometry)
 

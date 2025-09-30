@@ -29,7 +29,7 @@ from ott.math import utils as mu
 
 __all__ = [
     "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "RegTICost", "Cosine",
-    "Arccos", "Bures", "UnbalancedBures", "SoftDTW", "Dotp"
+    "Arccos", "Bures", "UnbalancedBures", "SoftDTW", "NegDotProduct"
 ]
 
 # TODO(michalk8): norm check
@@ -361,7 +361,7 @@ class EuclideanP(TICost):
 
 
 @jtu.register_pytree_node_class
-class Dotp(CostFn):
+class NegDotProduct(CostFn):
   r"""Negative Dot-product cost.
 
   Should yield similar results to :class:`~ott.geometry.costs.SqEuclidean`.
