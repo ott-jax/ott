@@ -26,6 +26,7 @@ import optax
 
 from ott import utils
 from ott.geometry import pointcloud
+from ott.geometry import semidiscrete_pointcloud as sdpc
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem, potentials
 from ott.problems.linear import semidiscrete_linear_problem as sdlp
@@ -138,13 +139,14 @@ class SemidiscreteOutput:
   def to_dual_potentials(
       self, epsilon: Optional[float] = None
   ) -> potentials.DualPotentials:
-    """TODO.
+    """Compute the dual potential function :math:`f`.
 
     Args:
-      epsilon: TODO.
+      epsilon: Epsilon regularization. If :obj:`None`, use the one stored
+        in the :attr:`geom`.
 
     Returns:
-      TODO.
+      The dual potential :math:`f`.
     """
     f_fn = self.prob.potential_fn_from_dual_vec(self.g, epsilon=epsilon)
     cost_fn = self.prob.geom.cost_fn
@@ -218,6 +220,11 @@ class SemidiscreteOutput:
         ot_prob=prob,
         matrix=matrix,
     )
+
+  @property
+  def geometry(self) -> sdpc.SemidiscretePointCloud:
+    """Semidiscrete geometry."""
+    return self.prob.geom
 
 
 @jtu.register_static

@@ -481,7 +481,15 @@ class SinkhornOutput(NamedTuple):
   def to_dual_potentials(
       self, epsilon: Optional[float] = None
   ) -> potentials.DualPotentials:
-    """Return the entropic map estimator."""
+    """Compute dual potential functions.
+
+    Args:
+      epsilon: Epsilon regularization. If :obj:`None`, use the one stored
+        in the :attr:`geom`.
+
+    Returns:
+      The dual potentials :math:`f` and :math:`g`.
+    """
     f_fn = self.ot_prob.potential_fn_from_dual_vec(
         self.g, epsilon=epsilon, axis=1
     )

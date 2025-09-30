@@ -84,10 +84,11 @@ class SinkhornDivergenceOutput:  # noqa: D101
     These correspond to Equation 8 in :cite:`pooladian:22`.
 
     Args:
-      epsilon: TODO.
+      epsilon: Epsilon regularization. If :obj:`None`, use the one stored
+        in the :attr:`geom`.
 
     Returns:
-      TODO.
+      The debiased dual potential functions.
     """
     assert not self.is_low_rank, \
       "Dual potentials not available: divergence computed with low-rank solver."

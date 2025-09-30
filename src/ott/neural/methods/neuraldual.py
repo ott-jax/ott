@@ -552,7 +552,7 @@ class W2NeuralDual:
     return dual_potentials.DualPotentials(
         f=f_value,
         g=g_value,
-        cost_fn=costs.SqEuclidean(),
+        cost_fn=costs.Dotp(),
     )
 
   @staticmethod
