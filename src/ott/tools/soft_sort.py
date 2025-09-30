@@ -503,13 +503,17 @@ def multivariate_cdf_quantile_maps(
       function, which solves the OT problem between ``inputs`` and ``targets``
       using the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm.
 
-  # TODO(michalk8)
-
   Returns:
-    - The multivariate CDF map, taking a ``[b, d]`` batch of vectors in the
+    The dual potentials object whose methods correspond to:
+
+    - The multivariate CDF (:meth:`DualPotentials.transport(..., forward=True)
+      <ott.problems.linear.potentials.DualPotentials.transport>`),
+      taking a ``[b, d]`` batch of vectors in the
       range of the ``inputs``, and mapping each vector within the range
       of the reference measure (assumed by default to be :math:`[0, 1]^d`).
-    - The quantile map, mapping a batch ``[b, d]`` of multivariate quantile
+    - The quantile map (:meth:`DualPotentials.transport(..., forward=False)
+      <ott.problems.linear.potentials.DualPotentials.transport>`),
+      mapping a batch ``[b, d]`` of multivariate quantile
       vectors onto ``[b, d]`` vectors in :math:`[0, 1]^d`, the range of
       the reference measure.
   """
