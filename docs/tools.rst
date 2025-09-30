@@ -22,7 +22,6 @@ Unregularized Optimal Transport
     :toctree: _autosummary
 
     unreg.hungarian
-    unreg.HungarianOutput
     unreg.wassdis_p
 
 

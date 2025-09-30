@@ -25,7 +25,7 @@ import jax.tree_util as jtu
 import optax
 
 from ott import utils
-from ott.geometry import pointcloud
+from ott.geometry import geometry, pointcloud
 from ott.geometry import semidiscrete_pointcloud as sdpc
 from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem, potentials
@@ -66,37 +66,53 @@ class SemidiscreteState:
 @jtu.register_dataclass
 @dataclasses.dataclass(frozen=True)
 class HardAssignmentOutput:
-  """Unregularized linear OT solution.
+  r"""Unregularized linear OT solution.
 
   Args:
+    ot_prob: Linear OT problem.
+    paired_indices: Array of shape ``[2, n]``, of :math:`n` pairs
+      of indices, for which the optimal transport assigns mass. Namely, for each
+      index :math:`0 \leq k < n`, if one has
+      :math:`i := \text{paired_indices}[0, k]` and
+      :math:`j := \text{paired_indices}[1, k]`, then point :math:`i` in
+      the first geometry sends mass to point :math:`j` in the second.
     f: The first dual potential.
     g: The second dual potential.
-    ot_prob: Linear OT problem.
-    matrix: Transport matrix.
   """
-  f: jax.Array
-  g: jax.Array
   ot_prob: linear_problem.LinearProblem
-  matrix: jesp.BCOO
+  paired_indices: jax.Array
+  f: Optional[jax.Array] = None
+  g: Optional[jax.Array] = None
+
+  @property
+  def matrix(self) -> jesp.BCOO:
+    """Transport matrix of shape ``[n, m]`` with ``n`` non-zero entries."""
+    n, m = self.geom.shape
+    unit_mass = jnp.full(n, fill_value=1.0 / n, dtype=self.geom.dtype)
+    indices = self.paired_indices.T
+    return jesp.BCOO((unit_mass, indices), shape=(n, m))
 
   @property
   def primal_cost(self) -> jax.Array:
     """Transport cost of the linear OT solution."""
-    geom = self.ot_prob.geom
-    assert isinstance(geom, pointcloud.PointCloud), type(geom)
-    weights = self.matrix.data  #
-    row_ixs = self.matrix.indices[:, 0]
-    col_ixs = self.matrix.indices[:, 1]
-    x, y = geom.x[row_ixs], geom.y[col_ixs]
-    return jnp.sum(weights * jax.vmap(geom.cost_fn, in_axes=[0, 0])(x, y))
+    geom = self.geom
+    weights = self.matrix.data
+    i, j = self.paired_indices[0], self.paired_indices[1]
+    if isinstance(geom, pointcloud.PointCloud):
+      cost = jax.vmap(geom.cost_fn)(geom.x[i], geom.y[j])
+    else:
+      cost = geom.cost_matrix[i, j]
+    return jnp.sum(weights * cost)
 
   @property
   def dual_cost(self) -> jax.Array:
     """Dual transport cost."""
+    assert self.f is not None, "Dual potential `f` is not computed."
+    assert self.g is not None, "Dual potential `g` is not computed."
     return jnp.dot(self.ot_prob.a, self.f) + jnp.dot(self.ot_prob.b, self.g)
 
   @property
-  def geom(self) -> pointcloud.PointCloud:  # noqa: D102
+  def geom(self) -> geometry.Geometry:  # noqa: D102
     """Geometry."""
     return self.ot_prob.geom
 
@@ -193,6 +209,7 @@ class SemidiscreteOutput:
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
     num_samples, _ = prob.geom.shape
 
+    # TODO(michalk8): allow for passing epsilon?
     if self.prob.geom.is_entropy_regularized:
       b, epsilon = self.prob.b, self.prob.geom.epsilon
       f, _ = prob._c_transform(self.g, axis=1)
@@ -207,22 +224,20 @@ class SemidiscreteOutput:
 
     f, _ = prob._c_transform(self.g, axis=1)
     z = self.g[None, :] - prob.geom.cost_matrix
-    data = jnp.full((num_samples,), fill_value=1.0 / num_samples, dtype=z.dtype)
+
     row_ixs = jnp.arange(num_samples)
-    col_ixs = jnp.argmax(z, axis=-1)
-    matrix = jesp.BCOO(
-        (data, jnp.c_[row_ixs, col_ixs]),
-        shape=prob.geom.shape,
-    )
+    pos_weights = self.prob.b[None, :] > 0.0
+    col_ixs = jnp.argmax(jnp.where(pos_weights, z, -jnp.inf), axis=-1)
+
     return HardAssignmentOutput(
+        prob,
+        paired_indices=jnp.stack([row_ixs, col_ixs]),
         f=f,
         g=self.g,
-        ot_prob=prob,
-        matrix=matrix,
     )
 
   @property
-  def geometry(self) -> sdpc.SemidiscretePointCloud:
+  def geom(self) -> sdpc.SemidiscretePointCloud:
     """Semidiscrete geometry."""
     return self.prob.geom
 
