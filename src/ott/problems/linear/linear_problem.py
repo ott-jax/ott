@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Dict, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 
-from ott.geometry import geometry
+from ott.geometry import geometry, pointcloud
+from ott.math import utils as math_utils
 
 __all__ = ["LinearProblem"]
 
@@ -39,8 +40,8 @@ class LinearProblem:
 
   Args:
     geom: The ground geometry cost of the linear problem.
-    a: The first marginal. If ``None``, it will be uniform.
-    b: The second marginal. If ``None``, it will be uniform.
+    a: The first marginal. If :obj:`None`, it will be uniform.
+    b: The second marginal. If :obj:`None`, it will be uniform.
     tau_a: If :math:`<1`, defines how much unbalanced the problem is
       on the first marginal.
     tau_b: If :math:`< 1`, defines how much unbalanced the problem is
@@ -106,6 +107,68 @@ class LinearProblem:
   def dtype(self) -> jnp.dtype:
     """The data type of the geometry."""
     return self.geom.dtype
+
+  def potential_fn_from_dual_vec(
+      self,
+      fg: jax.Array,
+      *,
+      epsilon: Optional[float] = None,
+      axis: Literal[0, 1],
+  ) -> Callable[[jax.Array], jax.Array]:
+    r"""Get potential function from a dual vector using the :term:`c-transform`.
+
+    Args:
+      fg: Potential vector :math:`\mathbb{f}` if ``axis = 0``
+        else :math:`\mathbb{g}` of shape ``[n,]`` or ``[m,]``, respectively.
+      epsilon: Epsilon regularization. If :obj:`None`, use in the :attr:`geom`.
+      axis: If ``axis = 0``, return the :math:`g`-potential function, otherwise
+        return the :math:`f`-potential function.
+
+    Returns:
+      The dual potential function.
+    """
+
+    def f_potential(x: jax.Array) -> jax.Array:
+      x, y = jnp.atleast_2d(x), self.geom.y
+      geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
+      prob = LinearProblem(geom, b=self.b)
+      f, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
+      return f.squeeze(0)
+
+    def g_potential(y: jax.Array) -> jax.Array:
+      x, y = self.geom.x, jnp.atleast_2d(y)
+      geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
+      prob = LinearProblem(geom, a=self.a)
+      g, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
+      return g.squeeze(0)
+
+    assert axis in (0, 1), axis
+    epsilon = self.geom.epsilon if epsilon is None else epsilon
+    return g_potential if axis == 0 else f_potential
+
+  def _c_transform(
+      self,
+      fg: jax.Array,
+      *,
+      epsilon: Optional[float] = None,
+      axis: Literal[0, 1],
+  ) -> Tuple[jax.Array, jax.Array]:
+
+    def _soft_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
+      cost = self.geom.cost_matrix
+      z = (fg - cost) / epsilon
+      return -epsilon * math_utils.logsumexp(z, b=self.b, axis=axis), z
+
+    def _hard_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
+      cost = self.geom.cost_matrix
+      z = fg - cost
+      pos_weights = self.b[None, :] > 0.0
+      return -jnp.max(z, initial=-jnp.inf, where=pos_weights, axis=axis), z
+
+    assert axis in (0, 1), axis
+    fg = jnp.expand_dims(fg, 1 - axis)
+    epsilon = self.geom.epsilon if epsilon is None else epsilon
+    return jax.lax.cond(epsilon > 0.0, _soft_c_transform, _hard_c_transform, fg)
 
   def get_transport_functions(
       self, lse_mode: bool

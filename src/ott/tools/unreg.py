@@ -11,43 +11,22 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import NamedTuple, Optional, Tuple
+from typing import Tuple
 
-import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 
 from optax import assignment
 
 from ott.geometry import costs, geometry, pointcloud
+from ott.problems.linear import linear_problem
+from ott.solvers.linear import semidiscrete
 
-__all__ = ["HungarianOutput", "hungarian", "wassdis_p"]
-
-
-class HungarianOutput(NamedTuple):
-  r"""Output of the Hungarian solver.
-
-  Args:
-    geom: geometry object
-    paired_indices: Array of shape ``[2, n]``, of :math:`n` pairs
-      of indices, for which the optimal transport assigns mass. Namely, for each
-      index :math:`0 \leq k < n`, if one has
-      :math:`i := \text{paired_indices}[0, k]` and
-      :math:`j := \text{paired_indices}[1, k]`, then point :math:`i` in
-      the first geometry sends mass to point :math:`j` in the second.
-  """
-  geom: geometry.Geometry
-  paired_indices: Optional[jnp.ndarray] = None
-
-  @property
-  def matrix(self) -> jesp.BCOO:
-    """``[n, n]`` transport matrix  in sparse format, with ``n`` NNZ entries."""
-    n, _ = self.geom.shape
-    unit_mass = jnp.full(n, fill_value=1.0 / n, dtype=self.geom.dtype)
-    indices = self.paired_indices.T
-    return jesp.BCOO((unit_mass, indices), shape=(n, n))
+__all__ = ["hungarian", "wassdis_p"]
 
 
-def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
+def hungarian(
+    geom: geometry.Geometry
+) -> Tuple[jnp.ndarray, semidiscrete.HardAssignmentOutput]:
   """Solve matching problem using the :term:`Hungarian algorithm`.
 
   Uses the implementation from :mod:`optax`.
@@ -64,9 +43,12 @@ def hungarian(geom: geometry.Geometry) -> Tuple[jnp.ndarray, HungarianOutput]:
   assert n == m, f"Hungarian can only match same # of points, got {n} and {m}."
   cost_matrix = geom.cost_matrix
   i, j = assignment.hungarian_algorithm(cost_matrix)
+  prob = linear_problem.LinearProblem(geom)
+  out = semidiscrete.HardAssignmentOutput(
+      prob, paired_indices=jnp.stack([i, j])
+  )
   transport_cost = cost_matrix[i, j].sum() / n
-  hungarian_out = HungarianOutput(geom=geom, paired_indices=jnp.stack([i, j]))
-  return transport_cost, hungarian_out
+  return transport_cost, out
 
 
 def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, *, p: float = 2.0) -> float:

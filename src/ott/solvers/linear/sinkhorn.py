@@ -475,12 +475,29 @@ class SinkhornOutput(NamedTuple):
     """Return reg-OT cost for matrix, evaluated at other cost matrix."""
     return (
         jnp.sum(self.matrix * other_geom.cost_matrix) -
-        self.geom.epsilon * jnp.sum(jax.scipy.special.entr(self.matrix))
+        self.geom.epsilon * jnp.sum(jsp.special.entr(self.matrix))
     )
 
-  def to_dual_potentials(self) -> potentials.EntropicPotentials:
-    """Return the entropic map estimator."""
-    return potentials.EntropicPotentials(self.f, self.g, self.ot_prob)
+  def to_dual_potentials(
+      self, epsilon: Optional[float] = None
+  ) -> potentials.DualPotentials:
+    """Compute dual potential functions.
+
+    Args:
+      epsilon: Epsilon regularization. If :obj:`None`, use the one stored
+        in the :attr:`geom`.
+
+    Returns:
+      The dual potentials :math:`f` and :math:`g`.
+    """
+    f_fn = self.ot_prob.potential_fn_from_dual_vec(
+        self.g, epsilon=epsilon, axis=1
+    )
+    g_fn = self.ot_prob.potential_fn_from_dual_vec(
+        self.f, epsilon=epsilon, axis=0
+    )
+    cost_fn = self.geom.cost_fn
+    return potentials.DualPotentials(f_fn, g_fn, cost_fn=cost_fn)
 
   @property
   def f(self) -> jnp.ndarray:

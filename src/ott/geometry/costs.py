@@ -29,7 +29,7 @@ from ott.math import utils as mu
 
 __all__ = [
     "PNormP", "SqPNorm", "Euclidean", "SqEuclidean", "RegTICost", "Cosine",
-    "Arccos", "Bures", "UnbalancedBures", "SoftDTW", "Dotp"
+    "Arccos", "Bures", "UnbalancedBures", "SoftDTW", "NegDotProduct"
 ]
 
 # TODO(michalk8): norm check
@@ -361,7 +361,7 @@ class EuclideanP(TICost):
 
 
 @jtu.register_pytree_node_class
-class Dotp(CostFn):
+class NegDotProduct(CostFn):
   r"""Negative Dot-product cost.
 
   Should yield similar results to :class:`~ott.geometry.costs.SqEuclidean`.
@@ -375,7 +375,8 @@ class Dotp(CostFn):
 
   def twist_operator(self, vec, dual_vec, variable) -> jnp.ndarray:
     """Twist operator for negative dot-product cost."""
-    return -vec if variable else -dual_vec
+    del vec, variable
+    return -dual_vec
 
   def norm(self, x: jnp.ndarray) -> jnp.ndarray:
     """Compute squared Euclidean norm for vector. Only used for rescaling."""

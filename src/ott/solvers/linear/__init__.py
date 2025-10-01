@@ -17,11 +17,12 @@ from . import (
     discrete_barycenter,
     implicit_differentiation,
     lr_utils,
+    semidiscrete,
     sinkhorn,
     sinkhorn_lr,
     univariate,
 )
-from ._solve import solve, solve_univariate
+from ._solve import solve, solve_semidiscrete, solve_univariate
 
 __all__ = [
     "acceleration",
@@ -29,9 +30,11 @@ __all__ = [
     "discrete_barycenter",
     "implicit_differentiation",
     "lr_utils",
+    "semidiscrete",
     "sinkhorn",
     "sinkhorn_lr",
     "univariate",
     "solve",
     "solve_univariate",
+    "solve_semidiscrete",
 ]

@@ -104,7 +104,9 @@ class TestSoftSort:
     atol = 0.1
 
     # Check approximate correctness of naked call to API
-    cdf, qua = soft_sort.multivariate_cdf_quantile_maps(inputs)
+    dp = soft_sort.multivariate_cdf_quantile_maps(inputs)
+    cdf = jax.jit(functools.partial(dp.transport, forward=True))
+    qua = jax.jit(functools.partial(dp.transport, forward=False))
     np.testing.assert_allclose(cdf(z), q, atol=atol)
     np.testing.assert_allclose(z, qua(q), atol=atol)
 
@@ -113,9 +115,6 @@ class TestSoftSort:
     def ball_sampler(k: jax.Array, s: Tuple[int, int]) -> jnp.ndarray:
       return 0.5 * (jax.random.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.0)
 
-    num_target_samples = 473
-
-    @functools.partial(jax.jit, static_argnums=[1])
     def mv_c_q(inputs, num_target_samples, rng, epsilon):
       return soft_sort.multivariate_cdf_quantile_maps(
           inputs,
@@ -125,7 +124,11 @@ class TestSoftSort:
           epsilon=epsilon
       )
 
-    cdf, qua = mv_c_q(inputs, num_target_samples, key3, 0.05)
+    num_target_samples = 473
+    dp = mv_c_q(inputs, num_target_samples, key3, 0.05)
+    cdf = jax.jit(functools.partial(dp.transport, forward=True))
+    qua = jax.jit(functools.partial(dp.transport, forward=False))
+
     np.testing.assert_allclose(cdf(z), q, atol=atol)
     np.testing.assert_allclose(z, qua(q), atol=atol)
 

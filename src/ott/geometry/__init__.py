@@ -22,4 +22,5 @@ from . import (
     pointcloud,
     regularizers,
     segment,
+    semidiscrete_pointcloud,
 )

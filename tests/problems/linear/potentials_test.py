@@ -21,38 +21,13 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott.geometry import costs, pointcloud, regularizers
-from ott.problems.linear import linear_problem, potentials
+from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian
 
 
 class TestDualPotentials:
-
-  def test_device_put(self):
-    pot = potentials.DualPotentials(
-        lambda x: x, lambda x: x, cost_fn=costs.SqEuclidean(), corr=True
-    )
-    _ = jax.device_put(pot, "cpu")
-
-
-class TestEntropicPotentials:
-
-  def test_device_put(self, rng: jax.Array):
-    n = 10
-    device = jax.devices()[0]
-    rngs = jax.random.split(rng, 5)
-    f = jax.random.normal(rngs[0], (n,))
-    g = jax.random.normal(rngs[1], (n,))
-
-    geom = pointcloud.PointCloud(jax.random.normal(rngs[2], (n, 3)))
-    a = jax.random.normal(rngs[4], (n, 3))
-    b = jax.random.normal(rngs[5], (n, 3))
-    prob = linear_problem.LinearProblem(geom, a, b)
-
-    pot = potentials.EntropicPotentials(f, g, prob)
-
-    _ = jax.device_put(pot, device)
 
   @pytest.mark.fast.with_args(eps=[5e-2, 1e-1], only_fast=0)
   def test_entropic_potentials_dist(self, rng: jax.Array, eps: float):
@@ -71,7 +46,7 @@ class TestEntropicPotentials:
 
     geom = pointcloud.PointCloud(x, y, epsilon=eps, cost_fn=costs.SqEuclidean())
     prob = linear_problem.LinearProblem(geom)
-    out = sinkhorn.Sinkhorn()(prob)
+    out = jax.jit(sinkhorn.Sinkhorn())(prob)
     assert out.converged
     dual_potentials = out.to_dual_potentials()
 
@@ -79,17 +54,6 @@ class TestEntropicPotentials:
     actual_dist = dual_potentials.distance(x, y)
     rel_error = jnp.abs(expected_dist - actual_dist) / expected_dist
     assert rel_error < 2 * eps
-
-    # Try with potentials in correlation form
-    f_cor = lambda x: 0.5 * jnp.sum(x ** 2) - 0.5 * dual_potentials.f(x)
-    g_cor = lambda x: 0.5 * jnp.sum(x ** 2) - 0.5 * dual_potentials.g(x)
-    dual_potentials_corr = potentials.DualPotentials(
-        f=f_cor, g=g_cor, cost_fn=dual_potentials.cost_fn, corr=True
-    )
-    actual_dist_cor = dual_potentials_corr.distance(x, y)
-    rel_error = jnp.abs(expected_dist - actual_dist_cor) / expected_dist
-    assert rel_error < 2 * eps
-    assert jnp.abs(actual_dist_cor - actual_dist) < 1e-5
 
   @pytest.mark.fast.with_args(forward=[False, True], only_fast=0)
   def test_entropic_potentials_displacement(
@@ -111,24 +75,24 @@ class TestEntropicPotentials:
     prob = linear_problem.LinearProblem(geom)
     out = sinkhorn.Sinkhorn(max_iterations=3_000)(prob)
     assert out.converged
-    potentials = out.to_dual_potentials()
+    dp = out.to_dual_potentials()
 
     x_test = g1.sample(rng3, n1 + 1)
     y_test = g2.sample(rng4, n2 + 2)
     if forward:
       expected_points = g1.transport(g2, x_test)
-      actual_points = potentials.transport(x_test, forward=forward)
+      actual_points = dp.transport(x_test, forward=forward)
     else:
       expected_points = g2.transport(g1, y_test)
-      actual_points = potentials.transport(y_test, forward=forward)
+      actual_points = dp.transport(y_test, forward=forward)
 
     # TODO(michalk8): better error measure
     error = jnp.mean(jnp.sum((expected_points - actual_points) ** 2, axis=-1))
     assert error <= 0.45
 
-    potentials.plot_ot_map(x, y, x_test, forward=True)
-    potentials.plot_ot_map(x, y, y_test, forward=False)
-    potentials.plot_potential()
+    dp.plot_ot_map(x, y, x_test, forward=True)
+    dp.plot_ot_map(x, y, y_test, forward=False)
+    dp.plot_potential()
 
   @pytest.mark.fast.with_args(
       p=[1.3, 2.2, 1.0], forward=[False, True], only_fast=0
@@ -149,7 +113,7 @@ class TestEntropicPotentials:
     prob = linear_problem.LinearProblem(geom)
     out = sinkhorn.Sinkhorn()(prob)
     assert out.converged
-    potentials = out.to_dual_potentials()
+    dp = out.to_dual_potentials()
 
     x_test = jax.random.uniform(rngs[2], (n1 + 3, d))
     y_test = jax.random.normal(rngs[3], (n2 + 5, d)) + 2
@@ -159,10 +123,10 @@ class TestEntropicPotentials:
     )
 
     if forward:
-      z = potentials.transport(x_test, forward=forward)
+      z = dp.transport(x_test, forward=forward)
       div, _ = sdiv(z, y)
     else:
-      z = potentials.transport(y_test, forward=forward)
+      z = dp.transport(y_test, forward=forward)
       div, _ = sdiv(x, z)
 
     div_0, _ = sdiv(x, y)
@@ -189,7 +153,7 @@ class TestEntropicPotentials:
     prob = linear_problem.LinearProblem(geom)
     out = sinkhorn.Sinkhorn()(prob)
     assert out.converged
-    potentials = out.to_dual_potentials()
+    dp = out.to_dual_potentials()
 
     x_test = jax.random.uniform(rngs[2], (n1 + 3, d))
     y_test = jax.random.normal(rngs[3], (n2 + 5, d)) + 2
@@ -201,14 +165,14 @@ class TestEntropicPotentials:
     if p == 1.0:
       # h_legendre not defined in this case, NaNs will be returned, see also
       # https://github.com/ott-jax/ott/pull/340
-      z = potentials.transport(x_test, forward=forward)
+      z = dp.transport(x_test, forward=forward)
       np.testing.assert_array_equal(z, np.nan)
     else:
       if forward:
-        z = potentials.transport(x_test, forward=forward)
+        z = dp.transport(x_test, forward=forward)
         div, _ = sdiv(z, y)
       else:
-        z = potentials.transport(y_test, forward=forward)
+        z = dp.transport(y_test, forward=forward)
         div, _ = sdiv(x, z)
 
       div_0, _ = sdiv(x, y)
@@ -226,14 +190,14 @@ class TestEntropicPotentials:
     v_x = jax.random.normal(rng3, shape=x.shape)
     v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * 1e-3
 
-    pots = sinkhorn.Sinkhorn()(prob).to_dual_potentials()
+    dp = sinkhorn.Sinkhorn()(prob).to_dual_potentials()
 
-    grad_dist = jax.grad(pots.distance)
+    grad_dist = jax.grad(dp.distance)
     if jit:
       grad_dist = jax.jit(grad_dist)
     dx = grad_dist(x, y)
 
-    expected = pots.distance(x + v_x, y) - pots.distance(x - v_x, y)
+    expected = dp.distance(x + v_x, y) - dp.distance(x - v_x, y)
     actual = 2.0 * jnp.vdot(v_x, dx)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
 
@@ -255,9 +219,6 @@ class TestEntropicPotentials:
         type(geom), x, y, epsilon=eps
     )
     div_pots = out.to_dual_potentials()
-
-    assert not sink_pots.is_debiased
-    assert div_pots.is_debiased
 
     sink_dist = sink_pots.distance(x, y)
     div_dist = div_pots.distance(x, y)

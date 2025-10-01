@@ -73,22 +73,44 @@ class SinkhornDivergenceOutput:  # noqa: D101
   converged: Tuple[bool, bool, bool]
   n_iters: Tuple[int, int, int]
 
-  def to_dual_potentials(self) -> "potentials.EntropicPotentials":
-    """Return dual potential functions, :cite:`pooladian:22`.
+  def to_dual_potentials(
+      self, epsilon: Optional[float] = None
+  ) -> potentials.DualPotentials:
+    """Return dual potential functions :cite:`pooladian:22`.
 
-    Using vectors stored in ``potentials``, instantiate a
-    :class:`~ott.problems.linear.potentials.EntropicPotentials` object that will
-    provide approximations to optimal dual potential functions for the dual
-    OT problem defined for the geometry stored in ``geoms[0]``. These correspond
-    to Equation 8 in :cite:`pooladian:22`.
+    Using vectors stored in ``potentials``, instantiate a dual potentials object
+    that will provide approximations to optimal dual potential functions for
+    the dual OT problem defined for the geometry stored in ``geoms[0]``.
+    These correspond to Equation 8 in :cite:`pooladian:22`.
+
+    .. note::
+      When ``static_b=True``, the :math:`g` potential function
+      will not be debiased.
+
+    Args:
+      epsilon: Epsilon regularization. If :obj:`None`, use in ``geoms[0]``.
+
+    Returns:
+      The debiased dual potential functions.
     """
     assert not self.is_low_rank, \
       "Dual potentials not available: divergence computed with low-rank solver."
     geom_xy, *_ = self.geoms
     prob_xy = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
-    return potentials.EntropicPotentials(
-        f_xy, g_xy, prob_xy, f_xx=f_x, g_yy=g_y
+
+    f_xy_fn = prob_xy.potential_fn_from_dual_vec(g_xy, epsilon=epsilon, axis=1)
+    g_x_fn = prob_xy.potential_fn_from_dual_vec(f_x, epsilon=epsilon, axis=0)
+
+    g_xy_fn = prob_xy.potential_fn_from_dual_vec(f_xy, epsilon=epsilon, axis=0)
+    f_y_fn = None if g_y is None else prob_xy.potential_fn_from_dual_vec(
+        g_y, epsilon=epsilon, axis=1
+    )
+
+    return potentials.DualPotentials(
+        f=lambda x: f_xy_fn(x) - g_x_fn(x),
+        g=g_xy_fn if f_y_fn is None else (lambda x: g_xy_fn(x) - f_y_fn(x)),
+        cost_fn=geom_xy.cost_fn,
     )
 
   @property

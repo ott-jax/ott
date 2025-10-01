@@ -16,13 +16,12 @@ from typing import Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
 import numpy as np
 
 from ott import utils
 from ott.geometry import costs, pointcloud
 from ott.initializers.linear import initializers
-from ott.problems.linear import linear_problem
+from ott.problems.linear import linear_problem, potentials
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
 
@@ -468,7 +467,7 @@ def multivariate_cdf_quantile_maps(
     input_weights: Optional[jnp.ndarray] = None,
     target_weights: Optional[jnp.ndarray] = None,
     **kwargs: Any
-) -> Tuple[Func_t, Func_t]:
+) -> potentials.DualPotentials:
   r"""Returns multivariate CDF and quantile maps, given input samples.
 
   Implements the multivariate generalizations for CDF and quantiles proposed in
@@ -505,10 +504,16 @@ def multivariate_cdf_quantile_maps(
       using the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm.
 
   Returns:
-    - The multivariate CDF map, taking a ``[b, d]`` batch of vectors in the
+    The dual potentials object whose methods correspond to:
+
+    - The multivariate CDF (:meth:`DualPotentials.transport(..., forward=True)
+      <ott.problems.linear.potentials.DualPotentials.transport>`),
+      taking a ``[b, d]`` batch of vectors in the
       range of the ``inputs``, and mapping each vector within the range
       of the reference measure (assumed by default to be :math:`[0, 1]^d`).
-    - The quantile map, mapping a batch ``[b, d]`` of multivariate quantile
+    - The quantile map (:meth:`DualPotentials.transport(..., forward=False)
+      <ott.problems.linear.potentials.DualPotentials.transport>`),
+      mapping a batch ``[b, d]`` of multivariate quantile
       vectors onto ``[b, d]`` vectors in :math:`[0, 1]^d`, the range of
       the reference measure.
   """
@@ -526,13 +531,7 @@ def multivariate_cdf_quantile_maps(
   )
 
   out = linear.solve(geom, a=input_weights, b=target_weights, **kwargs)
-  potentials = out.to_dual_potentials()
-
-  cdf_map = jtu.Partial(lambda x, p: p.transport(x), p=potentials)
-  quantile_map = jtu.Partial(
-      lambda x, p: p.transport(x, forward=False), p=potentials
-  )
-  return cdf_map, quantile_map
+  return out.to_dual_potentials()
 
 
 def _quantile_normalization(

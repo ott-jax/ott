@@ -18,6 +18,7 @@ OT Problems
     :toctree: _autosummary
 
     linear_problem.LinearProblem
+    semidiscrete_linear_problem.SemidiscreteLinearProblem
     barycenter_problem.FixedBarycenterProblem
     barycenter_problem.FreeBarycenterProblem
 
@@ -27,4 +28,3 @@ Dual Potentials
     :toctree: _autosummary
 
     potentials.DualPotentials
-    potentials.EntropicPotentials

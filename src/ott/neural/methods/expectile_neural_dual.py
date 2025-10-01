@@ -12,20 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import (
-    Any,
     Callable,
     Dict,
     Iterator,
     List,
     Literal,
     Optional,
-    Sequence,
     Tuple,
     Union,
 )
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 
 import optax
 from flax import linen as nn
@@ -42,7 +41,7 @@ Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
 Callback_t = Callable[[int, dual_potentials.DualPotentials], None]
 
 
-@jax.tree_util.register_pytree_node_class
+@jtu.register_static
 class ENOTPotentials(dual_potentials.DualPotentials):
   """The dual potentials of the ENOT method :cite:`buzun:24`.
 
@@ -50,54 +49,27 @@ class ENOTPotentials(dual_potentials.DualPotentials):
     grad_f: Gradient of the first dual potential function.
     g: The second dual potential function.
     cost_fn: The cost function used to solve the OT problem.
-    is_bidirectional: Whether the duals are trained for bidirectional
-      transport mapping.
-    corr: Whether the duals solve the problem in correlation form.
   """
 
   def __init__(
-      self, grad_f: potentials.PotentialGradientFn_t,
-      g: potentials.PotentialValueFn_t, cost_fn: costs.CostFn, *,
-      is_bidirectional: bool, corr: bool
+      self,
+      grad_f: potentials.PotentialGradientFn_t,
+      g: potentials.PotentialValueFn_t,
+      *,
+      cost_fn: costs.TICost,
   ):
     self.__grad_f = grad_f
-    self.is_bidirectional = is_bidirectional
 
-    def g_cost_conjugate(x: jnp.ndarray) -> jnp.ndarray:
-      if is_bidirectional and not corr:
-        y_hat = cost_fn.twist_operator(x, grad_f(x), False)
-      else:
-        y_hat = grad_f(x)
+    def f_potential(x: jnp.ndarray) -> jnp.ndarray:
+      y_hat = cost_fn.twist_operator(x, grad_f(x), False)
       y_hat = jax.lax.stop_gradient(y_hat)
+      return -g(y_hat) + cost_fn(x, y_hat)
 
-      return -g(y_hat) + (jnp.dot(x, y_hat) if corr else cost_fn(x, y_hat))
-
-    super().__init__(g_cost_conjugate, g, cost_fn=cost_fn, corr=corr)
+    super().__init__(f_potential, g, cost_fn=cost_fn)
 
   @property
   def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     return jax.vmap(self.__grad_f)
-
-  def transport(  # noqa: D102
-      self,
-      vec: jnp.ndarray,
-      forward: bool = True
-  ) -> jnp.ndarray:
-    if self.is_bidirectional:
-      return super().transport(vec, forward)
-    vec = jnp.atleast_2d(vec)
-    assert forward, "Only forward mapping (source -> target) is supported."
-    return self._grad_f(vec)
-
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:
-    """Flatten the kwargs."""
-    return [], {
-        "grad_f": self.__grad_f,
-        "g": self._g,
-        "cost_fn": self.cost_fn,
-        "is_bidirectional": self.is_bidirectional,
-        "corr": self._corr
-    }
 
 
 class PotentialModelWrapper(potentials.BasePotential):
@@ -107,26 +79,19 @@ class PotentialModelWrapper(potentials.BasePotential):
 
   Args:
     model: Network architecture of the potential.
-    add_l2_norm: If :obj:`True`, l2 norm is added to the potential.
     is_potential: Model the potential if ``True``, otherwise
       model the gradient of the potential.
   """
 
   model: nn.Module
-  add_l2_norm: bool
   is_potential: bool = True
 
   @nn.compact
   def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
     """Apply model and optionally add l2 norm or x."""
     z: jnp.ndarray = self.model(x)
-
     if self.is_potential:
       z = z.squeeze()
-
-    if self.add_l2_norm:
-      z = z + (0.5 * jnp.dot(x, x)) if self.is_potential else x
-
     return z
 
   def potential_gradient_fn(
@@ -156,9 +121,9 @@ class ExpectileNeuralDual:
     \big],
 
   where :math:`T(x)` is the transport mapping from :math:`\alpha`
-  to :math:`\beta` expressed through :math:`\nabla f(x)`. The explicit
-  formula depends on the cost function and ``is_bidirectional`` training
-  option. The regularization term is
+  to :math:`\beta` expressed through :math:`\nabla f(x)`. The explicit formula
+  for that transport depends on the twist operator of the cost function.
+  The regularization term is
 
   .. math::
 
@@ -169,12 +134,6 @@ class ExpectileNeuralDual:
   where :math:`\mathcal{L}_{\tau}` is the least asymmetrically weighted
   squares loss from expectile regression.
 
-  The potentials for ``neural_f`` and ``neural_g`` can
-
-  1. both provide the values of the potentials :math:`f` and :math:`g`, or
-  2. when parameter ``is_bidirectional=False``, ``neural_f`` provides
-     the gradient :math:`\nabla f` for mapping :math:`T`.
-
   Args:
     dim_data: Input dimensionality of data required for network init.
     neural_f: Network architecture for potential :math:f or
@@ -182,10 +141,7 @@ class ExpectileNeuralDual:
     neural_g: Network architecture for potential :math:`g`.
     optimizer_f: Optimizer function for potential :math:`f`.
     optimizer_g: Optimizer function for potential :math:`g`.
-    cost_fn: Cost function of the OT problem.
-    is_bidirectional: Alternate between updating the forward and backward
-      directions. Inspired from :cite:`jacobs:20`.
-    use_dot_product: Whether the duals solve the problem in correlation form.
+    cost_fn: Translation invariant cost function.
     expectile: Parameter of the expectile loss (:math:`\tau`).
       Suggested values range is :math:`[0.9, 1.0)`.
     expectile_loss_coef: Expectile loss weight.
@@ -204,9 +160,7 @@ class ExpectileNeuralDual:
       neural_g: Optional[nn.Module] = None,
       optimizer_f: Optional[optax.GradientTransformation] = None,
       optimizer_g: Optional[optax.GradientTransformation] = None,
-      cost_fn: Optional[costs.CostFn] = None,
-      is_bidirectional: bool = True,
-      use_dot_product: bool = False,
+      cost_fn: Optional[costs.TICost] = None,
       expectile: float = 0.99,
       expectile_loss_coef: float = 1.0,
       num_train_iters: int = 20000,
@@ -222,24 +176,7 @@ class ExpectileNeuralDual:
     self.cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
     self.expectile = expectile
     self.expectile_loss_coef = expectile_loss_coef
-    self.is_bidirectional = is_bidirectional
-    self.use_dot_product = use_dot_product
-
-    if is_bidirectional:
-      assert isinstance(self.cost_fn, costs.TICost), (
-          "is_bidirectional=True can only be used with a translation invariant"
-          "cost (TICost)"
-      )
-
-    if use_dot_product:
-      assert isinstance(
-          self.cost_fn, costs.SqEuclidean
-      ), ("use_dot_product=True can only be used with SqEuclidean cost")
-
-    if use_dot_product:
-      self.train_batch_cost = lambda x, y: -jax.vmap(jnp.dot)(x, y)
-    else:
-      self.train_batch_cost = jax.vmap(self.cost_fn)
+    self.train_batch_cost = jax.vmap(self.cost_fn)
 
     # set default optimizers
     if optimizer_f is None:
@@ -249,23 +186,16 @@ class ExpectileNeuralDual:
 
     # set default neural architectures
     if neural_f is None:
-      last_dim = 1 if is_bidirectional else dim_data
       neural_f = potentials.MLP(
-          dim_hidden=[128, 128, 128, 128, last_dim], act_fn=jax.nn.elu
+          dim_hidden=[128, 128, 128, 128, 1], act_fn=jax.nn.elu
       )
     if neural_g is None:
       neural_g = potentials.MLP(
           dim_hidden=[128, 128, 128, 128, 1], act_fn=jax.nn.elu
       )
 
-    self.neural_f = PotentialModelWrapper(
-        model=neural_f,
-        is_potential=is_bidirectional,
-        add_l2_norm=self.use_dot_product
-    )
-    self.neural_g = PotentialModelWrapper(
-        model=neural_g, is_potential=True, add_l2_norm=self.use_dot_product
-    )
+    self.neural_f = PotentialModelWrapper(model=neural_f, is_potential=True)
+    self.neural_g = PotentialModelWrapper(model=neural_g, is_potential=True)
 
     rng = utils.default_prng_key(rng)
     rng_f, rng_g = jax.random.split(rng, 2)
@@ -321,7 +251,7 @@ class ExpectileNeuralDual:
 
     for step in tqdm(range(self.num_train_iters)):
 
-      update_forward = (step % 2 == 0) or not self.is_bidirectional
+      update_forward = (step % 2 == 0)
 
       if update_forward:
         train_batch["source"] = jnp.asarray(next(trainloader_source))
@@ -413,31 +343,10 @@ class ExpectileNeuralDual:
                         potentials.PotentialValueFn_t]
   ):
 
-    if self.use_dot_product:
-      g_value_partial = lambda y: -jax.vmap(g_value(params_g))(y)
-      g_value_partial_detach = \
-          lambda y: -jax.vmap(g_value(jax.lax.stop_gradient(params_g)))(y)
-    else:
-      g_value_partial = jax.vmap(g_value(params_g))
-      g_value_partial_detach = jax.vmap(
-          g_value(jax.lax.stop_gradient(params_g))
-      )
+    g_value_partial = jax.vmap(g_value(params_g))
+    g_value_partial_detach = jax.vmap(g_value(jax.lax.stop_gradient(params_g)))
 
     return g_value_partial, g_value_partial_detach
-
-  def _distance(
-      self, source: jnp.ndarray, target: jnp.ndarray, f_source: jnp.ndarray,
-      g_target: jnp.ndarray
-  ) -> jnp.ndarray:
-
-    w_dist = f_source.mean() + g_target.mean()
-
-    if self.use_dot_product:
-      w_dist = jnp.mean(jnp.sum(source ** 2, axis=-1)) + \
-               jnp.mean(jnp.sum(target ** 2, axis=-1)) + \
-               2 * w_dist
-
-    return w_dist
 
   def _loss_fn(
       self, params_f: frozen_dict.FrozenDict[str, jnp.ndarray],
@@ -459,24 +368,24 @@ class ExpectileNeuralDual:
     transport = ENOTPotentials(
         gradient_f(params_f),
         g_value(params_g),
-        self.cost_fn,
-        is_bidirectional=self.is_bidirectional,
-        corr=self.use_dot_product
+        cost_fn=self.cost_fn,
     ).transport
 
     target_hat = transport(source)
     target_hat_detach = jax.lax.stop_gradient(target_hat)
 
     g_target = g_value_partial(target)
-    g_star_source = batch_cost(source, target_hat_detach)\
-      - g_value_partial(target_hat_detach)
+    g_star_source = batch_cost(source, target_hat_detach
+                              ) - g_value_partial(target_hat_detach)
 
-    diff_1 = jax.lax.stop_gradient(g_star_source - batch_cost(source, target))\
-      + g_target
+    diff_1 = jax.lax.stop_gradient(
+        g_star_source - batch_cost(source, target)
+    ) + g_target
     reg_loss_1 = self._expectile_loss(diff_1).mean()
 
-    diff_2 = jax.lax.stop_gradient(g_target - batch_cost(source, target))\
-      + g_star_source
+    diff_2 = jax.lax.stop_gradient(
+        g_target - batch_cost(source, target)
+    ) + g_star_source
     reg_loss_2 = self._expectile_loss(diff_2).mean()
 
     reg_loss = (reg_loss_1 + reg_loss_2) * self.expectile_loss_coef
@@ -488,7 +397,7 @@ class ExpectileNeuralDual:
     loss = reg_loss + dual_loss + amor_loss
     f_loss = amor_loss
     g_loss = reg_loss + dual_loss
-    w_dist = self._distance(source, target, g_star_source, g_target)
+    w_dist = g_star_source.mean() + g_target.mean()
 
     return loss, (f_loss, g_loss, w_dist)
 
@@ -500,9 +409,7 @@ class ExpectileNeuralDual:
     return ENOTPotentials(
         f_grad_partial,
         g_value_partial,
-        self.cost_fn,
-        is_bidirectional=self.is_bidirectional,
-        corr=self.use_dot_product
+        cost_fn=self.cost_fn,
     )
 
   @staticmethod

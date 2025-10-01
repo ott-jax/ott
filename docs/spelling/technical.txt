@@ -31,6 +31,7 @@ SGD
 Schrödinger
 Schur
 Seidel
+Semidiscrete
 Sinkhorn
 UNet
 Unbalancedness
@@ -152,6 +153,7 @@ runtime
 scRNA
 scalings
 semidefinite
+semidiscrete
 shard
 sharded
 sharding
@@ -179,3 +181,4 @@ unscaled
 url
 vectorized
 voxel
+χ

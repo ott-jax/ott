@@ -13,13 +13,17 @@
 # limitations under the License.
 from typing import Any, Optional, Union
 
+import jax
 import jax.numpy as jnp
 
+from ott import utils
 from ott.geometry import geometry, pointcloud
+from ott.geometry import semidiscrete_pointcloud as sdpc
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn, sinkhorn_lr, univariate
+from ott.problems.linear import semidiscrete_linear_problem as sdlp
+from ott.solvers.linear import semidiscrete, sinkhorn, sinkhorn_lr, univariate
 
-__all__ = ["solve", "solve_univariate"]
+__all__ = ["solve", "solve_univariate", "solve_semidiscrete"]
 
 
 def solve(
@@ -96,3 +100,27 @@ def solve_univariate(
   if prob.is_uniform and prob.is_equal_size:
     return univariate.uniform_solver(prob, return_transport=return_transport)
   return univariate.quantile_solver(prob, return_transport=return_transport)
+
+
+def solve_semidiscrete(
+    geom: sdpc.SemidiscretePointCloud,
+    b: Optional[jnp.ndarray] = None,
+    rng: Optional[jax.Array] = None,
+    **kwargs: Any,
+) -> semidiscrete.SemidiscreteOutput:
+  """Solve a (regularized) semidiscrete OT problem.
+
+  Args:
+    geom: Semidiscrete geometry.
+    b: The second marginal. If :obj:`None`, it will be uniform.
+    rng: Random key used for seeding.
+    kwargs: Keyword arguments for
+      :class:`~ott.solvers.linear.semidiscrete.SemidiscreteSolver`.
+
+  Returns:
+    The semidiscrete output.
+  """
+  rng = utils.default_prng_key(rng)
+  prob = sdlp.SemidiscreteLinearProblem(geom, b=b)
+  solver = semidiscrete.SemidiscreteSolver(**kwargs)
+  return solver(rng, prob)
