@@ -4,6 +4,71 @@ Glossary
 .. glossary::
     :sorted:
 
+    Benamou-Brenier
+        A dynamic formulation of optimal transport :cite:`benamou:00` that
+        characterizes the optimal transport problem between two probability
+        distributions supported on a vector space as the minimum kinetic energy
+        needed to move one distribution to the other, using a time-dependent
+        velocity field. More precisely, given two probability distributions,
+        the problem reads:
+
+        ..math::
+
+          \min_{(\rho_t, v_t)} \int_0^1 \int \|v_t(x)\|^2 d\rho_t(x) dt
+
+        where :math:`\rho_t` is a time-dependent probability distribution
+        such that :math:`\rho_0=\mu` and :math:`\rho_1=\nu`, and :math:`v_t`
+        is a time-dependent velocity field such that the continuity equation
+        :math:`\partial_t \rho_t + \nabla \cdot (\rho_t v_t)=0` is satisfied.
+
+        The solution to that problem results in a velocity field :math:`v_t`
+        that is constant along the integration path linking a source point to
+        the point it is mapped to in the target distribution. Writing :math:`T`
+        for the :term:`Monge map` between :math:`\mu` and :math:`\nu`, one has
+        in particular that :math:`T(x) = x + \int_0^1 v_t(x) dt`, but also writing
+        :math:`x_t = x + t(T(x)-x)` the barycenter between :math:`x` and :math:`T(x)`,
+        one has
+
+        ..math::
+          \forall t\in[0,1], v_t(x_t) = T(x) -x
+
+        In other words, the velocity field is constant along the straight line
+        connecting a source point to its image in the target.
+
+    Brenier theorem
+        Fundamental result in optimal transport theory :cite:`brenier:92`
+        stating that when the :term:`ground cost` is the squared Euclidean
+        distance, and the source measure is absolutely continuous (e.g. has a
+        density), then there exists a unique optimal :term:`transport map`
+        between the source and target measures, which is the gradient of a
+        convex function. Conversely, any :term:`transport map` :math:`T` that is
+        the gradient of a convex function is optimal for the squared Euclidean
+        cost when considering the OT problem between any source distribution
+        :math:`\mu`. to that same source modified by the
+        :term:`push-forward map` :math:`T`, namely :math:`T\#\mu`. The Brenier
+        theorem is a special case of the more general
+        :term:`Gangbo-McCann theorem` when instantiated with the squared
+        Euclidean cost :math:`c(x,y)=\tfrac12\|x-y\|^2`.
+
+    c-transform
+        The c-transform of a function :math:`g` with respect to a
+        :term:`ground cost` :math:`c(x,y)` is defined as the function :math:`g^c`
+        such that for any :math:`x` in the source space, :math:`g^c(x) :=
+        \inf_y c(x,y) - g(y)`. Alternatively, the c-transform of a function
+        :math:`f` defined on the source space is the function :math:`f^c`
+        defined on the target space such that for any :math:`y` in the target
+        space, :math:`f^c(y) := \inf_x c(x,y) - f(x)` if :math:`c` is symmetric.
+        One always has :math:`f^{ccc} = f^{c}`.
+
+    c-concave function
+        A c-concave function is a function that can be written as the
+        :term:`c-transform`` of another function.
+        Optimal :term:`dual Kantorovich potentials` are known to be
+        :term:`c-concave functions <https://en.wikipedia.org/wiki/c-concave_function>`__
+        under mild assumptions on the :term:`ground cost` and the measures
+        being compared. For c-concave functions, the c-transform is an
+        involution, i.e. :math:`f^{cc} = f`.
+
     coupling
         A coupling of two probability measures :math:`\mu` and :math:`\nu` is a
         probability measure on the product space of their respective supports.
@@ -41,7 +106,10 @@ Glossary
         where :math:`f,g` are in that case real-valued *functions* on the
         supports of :math:`\mu,\nu` and :math:`f\oplus g\leq c` means that for
         any pair :math:`x,y` in the respective supports, one has
-        :math:`f(x)+g(y)\leq c(x,y)`.
+        :math:`f(x)+g(y)\leq c(x,y)`. The
+        :term:`semidiscrete optimal transport problem` studies more specifically
+        the mixed setting in which either measure is discrete and the other
+        continuous.
 
     dual transportation polyhedron
         Given a :math:`n\times m` cost matrix :math:`C`, denotes the set of
@@ -155,6 +223,25 @@ Glossary
         gradient of :math:`h`. Note that this result is not valid for higher
         order differentiation.
 
+    Gangbo-McCann theorem
+        Fundamental result in optimal transport theory :cite:`gangbo:96`
+        stating that when both source and target measures are supported on the
+        same Euclidean vector space, source measure is absolutely continuous
+        (has a density) and cost is differentiable and satisfies the
+        :term:`twist condition`, then there exists a unique optimal
+        :term:`transport map` between the source and target measures,
+
+        .. math::
+
+          T(x) = \nabla_1 c(x, \cdot)^{-1}(\nabla f(x))
+
+        where :math:`f` is a :term:`c-concave function` that solves the
+        :term:`dual Kantorovich problem`. Conversely, any :term:`transport map`
+        :math:`T` that can be written as above for some :term:`c-concave function`
+        :math:`f` is optimal for the cost :math:`c` when considering the OT
+        problem between any source distribution :math:`\mu` and the target
+        distribution :math:`\nu = T\#\mu`.
+
     ground cost
         A real-valued function of two variables, :math:`c(x,y)` that describes
         the cost needed to displace a point :math:`x` in a source measure to
@@ -207,6 +294,19 @@ Glossary
         where :math:`\pi` is a :term:`coupling` density with first marginal
         :math:`\mu` and second marginal :math:`\nu`.
 
+    Legendre transform
+        The Legendre transform of a convex function :math:`\phi` is the convex
+        function :math:`\phi^{*}` defined as
+
+        ..math::
+
+          `\phi^{*}(y) = \sup_x  \langle x, y \rangle - \phi(x)
+
+        one has the identities `\nabla\phi\circ\nabla\phi^{*} = Id` and
+        `\nabla\phi^{*}\circ\nabla\phi = Id` when :math:`\phi` is strictly
+        convex and differentiable.
+
+
     low-rank optimal transport
         Variant of the :term:`Kantorovich problem` whereby the search for an
         optimal :term:`coupling` matrix :math:`P` is restricted to lie in a
@@ -228,13 +328,37 @@ Glossary
         A bijective pairing between two families of points of the same size
         :math:`N`, parameterized using a permutation of size :math:`N`.
 
+    Monge map
+        A :term:`transport map` :math:`T` that is optimal for the :term:`Kantorovich problem`.
+        in the sense that for two measures :math:`\mu` and :math:`\nu`, it solves
+
+        math::
+
+          \min_{T : T\#\mu=\nu} \int c(x,T(x)) d\mu(x).
+
+        The constraint :math:`T\#\mu=\nu` means that the :term:`push-forward`
+        measure obtained by pushing :math:`\mu` through :math:`T`
+        is equal to :math:`\nu`. An optimal solution to the problem above solves
+        the :term:`Kantorovich problem` between :math:`\mu` and :math:`\nu` in
+        the sense that the coupling :math:`\pi` defined as the push-forward of
+        :math:`\mu` through the map :math:`(Id,T)`, where :math:`Id` is the
+        identity map, is an optimal coupling between :math:`\mu` and :math:`\nu`.
+
+        When it exists, a Monge map is a deterministic mapping between the
+        supports of two measures, as opposed to a :term:`transport plan` that
+        can be stochastic. The Monge map can be recovered from the solution to
+        the :term:`dual Kantorovich problem` when the :term:`ground cost` is
+        differentiable and satisfies the :term:`twist condition`, and the source
+        measure is absolutely continuous (e.g. has a density), using the
+        :term:`Gangbo-McCann theorem`.
+
     multimarginal coupling
         A multimarginal coupling of :math:`N` probability measures
         :math:`\mu_1, \dots, \mu_N` is a probability measure on the product
         space of their respective supports, such that its marginals coincide,
         in that order, with :math:`\mu_1, \dots, \mu_N`.
 
-    push-forward map
+    push-forward
         Given a measurable mapping :math:`T` (e.g. a vector to vector map),
         the push-forward measure of :math:`\mu` by :math:`T` denoted as
         :math:`T\#\mu`, is the measure defined to be such that for any
@@ -242,6 +366,8 @@ Glossary
         it is the measure obtained by applying the map :math:`T` to all points
         described in the support of :math:`\mu`. See also the
         `Wikipedia definition <https://en.wikipedia.org/wiki/push-forward_measure>`__.
+        Note that the OTT-JAX logo is a stylized depiction of the push-forward
+        operator :math:`\#`.
 
     optimal transport
         Theory that characterizes efficient transformations between probability
@@ -254,6 +380,18 @@ Glossary
         Instance of the :term:`Kantorovich problem` where both marginal weight
         vectors :math:`a,b` are equal, and set both to a uniform weight vector
         of the form :math:`(\tfrac{1}{n},\dots,\tfrac{1}{n})\in\mathbb{R}^n`.
+
+    semidiscrete optimal transport problem
+        Refers to the optimal transport problem where one of the two measures
+        is discrete (a weighted sum of Dirac masses) and the other is absolutely
+        continuous, which, in the context of this toolbox, means that one can
+        get i.i.d. samples from it. When both conditions are met, the
+        :term:`dual Kantorovich problem` can be cast as a finite-dimensional
+        concave maximization problem :cite:`cuturi:18`. Numerical integration
+        methods can be used to approximate the objective and its gradients in
+        lower dimension :cite:`merigot:11`, whereas simpler SGD methods
+        can be leveraged in higher dimensions :cite:`genevay:16`.
+
 
     Sinkhorn algorithm
         Fixed point iteration that solves the
@@ -302,7 +440,7 @@ Glossary
         A function :math:`T` that associates to each point :math:`x` in the
         support of a source distribution :math:`\mu` another point :math:`T(x)`
         in the support of a target distribution :math:`\nu`, which must
-        satisfy a :term:`push-forward map` constraint :math:`T\#\mu = \nu`.
+        satisfy a :term:`push-forward` constraint :math:`T\#\mu = \nu`.
 
     transport plan
         A :term:`coupling` (either in matrix or joint density form),
@@ -354,9 +492,3 @@ Glossary
         ) if the  :term:`ground cost` is itself a distance to a power
         :math:`p\leq 1`, and the :math:`p` root of the objective of the
         :term:`Kantorovich problem` is used.
-
-    semidiscrete optimal transport problem
-        TODO(mcuturi)
-
-    c-transform
-        TODO(mcuturi)
