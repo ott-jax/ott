@@ -183,6 +183,7 @@ unnormalized
 unregularized
 unscaled
 url
+varphi
 vectorized
 voxel
 χ
