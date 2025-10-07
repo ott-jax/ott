@@ -12,7 +12,7 @@ Glossary
         velocity field. More precisely, given two probability distributions,
         the problem reads:
 
-        ..math::
+        .. math::
 
           \min_{(\rho_t, v_t)} \int_0^1 \int \|v_t(x)\|^2 d\rho_t(x) dt
 
@@ -29,14 +29,15 @@ Glossary
         :math:`x_t = x + t(T(x)-x)` the barycenter between :math:`x` and :math:`T(x)`,
         one has
 
-        ..math::
+        .. math::
+
           \forall t\in[0,1], v_t(x_t) = T(x) -x
 
         In other words, the velocity field is constant along the straight line
         connecting a source point to its image in the target.
 
     Brenier theorem
-        Fundamental result in optimal transport theory :cite:`brenier:92`
+        Fundamental result in optimal transport theory :cite:`brenier:91`
         stating that when the :term:`ground cost` is the squared Euclidean
         distance, and the source measure is absolutely continuous (e.g. has a
         density), then there exists a unique optimal :term:`transport map`
@@ -45,7 +46,7 @@ Glossary
         the gradient of a convex function is optimal for the squared Euclidean
         cost when considering the OT problem between any source distribution
         :math:`\mu`. to that same source modified by the
-        :term:`push-forward map` :math:`T`, namely :math:`T\#\mu`. The Brenier
+        :term:`push-forward` map :math:`T`, namely :math:`T\#\mu`. The Brenier
         theorem is a special case of the more general
         :term:`Gangbo-McCann theorem` when instantiated with the squared
         Euclidean cost :math:`c(x,y)=\tfrac12\|x-y\|^2`.
@@ -62,7 +63,7 @@ Glossary
 
     c-concave function
         A c-concave function is a function that can be written as the
-        :term:`c-transform`` of another function.
+        :term:`c-transform` of another function.
         Optimal :term:`dual Kantorovich potentials` are known to be
         :term:`c-concave functions <https://en.wikipedia.org/wiki/c-concave_function>`__
         under mild assumptions on the :term:`ground cost` and the measures
@@ -211,11 +212,13 @@ Glossary
         implicitly as an optimal objective parameterized by a vector :math:`x`,
 
         .. math::
+
           h(x):=\min_z s(x,z), z^\star(x):=\arg\min_z s(x,z)
 
         one has
 
         .. math::
+
           \nabla h(x)=\nabla_1 s(x,z^\star(x))
 
         stating in effect that the optimal :math:`z^\star(x)` does not
@@ -298,7 +301,7 @@ Glossary
         The Legendre transform of a convex function :math:`\phi` is the convex
         function :math:`\phi^{*}` defined as
 
-        ..math::
+        .. math::
 
           `\phi^{*}(y) = \sup_x  \langle x, y \rangle - \phi(x)
 
@@ -314,6 +317,7 @@ Glossary
         replacing :math:`P` by a low-rank factorization
 
         .. math::
+
           P = Q \text{diag}(g) R^T,
 
         where :math:`Q,R` are :term:`coupling` matrices of size ``[n,r]`` and
@@ -332,7 +336,7 @@ Glossary
         A :term:`transport map` :math:`T` that is optimal for the :term:`Kantorovich problem`.
         in the sense that for two measures :math:`\mu` and :math:`\nu`, it solves
 
-        math::
+        .. math::
 
           \min_{T : T\#\mu=\nu} \int c(x,T(x)) d\mu(x).
 
