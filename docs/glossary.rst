@@ -64,9 +64,7 @@ Glossary
     c-concave function
         A function that can be written as the
         :term:`c-transform` of another function. Optimal
-        :term:`dual Kantorovich potentials` are known to be
-        such functions
-        (`wikipedia <https://en.wikipedia.org/wiki/c-concave_function>`__).
+        :term:`dual Kantorovich potentials` can be found within such functions,
         under mild assumptions on the :term:`ground cost` and the measures
         being compared. For c-concave functions, the c-transform is an
         involution, i.e. :math:`f^{cc} = f`.
