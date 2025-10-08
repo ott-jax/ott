@@ -150,8 +150,8 @@ Glossary
           e^{-C/\varepsilon} e^{g/\varepsilon} \rangle -|a||b|\right)
 
         where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
-        :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its Legendre transform
-        :cite:`sejourne:19`.
+        :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its
+        :term:`Legendre transform` :cite:`sejourne:19`.
 
         That problem can also be written, instead, using positive scaling
         vectors `u`, `v` of size ``n``, ``m``, and the kernel matrix
@@ -302,10 +302,10 @@ Glossary
 
         .. math::
 
-          `\phi^{*}(y) = \sup_x  \langle x, y \rangle - \phi(x)
+          \phi^{*}(y) = \sup_x  \langle x, y \rangle - \phi(x)
 
-        one has the identities `\nabla\phi\circ\nabla\phi^{*} = Id` and
-        `\nabla\phi^{*}\circ\nabla\phi = Id` when :math:`\phi` is strictly
+        one has the identities :math:`\nabla\phi\circ\nabla\phi^{*} = Id` and
+        :math:`\nabla\phi^{*}\circ\nabla\phi = Id` when :math:`\phi` is strictly
         convex and differentiable.
 
 
