@@ -1,4 +1,6 @@
 Barycenters
+Benamou
+Benamou-Brenier
 Brenier
 Bures
 Chebyshev
@@ -172,6 +174,8 @@ subsampled
 subsamples
 subsampling
 thresholding
+torus
+toruses
 transcriptome
 undirected
 univariate
@@ -179,6 +183,7 @@ unnormalized
 unregularized
 unscaled
 url
+varphi
 vectorized
 voxel
 χ

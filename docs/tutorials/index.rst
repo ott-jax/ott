@@ -9,4 +9,5 @@ Tutorials
     quadratic/index
     neural/index
     barycenter/index
+    theory/index
     misc/index
