@@ -9,7 +9,6 @@ Networks
     :toctree: _autosummary
 
     icnn.ICNN
-    velocity_field.VelocityField
     potentials.BasePotential
     potentials.PotentialMLP
     potentials.MLP

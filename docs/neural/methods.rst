@@ -20,20 +20,3 @@ Neural Dual
     neuraldual.W2NeuralDual
     expectile_neural_dual.ExpectileNeuralDual
     expectile_neural_dual.ENOTPotentials
-
-ott.neural.methods.flows
-========================
-.. module:: ott.neural.methods.flows
-.. currentmodule:: ott.neural.methods.flows
-
-Flows
------
-.. autosummary::
-    :toctree: _autosummary
-
-    otfm.OTFlowMatching
-    genot.GENOT
-    dynamics.BaseFlow
-    dynamics.StraightFlow
-    dynamics.ConstantNoiseFlow
-    dynamics.BrownianBridge
