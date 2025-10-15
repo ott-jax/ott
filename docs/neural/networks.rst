@@ -30,4 +30,3 @@ Layers
     conjugate.ConjugateResults
     posdef.PositiveDense
     posdef.PosDefPotentials
-    time_encoder.cyclical_time_encoder
