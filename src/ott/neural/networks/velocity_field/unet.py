@@ -56,7 +56,6 @@ class GroupNorm32(nnx.GroupNorm):
 
 
 def conv_nd(
-    dims: Union[int, Tuple[int, ...]],
     in_channels: Union[int, Tuple[int, ...]],
     out_channels: Union[int, Tuple[int, ...]],
     kernel_size: Union[int, Tuple[int, ...]],
@@ -72,11 +71,11 @@ def conv_nd(
   """Create a 1D, 2D, or 3D convolution module.
   """
   if isinstance(kernel_size, int):
-    kernel_size = (kernel_size,) * dims
+    kernel_size = (kernel_size, kernel_size)
   if isinstance(strides, int):
-    strides = (strides,) * dims
+    strides = (strides, strides)
   if isinstance(padding, int):
-    padding = (padding,) * dims
+    padding = (padding, padding)
 
   if zero_init:
     kwargs["kernel_init"] = nnx.initializers.constant(value=0.0)
@@ -158,7 +157,6 @@ class Upsample(nnx.Module):
       self,
       channels: int,
       use_conv: bool,
-      dims: int = 2,
       *,
       out_channels: Optional[int] = None,
       dtype: Optional[jnp.dtype] = None,
@@ -166,14 +164,11 @@ class Upsample(nnx.Module):
       rngs: nnx.Rngs,
   ):
     super().__init__()
-    assert dims == 2, dims
     self.channels = channels
     self.out_channels = out_channels or channels
     self.use_conv = use_conv
-    self.dims = dims
     if use_conv:
       self.conv = conv_nd(
-          dims,
           self.channels,
           self.out_channels,
           3,
@@ -199,7 +194,6 @@ class Downsample(nnx.Module):
       self,
       channels: int,
       use_conv: bool,
-      dims: int = 2,
       *,
       out_channels: Optional[int] = None,
       dtype: Optional[jnp.dtype] = None,
@@ -210,16 +204,13 @@ class Downsample(nnx.Module):
     self.channels = channels
     self.out_channels = out_channels or channels
     self.use_conv = use_conv
-    self.dims = dims
 
-    strides = 2 if dims != 3 else (1, 2, 2)
     if use_conv:
       self.op = conv_nd(
-          dims,
           self.channels,
           self.out_channels,
           3,
-          strides=strides,
+          strides=2,
           padding=1,
           dtype=dtype,
           param_dtype=param_dtype,
@@ -245,7 +236,6 @@ class ResBlock(TimestepBlock):
       out_channels: Optional[int] = None,
       use_conv: bool = False,
       use_scale_shift_norm: bool = False,
-      dims: int = 2,
       up: bool = False,
       down: bool = False,
       dtype: Optional[jnp.dtype] = None,
@@ -266,7 +256,6 @@ class ResBlock(TimestepBlock):
     )
     self.in_act = nnx.silu
     self.in_conv = conv_nd(
-        dims,
         channels,
         self.out_channels,
         3,
@@ -280,7 +269,6 @@ class ResBlock(TimestepBlock):
       self.h_upd = Upsample(
           channels,
           use_conv=False,
-          dims=dims,
           dtype=dtype,
           param_dtype=param_dtype,
           rngs=rngs,
@@ -288,7 +276,6 @@ class ResBlock(TimestepBlock):
       self.x_upd = Upsample(
           channels,
           use_conv=False,
-          dims=dims,
           dtype=dtype,
           param_dtype=param_dtype,
           rngs=rngs,
@@ -297,7 +284,6 @@ class ResBlock(TimestepBlock):
       self.h_upd = Downsample(
           channels,
           use_conv=False,
-          dims=dims,
           dtype=dtype,
           param_dtype=param_dtype,
           rngs=rngs,
@@ -305,7 +291,6 @@ class ResBlock(TimestepBlock):
       self.x_upd = Downsample(
           channels,
           use_conv=False,
-          dims=dims,
           dtype=dtype,
           param_dtype=param_dtype,
           rngs=rngs,
@@ -329,7 +314,6 @@ class ResBlock(TimestepBlock):
     self.out_act = nnx.silu
     self.out_dropout = nnx.Dropout(rate=dropout)
     self.out_conv = conv_nd(
-        dims,
         self.out_channels,
         self.out_channels,
         3,
@@ -344,7 +328,6 @@ class ResBlock(TimestepBlock):
       self.skip_connection = lambda x: x
     elif use_conv:
       self.skip_connection = conv_nd(
-          dims,
           channels,
           self.out_channels,
           3,
@@ -355,7 +338,6 @@ class ResBlock(TimestepBlock):
       )
     else:
       self.skip_connection = conv_nd(
-          dims,
           channels,
           self.out_channels,
           1,
@@ -516,7 +498,6 @@ class UNetModel(nnx.Module):
       channel_mult: Tuple[int, ...] = (1, 2, 4, 8),
       time_embed_dim: Optional[int] = None,
       conv_resample: bool = True,
-      dims: int = 2,
       num_heads: int = 1,
       num_head_channels: int = -1,
       num_heads_upsample: int = -1,
@@ -588,7 +569,6 @@ class UNetModel(nnx.Module):
     self.input_blocks.append(
         TimestepEmbedSequential(
             conv_nd(
-                dims,
                 in_channels,
                 ch,
                 3,
@@ -609,7 +589,6 @@ class UNetModel(nnx.Module):
                 time_embed_dim,
                 dropout,
                 out_channels=int(mult * model_channels),
-                dims=dims,
                 use_scale_shift_norm=use_scale_shift_norm,
                 dtype=dtype,
                 param_dtype=param_dtype,
@@ -644,7 +623,6 @@ class UNetModel(nnx.Module):
                     time_embed_dim,
                     dropout,
                     out_channels=out_ch,
-                    dims=dims,
                     use_scale_shift_norm=use_scale_shift_norm,
                     down=True,
                     dtype=dtype,
@@ -653,7 +631,6 @@ class UNetModel(nnx.Module):
                 ) if resblock_updown else Downsample(
                     ch,
                     conv_resample,
-                    dims=dims,
                     out_channels=out_ch,
                     dtype=dtype,
                     param_dtype=param_dtype,
@@ -670,7 +647,6 @@ class UNetModel(nnx.Module):
             ch,
             time_embed_dim,
             dropout,
-            dims=dims,
             use_scale_shift_norm=use_scale_shift_norm,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -689,7 +665,6 @@ class UNetModel(nnx.Module):
             ch,
             time_embed_dim,
             dropout,
-            dims=dims,
             use_scale_shift_norm=use_scale_shift_norm,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -708,7 +683,6 @@ class UNetModel(nnx.Module):
                 time_embed_dim,
                 dropout,
                 out_channels=int(model_channels * mult),
-                dims=dims,
                 use_scale_shift_norm=use_scale_shift_norm,
                 dtype=dtype,
                 param_dtype=param_dtype,
@@ -738,7 +712,6 @@ class UNetModel(nnx.Module):
                   time_embed_dim,
                   dropout,
                   out_channels=out_ch,
-                  dims=dims,
                   use_scale_shift_norm=use_scale_shift_norm,
                   up=True,
                   dtype=dtype,
@@ -747,7 +720,6 @@ class UNetModel(nnx.Module):
               ) if resblock_updown else Upsample(
                   ch,
                   conv_resample,
-                  dims=dims,
                   out_channels=out_ch,
                   dtype=dtype,
                   param_dtype=param_dtype,
@@ -762,7 +734,6 @@ class UNetModel(nnx.Module):
         normalization(ch, dtype=dtype, param_dtype=param_dtype, rngs=rngs),
         nnx.silu,
         conv_nd(
-            dims,
             ch,
             out_channels,
             3,
