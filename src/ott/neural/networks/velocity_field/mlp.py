@@ -60,13 +60,13 @@ class MLP(nnx.Module):
       x: jax.Array,
       *,
       cond: Optional[jax.Array] = None,
-      rngs: nnx.Rngs | None = None,
+      rngs: Optional[nnx.Rngs] = None,
   ) -> jax.Array:
     """TODO."""
     t_emb = _encode_time(t, self.time_enc_num_freqs)
     h = [t_emb, x] if cond is None else [t_emb, x, cond]
     h = jnp.concatenate(h, axis=-1)
-    return self.blocks(h)
+    return self.blocks(h, rngs=rngs)
 
 
 class Block(nnx.Module):
@@ -85,8 +85,10 @@ class Block(nnx.Module):
     self.act_fn = act_fn
     self.dropout = nnx.Dropout(dropout_rate)
 
-  def __call__(self, x: jax.Array) -> jax.Array:
-    return self.dropout(self.act_fn(self.lin(x)))
+  def __call__(
+      self, x: jax.Array, rngs: Optional[nnx.Rngs] = None
+  ) -> jax.Array:
+    return self.dropout(self.act_fn(self.lin(x)), rngs=rngs)
 
 
 def _encode_time(t: jax.Array, num_freqs: int) -> jax.Array:
