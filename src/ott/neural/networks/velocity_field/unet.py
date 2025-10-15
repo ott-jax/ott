@@ -246,21 +246,18 @@ class ResBlock(TimestepBlock):
       use_conv: bool = False,
       use_scale_shift_norm: bool = False,
       dims: int = 2,
-      use_checkpoint: bool = False,
       up: bool = False,
       down: bool = False,
       dtype: Optional[jnp.dtype] = None,
       param_dtype: jnp.dtype = jnp.float32,
       rngs: nnx.Rngs,
   ):
-    assert not use_checkpoint, "Checkpointing is not implemented."
     super().__init__()
     self.channels = channels
     self.emb_channels = emb_channels
     self.dropout = dropout
     self.out_channels = out_channels or channels
     self.use_conv = use_conv
-    self.use_checkpoint = use_checkpoint
     self.use_scale_shift_norm = use_scale_shift_norm
     self.updown = up or down
 
@@ -451,13 +448,11 @@ class AttentionBlock(nnx.Module):
       *,
       num_heads: int = 1,
       num_head_channels: int = -1,
-      use_checkpoint: bool = False,
       attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
       dtype: Optional[jnp.dtype] = None,
       param_dtype: jnp.dtype = jnp.float32,
       rngs: nnx.Rngs,
   ):
-    assert not use_checkpoint, "Checkpointing is not implemented."
     super().__init__()
     self.channels = channels
     if num_head_channels == -1:
@@ -465,7 +460,6 @@ class AttentionBlock(nnx.Module):
     else:
       assert channels % num_head_channels == 0
       self.num_heads = channels // num_head_channels
-    self.use_checkpoint = use_checkpoint
 
     self.norm = normalization(
         channels, dtype=dtype, param_dtype=param_dtype, rngs=rngs
@@ -523,7 +517,6 @@ class UNetModel(nnx.Module):
       time_embed_dim: Optional[int] = None,
       conv_resample: bool = True,
       dims: int = 2,
-      use_checkpoint: bool = False,
       num_heads: int = 1,
       num_head_channels: int = -1,
       num_heads_upsample: int = -1,
@@ -549,7 +542,6 @@ class UNetModel(nnx.Module):
     self.dropout = dropout
     self.channel_mult = channel_mult
     self.conv_resample = conv_resample
-    self.use_checkpoint = use_checkpoint
     self.num_heads = num_heads
     self.num_head_channels = num_head_channels
     self.num_heads_upsample = num_heads_upsample
@@ -618,7 +610,6 @@ class UNetModel(nnx.Module):
                 dropout,
                 out_channels=int(mult * model_channels),
                 dims=dims,
-                use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
                 dtype=dtype,
                 param_dtype=param_dtype,
@@ -631,7 +622,6 @@ class UNetModel(nnx.Module):
           layers.append(
               AttentionBlock(
                   ch,
-                  use_checkpoint=use_checkpoint,
                   num_heads=num_heads,
                   num_head_channels=num_head_channels,
                   attn_implementation=attn_implementation,
@@ -655,7 +645,6 @@ class UNetModel(nnx.Module):
                     dropout,
                     out_channels=out_ch,
                     dims=dims,
-                    use_checkpoint=use_checkpoint,
                     use_scale_shift_norm=use_scale_shift_norm,
                     down=True,
                     dtype=dtype,
@@ -682,7 +671,6 @@ class UNetModel(nnx.Module):
             time_embed_dim,
             dropout,
             dims=dims,
-            use_checkpoint=use_checkpoint,
             use_scale_shift_norm=use_scale_shift_norm,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -690,7 +678,6 @@ class UNetModel(nnx.Module):
         ),
         AttentionBlock(
             ch,
-            use_checkpoint=use_checkpoint,
             num_heads=num_heads,
             num_head_channels=num_head_channels,
             attn_implementation=attn_implementation,
@@ -703,7 +690,6 @@ class UNetModel(nnx.Module):
             time_embed_dim,
             dropout,
             dims=dims,
-            use_checkpoint=use_checkpoint,
             use_scale_shift_norm=use_scale_shift_norm,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -723,7 +709,6 @@ class UNetModel(nnx.Module):
                 dropout,
                 out_channels=int(model_channels * mult),
                 dims=dims,
-                use_checkpoint=use_checkpoint,
                 use_scale_shift_norm=use_scale_shift_norm,
                 dtype=dtype,
                 param_dtype=param_dtype,
@@ -736,7 +721,6 @@ class UNetModel(nnx.Module):
           layers.append(
               AttentionBlock(
                   ch,
-                  use_checkpoint=use_checkpoint,
                   num_heads=num_heads_upsample,
                   num_head_channels=num_head_channels,
                   attn_implementation=attn_implementation,
@@ -755,7 +739,6 @@ class UNetModel(nnx.Module):
                   dropout,
                   out_channels=out_ch,
                   dims=dims,
-                  use_checkpoint=use_checkpoint,
                   use_scale_shift_norm=use_scale_shift_norm,
                   up=True,
                   dtype=dtype,
@@ -827,7 +810,6 @@ class UNetModelWrapper(UNetModel):
       num_res_blocks: int,
       channel_mult: Union[Tuple[int, ...], None] = None,
       learn_sigma: bool = False,
-      use_checkpoint: bool = False,
       attention_resolutions: Tuple[int, ...] = (16,),
       conv_resample: bool = True,
       num_heads: int = 1,
@@ -874,7 +856,6 @@ class UNetModelWrapper(UNetModel):
         dropout=dropout,
         channel_mult=channel_mult,
         conv_resample=conv_resample,
-        use_checkpoint=use_checkpoint,
         num_heads=num_heads,
         num_head_channels=num_head_channels,
         num_heads_upsample=num_heads_upsample,
