@@ -473,6 +473,7 @@ class UNetModel(nnx.Module):
       model_channels: int,
       num_res_blocks: int,
       attention_resolutions: Tuple[int, ...],
+      out_channels: Optional[int] = None,
       dropout: float = 0.0,
       channel_mult: Tuple[int, ...] = (1, 2, 4, 8),
       time_embed_dim: Optional[int] = None,
@@ -489,7 +490,11 @@ class UNetModel(nnx.Module):
   ):
     super().__init__()
     image_size, _, in_channels = shape
-    attention_resolutions = tuple(image_size // res for res in attention_resolutions)
+    if out_channels is None:
+      out_channels = in_channels
+    attention_resolutions = tuple(
+        image_size // res for res in attention_resolutions
+    )
 
     if num_heads_upsample == -1:
       num_heads_upsample = num_heads
@@ -532,12 +537,13 @@ class UNetModel(nnx.Module):
         ),
     )
 
-    # Condition embedding
-    self.num_classes = num_classes
-    if self.num_classes is not None:
+    # condition embedding
+    if num_classes is not None:
       self.label_emb = nnx.Embed(
-          num_embeddings=self.num_classes, features=time_embed_dim, rngs=rngs
+          num_embeddings=num_classes, features=time_embed_dim, rngs=rngs
       )
+    else:
+      self.label_emb = None
 
     # Input blocks
     self.input_blocks = []
@@ -709,7 +715,7 @@ class UNetModel(nnx.Module):
         nnx.silu,
         conv_nd(
             ch,
-            in_channels,
+            out_channels,
             3,
             padding=1,
             zero_init=True,
@@ -724,12 +730,13 @@ class UNetModel(nnx.Module):
       t: jax.Array,
       x: jax.Array,
       *,
-      y: Optional[jax.Array] = None,
+      cond: Optional[jax.Array] = None,
       rngs: Optional[nnx.Rngs] = None,
   ) -> jax.Array:
     emb = self.time_embed(timestep_embedding(t, self.model_channels), rngs=rngs)
-    if self.num_classes is not None:
-      emb = emb + self.label_emb(jnp.squeeze(y))
+    if self.label_emb is not None:
+      assert cond is not None, "Please provide a condition."
+      emb = emb + self.label_emb(cond)
     h = x.astype(self.dtype)
     hs = []
     for module in self.input_blocks:
