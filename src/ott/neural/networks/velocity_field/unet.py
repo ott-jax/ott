@@ -16,7 +16,6 @@ __all__ = [
     "Upsample",
     "Downsample",
     "ResBlock",
-    "QKVAttentionLegacy",
     "QKVAttention",
     "AttentionBlock",
     "UNetModel",
@@ -416,39 +415,6 @@ class ResBlock(TimestepBlock):
     return self.skip_connection(x) + h
 
 
-class QKVAttentionLegacy(nnx.Module):
-  """A module which performs QKV attention."""
-
-  def __init__(
-      self,
-      n_heads: int,
-      attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
-  ):
-    super().__init__()
-    self.n_heads = n_heads
-    self.attn_implementation = attn_implementation
-
-  def __call__(self, qkv: jax.Array) -> jax.Array:
-    bs, length, width = qkv.shape
-    head_dim, rest = divmod(width, 3 * self.n_heads)
-    assert rest == 0, rest
-    scale = 1.0 / math.sqrt(math.sqrt(head_dim))
-
-    qkv = qkv.reshape(bs, length, self.n_heads, 3 * head_dim)
-    q, k, v = jnp.split(qkv, 3, axis=-1)
-
-    attn_dtype = jnp.bfloat16 if self.attn_implementation == "cudnn" else q.dtype
-    a = jax.nn.dot_product_attention(
-        q.astype(attn_dtype),
-        k.astype(attn_dtype),
-        v.astype(attn_dtype),
-        scale=scale,
-        implementation=self.attn_implementation,
-    ).astype(q.dtype)
-    a = a.reshape(bs, length, self.n_heads * head_dim)
-    return a
-
-
 class QKVAttention(nnx.Module):
   """A module which performs QKV attention and splits in a different order."""
 
@@ -495,7 +461,6 @@ class AttentionBlock(nnx.Module):
       num_heads: int = 1,
       num_head_channels: int = -1,
       use_checkpoint: bool = False,
-      use_new_attention_order: bool = False,
       attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
       dtype: Optional[jnp.dtype] = None,
       param_dtype: jnp.dtype = jnp.float32,
@@ -524,14 +489,10 @@ class AttentionBlock(nnx.Module):
         rngs=rngs,
     )
 
-    if use_new_attention_order:
-      # split qkv before split heads
-      self.attention = QKVAttention(
-          self.num_heads, attn_implementation=attn_implementation
-      )
-    else:
-      # split heads before split qkv
-      self.attention = QKVAttentionLegacy(self.num_heads)
+    # split qkv before split heads
+    self.attention = QKVAttention(
+        self.num_heads, attn_implementation=attn_implementation
+    )
 
     self.proj_out = conv_nd(
         1,
@@ -577,7 +538,6 @@ class UNetModel(nnx.Module):
       num_heads_upsample: int = -1,
       use_scale_shift_norm: bool = False,
       resblock_updown: bool = False,
-      use_new_attention_order: bool = False,
       attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
       dtype: Optional[jnp.dtype] = None,
       num_classes: Optional[int] = None,
@@ -683,7 +643,6 @@ class UNetModel(nnx.Module):
                   use_checkpoint=use_checkpoint,
                   num_heads=num_heads,
                   num_head_channels=num_head_channels,
-                  use_new_attention_order=use_new_attention_order,
                   attn_implementation=attn_implementation,
                   dtype=dtype,
                   param_dtype=param_dtype,
@@ -743,7 +702,6 @@ class UNetModel(nnx.Module):
             use_checkpoint=use_checkpoint,
             num_heads=num_heads,
             num_head_channels=num_head_channels,
-            use_new_attention_order=use_new_attention_order,
             attn_implementation=attn_implementation,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -790,7 +748,6 @@ class UNetModel(nnx.Module):
                   use_checkpoint=use_checkpoint,
                   num_heads=num_heads_upsample,
                   num_head_channels=num_head_channels,
-                  use_new_attention_order=use_new_attention_order,
                   attn_implementation=attn_implementation,
                   dtype=dtype,
                   param_dtype=param_dtype,
@@ -888,7 +845,6 @@ class UNetModelWrapper(UNetModel):
       use_scale_shift_norm: bool = False,
       dropout: float = 0.0,
       resblock_updown: bool = False,
-      use_new_attention_order: bool = False,
       dtype: Optional[jnp.dtype] = None,
       param_dtype: jnp.dtype = jnp.float32,
       rngs: nnx.Rngs,
@@ -933,7 +889,6 @@ class UNetModelWrapper(UNetModel):
         num_heads_upsample=num_heads_upsample,
         use_scale_shift_norm=use_scale_shift_norm,
         resblock_updown=resblock_updown,
-        use_new_attention_order=use_new_attention_order,
         dtype=dtype,
         param_dtype=param_dtype,
         rngs=rngs,
