@@ -1,4 +1,5 @@
 import abc
+import functools
 import math
 from typing import Any, Literal, Optional, Tuple, Union
 
@@ -217,7 +218,9 @@ class Downsample(nnx.Module):
           rngs=rngs,
       )
     else:
-      raise NotImplementedError("Average pooling is not implemented.")
+      self.op = functools.partial(
+          nnx.avg_pool, window_shape=(2, 2), strides=(2, 2)
+      )
 
   def __call__(self, x: jax.Array) -> jax.Array:
     assert x.shape[-1] == self.channels
