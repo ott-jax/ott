@@ -8,20 +8,7 @@ import jax.numpy as jnp
 
 from flax import nnx
 
-__all__ = [
-    "timestep_embedding",
-    "GroupNorm32",
-    "conv_nd",
-    "normalization",
-    "TimestepEmbedSequential",
-    "Upsample",
-    "Downsample",
-    "ResBlock",
-    "QKVAttention",
-    "AttentionBlock",
-    "UNetModel",
-    "UNetModelWrapper",
-]
+__all__ = ["UNetModel"]
 
 
 def timestep_embedding(
@@ -754,10 +741,6 @@ class UNetModel(nnx.Module):
       h = module(h, emb, rngs=rngs)
     h = h.astype(x.dtype)
     return self.out(h, rngs=rngs)
-
-
-class UNetModelWrapper(UNetModel):
-  """A wrapper for UNetModel that handles default channel multipliers based on image size."""
 
   @classmethod
   def create(
