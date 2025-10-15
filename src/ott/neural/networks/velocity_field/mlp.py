@@ -58,12 +58,12 @@ class MLP(nnx.Module):
       t: jax.Array,
       x: jax.Array,
       *,
-      y: Optional[jax.Array] = None,
+      cond: Optional[jax.Array] = None,
       rngs: nnx.Rngs | None = None,
   ) -> jax.Array:
     """TODO."""
     t_emb = _encode_time(t, self.time_enc_num_freqs)
-    h = [t_emb, x] if y is None else [t_emb, x, y]
+    h = [t_emb, x] if cond is None else [t_emb, x, cond]
     h = jnp.concatenate(h, axis=-1)
     return self.blocks(h)
 
