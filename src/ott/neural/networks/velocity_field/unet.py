@@ -166,6 +166,7 @@ class Upsample(nnx.Module):
       rngs: nnx.Rngs,
   ):
     super().__init__()
+    assert dims == 2, dims
     self.channels = channels
     self.out_channels = out_channels or channels
     self.use_conv = use_conv
@@ -184,18 +185,8 @@ class Upsample(nnx.Module):
 
   def __call__(self, x: jax.Array) -> jax.Array:
     assert x.shape[-1] == self.channels
-
-    # Upsample using nearest neighbor interpolation
-    # if self.dims == 3:
-    #     shape = (x.shape[0], x.shape[1], x.shape[2], x.shape[3] * 2, x.shape[4] * 2)
-    # else:
-    #     shape = (x.shape[0], x.shape[1], x.shape[2] * 2, x.shape[3] * 2)
-    if self.dims == 3:
-      raise NotImplementedError()
     shape = (x.shape[0], x.shape[1] * 2, x.shape[2] * 2, x.shape[3])
-
     x = jax.image.resize(x, shape, method="nearest")
-
     if self.use_conv:
       x = self.conv(x)
     return x
