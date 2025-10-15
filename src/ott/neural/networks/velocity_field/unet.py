@@ -469,10 +469,8 @@ class UNetModel(nnx.Module):
   def __init__(
       self,
       *,
-      image_size: int,
-      in_channels: int,
+      shape: Tuple[int, int, int],
       model_channels: int,
-      out_channels: int,
       num_res_blocks: int,
       attention_resolutions: Tuple[int, ...],
       dropout: float = 0.0,
@@ -484,20 +482,22 @@ class UNetModel(nnx.Module):
       num_heads_upsample: int = -1,
       resblock_updown: bool = False,
       attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
-      dtype: Optional[jnp.dtype] = None,
       num_classes: Optional[int] = None,
+      dtype: Optional[jnp.dtype] = None,
       param_dtype: jnp.dtype = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
+    image_size, _, in_channels = shape
+    attention_resolutions = tuple(image_size // res for res in attention_resolutions)
+
     if num_heads_upsample == -1:
       num_heads_upsample = num_heads
 
     self.dtype = dtype
-    self.image_size = image_size
+    # self.image_size = image_size
     self.in_channels = in_channels
     self.model_channels = model_channels
-    self.out_channels = out_channels
     self.num_res_blocks = num_res_blocks
     self.attention_resolutions = attention_resolutions
     self.dropout = dropout
@@ -512,8 +512,8 @@ class UNetModel(nnx.Module):
       time_embed_dim = model_channels * 4
     elif isinstance(time_embed_dim, float):
       time_embed_dim = int(time_embed_dim * model_channels)
-
     assert isinstance(time_embed_dim, int), time_embed_dim
+
     self.time_embed = TimestepEmbedSequential(
         nnx.Linear(
             model_channels,
@@ -709,7 +709,7 @@ class UNetModel(nnx.Module):
         nnx.silu,
         conv_nd(
             ch,
-            out_channels,
+            in_channels,
             3,
             padding=1,
             zero_init=True,
@@ -741,66 +741,3 @@ class UNetModel(nnx.Module):
       h = module(h, emb, rngs=rngs)
     h = h.astype(x.dtype)
     return self.out(h, rngs=rngs)
-
-  @classmethod
-  def create(
-      cls,
-      *,
-      shape: Tuple[int, ...],
-      model_channels: int,
-      num_res_blocks: int,
-      channel_mult: Union[Tuple[int, ...], None] = None,
-      attention_resolutions: Tuple[int, ...] = (16,),
-      conv_resample: bool = True,
-      num_heads: int = 1,
-      num_head_channels: int = -1,
-      num_heads_upsample: int = -1,
-      dropout: float = 0.0,
-      resblock_updown: bool = False,
-      dtype: Optional[jnp.dtype] = None,
-      param_dtype: jnp.dtype = jnp.float32,
-      rngs: nnx.Rngs,
-      **kwargs: Any,
-  ) -> UNetModel:
-    image_size = shape[0]
-    if channel_mult is None:
-      if image_size == 512:
-        channel_mult = (0.5, 1, 1, 2, 2, 4, 4)
-      elif image_size == 256:
-        channel_mult = (1, 1, 2, 2, 4, 4)
-      elif image_size == 128:
-        channel_mult = (1, 1, 2, 3, 4)
-      elif image_size == 64:
-        channel_mult = (1, 2, 3, 4)
-      elif image_size == 32:
-        channel_mult = (1, 2, 2, 2)
-      elif image_size == 28:
-        channel_mult = (1, 2, 2)
-      else:
-        raise ValueError(f"Unsupported image size: {image_size}")
-    else:
-      channel_mult = tuple(channel_mult)
-
-    attention_ds = []
-    for res in attention_resolutions:
-      attention_ds.append(image_size // int(res))
-
-    return UNetModel(
-        image_size=image_size,
-        in_channels=shape[-1],
-        model_channels=model_channels,
-        out_channels=shape[-1],
-        num_res_blocks=num_res_blocks,
-        attention_resolutions=tuple(attention_ds),
-        dropout=dropout,
-        channel_mult=channel_mult,
-        conv_resample=conv_resample,
-        num_heads=num_heads,
-        num_head_channels=num_head_channels,
-        num_heads_upsample=num_heads_upsample,
-        resblock_updown=resblock_updown,
-        dtype=dtype,
-        param_dtype=param_dtype,
-        rngs=rngs,
-        **kwargs,
-    )
