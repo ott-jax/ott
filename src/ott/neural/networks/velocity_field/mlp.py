@@ -37,6 +37,7 @@ class MLP(nnx.Module):
       rngs: nnx.Rngs,
       **kwargs: Any,
   ):
+    super().__init__()
     if time_enc_num_freqs is None:
       time_enc_num_freqs = max(1, min(dim // 16, 64))
 
