@@ -235,7 +235,6 @@ class ResBlock(TimestepBlock):
       *,
       out_channels: Optional[int] = None,
       use_conv: bool = False,
-      use_scale_shift_norm: bool = False,
       up: bool = False,
       down: bool = False,
       dtype: Optional[jnp.dtype] = None,
@@ -248,7 +247,6 @@ class ResBlock(TimestepBlock):
     self.dropout = dropout
     self.out_channels = out_channels or channels
     self.use_conv = use_conv
-    self.use_scale_shift_norm = use_scale_shift_norm
     self.updown = up or down
 
     self.in_norm = normalization(
@@ -302,7 +300,7 @@ class ResBlock(TimestepBlock):
     self.emb_act = nnx.silu
     self.emb_layers = nnx.Linear(
         emb_channels,
-        (2 * self.out_channels) if use_scale_shift_norm else self.out_channels,
+        self.out_channels,
         dtype=dtype,
         param_dtype=param_dtype,
         rngs=rngs,
@@ -369,18 +367,11 @@ class ResBlock(TimestepBlock):
     emb_out = self.emb_layers(emb_out)
     while len(emb_out.shape) < len(h.shape):
       emb_out = jnp.expand_dims(emb_out, axis=1)
-    if self.use_scale_shift_norm:
-      scale, shift = jnp.split(emb_out, 2, axis=1)
-      h = self.out_norm(h) * (1 + scale) + shift
-      h = self.out_act(h)
-      h = self.out_dropout(h, rngs=rngs)
-      h = self.out_conv(h)
-    else:
-      h = h + emb_out
-      h = self.out_norm(h)
-      h = self.out_act(h)
-      h = self.out_dropout(h, rngs=rngs)
-      h = self.out_conv(h)
+    h = h + emb_out
+    h = self.out_norm(h)
+    h = self.out_act(h)
+    h = self.out_dropout(h, rngs=rngs)
+    h = self.out_conv(h)
 
     return self.skip_connection(x) + h
 
@@ -501,7 +492,6 @@ class UNetModel(nnx.Module):
       num_heads: int = 1,
       num_head_channels: int = -1,
       num_heads_upsample: int = -1,
-      use_scale_shift_norm: bool = False,
       resblock_updown: bool = False,
       attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
       dtype: Optional[jnp.dtype] = None,
@@ -589,7 +579,6 @@ class UNetModel(nnx.Module):
                 time_embed_dim,
                 dropout,
                 out_channels=int(mult * model_channels),
-                use_scale_shift_norm=use_scale_shift_norm,
                 dtype=dtype,
                 param_dtype=param_dtype,
                 rngs=rngs,
@@ -623,7 +612,6 @@ class UNetModel(nnx.Module):
                     time_embed_dim,
                     dropout,
                     out_channels=out_ch,
-                    use_scale_shift_norm=use_scale_shift_norm,
                     down=True,
                     dtype=dtype,
                     param_dtype=param_dtype,
@@ -647,7 +635,6 @@ class UNetModel(nnx.Module):
             ch,
             time_embed_dim,
             dropout,
-            use_scale_shift_norm=use_scale_shift_norm,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -665,7 +652,6 @@ class UNetModel(nnx.Module):
             ch,
             time_embed_dim,
             dropout,
-            use_scale_shift_norm=use_scale_shift_norm,
             dtype=dtype,
             param_dtype=param_dtype,
             rngs=rngs,
@@ -683,7 +669,6 @@ class UNetModel(nnx.Module):
                 time_embed_dim,
                 dropout,
                 out_channels=int(model_channels * mult),
-                use_scale_shift_norm=use_scale_shift_norm,
                 dtype=dtype,
                 param_dtype=param_dtype,
                 rngs=rngs,
@@ -712,7 +697,6 @@ class UNetModel(nnx.Module):
                   time_embed_dim,
                   dropout,
                   out_channels=out_ch,
-                  use_scale_shift_norm=use_scale_shift_norm,
                   up=True,
                   dtype=dtype,
                   param_dtype=param_dtype,
@@ -786,7 +770,6 @@ class UNetModelWrapper(UNetModel):
       num_heads: int = 1,
       num_head_channels: int = -1,
       num_heads_upsample: int = -1,
-      use_scale_shift_norm: bool = False,
       dropout: float = 0.0,
       resblock_updown: bool = False,
       dtype: Optional[jnp.dtype] = None,
@@ -830,7 +813,6 @@ class UNetModelWrapper(UNetModel):
         num_heads=num_heads,
         num_head_channels=num_head_channels,
         num_heads_upsample=num_heads_upsample,
-        use_scale_shift_norm=use_scale_shift_norm,
         resblock_updown=resblock_updown,
         dtype=dtype,
         param_dtype=param_dtype,
