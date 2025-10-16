@@ -58,8 +58,8 @@ class MLP(nnx.Module):
       self,
       t: jax.Array,
       x: jax.Array,
-      *,
       cond: Optional[jax.Array] = None,
+      *,
       rngs: Optional[nnx.Rngs] = None,
   ) -> jax.Array:
     """TODO."""
@@ -86,7 +86,7 @@ class Block(nnx.Module):
     self.dropout = nnx.Dropout(dropout_rate)
 
   def __call__(
-      self, x: jax.Array, rngs: Optional[nnx.Rngs] = None
+      self, x: jax.Array, *, rngs: Optional[nnx.Rngs] = None
   ) -> jax.Array:
     return self.dropout(self.act_fn(self.lin(x)), rngs=rngs)
 
