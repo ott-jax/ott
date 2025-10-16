@@ -28,14 +28,20 @@ def flow_matching_step(
     batch: Dict[Literal["t", "x_t", "v_t", "cond"], jax.Array],
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
 ) -> Dict[Literal["loss", "grad_norm"], jax.Array]:
+  """TODO."""
 
-  def compute_loss(model: nnx.Module) -> jax.Array:
+  def compute_loss(model: nnx.Module, rngs: nnx.Rngs) -> jax.Array:
     t, x_t, v_t = batch["t"], batch["x_t"], batch["v_t"]
     cond = batch.get("cond")
     v_pred = model(t, x_t, cond, rngs=rngs)
     return loss_fn(v_pred, v_t).mean()
 
-  loss, grads = nnx.value_and_grad(compute_loss)(model)
+  loss, grads = nnx.value_and_grad(compute_loss)(model, rngs)
   optimizer.update(model, grads)
   grad_norm = optax.global_norm(grads)
   return {"loss": loss, "grad_norm": grad_norm}
+
+
+def evaluate_velocity_field():
+  """TODO."""
+  pass
