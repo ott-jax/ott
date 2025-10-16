@@ -44,6 +44,7 @@ class GroupNorm32(nnx.GroupNorm):
 
 
 def conv_nd(
+    dims: int,
     in_channels: Union[int, Tuple[int, ...]],
     out_channels: Union[int, Tuple[int, ...]],
     kernel_size: Union[int, Tuple[int, ...]],
@@ -59,11 +60,11 @@ def conv_nd(
   """Create a 1D, 2D, or 3D convolution module.
   """
   if isinstance(kernel_size, int):
-    kernel_size = (kernel_size, kernel_size)
+    kernel_size = (kernel_size,) * dims
   if isinstance(strides, int):
-    strides = (strides, strides)
+    strides = (strides,) * dims
   if isinstance(padding, int):
-    padding = (padding, padding)
+    padding = (padding,) * dims
 
   if zero_init:
     kwargs["kernel_init"] = nnx.initializers.constant(value=0.0)
@@ -121,7 +122,7 @@ class TimestepEmbedSequential(nnx.Module):
 
   def __init__(self, *layers: nnx.Module):
     super().__init__()
-    self.layers = list(layers)
+    self.layers = nnx.List(layers)
 
   def __call__(
       self,
@@ -157,6 +158,7 @@ class Upsample(nnx.Module):
     self.use_conv = use_conv
     if use_conv:
       self.conv = conv_nd(
+          2,
           self.channels,
           self.out_channels,
           3,
@@ -195,6 +197,7 @@ class Downsample(nnx.Module):
 
     if use_conv:
       self.op = conv_nd(
+          2,
           self.channels,
           self.out_channels,
           3,
@@ -244,6 +247,7 @@ class ResBlock(TimestepBlock):
     )
     self.in_act = nnx.silu
     self.in_conv = conv_nd(
+        2,
         channels,
         self.out_channels,
         3,
@@ -302,6 +306,7 @@ class ResBlock(TimestepBlock):
     self.out_act = nnx.silu
     self.out_dropout = nnx.Dropout(rate=dropout)
     self.out_conv = conv_nd(
+        2,
         self.out_channels,
         self.out_channels,
         3,
@@ -316,6 +321,7 @@ class ResBlock(TimestepBlock):
       self.skip_connection = lambda x: x
     elif use_conv:
       self.skip_connection = conv_nd(
+          2,
           channels,
           self.out_channels,
           3,
@@ -326,6 +332,7 @@ class ResBlock(TimestepBlock):
       )
     else:
       self.skip_connection = conv_nd(
+          2,
           channels,
           self.out_channels,
           1,
@@ -355,6 +362,7 @@ class ResBlock(TimestepBlock):
 
     emb_out = self.emb_act(emb).astype(h.dtype)
     emb_out = self.emb_layers(emb_out)
+    # emb_out = jnp.broadcast_to(emb_out, h.shape)
     while len(emb_out.shape) < len(h.shape):
       emb_out = jnp.expand_dims(emb_out, axis=1)
     h = h + emb_out
@@ -456,6 +464,7 @@ class AttentionBlock(nnx.Module):
   def __call__(self, x: jax.Array) -> jax.Array:
     # [B, H, W, C]
     b, *spatial, c = x.shape
+    print(b, spatial, c)
     x = x.reshape(b, -1, c)  # [B, H * W, C]
     qkv = self.qkv(self.norm(x))
     h = self.attention(qkv)
@@ -546,7 +555,7 @@ class UNetModel(nnx.Module):
       self.label_emb = None
 
     # Input blocks
-    self.input_blocks = []
+    self.input_blocks = nnx.List()
     input_block_chans = [model_channels]
     ch = int(channel_mult[0] * model_channels)
     ds = 1
@@ -555,6 +564,7 @@ class UNetModel(nnx.Module):
     self.input_blocks.append(
         TimestepEmbedSequential(
             conv_nd(
+                2,
                 in_channels,
                 ch,
                 3,
@@ -655,7 +665,7 @@ class UNetModel(nnx.Module):
     )
 
     # Output blocks
-    self.output_blocks = []
+    self.output_blocks = nnx.List()
     for level, mult in list(enumerate(channel_mult))[::-1]:
       for i in range(num_res_blocks + 1):
         ich = input_block_chans.pop()
@@ -714,6 +724,7 @@ class UNetModel(nnx.Module):
         normalization(ch, dtype=dtype, param_dtype=param_dtype, rngs=rngs),
         nnx.silu,
         conv_nd(
+            2,
             ch,
             out_channels,
             3,
