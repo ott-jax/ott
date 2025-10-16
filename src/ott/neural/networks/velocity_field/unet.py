@@ -8,7 +8,7 @@ import jax.numpy as jnp
 
 from flax import nnx
 
-__all__ = ["UNetModel"]
+__all__ = ["UNet"]
 
 
 def timestep_embedding(
@@ -472,7 +472,7 @@ class AttentionBlock(nnx.Module):
     return (x + h).reshape(b, *spatial, c)
 
 
-class UNetModel(nnx.Module):
+class UNet(nnx.Module):
   """The full UNet model with attention and timestep embedding."""
 
   def __init__(
