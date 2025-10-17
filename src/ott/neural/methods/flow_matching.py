@@ -65,7 +65,7 @@ def evaluate_velocity_field(
     num_steps: Optional[int] = None,
     solver: Optional[diffrax.AbstractSolver] = None,
     **kwargs: Any,
-) -> Tuple[jax.Array, diffrax.Solution]:
+) -> diffrax.Solution:
   """TODO."""
   if isinstance(num_steps, int):
     step_size = 1.0 / num_steps
@@ -84,7 +84,7 @@ def evaluate_velocity_field(
   velocity_fn = kwargs.pop("_velocity_fn", _velocity)
   ode_term = diffrax.ODETerm(functools.partial(velocity_fn, model=model))
 
-  sol = diffrax.diffeqsolve(
+  return diffrax.diffeqsolve(
       ode_term,
       t0=t0,
       t1=t1,
@@ -95,10 +95,6 @@ def evaluate_velocity_field(
       stepsize_controller=stepsize_controller,
       **kwargs,
   )
-  val = sol.ys[-1]
-  assert val.shape == x.shape, (val.shape, x.shape)
-
-  return val, sol
 
 
 def gaussian_nll(
@@ -118,9 +114,14 @@ def gaussian_nll(
   else:
     velocity_fn = _exact_divergence
 
-  state = (x1, jnp.zeros([]))
-  _, sol = evaluate_velocity_field(
-      model, state, cond, reverse=True, _velocity_fn=velocity_fn, **kwargs
+  sol = evaluate_velocity_field(
+      model,
+      (x1, jnp.zeros([])),  # initial point, divergence
+      cond,
+      reverse=True,
+      _velocity_fn=velocity_fn,
+      saveat=diffrax.SaveAt(t1=True),
+      **kwargs,
   )
 
   x0, neg_int01_div_v = sol.ys
