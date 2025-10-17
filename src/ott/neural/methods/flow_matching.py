@@ -65,6 +65,8 @@ def evaluate_velocity_field(
     reverse: bool = False,
     num_steps: Optional[int] = None,
     solver: Optional[diffrax.AbstractSolver] = None,
+    save_trajectory_kwargs: Optional[Dict[str, Any]] = None,
+    save_velocity_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> diffrax.Solution:
   """TODO."""
@@ -84,6 +86,19 @@ def evaluate_velocity_field(
   # custom function used when computing the gaussian `
   default_velocity_fn = jtu.Partial(_velocity, model=model)
   velocity_fn = kwargs.pop("_velocity_fn", default_velocity_fn)
+
+  subs = {}
+  if save_velocity_kwargs:
+    saveat = diffrax.SubSaveAt(fn=default_velocity_fn, **save_velocity_kwargs)
+    subs["v_t"] = saveat
+  if save_trajectory_kwargs:
+    saveat = diffrax.SubSaveAt(
+        fn=lambda _, x_t, __: x_t, **save_trajectory_kwargs
+    )
+    subs["x_t"] = saveat
+
+  if subs:
+    kwargs["saveat"] = diffrax.SaveAt(subs=subs)
 
   return diffrax.diffeqsolve(
       diffrax.ODETerm(velocity_fn),
@@ -123,6 +138,8 @@ def gaussian_nll(
       reverse=True,
       _velocity_fn=velocity_fn,
       saveat=diffrax.SaveAt(t1=True),
+      save_trajectory_kwargs=None,
+      save_velocity_kwargs=None,
       **kwargs,
   )
 
