@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, Literal, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.tree_util as jtu
 import numpy as np
 
 import diffrax
@@ -81,11 +82,11 @@ def evaluate_velocity_field(
     t0, t1 = t1, t0
 
   # custom function used when computing the gaussian `
-  velocity_fn = kwargs.pop("_velocity_fn", _velocity)
-  ode_term = diffrax.ODETerm(functools.partial(velocity_fn, model=model))
+  default_velocity_fn = jtu.Partial(_velocity, model=model)
+  velocity_fn = kwargs.pop("_velocity_fn", default_velocity_fn)
 
   return diffrax.diffeqsolve(
-      ode_term,
+      diffrax.ODETerm(velocity_fn),
       t0=t0,
       t1=t1,
       y0=x,
@@ -113,6 +114,7 @@ def gaussian_nll(
     velocity_fn = functools.partial(_hutchinson_divergence, h=noise)
   else:
     velocity_fn = _exact_divergence
+  velocity_fn = jtu.Partial(velocity_fn, model=model)
 
   sol = evaluate_velocity_field(
       model,
