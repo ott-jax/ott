@@ -11,14 +11,20 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Dict, Literal, Optional
+import functools
+from typing import Any, Callable, Dict, Literal, Optional, Tuple, Union
 
 import jax
+import jax.numpy as jnp
+import numpy as np
 
+import diffrax
 import optax
 from flax import nnx
 
-__all__ = ["flow_matching_step"]
+__all__ = ["flow_matching_step", "evaluate_velocity_field", "gaussian_nll"]
+
+DivState = Tuple[jax.Array, jax.Array]  # velocity, divergence
 
 
 def flow_matching_step(
@@ -28,7 +34,7 @@ def flow_matching_step(
     *,
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
     ema_update_fn: Optional[Callable[[nnx.Module], None]] = None,
-    dropout_rngs: nnx.Rngs,
+    rngs: Optional[nnx.Rngs] = None,
 ) -> Dict[Literal["loss", "grad_norm"], jax.Array]:
   """TODO."""
 
@@ -38,7 +44,7 @@ def flow_matching_step(
     v_pred = model(t, x_t, cond, rngs=rngs)
     return loss_fn(v_pred, v_t).mean()
 
-  loss, grads = nnx.value_and_grad(compute_loss)(model, dropout_rngs)
+  loss, grads = nnx.value_and_grad(compute_loss)(model, rngs)
   optimizer.update(model, grads)
   if ema_update_fn is not None:
     ema_update_fn(model)
@@ -50,8 +56,116 @@ def flow_matching_step(
 
 def evaluate_velocity_field(
     model: nnx.Module,
-    x0: jax.Array,
+    x: Union[jax.Array, Any],
     cond: Optional[jax.Array] = None,
-):
+    *,
+    t0: float = 0.0,
+    t1: float = 1.0,
+    reverse: bool = False,
+    num_steps: Optional[int] = None,
+    solver: Optional[diffrax.AbstractSolver] = None,
+    **kwargs: Any,
+) -> Tuple[jax.Array, diffrax.Solution]:
   """TODO."""
-  pass
+  if isinstance(num_steps, int):
+    step_size = 1.0 / num_steps
+    stepsize_controller = diffrax.ConstantStepSize()
+    solver = diffrax.Euler() if solver is None else solver
+  else:
+    step_size = None
+    stepsize_controller = diffrax.PIDController(rtol=1e-5, atol=1e-5)
+    solver = diffrax.Dopri5() if solver is None else solver
+
+  if reverse:
+    step_size = None if step_size is None else -step_size
+    t0, t1 = t1, t0
+
+  # custom function used when computing the gaussian `
+  velocity_fn = kwargs.pop("_velocity_fn", _velocity)
+  ode_term = diffrax.ODETerm(functools.partial(velocity_fn, model=model))
+
+  sol = diffrax.diffeqsolve(
+      ode_term,
+      t0=t0,
+      t1=t1,
+      y0=x,
+      args=cond,
+      solver=solver,
+      dt0=step_size,
+      stepsize_controller=stepsize_controller,
+      **kwargs,
+  )
+  val = sol.ys[-1]
+  assert val.shape == x.shape, (val.shape, x.shape)
+
+  return val, sol
+
+
+def gaussian_nll(
+    model: nnx.Module,
+    x1: jax.Array,
+    cond: Optional[jax.Array] = None,
+    *,
+    noise: Optional[jax.Array] = None,
+    stddev: float = 1.0,
+    **kwargs: Any,
+) -> Tuple[jax.Array, diffrax.Solution]:
+  """TODO."""
+  if noise is not None:
+    _, *noise_shape = noise.shape  # [batch, ...]
+    assert x1.shape == tuple(noise_shape), (x1.shape, noise_shape)
+    velocity_fn = functools.partial(_hutchinson_divergence, h=noise)
+  else:
+    velocity_fn = _exact_divergence
+
+  state = (x1, jnp.zeros([]))
+  _, sol = evaluate_velocity_field(
+      model, state, cond, reverse=True, _velocity_fn=velocity_fn, **kwargs
+  )
+
+  x0, neg_int01_div_v = sol.ys
+  assert x0.shape == (1, *x1.shape), (x0.shape, (1, *x1.shape))
+  assert neg_int01_div_v.shape == (1,), neg_int01_div_v.shape
+
+  k = np.prod(x0.shape)
+  logp0_x0 = -0.5 * ((x0 / stddev) ** 2).sum()
+  logp0_x0 = logp0_x0 - 0.5 * k * jnp.log(2.0 * jnp.pi) - k * jnp.log(stddev)
+  nll = -(logp0_x0 + neg_int01_div_v[0])
+  return nll, sol
+
+
+def _velocity(
+    t: jax.Array, x_t: jax.Array, cond: Optional[jax.Array], model: nnx.Module
+) -> jax.Array:
+  cond = None if cond is None else cond[None]
+  return model(t[None], x_t[None], cond).squeeze(0)
+
+
+def _exact_divergence(
+    t: jax.Array, state_t: DivState, cond: Optional[jax.Array], *,
+    model: nnx.Module
+) -> DivState:
+
+  def divergence_v(
+      t: jax.Array, x: jax.Array, cond: Optional[jax.Array]
+  ) -> jax.Array:
+    # divergence of fwd velocity field
+    jacobian = jax.jacrev(_velocity, argnums=1)(t, x, cond, model)
+    jacobian = jacobian.reshape(np.prod(x.shape), np.prod(x.shape))
+    return jnp.trace(jacobian)
+
+  x_t, _ = state_t
+  v_t = _velocity(t, x_t, cond, model=model)
+  div_t = divergence_v(t, x_t, cond)
+  return v_t, div_t
+
+
+def _hutchinson_divergence(
+    t: jax.Array, state_t: DivState, cond: Optional[jax.Array], *,
+    model: nnx.Module, h: jax.Array
+) -> DivState:
+  x_t, _ = state_t
+  v_t, vjp = jax.vjp(lambda x: _velocity(t, x, cond, model=model), x_t)
+  (Dvh,) = jax.vmap(vjp)(h)
+  div_t = jax.vmap(jnp.vdot, in_axes=[0, 0])(h, Dvh).mean()
+  return v_t, div_t
