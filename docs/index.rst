@@ -20,7 +20,7 @@ To achieve this, ``OTT`` rests on two families of tools:
 - the first family consists in *discrete* solvers computing transport between
   point clouds, using the :term:`Sinkhorn algorithm` :cite:`cuturi:13` as
   well as low-rank solvers :cite:`scetbon:21` algorithms, impacting more
-  advanced solvers addressinv the :term:`Gromov-Wasserstein problem`
+  advanced solvers addressing the :term:`Gromov-Wasserstein problem`
   :cite:`memoli:11,peyre:16`;
 - the second family consists in *continuous* solvers, whose goal is to output,
   given two point cloud samples, a *function* that is an approximate

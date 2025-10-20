@@ -45,8 +45,8 @@ def segment_point_cloud(
   upper bound on the maximal size of measures, which will be used for padding.
 
   Args:
-    x: Array of input points, of shape ``[num_x, ndim]``.
-      Multiple segments are held in this single array.
+    x: Array of input points, of shape ``[num_x, ndim]``. Multiple segments are
+      held in this single array.
     a: Array of shape ``[num_x,]`` containing the weights (within each measure)
       of all the points.
     num_segments: Number of segments. Required for jitting.
