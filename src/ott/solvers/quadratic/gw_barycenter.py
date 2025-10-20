@@ -150,7 +150,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
 
     if bar_init is None:
       rng = utils.default_prng_key(rng)
-      _, b = problem.segmented_y_b
+      _, b, _ = problem.segmented_y_b
       rngs = jax.random.split(rng, problem.num_measures)
 
       transports = init_transports(
@@ -212,7 +212,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     in_axes += [0] if problem.is_fused else [None]
     solve_fn = jax.vmap(solve_gw, in_axes=in_axes)
 
-    y, b = problem.segmented_y_b
+    y, b, _ = problem.segmented_y_b
     y_f = problem.segmented_y_fused
     costs, convergeds, transports, errors = solve_fn(state, b, y, y_f)
 

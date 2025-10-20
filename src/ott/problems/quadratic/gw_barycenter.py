@@ -133,7 +133,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       return transport @ tmp
 
     fn = None if self._loss_name == "sqeucl" else self.gw_loss.h2
-    y, b = self.segmented_y_b
+    y, b, _ = self.segmented_y_b
     weights = self.weights[:, None, None]
 
     barycenter = jnp.sum(weights * project(y, b, transports, fn), axis=0)
@@ -255,7 +255,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     """Feature array of shape used in the fused case."""
     if not self.is_fused or self._y_fused.ndim == 3:
       return self._y_fused
-    y_fused, _ = segment.segment_point_cloud(
+    y_fused, _, _ = segment.segment_point_cloud(
         x=self._y_fused,
         padding_vector=self.cost_fn._padder(self.ndim_fused),
         **self._kwargs

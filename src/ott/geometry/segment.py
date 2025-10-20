@@ -159,7 +159,7 @@ def _segment_interface(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  segmented_x, segmented_weights_x = segment_point_cloud(
+  segmented_x, segmented_weights_x, _ = segment_point_cloud(
       x,
       a=weights_x,
       num_segments=num_segments,
@@ -170,7 +170,7 @@ def _segment_interface(
       padding_vector=padding_vector
   )
 
-  segmented_y, segmented_weights_y = segment_point_cloud(
+  segmented_y, segmented_weights_y, _ = segment_point_cloud(
       y,
       a=weights_y,
       num_segments=num_segments,

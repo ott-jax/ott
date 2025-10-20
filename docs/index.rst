@@ -18,7 +18,7 @@ clustering.
 To achieve this, ``OTT`` rests on two families of tools:
 
 - the first family consists in *discrete* solvers computing transport between
-  point clouds, using the :term:`Sinkhorn algorithm`` :cite:`cuturi:13` as
+  point clouds, using the :term:`Sinkhorn algorithm` :cite:`cuturi:13` as
   well as low-rank solvers :cite:`scetbon:21` algorithms, impacting more
   advanced solvers addressinv the :term:`Gromov-Wasserstein problem`
   :cite:`memoli:11,peyre:16`;
@@ -28,7 +28,7 @@ To achieve this, ``OTT`` rests on two families of tools:
   measure to the second. Such functions can be recovered using directly tools
   above, notably the family of :term:`entropic map` approximations. Such maps
   can also be parameterized as neural architectures such as an MLP or as
-  gradients of :term:`input-convex neural network` :cite:`amos:17`, trained with
+  gradients of :term:`input convex neural network` :cite:`amos:17`, trained with
   advanced SGD approaches :cite:`makkuva:20,korotin:21,amos:23`.
 
 Installation
@@ -88,7 +88,7 @@ Packages
   Geometry objects are used to describe OT *problems*, solved next by *solvers*.
 - :mod:`ott.problems` are used to describe the interactions between multiple
   measures, to define linear (a.k.a. :term:`Kantorovich problem`), quadratic
-  (a.k.a. :term:`Gromov-Wasserstein problem`) or :term:`Wasserstein barycenter``
+  (a.k.a. :term:`Gromov-Wasserstein problem`) or :term:`Wasserstein barycenter`
   problems.
 - :mod:`ott.solvers` solve a problem instantiated with :mod:`ott.problems` using
   one among many implemented approaches.

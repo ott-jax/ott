@@ -254,6 +254,13 @@ Glossary
         problem between any source distribution :math:`\mu` and the target
         distribution :math:`\nu = T\#\mu`.
 
+    Gromov-Wasserstein distance
+        A generalization of the :term:`Wasserstein distance` between two point
+        clouds living in possibly different spaces and equipped each with
+        different cost functions, obtained by solving the
+        :term:`Gromov-Wasserstein problem`.
+
+
     Gromov-Wasserstein problem
         A generalization of the :term:`Kantorovich problem` in which the
         objective function is no longer a linear function of a coupling matrix
@@ -281,7 +288,7 @@ Glossary
         (KKT or first-order conditions). These identities can then help recover
         the vector-Jacobian operator by inverting a linear system.
 
-    input-convex neural networks
+    input convex neural network
         A neural network architecture for vectors with a few distinguishing
         features: some parameters of this NN must be non-negative, the NN's
         output is real-valued and guaranteed to be convex in the input vector.
