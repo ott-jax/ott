@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Modified from: https://github.com/openai/guided-diffusion/blob/22e0df8183507e13a7813f8d38d51b072ca1e67c/guided_diffusion/unet.py."""
 import abc
 import functools
 import math
@@ -70,8 +71,7 @@ def conv_nd(
     rngs: nnx.Rngs,
     **kwargs: Any,
 ) -> nnx.Conv:
-  """Create a 1D, 2D, or 3D convolution module.
-  """
+  """Create a 1D, 2D, or 3D convolution module."""
   if isinstance(kernel_size, int):
     kernel_size = (kernel_size,) * dims
   if isinstance(strides, int):
@@ -116,7 +116,6 @@ def normalization(
 
 
 class TimestepBlock(nnx.Module):
-  """Any module where forward() takes timestep embeddings as a second argument."""
 
   @abc.abstractmethod
   def __call__(
@@ -131,7 +130,6 @@ class TimestepBlock(nnx.Module):
 
 
 class TimestepEmbedSequential(nnx.Module):
-  """A sequential module that passes timestep embeddings to the children that support it."""
 
   def __init__(self, *layers: nnx.Module):
     super().__init__()
@@ -411,20 +409,19 @@ class QKVAttention(nnx.Module):
     k = k.reshape(bs, length, self.n_heads, head_dim)
     v = v.reshape(bs, length, self.n_heads, head_dim)
 
-    attn_dtype = jnp.bfloat16 if self.attn_implementation == "cudnn" else q.dtype
+    dtype = jnp.bfloat16 if self.attn_implementation == "cudnn" else q.dtype
     a = jax.nn.dot_product_attention(
-        q.astype(attn_dtype),
-        k.astype(attn_dtype),
-        v.astype(attn_dtype),
+        q.astype(dtype),
+        k.astype(dtype),
+        v.astype(dtype),
         scale=scale,
         implementation=self.attn_implementation,
     ).astype(q.dtype)
-    a = a.reshape(bs, length, self.n_heads * head_dim)
-    return a
+    return a.reshape(bs, length, self.n_heads * head_dim)
 
 
 class AttentionBlock(nnx.Module):
-  """An attention block that allows spatial positions to attend to each other."""
+  """Attention block that allows spatial positions to attend to each other."""
 
   def __init__(
       self,
@@ -756,6 +753,7 @@ class UNet(nnx.Module):
       *,
       rngs: Optional[nnx.Rngs] = None,
   ) -> jax.Array:
+    """TODO."""
     emb = self.time_embed(timestep_embedding(t, self.model_channels), rngs=rngs)
     if self.label_emb is not None:
       assert cond is not None, "Please provide a condition."
