@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -29,7 +29,7 @@ def segment_point_cloud(
     indices_are_sorted: bool = False,
     num_per_segment: Optional[Tuple[int, ...]] = None,
     padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, Union[jnp.ndarray, Tuple[int]]]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces:
@@ -73,7 +73,8 @@ def segment_point_cloud(
   Returns:
     Segmented ``x`` as an array of shape
     ``[num_measures, max_measure_size, ndim]`` and ``a`` as an array of shape
-    ``[num_measures, max_measure_size]``.
+    ``[num_measures, max_measure_size]``, as well as Tuple ``num_per_segment``
+    either as originally passed, or as recovered from ``segment_ids`.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
@@ -126,7 +127,7 @@ def segment_point_cloud(
   segmented_a = jnp.stack(segmented_a)
   segmented_x = jnp.stack(segmented_x)
 
-  return segmented_x, segmented_a
+  return segmented_x, segmented_a, num_per_segment
 
 
 def _segment_interface(

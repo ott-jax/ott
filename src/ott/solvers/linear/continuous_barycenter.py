@@ -31,21 +31,24 @@ class FreeBarycenterState(NamedTuple):
   """Holds the state of the Wasserstein barycenter solver.
 
   Args:
+    x: barycenter points.
+    a: barycenter weights.
     costs: Holds the sequence of regularized GW costs seen through the outer
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
+    linear_outputs: Holds latest output objects returned by linear solver when
+      recomputing transport between barycenter vs. each of the input measures.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
-    x: barycenter points.
-    a: barycenter weights.
   """
 
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
-  errors: Optional[jnp.ndarray] = None
   x: Optional[jnp.ndarray] = None
   a: Optional[jnp.ndarray] = None
+  costs: Optional[jnp.ndarray] = None
+  linear_convergence: Optional[jnp.ndarray] = None
+  linear_outputs: Optional[Tuple[Any]] = None
+  errors: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
     """Return a copy of self, possibly with overwrites."""
@@ -66,7 +69,7 @@ class FreeBarycenterState(NamedTuple):
     Returns:
       The updated state.
     """
-    seg_y, seg_b = bar_prob.segmented_y_b
+    seg_y, seg_b, _ = bar_prob.segmented_y_b
 
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_linear_ot(
@@ -77,14 +80,13 @@ class FreeBarycenterState(NamedTuple):
       )
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
       out = linear_solver(prob)
-      return (
-          out.reg_ot_cost, out.converged, out.matrix,
-          out.errors if store_errors else None
-      )
+      # instantiate matrix since it is a property of out.
+      return out, out.matrix
 
-    reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
-        self.a, self.x, seg_b, seg_y
-    )
+    outs, matrices = solve_linear_ot(self.a, self.x, seg_b, seg_y)
+    reg_ot_costs = outs.reg_ot_cost
+    convergeds = outs.converged
+    errors = outs.errors
 
     cost = jnp.sum(reg_ot_costs * bar_prob.weights)
     updated_costs = self.costs.at[iteration].set(cost)
@@ -107,11 +109,61 @@ class FreeBarycenterState(NamedTuple):
     )(bar_prob.weights, barycenters_per_measure)
 
     return self.set(
+        x=x_new,
         costs=updated_costs,
         linear_convergence=linear_convergence,
-        errors=errors,
-        x=x_new
+        linear_outputs=outs,
+        errors=errors
     )
+
+
+class FreeBarycenterOutput(NamedTuple):
+  """Holds the output of a Free Wasserstein barycenter solver.
+
+  Objects of this class contain both solutions and problem definition of a
+  regularized Free Barycenter OT problem, along several methods that can be used
+  to access its content.
+
+  Args:
+    x: barycenter points.
+    a: barycenter weights.
+    costs: Holds the sequence of regularized GW costs seen through the outer
+      loop of the solver.
+    linear_convergence: Holds the sequence of bool convergence flags of the
+      inner Sinkhorn iterations.
+    linear_outputs: Holds latest output objects returned by linear solver when
+      recomputing transport between barycenter vs. each of the input measures.
+    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
+      at each iteration.
+  """
+
+  x: Optional[jnp.ndarray] = None
+  a: Optional[jnp.ndarray] = None
+  bar_prob: Optional[barycenter_problem.FreeBarycenterProblem] = None
+  costs: Optional[jnp.ndarray] = None
+  linear_convergence: Optional[jnp.ndarray] = None
+  linear_outputs: Optional[Tuple[Any]] = None
+  errors: Optional[jnp.ndarray] = None
+
+  @property
+  def all_linear_solvers_converged(self):
+    """Whether all linear convergence flags converged."""
+    return jnp.all(self.linear_convergence[self.linear_convergence != -1])
+
+  def matrix_at_index(self, measure_index: int) -> jnp.ndarray:
+    """Return the transport matrix from barycenter to measure_index measure."""
+    size_measure = self.bar_prob.num_per_measure[measure_index]
+    return self.linear_output_at_index(measure_index).matrix[:, :size_measure]
+
+  @property
+  def costs_along_iterations(self):
+    """Costs outputted by the solver along iterations."""
+    return jnp.all(self.costs[self.linear_convergence != -1])
+
+  def linear_output_at_index(self, i: int) -> Any:
+    assert i < self.bar_prob.num_measures, \
+      "Index out of range, {i} >= {self.bar_prob.num_measures}"
+    return jax.tree.map(lambda x: x[i], self.linear_outputs)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -174,15 +226,46 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       ))
     else:
       errors = None
+    state = FreeBarycenterState(
+        x=x,
+        a=a,
+        costs=-jnp.ones((num_iter,)),
+        linear_convergence=-jnp.ones((num_iter,)),
+        errors=errors
+    )
+    abstract_tree = jax.eval_shape(
+        functools.partial(state.update, store_errors=self.store_inner_errors),
+        0, bar_prob, self.linear_solver
+    )
+
+    # self, iteration: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
+    #   linear_solver: Any, store_errors: bool
+    tree = jax.tree.map(jnp.zeros_like, abstract_tree)
+
     return FreeBarycenterState(
-        -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, x, a
+        x=x,
+        a=a,
+        costs=-jnp.ones((num_iter,)),
+        linear_convergence=-jnp.ones((num_iter,)),
+        linear_outputs=tree.linear_outputs,
+        errors=errors
     )
 
   def output_from_state(  # noqa: D102
-      self, state: FreeBarycenterState
-  ) -> FreeBarycenterState:
-    # TODO(michalk8): create an output variable to match rest of the framework
-    return state
+      self,
+      state: FreeBarycenterState,
+      bar_prob: barycenter_problem.FreeBarycenterProblem
+  ) -> FreeBarycenterOutput:
+    """Create an output from a barycenter state."""
+    return FreeBarycenterOutput(
+        x=state.x,
+        a=state.a,
+        bar_prob=bar_prob,
+        costs=state.costs,
+        linear_convergence=state.linear_convergence,
+        linear_outputs=state.linear_outputs,
+        errors=state.errors,
+    )
 
 
 def iterations(
@@ -222,4 +305,4 @@ def iterations(
       state=solver.init_state(bar_prob, bar_size, x_init, rng)
   )
 
-  return solver.output_from_state(state)
+  return solver.output_from_state(state, bar_prob)

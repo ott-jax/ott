@@ -125,6 +125,16 @@ Glossary
         constrained optimization problem into an unconstrained one, by
         transforming constraints into penalty terms in the objective function.
 
+    entropic map
+        Refers to an approximate :term:`transport map` obtained by solving first
+        a :term:`entropy-regularized optimal transport` problem in dual form
+        (using typically the :term:`Sinkhorn algorithm`) between two point
+        clouds, to leverage next the pair of dual potential vectors :math:`f,g`
+        returned by that algorithm to form a *continuous* approximation to the
+        dual functions arising in the :term:`dual Kantorovich problem`. This
+        approximation in then plugged into the :term:`Gangbo-McCann theorem` to
+        recover an approximate :term:`Monge map`.
+
     entropy-regularized optimal transport
         The data of the entropy regularized OT (EOT) problem is parameterized by
         a cost matrix :math:`C` of size ``[n, m]`` and two vectors :math:`a,b`
@@ -244,6 +254,12 @@ Glossary
         problem between any source distribution :math:`\mu` and the target
         distribution :math:`\nu = T\#\mu`.
 
+    Gromov-Wasserstein problem
+        A generalization of the :term:`Kantorovich problem` in which the
+        objective function is no longer a linear function of a coupling matrix
+        :math:`P`, but more generally a quadratic function of :math:`P`.
+        See :cite:`memoli:11`.
+
     ground cost
         A real-valued function of two variables, :math:`c(x,y)` that describes
         the cost needed to displace a point :math:`x` in a source measure to
@@ -269,6 +285,7 @@ Glossary
         A neural network architecture for vectors with a few distinguishing
         features: some parameters of this NN must be non-negative, the NN's
         output is real-valued and guaranteed to be convex in the input vector.
+        Abbreviated as ICNN, see :cite:`amos:17` for exact definition.
 
     Kantorovich problem
         Linear program that is the original formulation of optimal transport
@@ -495,3 +512,15 @@ Glossary
         ) if the  :term:`ground cost` is itself a distance to a power
         :math:`p\leq 1`, and the :math:`p` root of the objective of the
         :term:`Kantorovich problem` is used.
+
+    Wasserstein barycenter
+        The notion of a mean of vectors generalized to the Wasserstein space
+        of probability distributions. A Wasserstein barycenter is a measure :math:`\mu`
+        that summarizes a weighted family of measures :math:`(\nu_1,\dots,\nu_n)` in the sense
+        that for a family of :math:`n` probability weights :math:`\lambda_1,\dots,\lambda_n`,
+
+        .. math::
+
+          \mu^\star:=\arg\min_{\mu\in\mathcal{P}(\Omega)} \sum_{i=1}^n \lambda_i W(\mu,\nu_i)
+
+        See for instance :cite:`agueh:11`, :cite:`cuturi:14` and :cite:`benamou:15`.

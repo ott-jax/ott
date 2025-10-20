@@ -123,6 +123,8 @@ class TestBarycenter:
   @pytest.mark.parametrize("segment_before", [False, True])
   def test_barycenter_jit(self, rng: jax.Array, segment_before: bool):
 
+    bar_size = 17
+
     @functools.partial(jax.jit, static_argnums=(2, 3))
     def barycenter(
         y: jnp.ndarray,
@@ -131,17 +133,19 @@ class TestBarycenter:
         num_per_segment: Tuple[int, ...],
     ) -> cb.FreeBarycenterState:
       if segment_before:
-        y, b = segment.segment_point_cloud(
+        y, b, num_per_segment = segment.segment_point_cloud(
             x=y, a=b, num_per_segment=num_per_segment
         )
-        bar_prob = barycenter_problem.FreeBarycenterProblem(y, b, epsilon=1e-1)
+        bar_prob = barycenter_problem.FreeBarycenterProblem(
+            y, b, epsilon=1e-1, num_per_segment=num_per_segment
+        )
       else:
         bar_prob = barycenter_problem.FreeBarycenterProblem(
             y, b, epsilon=1e-1, num_per_segment=num_per_segment
         )
       linear_solver = sinkhorn.Sinkhorn(threshold=threshold)
       solver = cb.FreeWassersteinBarycenter(linear_solver)
-      return solver(bar_prob)
+      return solver(bar_prob, bar_size=bar_size)
 
     rngs = jax.random.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
@@ -173,6 +177,13 @@ class TestBarycenter:
     # or [2,3]^4)
     assert jnp.all(out.x.ravel() < 2.3)
     assert jnp.all(out.x.ravel() > 0.7)
+
+    # Check the output objects return the correct shapes
+    assert out.x.shape == (bar_size, self.DIM)
+
+    if not segment_before:
+      for i, numps in enumerate(num_per_segment):
+        assert out.matrix_at_index(i).shape == (bar_size, numps)
 
   @pytest.mark.fast()
   def test_bures_barycenter(
@@ -216,7 +227,7 @@ class TestBarycenter:
 
     x_init = means_and_covs_to_x(x_init_means, x_init_covs, dimension)
 
-    seg_y, seg_b = segment.segment_point_cloud(
+    seg_y, seg_b, _ = segment.segment_point_cloud(
         x=y,
         a=b,
         num_segments=num_measures,

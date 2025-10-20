@@ -8,21 +8,28 @@ Introduction
 ``OTT`` is a `JAX <https://jax.readthedocs.io/en/latest/>`_ package that bundles
 a few utilities to compute, and differentiate as needed, the solution to optimal
 transport (OT) problems, taken in a fairly wide sense. For instance, ``OTT`` can
-of course compute Wasserstein (or Gromov-Wasserstein) distances between weighted
-clouds of points (or histograms) in a wide variety of scenarios, but also
-estimate Monge maps, Wasserstein barycenters, and help with simpler tasks such
-as differentiable approximations to ranking or even clustering.
+compute the :term:`Wasserstein distance`
+(or :term:`Gromov-Wasserstein distance`) between weighted point clouds
+(or histograms) in a wide variety of scenarios,
+but also estimate a :term:`Monge map`, :term:`Wasserstein barycenter`, or even
+help with simpler tasks such as differentiable approximations to ranking or
+clustering.
 
 To achieve this, ``OTT`` rests on two families of tools:
 
 - the first family consists in *discrete* solvers computing transport between
-  point clouds, using the Sinkhorn :cite:`cuturi:13` and low-rank Sinkhorn
-  :cite:`scetbon:21` algorithms, and moving up towards Gromov-Wasserstein
+  point clouds, using the :term:`Sinkhorn algorithm`` :cite:`cuturi:13` as
+  well as low-rank solvers :cite:`scetbon:21` algorithms, impacting more
+  advanced solvers addressinv the :term:`Gromov-Wasserstein problem`
   :cite:`memoli:11,peyre:16`;
-- the second family consists in *continuous* solvers, using suitable neural
-  architectures such as an MLP or input-convex neural network
-  :cite:`amos:17` coupled with SGD-like estimators
-  :cite:`makkuva:20,korotin:21,amos:23`.
+- the second family consists in *continuous* solvers, whose goal is to output,
+  given two point cloud samples, a *function* that is an approximate
+  :term:`Monge map`, a :term:`transport map` that can map efficiently the first
+  measure to the second. Such functions can be recovered using directly tools
+  above, notably the family of :term:`entropic map` approximations. Such maps
+  can also be parameterized as neural architectures such as an MLP or as
+  gradients of :term:`input-convex neural network` :cite:`amos:17`, trained with
+  advanced SGD approaches :cite:`makkuva:20,korotin:21,amos:23`.
 
 Installation
 ------------
@@ -53,12 +60,12 @@ Design Choices
   `automatic`_ but most importantly `implicit`_ differentiation.
 - Split geometry from OT solvers in the discrete case: We argue that there
   should be one, and one implementation only, of every major OT algorithm
-  (Sinkhorn, Gromov-Wasserstein, barycenters, etc...), regardless of the
-  geometric setup that is considered. To give a concrete example, any
+  (Sinkhorn, Gromov-Wasserstein, barycenters, etc...), that is agnostic to the
+  geometric setup. To give a concrete example, any
   speedups one may benefit from by using a specific cost (e.g. Sinkhorn being
   faster when run on a separable cost on histograms supported on a separable
   grid :cite:`solomon:15`) should not require a separate reimplementation
-  of a Sinkhorn routine.
+  of the :term:`Sinkhorn algorithm`.
 - As a consequence, and to minimize code copy/pasting, use as often as possible
   object hierarchies, and interleave outer solvers (such as quadratic,
   aka Gromov-Wasserstein solvers) with inner solvers (e.g., low-rank Sinkhorn).
@@ -73,15 +80,18 @@ Packages
 
 - :mod:`ott.geometry` contains classes that instantiate the ground *cost matrix*
   used to specify OT problems. Here cost matrix can be understood in
-  a literal (by actually passing a matrix) or abstract sense (by passing
+  a literal (by instantiating a matrix) or abstract sense (by passing
   information that is sufficient to recreate that matrix, apply all or parts
-  of it, or apply its kernel). A typical example in the latter case arises
-  when comparing *two point clouds*, paired with a *cost function*. Geometry
-  objects are used to describe OT *problems*, solved next by *solvers*.
-- :mod:`ott.problems` are used to describe linear, quadratic or barycenter OT
+  of it, or apply its kernel). An important case is handled by the
+  :mod:`ott.geometry.pointcloud` module which specifies *two point clouds*,
+  paired with a *cost function* (to be chosen within :mod:`ott.geometry.costs`).
+  Geometry objects are used to describe OT *problems*, solved next by *solvers*.
+- :mod:`ott.problems` are used to describe the interactions between multiple
+  measures, to define linear (a.k.a. :term:`Kantorovich problem`), quadratic
+  (a.k.a. :term:`Gromov-Wasserstein problem`) or :term:`Wasserstein barycenter``
   problems.
 - :mod:`ott.solvers` solve a problem instantiated with :mod:`ott.problems` using
-  one of the implemented techniques.
+  one among many implemented approaches.
 - :mod:`ott.initializers` implement simple strategies to initialize solvers.
   When the problems are solved with a convex solver, such as a
   :class:`~ott.problems.linear.linear_problem.LinearProblem` solved with a
