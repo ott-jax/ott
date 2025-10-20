@@ -20,13 +20,13 @@ import jax.random as jr
 
 from ott.solvers.linear import semidiscrete
 
-__all__ = ["SemidiscreteLoader"]
+__all__ = ["SemidiscreteDataloader"]
 
 Element = Dict[Literal["src", "tgt"], jax.Array]
 
 
 @dataclasses.dataclass(frozen=False, repr=False)
-class SemidiscreteLoader:
+class SemidiscreteDataloader:
   """TODO."""
   out: semidiscrete.SemidiscreteOutput
   batch_size: int
@@ -42,7 +42,7 @@ class SemidiscreteLoader:
         static_argnames=["batch_size", "max_sampling_size", "top_k"],
     )
 
-  def __iter__(self) -> "SemidiscreteLoader":
+  def __iter__(self) -> "SemidiscreteDataloader":
     return self
 
   def __next__(self) -> Element:
