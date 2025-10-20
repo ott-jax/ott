@@ -3,10 +3,11 @@ import jax.tree_util as jtu
 
 from flax import nnx
 
-__all__ = ["EMA"]
+__all__ = ["EMA", "init_ema", "update_ema"]
 
 
 class EMA(nnx.Module):
+  """TODO."""
 
   def __init__(self, net: nnx.Module, *, decay: float):
     super().__init__()
@@ -14,10 +15,12 @@ class EMA(nnx.Module):
     self.decay = decay
 
   def update(self, net: nnx.Module) -> None:
+    """TODO."""
     update_ema(net, self.ema, decay=self.decay)
 
 
 def init_ema(net: nnx.Module) -> nnx.Module:
+  """TODO."""
   graphdef, state, rest = nnx.split(net, nnx.Param, ...)
   ema_state = jtu.tree_map(jnp.zeros_like, state)
   rest = jtu.tree_map(lambda r: r.copy(), rest)
@@ -25,6 +28,7 @@ def init_ema(net: nnx.Module) -> nnx.Module:
 
 
 def update_ema(net: nnx.Module, ema: nnx.Module, *, decay: float) -> None:
+  """TODO."""
 
   def update_fn(p_net: nnx.Param, p_ema: nnx.Param) -> nnx.Param:
     return p_ema * decay + p_net * (1.0 - decay)
