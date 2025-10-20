@@ -139,8 +139,8 @@ def curvature(
       x0,
       cond,
       reverse=False,
-      save_trajectory_kwargs={"t1": True},
-      save_velocity_kwargs={"ts": ts},
+      save_trajectory_kwargs={"t1": True},  # save only `x1`
+      save_velocity_kwargs={"ts": ts},  # save `v_t` at specified times
       **kwargs,
   )
   x1 = sol.ys["x_t"][-1]
