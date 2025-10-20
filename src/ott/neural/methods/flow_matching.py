@@ -23,7 +23,12 @@ import diffrax
 import optax
 from flax import nnx
 
-__all__ = ["flow_matching_step", "evaluate_velocity_field", "gaussian_nll"]
+__all__ = [
+    "flow_matching_step",
+    "evaluate_velocity_field",
+    "curvature",
+    "gaussian_nll",
+]
 
 DivState = Tuple[jax.Array, jax.Array]  # velocity, divergence
 
@@ -113,6 +118,42 @@ def evaluate_velocity_field(
   )
 
 
+def curvature(
+    model: nnx.Module,
+    x0: jax.Array,
+    cond: Optional[jax.Array] = None,
+    *,
+    ts: Union[int, jax.Array],
+    **kwargs: Any,
+) -> jax.Array:
+  """TODO."""
+  if isinstance(ts, int):
+    assert ts > 0, f"Number of steps must be positive, got {ts}."
+    t0, t1 = kwargs.get("t0", 0.0), kwargs.get("t1", 1.0)
+    # request extra point if `t1=1.0`, since we drop it
+    ts = np.linspace(t0, t1, ts + (t1 == 1.0))
+  drop_last_velocity = ts[-1] == 1.0
+
+  sol = evaluate_velocity_field(
+      model,
+      x0,
+      cond,
+      reverse=False,
+      save_trajectory_kwargs={"t1": True},
+      save_velocity_kwargs={"ts": ts},
+      **kwargs,
+  )
+  x1 = sol.ys["x_t"][-1]
+  v_t = sol.ys["v_t"][:-1] if drop_last_velocity else sol.ys["v_t"]
+
+  steps = len(ts) - drop_last_velocity
+  assert x0.shape == x1.shape, (x0.shape, x1.shape)
+  assert v_t.shape == (steps, *x0.shape), (v_t.shape, (steps, *x0.shape))
+
+  ref_velocity = (x1 - x0)[None]  # [1, ...]
+  return ((v_t - ref_velocity) ** 2).mean()
+
+
 def gaussian_nll(
     model: nnx.Module,
     x1: jax.Array,
@@ -129,17 +170,16 @@ def gaussian_nll(
     velocity_fn = functools.partial(_hutchinson_divergence, h=noise)
   else:
     velocity_fn = _exact_divergence
-  velocity_fn = jtu.Partial(velocity_fn, model=model)
 
   sol = evaluate_velocity_field(
       model,
       (x1, jnp.zeros([])),  # initial point, divergence
       cond,
       reverse=True,
-      _velocity_fn=velocity_fn,
       saveat=diffrax.SaveAt(t1=True),
       save_trajectory_kwargs=None,
       save_velocity_kwargs=None,
+      _velocity_fn=jtu.Partial(velocity_fn, model=model),
       **kwargs,
   )
 
