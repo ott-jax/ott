@@ -73,8 +73,8 @@ def segment_point_cloud(
   Returns:
     Segmented ``x`` as an array of shape
     ``[num_measures, max_measure_size, ndim]`` and ``a`` as an array of shape
-    ``[num_measures, max_measure_size]``, as well as Tuple ``num_per_segment``
-    either as originally passed, or as recovered from ``segment_ids`.
+    ``[num_measures, max_measure_size]``, as well as a tuple ``num_per_segment``
+    either as originally passed, or as recovered from ``segment_ids``.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None

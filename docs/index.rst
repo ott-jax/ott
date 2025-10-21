@@ -18,10 +18,10 @@ clustering.
 To achieve this, ``OTT`` rests on two families of tools:
 
 - the first family consists in *discrete* solvers computing transport between
-  point clouds, using the :term:`Sinkhorn algorithm` :cite:`cuturi:13` as
-  well as low-rank solvers :cite:`scetbon:21` algorithms, impacting more
-  advanced solvers addressing the :term:`Gromov-Wasserstein problem`
-  :cite:`memoli:11,peyre:16`;
+  two families of points or histograms using e.g. the :term:`Sinkhorn algorithm`
+  :cite:`cuturi:13` or low-rank solvers :cite:`scetbon:21`, with further
+  extensions to more advanced scenarios such as the
+  :term:`Gromov-Wasserstein problem` :cite:`memoli:11,peyre:16`;
 - the second family consists in *continuous* solvers, whose goal is to output,
   given two point cloud samples, a *function* that is an approximate
   :term:`Monge map`, a :term:`transport map` that can map efficiently the first
@@ -57,14 +57,16 @@ Design Choices
 
 - Take advantage whenever possible of JAX features, such as
   `just-in-time (JIT) compilation`_, `auto-vectorization (VMAP)`_ and both
-  `automatic`_ but most importantly `implicit`_ differentiation.
-- Split geometry from OT solvers in the discrete case: We argue that there
-  should be one, and one implementation only, of every major OT algorithm
-  (Sinkhorn, Gromov-Wasserstein, barycenters, etc...), that is agnostic to the
-  geometric setup. To give a concrete example, any
+  `automatic`_ and `implicit`_ differentiation.
+- Split geometry from OT solvers in the discrete case: you will find one, and
+  one implementation only, of every major OT algorithm
+  (Sinkhorn, Gromov-Wasserstein, barycenters, etc...), that are all agnostic to
   speedups one may benefit from by using a specific cost (e.g. Sinkhorn being
-  faster when run on a separable cost on histograms supported on a separable
-  grid :cite:`solomon:15`) should not require a separate reimplementation
+  the geometric (i.e. the cost function) setup. To give a concrete example, if
+  the inner operations in the :term:`Sinkhorn algorithm` can be run more
+  efficiently (because e.g. the cost function is low-rank, or the cost is a
+  separable function for points supported on on a separable grid
+  :cite:`solomon:15`), this should not trigger a separate reimplementation
   of the :term:`Sinkhorn algorithm`.
 - As a consequence, and to minimize code copy/pasting, use as often as possible
   object hierarchies, and interleave outer solvers (such as quadratic,
@@ -79,10 +81,10 @@ Packages
 .. module:: ott
 
 - :mod:`ott.geometry` contains classes that instantiate the ground *cost matrix*
-  used to specify OT problems. Here cost matrix can be understood in
-  a literal (by instantiating a matrix) or abstract sense (by passing
-  information that is sufficient to recreate that matrix, apply all or parts
-  of it, or apply its kernel). An important case is handled by the
+  used to specify a :term:`Kanrotovich problem`. Here cost matrix can be
+  both understood in a literal (by instantiating a matrix) or abstract (by
+  storing information that is sufficient to recreate that matrix, apply all or
+  parts of it, or apply its kernel) sense. An important case is handled by the
   :mod:`ott.geometry.pointcloud` module which specifies *two point clouds*,
   paired with a *cost function* (to be chosen within :mod:`ott.geometry.costs`).
   Geometry objects are used to describe OT *problems*, solved next by *solvers*.
@@ -92,8 +94,8 @@ Packages
   problems.
 - :mod:`ott.solvers` solve a problem instantiated with :mod:`ott.problems` using
   one among many implemented approaches.
-- :mod:`ott.initializers` implement simple strategies to initialize solvers.
-  When the problems are solved with a convex solver, such as a
+- :mod:`ott.initializers` implement simple strategies to initialize the solvers
+  above. When the problems are solved with a convex solver, such as a
   :class:`~ott.problems.linear.linear_problem.LinearProblem` solved with a
   :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver, the resolution of OT
   solvers, then this initialization is mostly useful to speed up convergences.
