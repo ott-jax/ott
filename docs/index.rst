@@ -81,7 +81,7 @@ Packages
 .. module:: ott
 
 - :mod:`ott.geometry` contains classes that instantiate the ground *cost matrix*
-  used to specify a :term:`Kanrotovich problem`. Here cost matrix can be
+  used to specify a :term:`Kantorovich problem`. Here cost matrix can be
   both understood in a literal (by instantiating a matrix) or abstract (by
   storing information that is sufficient to recreate that matrix, apply all or
   parts of it, or apply its kernel) sense. An important case is handled by the
