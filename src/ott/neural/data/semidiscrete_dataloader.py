@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Dict, Literal, Optional
+from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -22,37 +22,71 @@ from ott.solvers.linear import semidiscrete
 
 __all__ = ["SemidiscreteDataloader"]
 
-Element = Dict[Literal["src", "tgt"], jax.Array]
-
 
 @dataclasses.dataclass(frozen=False, repr=False)
 class SemidiscreteDataloader:
-  """TODO."""
+  """Semidiscrete dataloader.
+
+  The dataloader samples from the continuous source distribution and
+  couples it with the discrete target distribution. It returns aligned tuples of
+  ``(source, target)`` arrays of shape ``[batch_size, ...]``.
+
+  Args:
+    out: Semidiscrete output.
+    batch_size: Batch size.
+    rng: Random number seed.
+    subset_threshold: Threshold above which to sample from a subset of the
+      coupling matrix. Only applicable when the problem is :meth:`entropically
+      regularized <ott.geometry.semidiscrete_pointcloud.SemidiscretePointCloud.is_entropy_regularized>`.
+      If :obj:`None`, don't subset the coupling matrix.
+    subset_size: Size of the subset of the coupling matrix. This will
+      subset a coupling of shape ``[batch, m]`` to ``[batch, subset_size]``
+      keeping the :func:`top-k <jax.lax.top_k>` values if ``m > subset_threshold``.
+    out_sharding: Output sharding.
+  """  # noqa: E501
   out: semidiscrete.SemidiscreteOutput
   batch_size: int
   rng: jax.Array
-  max_sampling_size: int = 65536
-  top_k: int = 1024
+  subset_threshold: Optional[int] = None
+  subset_size: int = 1024
   out_sharding: Optional[jax.sharding.Sharding] = None
 
   def __post_init__(self) -> None:
+    _, m = self.out.geom.shape
+    assert self.batch_size > 0, \
+      f"Batch size must be positive, got {self.batch_size}."
+    assert (self.subset_threshold is None or (0 < self.subset_threshold < m)), \
+      f"Subset threshold trigger must be in (0, {m}), " \
+      f"found {self.subset_threshold}."
+    assert self.subset_size > 0, \
+      f"Subset size must be positive, got {self.subset_size}."
+
+    self._rng_it: Optional[jax.Array] = None
     self._sample_fn = jax.jit(
         _sample,
         out_shardings=self.out_sharding,
-        static_argnames=["batch_size", "max_sampling_size", "top_k"],
+        static_argnames=["batch_size", "subset_threshold", "subset_size"],
     )
 
   def __iter__(self) -> "SemidiscreteDataloader":
+    """Return self."""
+    self._rng_it = self.rng
     return self
 
-  def __next__(self) -> Element:
-    self.rng, rng_sample = jr.split(self.rng, 2)
+  def __next__(self) -> Tuple[jax.Array, jax.Array]:
+    """Sample from the source distribution and match it with the data.
+
+    Returns:
+      A tuple of samples and data, arrays of shape ``[batch_size, ...]``.
+    """
+    assert self._rng_it is not None, "Please call `iter()` first."
+    self._rng_it, rng_sample = jr.split(self._rng_it, 2)
     return self._sample_fn(
         rng_sample,
         self.out,
         self.batch_size,
-        self.max_sampling_size,
-        self.top_k,
+        self.subset_threshold,
+        self.subset_size,
     )
 
 
@@ -60,9 +94,9 @@ def _sample(
     rng: jax.Array,
     out: semidiscrete.SemidiscreteOutput,
     batch_size: int,
-    max_sampling_size: int,
-    top_k: int,
-) -> Element:
+    subset_threshold: Optional[int],
+    subset_size: int,
+) -> Tuple[jax.Array, jax.Array]:
   rng_sample, rng_tmat = jr.split(rng, 2)
   out_sampled = out.sample(rng_sample, batch_size)
 
@@ -72,36 +106,36 @@ def _sample(
     tgt_idx = _sample_from_coupling(
         rng_tmat,
         coupling=out_sampled.matrix,
-        max_sampling_size=max_sampling_size,
-        top_k=top_k,
-        axis=1
+        subset_threshold=subset_threshold,
+        subset_size=subset_size,
+        axis=1,
     )
 
   src = out_sampled.geom.x
   tgt = out_sampled.geom.y[tgt_idx]
-  return {"src": src, "tgt": tgt}
+  return src, tgt
 
 
 def _sample_from_coupling(
     rng: jax.Array,
     *,
     coupling: jax.Array,
-    max_sampling_size: int,
-    top_k: int,
+    subset_threshold: Optional[int],
+    subset_size: int,
     axis: int,
 ) -> jax.Array:
   assert axis in (0, 1), axis
   n, m = coupling.shape
   sampling_size = m if axis == 1 else n
 
-  if sampling_size <= max_sampling_size:
+  if sampling_size <= subset_threshold:
     return jr.categorical(rng, jnp.log(coupling), axis=axis)
 
   oaxis = 1 - axis
   top_k_fn = jax.vmap(jax.lax.top_k, in_axes=[oaxis, None], out_axes=oaxis)
-  coupling, idx = top_k_fn(coupling, top_k)
+  coupling, idx = top_k_fn(coupling, subset_size)
 
-  expected_shape = (top_k, m) if axis == 0 else (n, top_k)
+  expected_shape = (subset_size, m) if axis == 0 else (n, subset_size)
   assert coupling.shape == expected_shape, (coupling.shape, expected_shape)
 
   sampled_idx = jr.categorical(rng, jnp.log(coupling), axis=axis)
