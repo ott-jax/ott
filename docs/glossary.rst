@@ -260,7 +260,6 @@ Glossary
         different cost functions, obtained by solving the
         :term:`Gromov-Wasserstein problem`.
 
-
     Gromov-Wasserstein problem
         A generalization of the :term:`Kantorovich problem` in which the
         objective function is no longer a linear function of a coupling matrix

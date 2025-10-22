@@ -89,7 +89,7 @@ class TestBarycenter:
     if rank > 0:
       linear_solver = sinkhorn_lr.LRSinkhorn(rank=rank, threshold=threshold)
     else:
-      linear_solver = sinkhorn.Sinkhorn(threshold=threshold)
+      linear_solver = None
     solver = cb.FreeWassersteinBarycenter(linear_solver)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")

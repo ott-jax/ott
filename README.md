@@ -57,6 +57,7 @@ import jax.numpy as jnp
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers import linear
+from ott.tools import plot
 
 # sample two point clouds and their weights.
 rngs = jax.random.split(jax.random.key(42), 4)
@@ -72,7 +73,6 @@ geom = pointcloud.PointCloud(x, y)
 out = jax.jit(linear.solve)(geom,a,b)
 
 # plot
-from ott.tools import plot
 plot.Plot()(out)
 ```
 

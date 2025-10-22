@@ -43,10 +43,10 @@ class FreeBarycenterState(NamedTuple):
       at each iteration.
   """
 
-  x: Optional[jnp.ndarray] = None
-  a: Optional[jnp.ndarray] = None
+  x: jnp.ndarray = None
+  a: jnp.ndarray = None
   costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
+  linear_convergence: jnp.ndarray = None
   linear_outputs: Optional[Tuple[Any]] = None
   errors: Optional[jnp.ndarray] = None
 
@@ -137,32 +137,41 @@ class FreeBarycenterOutput(NamedTuple):
       at each iteration.
   """
 
-  x: Optional[jnp.ndarray] = None
-  a: Optional[jnp.ndarray] = None
-  bar_prob: Optional[barycenter_problem.FreeBarycenterProblem] = None
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
-  linear_outputs: Optional[Tuple[Any]] = None
+  x: jnp.ndarray = None
+  a: jnp.ndarray = None
+  bar_prob: barycenter_problem.FreeBarycenterProblem = None
+  costs: jnp.ndarray = None
+  linear_convergence: jnp.ndarray = None
+  linear_outputs: Tuple[Any] = None
   errors: Optional[jnp.ndarray] = None
 
   @property
-  def all_linear_solvers_converged(self):
+  def all_linear_solvers_converged(self) -> bool:
     """Whether all linear convergence flags converged."""
     return jnp.all(self.linear_convergence[self.linear_convergence != -1])
 
   def matrix_at_index(self, measure_index: int) -> jnp.ndarray:
     """Return the transport matrix from barycenter to measure_index measure."""
     size_measure = self.bar_prob.num_per_measure[measure_index]
-    return self.linear_output_at_index(measure_index).matrix[:, :size_measure]
+    matrix = self.linear_output_at_index(measure_index).matrix
+    return jax.lax.dynamic_slice(matrix, (0, 0), (self.bar_size, size_measure))
 
   @property
-  def costs_along_iterations(self):
+  def bar_size(self) -> int:
+    """Size of the barycenter."""
+    return self.x.shape[0]
+
+  @property
+  def num_iters(self) -> int:
+    """Number of outer iterations performed to converge."""
+    return jnp.sum(self.linear_convergence != -1)
+
+  @property
+  def costs_along_iterations(self) -> jnp.ndarray:
     """Costs vector with superfluous values removed."""
-    return self.costs[self.linear_convergence != -1]
+    return self.costs[:self.num_iters]
 
   def linear_output_at_index(self, i: int) -> Any:
-    assert i < self.bar_prob.num_measures, \
-      "Index out of range, {i} >= {self.bar_prob.num_measures}"
     return jax.tree.map(lambda x: x[i], self.linear_outputs)
 
 
@@ -177,9 +186,8 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       x_init: Optional[jnp.ndarray] = None,
       rng: Optional[jax.Array] = None,
   ) -> FreeBarycenterState:
-    # TODO(michalk8): no reason for iterations to be outside this class
     rng = utils.default_prng_key(rng)
-    return iterations(self, bar_size, bar_prob, x_init, rng)
+    return self.iterations(bar_size, bar_prob, x_init, rng)
 
   def init_state(
       self,
@@ -237,9 +245,6 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
         functools.partial(state.update, store_errors=self.store_inner_errors),
         0, bar_prob, self.linear_solver
     )
-
-    # self, iteration: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
-    #   linear_solver: Any, store_errors: bool
     tree = jax.tree.map(jnp.zeros_like, abstract_tree)
 
     return FreeBarycenterState(
@@ -267,42 +272,39 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
         errors=state.errors,
     )
 
-
-def iterations(
-    solver: FreeWassersteinBarycenter, bar_size: int,
-    bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
-    rng: jax.Array
-) -> FreeBarycenterState:
-  """Jittable Wasserstein barycenter outer loop."""
-
-  def cond_fn(
-      iteration: int,
-      constants: Tuple[FreeWassersteinBarycenter,
-                       barycenter_problem.FreeBarycenterProblem],
-      state: FreeBarycenterState
-  ) -> bool:
-    solver, _ = constants
-    return solver._continue(state, iteration)
-
-  def body_fn(
-      iteration, constants: Tuple[FreeWassersteinBarycenter,
-                                  barycenter_problem.FreeBarycenterProblem],
-      state: FreeBarycenterState, compute_error: bool
+  def iterations(
+      self, bar_size: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
+      x_init: jnp.ndarray, rng: jax.Array
   ) -> FreeBarycenterState:
-    del compute_error  # Always assumed True
-    solver, bar_prob = constants
-    return state.update(
-        iteration, bar_prob, solver.linear_solver, solver.store_inner_errors
+    """Jittable Wasserstein barycenter outer loop."""
+
+    def cond_fn(
+        iteration: int,
+        constants: Tuple[FreeWassersteinBarycenter,
+                         barycenter_problem.FreeBarycenterProblem],
+        state: FreeBarycenterState
+    ) -> bool:
+      return self._continue(state, iteration)
+
+    def body_fn(
+        iteration, constants: Tuple[FreeWassersteinBarycenter,
+                                    barycenter_problem.FreeBarycenterProblem],
+        state: FreeBarycenterState, compute_error: bool
+    ) -> FreeBarycenterState:
+      del compute_error  # Always assumed True
+      bar_prob = constants
+      return state.update(
+          iteration, bar_prob, self.linear_solver, self.store_inner_errors
+      )
+
+    state = fixed_point_loop.fixpoint_iter(
+        cond_fn=cond_fn,
+        body_fn=body_fn,
+        min_iterations=self.min_iterations,
+        max_iterations=self.max_iterations,
+        inner_iterations=1,
+        constants=bar_prob,
+        state=self.init_state(bar_prob, bar_size, x_init, rng)
     )
 
-  state = fixed_point_loop.fixpoint_iter(
-      cond_fn=cond_fn,
-      body_fn=body_fn,
-      min_iterations=solver.min_iterations,
-      max_iterations=solver.max_iterations,
-      inner_iterations=1,
-      constants=(solver, bar_prob),
-      state=solver.init_state(bar_prob, bar_size, x_init, rng)
-  )
-
-  return solver.output_from_state(state, bar_prob)
+    return self.output_from_state(state, bar_prob)
