@@ -39,10 +39,29 @@ def flow_matching_step(
     batch: Dict[Literal["t", "x_t", "v_t", "cond"], jax.Array],
     *,
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
-    ema_update_fn: Optional[Callable[[nnx.Module], None]] = None,
+    model_callback_fn: Optional[Callable[[nnx.Module], None]] = None,
     rngs: Optional[nnx.Rngs] = None,
 ) -> Dict[Literal["loss", "grad_norm"], jax.Array]:
-  """TODO."""
+  """Perform a flow matching step.
+
+  Args:
+    model: Velocity model with a signature ``(t, x_t, cond, rngs=...) -> v_t``.
+    optimizer: Optimizer.
+    batch: Batch containing the following elements:
+      - ``'t'`` - time, array of shape ``[batch_size,]``.
+      - ``'x_t'`` - position, array of shape ``[batch_size, ...]``.
+      - ``'v_t'`` - target velocity, array of shape ``[batch_size, ...]``.
+      - ``'cond'`` - condition (optional), array of shape ``[batch_size, ...]``.
+
+    loss_fn: Loss function with a signature ``(pred, target) -> loss``.
+    model_callback_fn: Function with a signature ``(model) -> None``, e.g., used
+      to update an exponential moving average of the model.
+    rngs: Random number generator used for, e.g., dropout, passed to the model.
+
+  Returns:
+    Updates the model (and optionally the EMA) parameters in-place and returns
+    the loss and gradient norm.
+  """
 
   def compute_loss(model: nnx.Module, rngs: nnx.Rngs) -> jax.Array:
     t, x_t, v_t = batch["t"], batch["x_t"], batch["v_t"]
@@ -52,10 +71,10 @@ def flow_matching_step(
 
   loss, grads = nnx.value_and_grad(compute_loss)(model, rngs)
   optimizer.update(model, grads)
-  if ema_update_fn is not None:
-    ema_update_fn(model)
-
   grad_norm = optax.global_norm(grads)
+
+  if model_callback_fn is not None:
+    model_callback_fn(model)
 
   return {"loss": loss, "grad_norm": grad_norm}
 
@@ -74,7 +93,29 @@ def evaluate_velocity_field(
     save_velocity_kwargs: Optional[Dict[str, Any]] = None,
     **kwargs: Any,
 ) -> diffrax.Solution:
-  """TODO."""
+  """Solve an ODE.
+
+  Args:
+    model: Velocity model with a signature ``(t, x_t, cond) -> v_t``.
+    x: Initial point.
+    cond: Condition.
+    t0: Start time of the integration.
+    t1: End time of the integration.
+    reverse: Whether to integrate from ``t1 -> t0``.
+    num_steps: Number of steps used for solvers with constant step sizes.
+    solver: ODE solver. If :obj:`None` and ``step_size = None``,
+      use :class:`~diffrax.Dopri5`. Otherwise use :class:`~diffrax.Euler`.
+    save_velocity_kwargs: Keyword arguments for :class:`~diffrax.SubSaveAt`
+      used to store the velocities along the integration path.
+      The velocity will be saved in :class:`out.ys['v_t'] <diffrax.Solution>`.
+    save_trajectory_kwargs: Keyword arguments for :class:`~diffrax.SubSaveAt`
+      used to store the positions along the integration path.
+      The trajectory will be saved in :class:`out.ys['x_t'] <diffrax.Solution>`.
+    kwargs: Keyword arguments for :func:`~diffrax.diffeqsolve`.
+
+  Returns:
+    The ODE solution.
+  """
   if isinstance(num_steps, int):
     step_size = 1.0 / num_steps
     stepsize_controller = diffrax.ConstantStepSize()
