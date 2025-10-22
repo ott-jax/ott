@@ -28,13 +28,6 @@ __all__ = ["UNet"]
 def timestep_embedding(
     timesteps: jax.Array, dim: int, max_period: int = 10000
 ) -> jax.Array:
-  """Create sinusoidal timestep embeddings.
-
-  :param timesteps: a 1-D Tensor of N indices, one per batch element.
-  :param dim: the dimension of the output.
-  :param max_period: controls the minimum frequency of the embeddings.
-  :return: an [N x dim] Tensor of positional embeddings.
-  """
   half = dim // 2
   freqs = jnp.exp(
       -math.log(max_period) *
@@ -71,7 +64,6 @@ def conv_nd(
     rngs: nnx.Rngs,
     **kwargs: Any,
 ) -> nnx.Conv:
-  """Create a 1D, 2D, or 3D convolution module."""
   if isinstance(kernel_size, int):
     kernel_size = (kernel_size,) * dims
   if isinstance(strides, int):
@@ -103,7 +95,6 @@ def normalization(
     param_dtype: jnp.dtype = jnp.float32,
     rngs: nnx.Rngs,
 ) -> nnx.GroupNorm:
-  """Make a standard normalization layer."""
   return GroupNorm32(
       num_groups=32,
       num_features=channels,
@@ -125,8 +116,7 @@ class TimestepBlock(nnx.Module):
       *,
       rngs: Optional[nnx.Rngs] = None,
   ) -> jax.Array:
-    """Apply the module to `x` given `emb` timestep embeddings."""
-    raise NotImplementedError
+    pass
 
 
 class TimestepEmbedSequential(nnx.Module):
@@ -151,7 +141,6 @@ class TimestepEmbedSequential(nnx.Module):
 
 
 class Upsample(nnx.Module):
-  """An upsampling layer with an optional convolution."""
 
   def __init__(
       self,
@@ -189,7 +178,6 @@ class Upsample(nnx.Module):
 
 
 class Downsample(nnx.Module):
-  """A downsampling layer with an optional convolution."""
 
   def __init__(
       self,
@@ -229,7 +217,6 @@ class Downsample(nnx.Module):
 
 
 class ResBlock(TimestepBlock):
-  """A residual block that can optionally change the number of channels."""
 
   def __init__(
       self,
@@ -359,7 +346,6 @@ class ResBlock(TimestepBlock):
       *,
       rngs: Optional[nnx.Rngs] = None,
   ) -> jax.Array:
-    """Apply the block to a Tensor, conditioned on a timestep embedding."""
     if self.updown:
       h = self.in_norm(x)
       h = self.in_act(h)
@@ -373,6 +359,7 @@ class ResBlock(TimestepBlock):
 
     emb_out = self.emb_act(emb).astype(h.dtype)
     emb_out = self.emb_layers(emb_out)
+    # TODO(michalk8): improve
     # emb_out = jnp.broadcast_to(emb_out, h.shape)
     while len(emb_out.shape) < len(h.shape):
       emb_out = jnp.expand_dims(emb_out, axis=1)
@@ -386,7 +373,6 @@ class ResBlock(TimestepBlock):
 
 
 class QKVAttention(nnx.Module):
-  """A module which performs QKV attention and splits in a different order."""
 
   def __init__(
       self,
@@ -421,14 +407,12 @@ class QKVAttention(nnx.Module):
 
 
 class AttentionBlock(nnx.Module):
-  """Attention block that allows spatial positions to attend to each other."""
 
   def __init__(
       self,
       channels: int,
       *,
       num_heads: int = 1,
-      num_head_channels: int = -1,
       attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
       dtype: Optional[jnp.dtype] = None,
       param_dtype: jnp.dtype = jnp.float32,
@@ -436,12 +420,7 @@ class AttentionBlock(nnx.Module):
   ):
     super().__init__()
     self.channels = channels
-    if num_head_channels == -1:
-      self.num_heads = num_heads
-    else:
-      assert channels % num_head_channels == 0
-      self.num_heads = channels // num_head_channels
-
+    self.num_heads = num_heads
     self.norm = normalization(
         channels, dtype=dtype, param_dtype=param_dtype, rngs=rngs
     )
@@ -482,7 +461,32 @@ class AttentionBlock(nnx.Module):
 
 
 class UNet(nnx.Module):
-  """The full UNet model with attention and timestep embedding."""
+  """UNet model with attention and timestep embedding.
+
+  Args:
+    shape: Input shape ``[height, width, channels]``.
+    model_channels: Number of model channels.
+    num_res_blocks: Number of residual blocks.
+    attention_resolutions: Resolutions at which to add self-attention.
+    out_channels: Number of output channels. If :obj:`None`, use input channels.
+    dropout: Dropout rate.
+    channel_mult: Multiplier for ``model_channels`` defining the channels
+      at each resolution.
+    time_embed_dim: Dimensionality of the time embedding.
+      If :obj:`None`, use ``4 * model_channels``.
+      If :class:`float`, use ``int(time_embed_dim * model_channels)``.
+    conv_resample: If :obj:`False`, don't use convolution for upsampling and use
+      average pooling for downsampling instead of convolving.
+    num_heads: Number of attention heads for the input and middle blocks.
+    num_heads_upsample: Number of attention heads for the output blocks.
+      If :obj:`None`, use ``num_heads``.
+    resblock_updown: Whether to use residual blocks for up/downsampling.
+    num_classes: Number of classes.
+    dtype: Data type for computation.
+    param_dtype: Data type for parameters.
+    attn_implementation: Attention backend. If :obj:`None`, use the default.
+    rngs: Random number generator for initialization.
+  """
 
   def __init__(
       self,
@@ -494,16 +498,15 @@ class UNet(nnx.Module):
       out_channels: Optional[int] = None,
       dropout: float = 0.0,
       channel_mult: Tuple[int, ...] = (1, 2, 4, 8),
-      time_embed_dim: Optional[int] = None,
+      time_embed_dim: Optional[Union[int, float]] = None,
       conv_resample: bool = True,
       num_heads: int = 1,
-      num_head_channels: int = -1,
-      num_heads_upsample: int = -1,
+      num_heads_upsample: Optional[int] = None,
       resblock_updown: bool = False,
-      attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
       num_classes: Optional[int] = None,
       dtype: Optional[jnp.dtype] = None,
       param_dtype: jnp.dtype = jnp.float32,
+      attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -513,9 +516,6 @@ class UNet(nnx.Module):
     attention_resolutions = tuple(
         image_size // res for res in attention_resolutions
     )
-
-    if num_heads_upsample == -1:
-      num_heads_upsample = num_heads
 
     self.dtype = dtype
     # self.image_size = image_size
@@ -527,8 +527,7 @@ class UNet(nnx.Module):
     self.channel_mult = channel_mult
     self.conv_resample = conv_resample
     self.num_heads = num_heads
-    self.num_head_channels = num_head_channels
-    self.num_heads_upsample = num_heads_upsample
+    self.num_heads_upsample = num_heads_upsample or num_heads
 
     # Time embedding
     if time_embed_dim is None:
@@ -606,7 +605,6 @@ class UNet(nnx.Module):
               AttentionBlock(
                   ch,
                   num_heads=num_heads,
-                  num_head_channels=num_head_channels,
                   attn_implementation=attn_implementation,
                   dtype=dtype,
                   param_dtype=param_dtype,
@@ -657,7 +655,6 @@ class UNet(nnx.Module):
         AttentionBlock(
             ch,
             num_heads=num_heads,
-            num_head_channels=num_head_channels,
             attn_implementation=attn_implementation,
             dtype=dtype,
             param_dtype=param_dtype,
@@ -696,7 +693,6 @@ class UNet(nnx.Module):
               AttentionBlock(
                   ch,
                   num_heads=num_heads_upsample,
-                  num_head_channels=num_head_channels,
                   attn_implementation=attn_implementation,
                   dtype=dtype,
                   param_dtype=param_dtype,
@@ -753,8 +749,19 @@ class UNet(nnx.Module):
       *,
       rngs: Optional[nnx.Rngs] = None,
   ) -> jax.Array:
-    """TODO."""
+    """Compute the velocity.
+
+    Args:
+      t: Time array of shape ``[batch,]``.
+      x: Image of shape ``[batch, height, width, channels]``.
+      cond: Class condition array of shape ``[batch,]``.
+      rngs: Random number generator for dropout.
+
+    Returns:
+      The velocity array of shape ``[batch, height, width, channels]``.
+    """
     emb = self.time_embed(timestep_embedding(t, self.model_channels), rngs=rngs)
+    # TODO(michalk8): generalize for different types of conditions
     if self.label_emb is not None:
       assert cond is not None, "Please provide a condition."
       emb = emb + self.label_emb(cond)

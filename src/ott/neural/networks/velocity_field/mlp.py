@@ -75,7 +75,7 @@ class MLP(nnx.Module):
     """Compute the velocity.
 
     Args:
-      t: Time array of shape ``[batch, ...]``.
+      t: Time array of shape ``[batch,]``.
       x: Input array of shape ``[batch, dim]``.
       cond: Condition array of shape ``[batch, cond_dim]``.
       rngs: Random number generator for dropout.
