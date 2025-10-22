@@ -45,22 +45,20 @@ def flow_matching_step(
   """Perform a flow matching step.
 
   Args:
-    model: Velocity model with a signature ``(t, x_t, cond, rngs=...) -> v_t``.
+    model: Velocity field with a signature ``(t, x_t, cond, rngs=...) -> v_t``.
     optimizer: Optimizer.
     batch: Batch containing the following elements:
       - ``'t'`` - time, array of shape ``[batch_size,]``.
       - ``'x_t'`` - position, array of shape ``[batch_size, ...]``.
       - ``'v_t'`` - target velocity, array of shape ``[batch_size, ...]``.
       - ``'cond'`` - condition (optional), array of shape ``[batch_size, ...]``.
-
     loss_fn: Loss function with a signature ``(pred, target) -> loss``.
     model_callback_fn: Function with a signature ``(model) -> None``, e.g., used
-      to update an exponential moving average of the model.
+      to update an :meth:`~ott.neural.networks.velocity_field.EMA` of the model.
     rngs: Random number generator used for, e.g., dropout, passed to the model.
 
   Returns:
-    Updates the model (and optionally the EMA) parameters in-place and returns
-    the loss and gradient norm.
+    Updates the parameters in-place and returns the loss and the gradient norm.
   """
 
   def compute_loss(model: nnx.Module, rngs: nnx.Rngs) -> jax.Array:
@@ -96,13 +94,13 @@ def evaluate_velocity_field(
   """Solve an ODE.
 
   Args:
-    model: Velocity model with a signature ``(t, x_t, cond) -> v_t``.
-    x: Initial point.
-    cond: Condition.
+    model: Velocity field with a signature ``(t, x_t, cond) -> v_t``.
+    x: Initial point of shape ``[*dims]``.
+    cond: Condition of shape ``[*cond_dims]``.
     t0: Start time of the integration.
     t1: End time of the integration.
-    reverse: Whether to integrate from ``t1 -> t0``.
-    num_steps: Number of steps used for solvers with constant step sizes.
+    reverse: Whether to integrate from ``t1`` to ``t0``.
+    num_steps: Number of steps used for solvers with a constant step size.
     solver: ODE solver. If :obj:`None` and ``step_size = None``,
       use :class:`~diffrax.Dopri5`. Otherwise use :class:`~diffrax.Euler`.
     save_velocity_kwargs: Keyword arguments for :class:`~diffrax.SubSaveAt`
@@ -165,9 +163,23 @@ def curvature(
     cond: Optional[jax.Array] = None,
     *,
     ts: Union[int, jax.Array],
+    loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
     **kwargs: Any,
 ) -> jax.Array:
-  """TODO."""
+  """Compute the curvature.
+
+  Args:
+    model: Velocity field with a signature ``(t, x_t, cond) -> v_t``.
+    x0: Initial point of shape ``[*dims]``.
+    cond: Condition of shape ``[*cond_dims]``.
+    ts: Time points where to store the velocities. If :class:`int`, use
+      linearly-spaced steps from ``t0`` to ``t1``.
+    loss_fn: Loss function with a signature ``(pred, target) -> loss``.
+    kwargs: Keyword arguments for :func:`evaluate_velocity_field`.
+
+  Returns:
+    The curvature.
+  """
   if isinstance(ts, int):
     assert ts > 0, f"Number of steps must be positive, got {ts}."
     t0, t1 = kwargs.get("t0", 0.0), kwargs.get("t1", 1.0)
@@ -180,7 +192,7 @@ def curvature(
       x0,
       cond,
       reverse=False,
-      save_trajectory_kwargs={"t1": True},  # save only `x1`
+      save_trajectory_kwargs={"t1": True},  # save only at `t1`
       save_velocity_kwargs={"ts": ts},  # save `v_t` at specified times
       **kwargs,
   )
@@ -191,8 +203,9 @@ def curvature(
   assert x0.shape == x1.shape, (x0.shape, x1.shape)
   assert v_t.shape == (steps, *x0.shape), (v_t.shape, (steps, *x0.shape))
 
-  ref_velocity = (x1 - x0)[None]  # [1, ...]
-  return ((v_t - ref_velocity) ** 2).mean()
+  ref_velocity = (x1 - x0)
+
+  return jax.vmap(loss_fn, in_axes=[0, None])(v_t, ref_velocity).mean()
 
 
 def gaussian_nll(
@@ -204,7 +217,21 @@ def gaussian_nll(
     stddev: float = 1.0,
     **kwargs: Any,
 ) -> Tuple[jax.Array, diffrax.Solution]:
-  """TODO."""
+  """Compute the Gaussian negative log-likelihood.
+
+  Args:
+    model: Velocity model with a signature ``(t, x_t, cond) -> v_t``.
+    x1: Initial point of shape ``[*dims]``.
+    cond: Condition ``[*cond_dims]``.
+    noise: Array of shape ``[num_noise_samples, ...]`` used for the Hutchinson's
+      trace estimate of the divergence of the velocity field. If :obj:`None`,
+      compute the exact divergence using :func:`jax.jacrev`.
+    stddev: Standard deviation of the Gaussian distribution.
+    kwargs: Keyword arguments for :func:`evaluate_velocity_field`.
+
+  Returns:
+    The Gaussian negative log-likelihood (in bits-per-dimension).
+  """
   if noise is not None:
     _, *noise_shape = noise.shape  # [batch, ...]
     assert x1.shape == tuple(noise_shape), (x1.shape, noise_shape)
