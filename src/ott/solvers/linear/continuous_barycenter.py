@@ -157,8 +157,8 @@ class FreeBarycenterOutput(NamedTuple):
 
   @property
   def costs_along_iterations(self):
-    """Costs outputted by the solver along iterations."""
-    return jnp.all(self.costs[self.linear_convergence != -1])
+    """Costs vector with superfluous values removed."""
+    return self.costs[self.linear_convergence != -1]
 
   def linear_output_at_index(self, i: int) -> Any:
     assert i < self.bar_prob.num_measures, \

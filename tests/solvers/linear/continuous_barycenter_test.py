@@ -157,6 +157,7 @@ class TestBarycenter:
 
     # Define segments
     num_per_segment = (33, 29, 24, 27, 27, 31, 30, 25)
+    max_num_per_segment = max(num_per_segment)
     # Set weights for each segment that sum to 1.
     b = []
     for rng, n in zip(rngs, num_per_segment):
@@ -184,6 +185,13 @@ class TestBarycenter:
     if not segment_before:
       for i, numps in enumerate(num_per_segment):
         assert out.matrix_at_index(i).shape == (bar_size, numps)
+    else:
+      for i in range(0, len(num_per_segment)):
+        assert out.matrix_at_index(i).shape == (bar_size, max_num_per_segment)
+
+    assert out.all_linear_solvers_converged
+    # Check the costs vector is non-increasing
+    assert jnp.all(jnp.diff(out.costs_along_iterations) <= 0.0)
 
   @pytest.mark.fast()
   def test_bures_barycenter(
