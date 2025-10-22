@@ -14,6 +14,33 @@ Networks
     potentials.MLP
     potentials.PotentialTrainState
 
+Velocity Field
+==============
+.. module:: ott.neural.networks.velocity_field
+.. currentmodule:: ott.neural.networks.velocity_field
+
+MLP
+---
+.. autosummary::
+    :toctree: _autosummary
+
+    mlp.MLP
+
+UNet
+----
+.. autosummary::
+    :toctree: _autosummary
+
+    unet.UNet
+
+EMA
+---
+.. autosummary::
+    :toctree: _autosummary
+
+    ema.EMA
+    ema.init_ema
+    ema.update_ema
 
 ott.neural.networks.layers
 ==========================

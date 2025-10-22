@@ -23,7 +23,17 @@ __all__ = ["MLP"]
 
 
 class MLP(nnx.Module):
-  """TODO."""
+  """MLP velocity field.
+
+  Args:
+    dim: Dimensionality of the velocity field.
+    hidden_dims: Hidden dimensions.
+    cond_dim: Dimensionality of the condition vector.
+    act_fn: Activation function.
+    dropout_rate: Dropout rate.
+    rngs: Random number generator used for initialization.
+    kwargs: Keyword arguments for :class:`~flax.nnx.Linear`.
+  """
 
   def __init__(
       self,
@@ -62,7 +72,17 @@ class MLP(nnx.Module):
       *,
       rngs: Optional[nnx.Rngs] = None,
   ) -> jax.Array:
-    """TODO."""
+    """Compute the velocity.
+
+    Args:
+      t: Time array of shape ``[batch, ...]``.
+      x: Input array of shape ``[batch, dim]``.
+      cond: Condition array of shape ``[batch, cond_dim]``.
+      rngs: Random number generator for dropout.
+
+    Returns:
+      The velocity array of shape ``[batch, dim]``.
+    """
     t_emb = _encode_time(t, self.time_enc_num_freqs)
     h = [t_emb, x] if cond is None else [t_emb, x, cond]
     h = jnp.concatenate(h, axis=-1)
@@ -76,11 +96,12 @@ class Block(nnx.Module):
       in_dim: int,
       out_dim: int,
       *,
-      act_fn,
+      act_fn: Callable[[jax.Array], jax.Array],
       dropout_rate: float = 0.0,
       rngs: nnx.Rngs,
       **kwargs: Any
   ):
+    super().__init__()
     self.lin = nnx.Linear(in_dim, out_dim, rngs=rngs, **kwargs)
     self.act_fn = act_fn
     self.dropout = nnx.Dropout(dropout_rate)
