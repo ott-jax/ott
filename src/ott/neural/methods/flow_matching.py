@@ -48,6 +48,7 @@ def flow_matching_step(
     model: Velocity field with a signature ``(t, x_t, cond, rngs=...) -> v_t``.
     optimizer: Optimizer.
     batch: Batch containing the following elements:
+
       - ``'t'`` - time, array of shape ``[batch_size,]``.
       - ``'x_t'`` - position, array of shape ``[batch_size, ...]``.
       - ``'v_t'`` - target velocity, array of shape ``[batch_size, ...]``.
