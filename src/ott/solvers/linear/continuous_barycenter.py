@@ -172,6 +172,7 @@ class FreeBarycenterOutput(NamedTuple):
     return self.costs[:self.num_iters]
 
   def linear_output_at_index(self, i: int) -> Any:
+    """linear_solver output w.r.t. transport from barycenter to measure i."""
     return jax.tree.map(lambda x: x[i], self.linear_outputs)
 
 
