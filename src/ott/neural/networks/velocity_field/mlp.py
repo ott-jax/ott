@@ -113,6 +113,7 @@ class Block(nnx.Module):
 
 
 def _encode_time(t: jax.Array, num_freqs: int) -> jax.Array:
-  freq = 2 * (1 + jnp.arange(num_freqs)) * jnp.pi
+  assert t.ndim == 1, t.shape
+  freq = (2 * jnp.pi) * jnp.arange(1, num_freqs + 1)
   t = freq * t[:, None]
   return jnp.concatenate([jnp.cos(t), jnp.sin(t)], axis=-1)

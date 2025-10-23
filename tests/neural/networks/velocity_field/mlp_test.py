@@ -11,3 +11,28 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import pytest
+
+import jax
+import jax.random as jr
+
+from flax import nnx
+
+from ott.neural.networks.velocity_field import mlp
+
+
+class TestMLP:
+
+  @pytest.mark.parametrize("cond_dim", [0, 3])
+  def test_condition(self, rng: jax.Array, cond_dim: int):
+    batch_size, dim, cond_dim = 6, 2, 5
+    rng_t, rng_x, rng_cond = jr.split(rng, 3)
+
+    t = jr.uniform(rng_t, (batch_size,))
+    x = jr.normal(rng_x, (batch_size, dim))
+    cond = jr.normal(rng_cond, (batch_size, cond_dim)) if cond_dim else None
+    model = mlp.MLP(dim, cond_dim=cond_dim, dropout_rate=0.1, rngs=nnx.Rngs(0))
+
+    v_t = model(t, x, cond=cond, rngs=nnx.Rngs(1))
+
+    assert v_t.shape == (batch_size, dim)
