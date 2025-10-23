@@ -128,7 +128,7 @@ def _sample_from_coupling(
   n, m = coupling.shape
   sampling_size = m if axis == 1 else n
 
-  if sampling_size <= subset_threshold:
+  if subset_threshold is None or sampling_size <= subset_threshold:
     return jr.categorical(rng, jnp.log(coupling), axis=axis)
 
   oaxis = 1 - axis
