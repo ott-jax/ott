@@ -48,18 +48,19 @@ class SemidiscreteDataloader:
   batch_size: int
   rng: jax.Array
   subset_threshold: Optional[int] = None
-  subset_size: int = 1024
+  subset_size: Optional[int] = None
   out_sharding: Optional[jax.sharding.Sharding] = None
 
   def __post_init__(self) -> None:
     _, m = self.out.geom.shape
     assert self.batch_size > 0, \
       f"Batch size must be positive, got {self.batch_size}."
-    assert (self.subset_threshold is None or (0 < self.subset_threshold < m)), \
-      f"Subset threshold trigger must be in (0, {m}), " \
-      f"found {self.subset_threshold}."
-    assert self.subset_size > 0, \
-      f"Subset size must be positive, got {self.subset_size}."
+
+    if self.subset_threshold is not None:
+      assert 0 < self.subset_threshold < m, \
+        f"Subset threshold must be in (0, {m}), got {self.subset_threshold}."
+      assert 0 < self.subset_size < m, \
+        f"Subset size must be in (0, {m}), got {self.subset_size}."
 
     self._rng_it: Optional[jax.Array] = None
     self._sample_fn = jax.jit(

@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple
+from typing import Optional, Tuple
 
 import pytest
 
 import jax
 import jax.random as jr
+import jax.sharding as jsh
 import numpy as np
 
 import optax
@@ -46,24 +47,80 @@ class TestSemidiscreteDataloader:
 
   @pytest.mark.parametrize("batch_size", [10, 22])
   def test_reproducibility(self, rng: jax.Array, batch_size: int):
-    dim = 2
+    m, d = 19, 2
     rng_solve, rng_dl = jr.split(rng, 2)
-    out = _solve_semidiscrete(rng_solve, shape=(19, dim), epsilon=0.1)
+    out = _solve_semidiscrete(rng_solve, shape=(m, d), epsilon=0.1)
     dl = sddl.SemidiscreteDataloader(out, batch_size=batch_size, rng=rng_dl)
 
     src1, tgt1 = next(iter(dl))
     src2, tgt2 = next(iter(dl))
 
-    assert src1.shape == (batch_size, dim)
-    assert tgt1.shape == (batch_size, dim)
+    assert src1.shape == (batch_size, d)
+    assert tgt1.shape == (batch_size, d)
     np.testing.assert_array_equal(src1, src2)
     np.testing.assert_array_equal(tgt1, tgt2)
 
-  def test_batch_size(self, rng: jax.Array):
-    pass
+  def test_invalid_values(self, rng: jax.Array):
+    m, d = 15, 5
+    rng_solve, rng_dl = jr.split(rng, 2)
+    out = _solve_semidiscrete(rng_solve, shape=(m, d), epsilon=0.2)
 
-  def test_subset_threshold(self):
-    pass
+    with pytest.raises(AssertionError, match=r"Batch size must be positive"):
+      _ = sddl.SemidiscreteDataloader(out, batch_size=0, rng=rng_dl)
+    with pytest.raises(AssertionError, match=r"Subset threshold must be in"):
+      _ = sddl.SemidiscreteDataloader(
+          out, batch_size=32, subset_threshold=0, rng=rng
+      )
+    with pytest.raises(AssertionError, match=r"Subset threshold must be in"):
+      _ = sddl.SemidiscreteDataloader(
+          out, batch_size=32, subset_threshold=m, rng=rng
+      )
+    with pytest.raises(AssertionError, match=r"Subset size must be in"):
+      _ = sddl.SemidiscreteDataloader(
+          out, batch_size=32, subset_threshold=m // 2, subset_size=0, rng=rng
+      )
+    with pytest.raises(AssertionError, match=r"Subset size must be in"):
+      _ = sddl.SemidiscreteDataloader(
+          out, batch_size=32, subset_threshold=m // 2, subset_size=m, rng=rng
+      )
 
-  def test_sharding(self):
-    pass
+  @pytest.mark.parametrize(("subset_threshold", "subset_size"), [(7, 7), (8, 4),
+                                                                 (4, 11)])
+  def test_subset_threshold(
+      self, rng: jax.Array, subset_threshold: int, subset_size: int
+  ):
+    m, d = 15, 5
+    batch_size = 6
+    rng_solve, rng_dl = jr.split(rng, 2)
+    out = _solve_semidiscrete(rng_solve, shape=(m, d), epsilon=0.2)
+
+    dl = sddl.SemidiscreteDataloader(
+        out,
+        batch_size=batch_size,
+        subset_threshold=subset_threshold,
+        subset_size=subset_size,
+        rng=rng_dl
+    )
+
+    src, tgt = next(iter(dl))
+    assert src.shape == (batch_size, d)
+    assert tgt.shape == (batch_size, d)
+
+  @pytest.mark.parametrize("epsilon", [0.0, 1e-2, None])
+  def test_sharding(self, rng: jax.Array, epsilon: Optional[float]):
+    m, d = 11, 4
+    batch_size = 11
+    rng_solve, rng_dl = jr.split(rng, 2)
+    out = _solve_semidiscrete(rng_solve, shape=(m, d), epsilon=epsilon)
+
+    mesh = jax.make_mesh((jax.device_count(),), ("data",))
+    sharding = jsh.NamedSharding(mesh, jsh.PartitionSpec("data"))
+    dl = sddl.SemidiscreteDataloader(
+        out, batch_size=batch_size, rng=rng_dl, out_sharding=sharding
+    )
+
+    src, tgt = next(iter(dl))
+    assert src.shape == (batch_size, d)
+    assert src.sharding == sharding
+    assert tgt.shape == (batch_size, d)
+    assert tgt.sharding == sharding
