@@ -359,10 +359,7 @@ class ResBlock(TimestepBlock):
 
     emb_out = self.emb_act(emb).astype(h.dtype)
     emb_out = self.emb_layers(emb_out)
-    # TODO(michalk8): improve
-    # emb_out = jnp.broadcast_to(emb_out, h.shape)
-    while len(emb_out.shape) < len(h.shape):
-      emb_out = jnp.expand_dims(emb_out, axis=1)
+    emb_out = emb_out[:, None, None, :]  # [b, 1, 1, t_emb]
     h = h + emb_out
     h = self.out_norm(h)
     h = self.out_act(h)
