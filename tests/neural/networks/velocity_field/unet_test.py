@@ -100,7 +100,7 @@ class TestUNet:
         model_channels=32,
         num_res_blocks=2,
         attention_resolutions=(1,),
-        channel_mult=(1,),
+        channel_mult=(1, 2, 3, 4),
         conv_resample=conv_resample,
         resblock_updown=resblock_updown,
         rngs=nnx.Rngs(0),
