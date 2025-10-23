@@ -11,3 +11,65 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Tuple
+
+import pytest
+
+import jax
+import jax.numpy as jnp
+import jax.random as jr
+
+from flax import nnx
+
+from ott.neural.networks.velocity_field import unet
+
+
+def _prepare_inputs(
+    rng: jax.Array, *, shape: Tuple[int, ...], num_classes: int
+) -> Tuple[jax.Array, jax.Array, jax.Array]:
+  rng_t, rng_x, rng_cond = jr.split(rng, 3)
+  batch_size, *_ = shape
+  t = jr.uniform(rng_t, (batch_size,))
+  x = jr.uniform(rng_x, shape, minval=-1.0, maxval=1.0)
+  cond = jr.choice(rng_cond, num_classes, (batch_size,))
+  return t, x, cond
+
+
+class TestUNet:
+
+  def test_condition(self, rng: jax.Array):
+    num_classes = 10
+    shape = (2, 8, 8, 3)
+    t, x, cond = _prepare_inputs(rng, shape=shape, num_classes=num_classes)
+    model = unet.UNet(
+        shape=shape[1:],
+        model_channels=32,
+        num_res_blocks=1,
+        attention_resolutions=(),
+        channel_mult=(1,),
+        dropout=0.1,
+        rngs=nnx.Rngs(0),
+    )
+
+    v_t = model(t, x, cond, rngs=nnx.Rngs(1))
+
+    assert v_t.shape == shape
+
+  @pytest.mark.parametrize("param_dtype", [jnp.bfloat16, jnp.float32])
+  def test_param_dtype(self, rng: jax.Array, param_dtype: jnp.dtype):
+    model = unet.UNet(
+        shape=(4, 4, 3),
+        model_channels=32,
+        num_res_blocks=1,
+        attention_resolutions=(1,),
+        channel_mult=(2.0,),
+        param_dtype=param_dtype,
+        rngs=nnx.Rngs(0),
+    )
+
+    state = nnx.to_flat_state(nnx.state(model))
+    for k, v in state:
+      assert v.value.dtype == param_dtype, k
+
+  def test_output_channels(self, rng: jax.Array):
+    pass

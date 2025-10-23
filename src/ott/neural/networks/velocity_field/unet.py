@@ -476,7 +476,7 @@ class UNet(nnx.Module):
       If :obj:`None`, use ``4 * model_channels``.
       If :class:`float`, use ``int(time_embed_dim * model_channels)``.
     conv_resample: If :obj:`False`, don't use convolution for upsampling and use
-      average pooling for downsampling instead of convolving.
+      average pooling for downsampling instead of using convolution.
     num_heads: Number of attention heads for the input and middle blocks.
     num_heads_upsample: Number of attention heads for the output blocks.
       If :obj:`None`, use ``num_heads``.
@@ -484,7 +484,8 @@ class UNet(nnx.Module):
     num_classes: Number of classes.
     dtype: Data type for computation.
     param_dtype: Data type for parameters.
-    attn_implementation: Attention backend. If :obj:`None`, use the default.
+    attn_implementation: Attention implementation for
+      :func:`~jax.nn.dot_product_attention`.
     rngs: Random number generator for initialization.
   """
 
@@ -497,7 +498,7 @@ class UNet(nnx.Module):
       attention_resolutions: Tuple[int, ...],
       out_channels: Optional[int] = None,
       dropout: float = 0.0,
-      channel_mult: Tuple[int, ...] = (1, 2, 4, 8),
+      channel_mult: Tuple[float, ...] = (1, 2, 4, 8),
       time_embed_dim: Optional[Union[int, float]] = None,
       conv_resample: bool = True,
       num_heads: int = 1,
@@ -510,15 +511,15 @@ class UNet(nnx.Module):
       rngs: nnx.Rngs,
   ):
     super().__init__()
+
     image_size, _, in_channels = shape
-    if out_channels is None:
-      out_channels = in_channels
     attention_resolutions = tuple(
         image_size // res for res in attention_resolutions
     )
+    out_channels = out_channels or in_channels
+    num_heads_upsample = num_heads_upsample or num_heads
 
     self.dtype = dtype
-    # self.image_size = image_size
     self.in_channels = in_channels
     self.model_channels = model_channels
     self.num_res_blocks = num_res_blocks
@@ -527,7 +528,7 @@ class UNet(nnx.Module):
     self.channel_mult = channel_mult
     self.conv_resample = conv_resample
     self.num_heads = num_heads
-    self.num_heads_upsample = num_heads_upsample or num_heads
+    self.num_heads_upsample = num_heads_upsample
 
     # Time embedding
     if time_embed_dim is None:
