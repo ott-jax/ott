@@ -29,7 +29,7 @@ def segment_point_cloud(
     indices_are_sorted: bool = False,
     num_per_segment: Optional[Tuple[int, ...]] = None,
     padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray, Union[jnp.ndarray, Tuple[int]]]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, Union[jnp.ndarray, Tuple[int, ...]]]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces:

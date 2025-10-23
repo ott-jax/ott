@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -23,8 +23,11 @@ from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.linear import barycenter_problem, linear_problem
 from ott.solvers import was_solver
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 __all__ = ["FreeBarycenterState", "FreeWassersteinBarycenter"]
+
+linear_output_t = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
 
 class FreeBarycenterState(NamedTuple):
@@ -47,7 +50,7 @@ class FreeBarycenterState(NamedTuple):
   a: jnp.ndarray = None
   costs: Optional[jnp.ndarray] = None
   linear_convergence: jnp.ndarray = None
-  linear_outputs: Optional[Tuple[Any]] = None
+  linear_outputs: Optional[Tuple[linear_output_t, ...]] = None
   errors: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
@@ -142,7 +145,7 @@ class FreeBarycenterOutput(NamedTuple):
   bar_prob: barycenter_problem.FreeBarycenterProblem = None
   costs: jnp.ndarray = None
   linear_convergence: jnp.ndarray = None
-  linear_outputs: Tuple[Any] = None
+  linear_outputs: Optional[Tuple[linear_output_t, ...]] = None
   errors: Optional[jnp.ndarray] = None
 
   @property

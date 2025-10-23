@@ -70,23 +70,24 @@ class FreeBarycenterProblem:
       # (num_measures, max_measure_size, ndim)
       # (num_measures, max_measure_size)
       assert self._y.shape[:2] == self._b.shape, \
-        "Point clouds and weights do not have matching shapes"
+        "Point clouds and weights do not have matching shapes."
     else:
       # (num_total_points, ndim)
       # (num_total_points,)
-      assert self._b is None or self._y.shape[0] == self._b.shape[
-          0], "Point clouds and weights do not have matching shapes"
+      assert self._b is None or self._y.shape[0] == self._b.shape[0], \
+        "Point clouds and weights do not have matching shapes."
 
   @property
   def segmented_y_b(self) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Tuple of arrays containing the segmented measures and weights.
+    """Tuple of arrays containing segmented measures, weights, # of points.
 
     - Segmented measures of shape ``[num_measures, max_measure_size, ndim]``.
     - Segmented weights of shape ``[num_measures, max_measure_size]``.
+    - ``[num_measures,]`` array containing number of points per measure.
     """
     if self._is_segmented:
-      y, b, num_per_measure = self._y, self._b, [self._y.shape[1]
-                                                ] * self._y.shape[0]
+      y, b = self._y, self._b
+      num_per_measure = [self._y.shape[1]] * self._y.shape[0]
     else:
       y, b, num_per_measure = segment.segment_point_cloud(
           x=self._y,
