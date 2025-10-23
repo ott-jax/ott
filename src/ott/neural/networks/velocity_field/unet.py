@@ -155,7 +155,6 @@ class Upsample(nnx.Module):
     super().__init__()
     self.channels = channels
     self.out_channels = out_channels or channels
-    self.use_conv = use_conv
     if use_conv:
       self.conv = conv_nd(
           2,
@@ -167,12 +166,15 @@ class Upsample(nnx.Module):
           param_dtype=param_dtype,
           rngs=rngs,
       )
+    else:
+      self.conv = None
 
   def __call__(self, x: jax.Array) -> jax.Array:
     assert x.shape[-1] == self.channels
-    shape = (x.shape[0], x.shape[1] * 2, x.shape[2] * 2, x.shape[3])
+    b, h, w, c = x.shape
+    shape = (b, 2 * h, 2 * w, c)
     x = jax.image.resize(x, shape, method="nearest")
-    if self.use_conv:
+    if self.conv is not None:
       x = self.conv(x)
     return x
 
@@ -192,8 +194,6 @@ class Downsample(nnx.Module):
     super().__init__()
     self.channels = channels
     self.out_channels = out_channels or channels
-    self.use_conv = use_conv
-
     if use_conv:
       self.op = conv_nd(
           2,
@@ -470,8 +470,7 @@ class UNet(nnx.Module):
     attention_resolutions: Resolutions at which to add self-attention.
     out_channels: Number of output channels. If :obj:`None`, use input channels.
     dropout: Dropout rate.
-    channel_mult: Multiplier for ``model_channels`` defining the channels
-      at each resolution.
+    channel_mult: Multiplier for ``model_channels`` for each resolution.
     time_embed_dim: Dimensionality of the time embedding.
       If :obj:`None`, use ``4 * model_channels``.
       If :class:`float`, use ``int(time_embed_dim * model_channels)``.
@@ -513,10 +512,10 @@ class UNet(nnx.Module):
     super().__init__()
 
     image_size, _, in_channels = shape
+    out_channels = out_channels or in_channels
     attention_resolutions = tuple(
         image_size // res for res in attention_resolutions
     )
-    out_channels = out_channels or in_channels
     num_heads_upsample = num_heads_upsample or num_heads
 
     self.dtype = dtype
@@ -765,6 +764,7 @@ class UNet(nnx.Module):
     # TODO(michalk8): generalize for different types of conditions
     if self.label_emb is not None:
       assert cond is not None, "Please provide a condition."
+      # emb is cast to `self.dtype` inside each submodule
       emb = emb + self.label_emb(cond)
     h = x.astype(self.dtype)
     hs = []
@@ -776,4 +776,5 @@ class UNet(nnx.Module):
       h = jnp.concatenate([h, hs.pop()], axis=-1)
       h = module(h, emb, rngs=rngs)
     h = h.astype(x.dtype)
+    # output's compute dtype
     return self.out(h, rngs=rngs)
