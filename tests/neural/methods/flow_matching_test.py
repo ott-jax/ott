@@ -13,16 +13,19 @@
 # limitations under the License.
 from typing import Dict, Literal, Optional, Tuple
 
+import pytest
+
 import chex
 import jax
 import jax.numpy as jnp
 import jax.random as jr
+import numpy as np
 
 import optax
 from flax import nnx
 
 from ott.neural.methods import flow_matching as fm
-from ott.neural.networks.velocity_field import mlp
+from ott.neural.networks.velocity_field import ema, mlp
 
 
 def _prepare_batch(
@@ -49,7 +52,7 @@ def _prepare_batch(
 
 class TestFlowMatching:
 
-  def test_flow_matching_step(self, rng: jax.Array):
+  def test_fm_step(self, rng: jax.Array):
     batch_size, dim = 2, 5
     batch = _prepare_batch(rng, shape=(batch_size, dim))
     model = mlp.MLP(dim, rngs=nnx.Rngs(0), dropout_rate=0.1)
@@ -64,3 +67,26 @@ class TestFlowMatching:
       metrics = fm_step(model, optimizer, batch, rngs=step_rngs)
       assert jnp.isfinite(metrics["loss"])
       assert jnp.isfinite(metrics["grad_norm"])
+
+  def test_ema_callback(self, rng: jax.Array):
+    batch_size, dim = 2, 5
+    batch = _prepare_batch(rng, shape=(batch_size, dim))
+    model = mlp.MLP(dim, rngs=nnx.Rngs(0), dropout_rate=0.1)
+    model_ema = ema.EMA(model, decay=0.99)
+
+    optimizer = optax.adam(1e-3)
+    optimizer = nnx.Optimizer(model, optimizer, wrt=nnx.Param)
+
+    fm_step = nnx.jit(chex.assert_max_traces(fm.flow_matching_step, 1))
+    step_rngs = nnx.Rngs(0)
+
+    for _ in range(5):
+      _ = fm_step(
+          model, optimizer, batch, model_callback_fn=model_ema, rngs=step_rngs
+      )
+
+    ema_state = nnx.state(model_ema)
+    ema_state = nnx.to_flat_state(ema_state)
+    for k, v in ema_state:
+      with pytest.raises(AssertionError):
+        np.testing.assert_array_equal(v, 0.0, err_msg=str(k))

@@ -38,8 +38,8 @@ class TestEMA:
   def test_update(self, dropout_rate: float, decay: float):
 
     @nnx.jit
-    def update_ema(model: nnx.Module, model_ema: nnx.Module):
-      model_ema.update(model)
+    def update_ema(model: nnx.Module, model_ema: nnx.Module) -> None:
+      model_ema(model)
 
     model = mlp.MLP(
         5, hidden_dims=[7, 3], rngs=nnx.Rngs(0), dropout_rate=dropout_rate
@@ -53,6 +53,7 @@ class TestEMA:
 
     model_ema = ema.EMA(model, decay=decay)
     update_ema(model, model_ema)
+    # nnx.jit(model_ema)(model) throws TraceError
 
     ema_state = nnx.to_flat_state(nnx.state(model_ema))
     for (k_act, act), (k_exp, exp) in zip(ema_state, expected_ema_state):

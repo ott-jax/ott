@@ -32,7 +32,7 @@ class EMA(nnx.Module):
     self.ema = init_ema(model)
     self.decay = decay
 
-  def update(self, model: nnx.Module) -> None:
+  def __call__(self, model: nnx.Module) -> None:
     """Update the EMA.
 
     Args:
