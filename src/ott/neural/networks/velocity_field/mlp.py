@@ -113,6 +113,7 @@ class Block(nnx.Module):
 
 
 def _encode_time(t: jax.Array, num_freqs: int) -> jax.Array:
+  assert num_freqs > 0, "Number of frequencies must be positive."
   assert t.ndim == 1, t.shape
   freq = (2 * jnp.pi) * jnp.arange(1, num_freqs + 1)
   t = freq * t[:, None]

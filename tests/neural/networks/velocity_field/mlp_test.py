@@ -36,3 +36,11 @@ class TestMLP:
     v_t = model(t, x, cond=cond, rngs=nnx.Rngs(1))
 
     assert v_t.shape == (batch_size, dim)
+
+  @pytest.mark.parametrize("num_freqs", [1, 2, 3])
+  def test_time_encoder(self, rng: jax.Array, num_freqs: int):
+    batch_size = 6
+    t = jr.normal(rng, (batch_size,))
+    t_emb = mlp._encode_time(t, num_freqs=num_freqs)
+
+    assert t_emb.shape == (batch_size, 2 * num_freqs)
