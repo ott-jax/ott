@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
 
 from flax import nnx
 
@@ -41,7 +41,7 @@ class EMA(nnx.Module):
     Returns:
       Nothing, just updates the EMA in-place.
     """
-    update_ema(model, self.ema, decay=self.decay)
+    update_ema(model, ema=self.ema, decay=self.decay)
 
 
 def init_ema(model: nnx.Module) -> nnx.Module:
@@ -54,13 +54,13 @@ def init_ema(model: nnx.Module) -> nnx.Module:
     Copy of the model with parameters set to 0s.
   """
   graphdef, state, rest = nnx.split(model, nnx.Param, ...)
-  ema_state = jtu.tree_map(jnp.zeros_like, state)
+  ema_state = jax.tree.map(jnp.zeros_like, state)
   # copy rest of the params, like RNGs, batch stats, etc.
-  rest = jtu.tree_map(lambda r: r.copy(), rest)
+  rest = jax.tree.map(lambda r: r.copy(), rest)
   return nnx.merge(graphdef, ema_state, rest)
 
 
-def update_ema(model: nnx.Module, ema: nnx.Module, *, decay: float) -> None:
+def update_ema(model: nnx.Module, *, ema: nnx.Module, decay: float) -> None:
   """Update the EMA of a model.
 
   Args:
@@ -77,6 +77,6 @@ def update_ema(model: nnx.Module, ema: nnx.Module, *, decay: float) -> None:
 
   state, rest = nnx.state(model, nnx.Param, ...)
   graphdef, ema_state, _ = nnx.split(ema, nnx.Param, ...)
-  rest = jtu.tree_map(lambda r: r.copy(), rest)
-  ema_state = jtu.tree_map(update_fn, state, ema_state)
+  rest = jax.tree.map(lambda r: r.copy(), rest)
+  ema_state = jax.tree.map(update_fn, state, ema_state)
   nnx.update(ema, ema_state, rest)
