@@ -178,7 +178,9 @@ def curvature(
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
     **kwargs: Any,
 ) -> Tuple[jax.Array, diffrax.Solution]:
-  """Compute the curvature.
+  """Compute the curvature :cite:`lee:23`.
+
+  Also known as straightness in :cite:`liu:22`.
 
   Args:
     model: Velocity field with a signature ``(t, x_t, cond) -> v_t``.
