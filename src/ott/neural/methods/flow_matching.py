@@ -138,8 +138,10 @@ def evaluate_velocity_field(
     step_size = None if step_size is None else -step_size
     t0, t1 = t1, t0
 
-  # custom function used when computing the gaussian `
   default_velocity_fn = jtu.Partial(_velocity, model=model)
+  # internally, we allow for passing custom velocity functions:
+  # this is used when computing the gaussian NLL, as we need to
+  # both integrate the state and the divergence of the velocity field
   velocity_fn = kwargs.pop("_velocity_fn", default_velocity_fn)
 
   subs = {}
