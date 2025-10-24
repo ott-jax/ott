@@ -32,41 +32,43 @@ class SemidiscreteDataloader:
   ``(source, target)`` arrays of shape ``[batch_size, ...]``.
 
   Args:
-    out: Semidiscrete output.
+    sd_out: Semidiscrete output object storing a precomputed OT solution between
+      the (continuous) source distribution and the dataset of interest.
     batch_size: Batch size.
     rng: Random number seed.
-    subset_threshold: Threshold above which to sample from a subset of the
+    subset_size_threshold: Threshold above which to sample from a subset of the
       coupling matrix. Only applicable when the problem is :meth:`entropically
       regularized <ott.geometry.semidiscrete_pointcloud.SemidiscretePointCloud.is_entropy_regularized>`.
       If :obj:`None`, don't subset the coupling matrix.
     subset_size: Size of the subset of the coupling matrix. This will
       subset a coupling of shape ``[batch, m]`` to ``[batch, subset_size]``
-      keeping the :func:`top-k <jax.lax.top_k>` values if ``m > subset_threshold``.
-    out_sharding: Output sharding.
+      using the :func:`~jax.lax.top_k` values if ``m > subset_size_threshold``.
+    out_shardings: Output shardings for the aligned batch.
   """  # noqa: E501
-  out: semidiscrete.SemidiscreteOutput
+  sd_out: semidiscrete.SemidiscreteOutput
   batch_size: int
   rng: jax.Array
-  subset_threshold: Optional[int] = None
+  subset_size_threshold: Optional[int] = None
   subset_size: Optional[int] = None
-  out_sharding: Optional[jax.sharding.Sharding] = None
+  out_shardings: Optional[jax.sharding.Sharding] = None
 
   def __post_init__(self) -> None:
-    _, m = self.out.geom.shape
+    _, m = self.sd_out.geom.shape
     assert self.batch_size > 0, \
       f"Batch size must be positive, got {self.batch_size}."
 
-    if self.subset_threshold is not None:
-      assert 0 < self.subset_threshold < m, \
-        f"Subset threshold must be in (0, {m}), got {self.subset_threshold}."
+    if self.subset_size_threshold is not None:
+      assert 0 < self.subset_size_threshold < m, \
+        f"Subset threshold must be in (0, {m}), " \
+        f"got {self.subset_size_threshold}."
       assert 0 < self.subset_size < m, \
         f"Subset size must be in (0, {m}), got {self.subset_size}."
 
     self._rng_it: Optional[jax.Array] = None
     self._sample_fn = jax.jit(
         _sample,
-        out_shardings=self.out_sharding,
-        static_argnames=["batch_size", "subset_threshold", "subset_size"],
+        out_shardings=self.out_shardings,
+        static_argnames=["batch_size", "subset_size_threshold", "subset_size"],
     )
 
   def __iter__(self) -> "SemidiscreteDataloader":
@@ -84,9 +86,9 @@ class SemidiscreteDataloader:
     self._rng_it, rng_sample = jr.split(self._rng_it, 2)
     return self._sample_fn(
         rng_sample,
-        self.out,
+        self.sd_out,
         self.batch_size,
-        self.subset_threshold,
+        self.subset_size_threshold,
         self.subset_size,
     )
 
@@ -95,7 +97,7 @@ def _sample(
     rng: jax.Array,
     out: semidiscrete.SemidiscreteOutput,
     batch_size: int,
-    subset_threshold: Optional[int],
+    subset_size_threshold: Optional[int],
     subset_size: int,
 ) -> Tuple[jax.Array, jax.Array]:
   rng_sample, rng_tmat = jr.split(rng, 2)
@@ -107,7 +109,7 @@ def _sample(
     tgt_idx = _sample_from_coupling(
         rng_tmat,
         coupling=out_sampled.matrix,
-        subset_threshold=subset_threshold,
+        subset_size_threshold=subset_size_threshold,
         subset_size=subset_size,
         axis=1,
     )
@@ -121,7 +123,7 @@ def _sample_from_coupling(
     rng: jax.Array,
     *,
     coupling: jax.Array,
-    subset_threshold: Optional[int],
+    subset_size_threshold: Optional[int],
     subset_size: int,
     axis: int,
 ) -> jax.Array:
@@ -129,7 +131,7 @@ def _sample_from_coupling(
   n, m = coupling.shape
   sampling_size = m if axis == 1 else n
 
-  if subset_threshold is None or sampling_size <= subset_threshold:
+  if subset_size_threshold is None or sampling_size <= subset_size_threshold:
     return jr.categorical(rng, jnp.log(coupling), axis=axis)
 
   oaxis = 1 - axis
