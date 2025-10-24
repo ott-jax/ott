@@ -186,8 +186,9 @@ def curvature(
     model: Velocity field with a signature ``(t, x_t, cond) -> v_t``.
     x0: Initial point of shape ``[*dims]``.
     cond: Condition of shape ``[*cond_dims]``.
-    ts: Time points where to store the velocities. If :class:`int`, use
-      linearly-spaced interval ``[t0, t1]``.
+    ts: Time points at which velocities are computed and stored.
+      If :class:`int`, use linearly-spaced interval ``[t0, t1]``
+      with ``ts`` steps.
     drop_last_velocity: Whether to remove the velocity at ``ts[-1]``.
       when computing the curvature. If :obj:`None`, don't include it when
       ``ts[-1] == 1.0``.
