@@ -34,11 +34,12 @@ def _prepare_batch(
     *,
     shape: Tuple[int, ...],
     num_classes: Optional[int] = None,
+    x0_stddev: float = 1.0,
 ) -> Dict[Literal["t", "x_t", "v_t", "cond", "x0", "x1"], jax.Array]:
   rng_t, rng_x0, rng_x1, rng_cond = jr.split(rng, 4)
   batch_size, *_ = shape
-  x0 = jr.uniform(rng_x0, shape, minval=-1.0, maxval=1.0)
-  x1 = jr.normal(rng_x1, shape) + 3
+  x0 = jr.normal(rng_x0, shape) * x0_stddev
+  x1 = jr.normal(rng_x1, shape) + 5.0
   t = jr.uniform(rng_t, (batch_size,))
   cond = jr.choice(
       rng_cond, num_classes, (batch_size,)
@@ -193,3 +194,33 @@ class TestFlowMatching:
     x0, neg_int01_div_v = out.ys
     assert x0.shape == (1, *shape)
     assert neg_int01_div_v.shape == (1,)
+
+  def test_hutchinson(self, rng: jax.Array):
+    rng, rng_hutch = jr.split(rng, 2)
+    batch_size, dim, stddev = 32, 4, 1.0
+    num_trn_iters, num_ode_steps = 100, 4
+    batch = _prepare_batch(rng, shape=(batch_size, dim), x0_stddev=stddev)
+    noise_hutch = jr.normal(rng_hutch, (32, dim))
+    x1 = batch["x1"][0]
+
+    model = mlp.MLP(
+        dim, hidden_dims=[16, 16], rngs=nnx.Rngs(0), dropout_rate=0.1
+    )
+    optim = optax.adam(1e-3)
+    optim = nnx.Optimizer(model, optim, wrt=nnx.Param)
+
+    fm_step = nnx.jit(chex.assert_max_traces(fm.flow_matching_step, 2))
+    model.train()
+    rngs = nnx.Rngs(1)
+    for _ in range(num_trn_iters):
+      _ = fm_step(model, optim, batch, rngs=rngs)
+
+    gaussian_nll_fn = functools.partial(
+        fm.gaussian_nll, num_steps=num_ode_steps, stddev=stddev
+    )
+    gaussian_nll_fn = nnx.jit(gaussian_nll_fn)
+    model.eval()
+    nll, _ = gaussian_nll_fn(model, x1)
+    nll_hutch, _ = gaussian_nll_fn(model, x1, noise=noise_hutch)
+
+    assert abs(nll - nll_hutch) < 1.0, (nll.item(), nll_hutch.item())
