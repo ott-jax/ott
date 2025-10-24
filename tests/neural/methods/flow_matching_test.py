@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from typing import Dict, Literal, Optional, Tuple
 
 import pytest
@@ -33,7 +34,7 @@ def _prepare_batch(
     *,
     shape: Tuple[int, ...],
     num_classes: Optional[int] = None,
-) -> Dict[Literal["t", "x_t", "v_t", "cond"], jax.Array]:
+) -> Dict[Literal["t", "x_t", "v_t", "cond", "x0", "x1"], jax.Array]:
   rng_t, rng_x0, rng_x1, rng_cond = jr.split(rng, 4)
   batch_size, *_ = shape
   x0 = jr.uniform(rng_x0, shape, minval=-1.0, maxval=1.0)
@@ -47,7 +48,7 @@ def _prepare_batch(
   x_t = (1.0 - t_expanded) * x0 + t_expanded * x1
   v_t = x1 - x0
 
-  return {"t": t, "x_t": x_t, "v_t": v_t, "cond": cond}
+  return {"t": t, "x_t": x_t, "v_t": v_t, "cond": cond, "x0": x0, "x1": x1}
 
 
 class TestFlowMatching:
@@ -91,7 +92,23 @@ class TestFlowMatching:
       with pytest.raises(AssertionError):
         np.testing.assert_array_equal(v, 0.0, err_msg=str(k))
 
-  def test_evalute_velocity_field(self):
+  @pytest.mark.parametrize(("num_steps", "reverse"), [(None, False), (4, True)])
+  def test_evaluate_vf(
+      self, rng: jax.Array, num_steps: Optional[int], reverse: bool
+  ):
+    batch_size, dim = 2, 3
+    batch = _prepare_batch(rng, shape=(batch_size, dim))
+    model = mlp.MLP(dim, hidden_dims=[dim] * 3, rngs=nnx.Rngs(0))
+
+    eval_vf = functools.partial(
+        fm.evaluate_velocity_field, num_steps=num_steps, reverse=reverse
+    )
+    eval_vf = nnx.jit(jax.vmap(eval_vf, in_axes=[None, 0]))
+    out = eval_vf(model, batch["x0"])
+
+    assert out.ys.shape == (2, 1, dim)
+
+  def test_evaluate_vs_save_extra(self):
     pass
 
   def test_curvature(self):
