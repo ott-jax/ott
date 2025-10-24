@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Dict, Literal, Optional, Tuple
+from typing import Dict, Literal, Optional, Tuple, Union
 
 import pytest
 
@@ -26,7 +26,7 @@ import optax
 from flax import nnx
 
 from ott.neural.methods import flow_matching as fm
-from ott.neural.networks.velocity_field import ema, mlp
+from ott.neural.networks.velocity_field import ema, mlp, unet
 
 
 def _prepare_batch(
@@ -98,8 +98,10 @@ class TestFlowMatching:
   ):
     batch_size, dim = 2, 3
     batch = _prepare_batch(rng, shape=(batch_size, dim))
-    model = mlp.MLP(dim, hidden_dims=[dim] * 3, rngs=nnx.Rngs(0))
     x = batch["x1"] if reverse else batch["x1"]
+
+    model = mlp.MLP(dim, hidden_dims=[dim] * 3, rngs=nnx.Rngs(0))
+    model.eval()
 
     eval_vf = functools.partial(
         fm.evaluate_velocity_field,
@@ -109,9 +111,9 @@ class TestFlowMatching:
     )
     eval_vf = nnx.jit(jax.vmap(eval_vf, in_axes=[None, 0]))
 
-    out = eval_vf(model, x)
+    sol = eval_vf(model, x)
 
-    assert out.ys.shape == (2, 1, dim)
+    assert sol.ys.shape == (batch_size, 1, dim)
 
   @pytest.mark.parametrize("num_steps", [None, 3])
   def test_evaluate_vf_save_extra(
@@ -121,7 +123,9 @@ class TestFlowMatching:
     ode_max_steps, vel_save_steps = 16, 4
     batch = _prepare_batch(rng, shape=(batch_size, dim))
     x = batch["x0"]
+
     model = mlp.MLP(dim, hidden_dims=[dim] * 2, rngs=nnx.Rngs(0))
+    model.eval()
 
     save_trajectory_kwargs = {"steps": True}
     save_velocity_kwargs = {"ts": jnp.linspace(0.0, 1.0, vel_save_steps)}
@@ -134,14 +138,58 @@ class TestFlowMatching:
     )
     eval_vf = nnx.jit(jax.vmap(eval_vf, in_axes=[None, 0]))
 
-    out = eval_vf(model, x)
+    sol = eval_vf(model, x)
 
     ode_steps = num_steps or ode_max_steps
-    assert out.ys["x_t"].shape == (batch_size, ode_steps, dim)
-    assert out.ys["v_t"].shape == (batch_size, vel_save_steps, dim)
+    assert sol.ys["x_t"].shape == (batch_size, ode_steps, dim)
+    assert sol.ys["v_t"].shape == (batch_size, vel_save_steps, dim)
 
-  def test_curvature(self):
-    pass
+  @pytest.mark.parametrize("drop_last_velocity", [None, False, True])
+  @pytest.mark.parametrize("ts", [3, tuple(jnp.linspace(0.0, 1.0, 5).tolist())])
+  def test_curvature(
+      self, rng: jax.Array, ts: Union[int, jax.Array],
+      drop_last_velocity: Optional[bool]
+  ):
+    dim = 4
+    batch = _prepare_batch(rng, shape=(1, dim))
+    x = batch["x0"].squeeze(0)
+    num_vt = ts if isinstance(ts, int) else len(ts)
 
-  def test_gaussian_nll(self):
-    pass
+    model = mlp.MLP(
+        dim, hidden_dims=[dim] * 3, rngs=nnx.Rngs(0), dropout_rate=0.1
+    )
+    model.eval()
+
+    curv, sol = nnx.jit(fm.curvature, static_argnames=["ts"])(model, x, ts=ts)
+
+    assert jnp.isscalar(curv), curv.shape
+    assert jnp.isfinite(curv)
+
+    assert sol.ys["x_t"].shape == (1, dim)
+    assert sol.ys["v_t"].shape == (num_vt, dim)
+
+  def test_gaussian_nll(self, rng: jax.Array):
+    shape = (8, 8, 3)
+    batch = _prepare_batch(rng, shape=(1, *shape))
+
+    model = unet.UNet(
+        shape=shape,
+        model_channels=32,
+        num_res_blocks=1,
+        attention_resolutions=(1,),
+        channel_mult=(1,),
+        rngs=nnx.Rngs(0)
+    )
+    model.eval()
+
+    x1 = batch["x1"].squeeze(0)
+
+    gaussian_nll_fn = nnx.jit(fm.gaussian_nll, static_argnames=["num_steps"])
+    nll, out = gaussian_nll_fn(model, x1, num_steps=16)
+
+    assert jnp.isscalar(nll), nll.shape
+    assert jnp.isfinite(nll)
+
+    x0, neg_int01_div_v = out.ys
+    assert x0.shape == (1, *shape)
+    assert neg_int01_div_v.shape == (1,)

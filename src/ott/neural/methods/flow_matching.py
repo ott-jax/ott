@@ -12,7 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Dict, Literal, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Literal,
+    Optional,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 import jax
 import jax.numpy as jnp
@@ -164,11 +173,11 @@ def curvature(
     x0: jax.Array,
     cond: Optional[jax.Array] = None,
     *,
-    ts: Union[int, jax.Array],
+    ts: Union[int, jax.Array, Sequence[float]],
     drop_last_velocity: Optional[bool] = None,
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
     **kwargs: Any,
-) -> jax.Array:
+) -> Tuple[jax.Array, diffrax.Solution]:
   """Compute the curvature.
 
   Args:
@@ -176,21 +185,20 @@ def curvature(
     x0: Initial point of shape ``[*dims]``.
     cond: Condition of shape ``[*cond_dims]``.
     ts: Time points where to store the velocities. If :class:`int`, use
-      linearly-spaced steps from ``t0`` to ``t1``.
-    drop_last_velocity: Whether to remove the velocity at ``ts[-1]``
-      when computing the curvature. If :obj:`None`, drop the velocity if
+      linearly-spaced interval ``[t0, t1]``.
+    drop_last_velocity: Whether to remove the velocity at ``ts[-1]``.
+      when computing the curvature. If :obj:`None`, don't include it when
       ``ts[-1] == 1.0``.
     loss_fn: Loss function with a signature ``(pred, target) -> loss``.
     kwargs: Keyword arguments for :func:`evaluate_velocity_field`.
 
   Returns:
-    The curvature.
+    The curvature and the ODE solution.
   """
   if isinstance(ts, int):
     assert ts > 0, f"Number of steps must be positive, got {ts}."
     t0, t1 = kwargs.get("t0", 0.0), kwargs.get("t1", 1.0)
-    # request extra point if `t1=1.0`, since we drop it
-    ts = np.linspace(t0, t1, ts + (t1 == 1.0))
+    ts = np.linspace(t0, t1, ts)
   if drop_last_velocity is None:
     drop_last_velocity = ts[-1] == 1.0
 
@@ -211,8 +219,8 @@ def curvature(
   assert v_t.shape == (steps, *x0.shape), (v_t.shape, (steps, *x0.shape))
 
   ref_velocity = (x1 - x0)
-
-  return jax.vmap(loss_fn, in_axes=[0, None])(v_t, ref_velocity).mean()
+  curv = jax.vmap(loss_fn, in_axes=[0, None])(v_t, ref_velocity).mean()
+  return curv, sol
 
 
 def gaussian_nll(
@@ -237,7 +245,7 @@ def gaussian_nll(
     kwargs: Keyword arguments for :func:`evaluate_velocity_field`.
 
   Returns:
-    The Gaussian negative log-likelihood (in bits-per-dimension).
+    The Gaussian negative log-likelihood in bits-per-dimension.
   """
   if noise is not None:
     _, *noise_shape = noise.shape  # [batch, ...]
