@@ -165,6 +165,7 @@ def curvature(
     cond: Optional[jax.Array] = None,
     *,
     ts: Union[int, jax.Array],
+    drop_last_velocity: Optional[bool] = None,
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
     **kwargs: Any,
 ) -> jax.Array:
@@ -176,6 +177,9 @@ def curvature(
     cond: Condition of shape ``[*cond_dims]``.
     ts: Time points where to store the velocities. If :class:`int`, use
       linearly-spaced steps from ``t0`` to ``t1``.
+    drop_last_velocity: Whether to remove the velocity at ``ts[-1]``
+      when computing the curvature. If :obj:`None`, drop the velocity if
+      ``ts[-1] == 1.0``.
     loss_fn: Loss function with a signature ``(pred, target) -> loss``.
     kwargs: Keyword arguments for :func:`evaluate_velocity_field`.
 
@@ -187,7 +191,8 @@ def curvature(
     t0, t1 = kwargs.get("t0", 0.0), kwargs.get("t1", 1.0)
     # request extra point if `t1=1.0`, since we drop it
     ts = np.linspace(t0, t1, ts + (t1 == 1.0))
-  drop_last_velocity = ts[-1] == 1.0
+  if drop_last_velocity is None:
+    drop_last_velocity = ts[-1] == 1.0
 
   sol = evaluate_velocity_field(
       model,
