@@ -58,6 +58,7 @@ covariance
 covariances
 covariates
 dataclass
+dataloader
 dataloaders
 dataset
 datasets
