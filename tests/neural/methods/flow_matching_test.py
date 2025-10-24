@@ -90,3 +90,12 @@ class TestFlowMatching:
     for k, v in ema_state:
       with pytest.raises(AssertionError):
         np.testing.assert_array_equal(v, 0.0, err_msg=str(k))
+
+  def test_evalute_velocity_field(self):
+    pass
+
+  def test_curvature(self):
+    pass
+
+  def test_gaussian_nll(self):
+    pass

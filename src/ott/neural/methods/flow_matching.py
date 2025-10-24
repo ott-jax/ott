@@ -54,8 +54,8 @@ def flow_matching_step(
       - ``'v_t'`` - target velocity, array of shape ``[batch_size, ...]``.
       - ``'cond'`` - condition (optional), array of shape ``[batch_size, ...]``.
     loss_fn: Loss function with a signature ``(pred, target) -> loss``.
-    model_callback_fn: Function with a signature ``(model) -> None``, e.g., used
-      to update an :class:`~ott.neural.networks.velocity_field.EMA`.
+    model_callback_fn: Function with a signature ``(model) -> None``, e.g., to
+      update an :class:`~ott.neural.networks.velocity_field.EMA` of the model.
     rngs: Random number generator used for, e.g., dropout, passed to the model.
 
   Returns:
