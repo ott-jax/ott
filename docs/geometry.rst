@@ -54,6 +54,7 @@ Geometries
 
 Cost Functions
 --------------
+.. module:: ott.geometry.costs
 .. autosummary::
     :toctree: _autosummary
 
