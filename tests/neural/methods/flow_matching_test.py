@@ -99,17 +99,46 @@ class TestFlowMatching:
     batch_size, dim = 2, 3
     batch = _prepare_batch(rng, shape=(batch_size, dim))
     model = mlp.MLP(dim, hidden_dims=[dim] * 3, rngs=nnx.Rngs(0))
+    x = batch["x1"] if reverse else batch["x1"]
 
     eval_vf = functools.partial(
-        fm.evaluate_velocity_field, num_steps=num_steps, reverse=reverse
+        fm.evaluate_velocity_field,
+        num_steps=num_steps,
+        reverse=reverse,
+        max_steps=8,
     )
     eval_vf = nnx.jit(jax.vmap(eval_vf, in_axes=[None, 0]))
-    out = eval_vf(model, batch["x0"])
+
+    out = eval_vf(model, x)
 
     assert out.ys.shape == (2, 1, dim)
 
-  def test_evaluate_vs_save_extra(self):
-    pass
+  @pytest.mark.parametrize("num_steps", [None, 3])
+  def test_evaluate_vf_save_extra(
+      self, rng: jax.Array, num_steps: Optional[int]
+  ):
+    batch_size, dim = 5, 3
+    ode_max_steps, vel_save_steps = 16, 4
+    batch = _prepare_batch(rng, shape=(batch_size, dim))
+    x = batch["x0"]
+    model = mlp.MLP(dim, hidden_dims=[dim] * 2, rngs=nnx.Rngs(0))
+
+    save_trajectory_kwargs = {"steps": True}
+    save_velocity_kwargs = {"ts": jnp.linspace(0.0, 1.0, vel_save_steps)}
+    eval_vf = functools.partial(
+        fm.evaluate_velocity_field,
+        num_steps=num_steps,
+        save_trajectory_kwargs=save_trajectory_kwargs,
+        save_velocity_kwargs=save_velocity_kwargs,
+        max_steps=ode_max_steps,
+    )
+    eval_vf = nnx.jit(jax.vmap(eval_vf, in_axes=[None, 0]))
+
+    out = eval_vf(model, x)
+
+    ode_steps = num_steps or ode_max_steps
+    assert out.ys["x_t"].shape == (batch_size, ode_steps, dim)
+    assert out.ys["v_t"].shape == (batch_size, vel_save_steps, dim)
 
   def test_curvature(self):
     pass

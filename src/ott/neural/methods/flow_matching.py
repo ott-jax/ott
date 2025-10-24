@@ -119,6 +119,7 @@ def evaluate_velocity_field(
     step_size = 1.0 / num_steps
     stepsize_controller = diffrax.ConstantStepSize()
     solver = diffrax.Euler() if solver is None else solver
+    kwargs["max_steps"] = num_steps
   else:
     step_size = None
     stepsize_controller = diffrax.PIDController(rtol=1e-5, atol=1e-5)
