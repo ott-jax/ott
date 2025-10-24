@@ -14,8 +14,8 @@ Networks
     potentials.MLP
     potentials.PotentialTrainState
 
-ott.neural.networks.velocity_fields
-===================================
+ott.neural.networks.velocity_field
+==================================
 .. module:: ott.neural.networks.velocity_field
 .. currentmodule:: ott.neural.networks.velocity_field
 

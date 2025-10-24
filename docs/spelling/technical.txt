@@ -138,6 +138,7 @@ quantiles
 quantizes
 recenter
 recentered
+recurse
 regularizer
 regularizers
 reimplementation
@@ -175,6 +176,7 @@ subsampled
 subsamples
 subsampling
 thresholding
+timestep
 torus
 toruses
 transcriptome
@@ -187,4 +189,3 @@ url
 varphi
 vectorized
 voxel
-χ
