@@ -27,16 +27,16 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 __all__ = ["FreeBarycenterState", "FreeWassersteinBarycenter"]
 
-linear_output_t = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
+LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
 
 class FreeBarycenterState(NamedTuple):
   """Holds the state of the Wasserstein barycenter solver.
 
   Args:
-    x: barycenter points.
-    a: barycenter weights.
-    costs: Holds the sequence of regularized GW costs seen through the outer
+    x: Barycenter points.
+    a: Barycenter weights.
+    costs: Holds the sequence of regularized costs seen through the outer
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
@@ -46,11 +46,11 @@ class FreeBarycenterState(NamedTuple):
       at each iteration.
   """
 
-  x: jnp.ndarray = None
-  a: jnp.ndarray = None
+  x: jnp.ndarray
+  a: jnp.ndarray
   costs: Optional[jnp.ndarray] = None
-  linear_convergence: jnp.ndarray = None
-  linear_outputs: Optional[Tuple[linear_output_t, ...]] = None
+  linear_convergence: Optional[jnp.ndarray] = None
+  linear_outputs: Optional[LinearOutput] = None
   errors: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
@@ -140,12 +140,12 @@ class FreeBarycenterOutput(NamedTuple):
       at each iteration.
   """
 
-  x: jnp.ndarray = None
-  a: jnp.ndarray = None
-  bar_prob: barycenter_problem.FreeBarycenterProblem = None
-  costs: jnp.ndarray = None
-  linear_convergence: jnp.ndarray = None
-  linear_outputs: Optional[Tuple[linear_output_t, ...]] = None
+  x: jnp.ndarray
+  a: jnp.ndarray
+  bar_prob: barycenter_problem.FreeBarycenterProblem
+  costs: jnp.ndarray
+  linear_convergence: jnp.ndarray
+  linear_outputs: LinearOutput
   errors: Optional[jnp.ndarray] = None
 
   @property
@@ -157,7 +157,7 @@ class FreeBarycenterOutput(NamedTuple):
     """Return the transport matrix from barycenter to measure_index measure."""
     size_measure = self.bar_prob.num_per_measure[measure_index]
     matrix = self.linear_output_at_index(measure_index).matrix
-    return jax.lax.dynamic_slice(matrix, (0, 0), (self.bar_size, size_measure))
+    return jax.lax.dynamic_slice_in_dim(matrix, 0, size_measure, axis=-1)
 
   @property
   def bar_size(self) -> int:
@@ -174,8 +174,8 @@ class FreeBarycenterOutput(NamedTuple):
     """Costs vector with superfluous values removed."""
     return self.costs[:self.num_iters]
 
-  def linear_output_at_index(self, i: int) -> Any:
-    """linear_solver output w.r.t. transport from barycenter to measure i."""
+  def linear_output_at_index(self, i: int) -> LinearOutput:
+    """Linear solver output of transport from barycenter to measure i."""
     return jax.tree.map(lambda x: x[i], self.linear_outputs)
 
 
@@ -249,14 +249,15 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
         functools.partial(state.update, store_errors=self.store_inner_errors),
         0, bar_prob, self.linear_solver
     )
-    tree = jax.tree.map(jnp.zeros_like, abstract_tree)
+
+    linear_outputs = jax.tree.map(jnp.zeros_like, abstract_tree.linear_outputs)
 
     return FreeBarycenterState(
         x=x,
         a=a,
         costs=-jnp.ones((num_iter,)),
         linear_convergence=-jnp.ones((num_iter,)),
-        linear_outputs=tree.linear_outputs,
+        linear_outputs=linear_outputs,
         errors=errors
     )
 

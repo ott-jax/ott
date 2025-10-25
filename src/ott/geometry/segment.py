@@ -127,7 +127,7 @@ def segment_point_cloud(
   segmented_a = jnp.stack(segmented_a)
   segmented_x = jnp.stack(segmented_x)
 
-  return segmented_x, segmented_a, num_per_segment
+  return segmented_x, segmented_a, jnp.array(num_per_segment, dtype=int)
 
 
 def _segment_interface(

@@ -182,6 +182,7 @@ class TestBarycenter:
 
     # Check the output objects return the correct shapes
     assert out.x.shape == (bar_size, self.DIM)
+    assert out.a.shape == (bar_size,)
 
     if not segment_before:
       for i, numps in enumerate(num_per_segment):
