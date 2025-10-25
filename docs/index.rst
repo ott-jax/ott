@@ -85,9 +85,10 @@ Packages
   both understood in a literal (by instantiating a matrix) or abstract (by
   storing information that is sufficient to recreate that matrix, apply all or
   parts of it, or apply its kernel) sense. An important case is handled by the
-  :mod:`ott.geometry.pointcloud` module which specifies *two point clouds*,
-  paired with a *cost function* (to be chosen within :mod:`ott.geometry.costs`).
-  Geometry objects are used to describe OT *problems*, solved next by *solvers*.
+  :class:`~ott.geometry.pointcloud.PointCloud` class which specifies
+  *two point clouds*, paired with a *cost function* (to be chosen within
+  :mod:`ott.geometry.costs`). Geometry objects are used to describe
+  OT *problems*, solved next by *solvers*.
 - :mod:`ott.problems` are used to describe the interactions between multiple
   measures, to define linear (a.k.a. :term:`Kantorovich problem`), quadratic
   (a.k.a. :term:`Gromov-Wasserstein problem`) or :term:`Wasserstein barycenter`
