@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -29,7 +29,7 @@ def segment_point_cloud(
     indices_are_sorted: bool = False,
     num_per_segment: Optional[Tuple[int, ...]] = None,
     padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray, Union[jnp.ndarray, Tuple[int, ...]]]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces:
