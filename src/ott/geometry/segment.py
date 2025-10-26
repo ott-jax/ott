@@ -29,7 +29,7 @@ def segment_point_cloud(
     indices_are_sorted: bool = False,
     num_per_segment: Optional[Tuple[int, ...]] = None,
     padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces:
@@ -45,8 +45,8 @@ def segment_point_cloud(
   upper bound on the maximal size of measures, which will be used for padding.
 
   Args:
-    x: Array of input points, of shape ``[num_x, ndim]``.
-      Multiple segments are held in this single array.
+    x: Array of input points, of shape ``[num_x, ndim]``. Multiple segments are
+      held in this single array.
     a: Array of shape ``[num_x,]`` containing the weights (within each measure)
       of all the points.
     num_segments: Number of segments. Required for jitting.
@@ -73,7 +73,8 @@ def segment_point_cloud(
   Returns:
     Segmented ``x`` as an array of shape
     ``[num_measures, max_measure_size, ndim]`` and ``a`` as an array of shape
-    ``[num_measures, max_measure_size]``.
+    ``[num_measures, max_measure_size]``, as well as a tuple ``num_per_segment``
+    either as originally passed, or as recovered from ``segment_ids``.
   """
   num, dim = x.shape
   use_segment_ids = segment_ids is not None
@@ -126,7 +127,7 @@ def segment_point_cloud(
   segmented_a = jnp.stack(segmented_a)
   segmented_x = jnp.stack(segmented_x)
 
-  return segmented_x, segmented_a
+  return segmented_x, segmented_a, jnp.array(num_per_segment, dtype=int)
 
 
 def _segment_interface(
@@ -158,7 +159,7 @@ def _segment_interface(
     assert num_per_segment_x is not None
     assert num_per_segment_y is not None
 
-  segmented_x, segmented_weights_x = segment_point_cloud(
+  segmented_x, segmented_weights_x, _ = segment_point_cloud(
       x,
       a=weights_x,
       num_segments=num_segments,
@@ -169,7 +170,7 @@ def _segment_interface(
       padding_vector=padding_vector
   )
 
-  segmented_y, segmented_weights_y = segment_point_cloud(
+  segmented_y, segmented_weights_y, _ = segment_point_cloud(
       y,
       a=weights_y,
       num_segments=num_segments,

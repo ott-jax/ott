@@ -9,13 +9,18 @@
 **See the [full documentation](https://ott-jax.readthedocs.io/en/latest/).**
 
 ## What is OTT-JAX?
-A ``JAX`` powered library to compute optimal transport at scale and on accelerators, ``OTT-JAX`` includes the fastest
-implementation of the Sinkhorn algorithm you will find around. We have implemented all tweaks (scheduling, momentum, acceleration, initializations) and extensions (low-rank, entropic maps). They can be used directly between two datasets, or within more advanced problems
-(Gromov-Wasserstein, barycenters). Some of ``JAX`` features, including
-[JIT](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Using-jit-to-speed-up-functions),
-[auto-vectorization](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html#Auto-vectorization-with-vmap) and
-[implicit differentiation](https://jax.readthedocs.io/en/latest/notebooks/Custom_derivative_rules_for_Python_code.html)
-work towards the goal of having end-to-end differentiable outputs. ``OTT-JAX`` is led by a team of researchers at Apple, with contributions from Google and Meta researchers, as well as many academic partners, including TU München, Oxford, ENSAE/IP Paris, ENS Paris and the Hebrew University.
+A ``JAX`` powered library to solve a wide variety of problems leveraging optimal transport theory, at scale and on accelerators.
+
+In particular, ``OTT-JAX`` implements various discrete solvers to match two point clouds, notably the Sinkhorn algorithm implemented to work on various geometric domains and sped up using various tweaks (scheduling, momentum, acceleration, initializations) and extensions (low-rank).
+
+These algorithms power the resolution of more advanced problems
+(Gromov-Wasserstein, Wasserstein barycenter) to compare point clouds in versatile settings.
+
+On top of these discrete solvers, we also propose implementations of neural network
+approaches. Given an source/target pair of measure, they output a neural net network
+that seeks to approximation their optimal transport map.
+
+``OTT-JAX`` is led by a team of researchers at Apple, with past contributions from Google and Meta researchers, as well as academic partners, including TU München, Oxford, ENSAE/IP Paris, ENS Paris and the Hebrew University.
 
 ## Installation
 Install ``OTT-JAX`` from [PyPI](https://pypi.org/project/ott-jax/) as:
@@ -51,30 +56,32 @@ import jax.numpy as jnp
 
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn
+from ott.solvers import linear
+from ott.tools import plot
 
 # sample two point clouds and their weights.
-rngs = jax.random.split(jax.random.key(0), 4)
-n, m, d = 12, 14, 2
-x = jax.random.normal(rngs[0], (n,d)) + 1
+rngs = jax.random.split(jax.random.key(42), 4)
+n, m, d = 6, 11, 2
+x = jax.random.uniform(rngs[0], (n,d))
 y = jax.random.uniform(rngs[1], (m,d))
-a = jax.random.uniform(rngs[2], (n,))
-b = jax.random.uniform(rngs[3], (m,))
+a = jax.random.uniform(rngs[2], (n,)) +.2
+b = jax.random.uniform(rngs[3], (m,)) +.2
 a, b = a / jnp.sum(a), b / jnp.sum(b)
-# Computes the couplings using the Sinkhorn algorithm.
+# instantiate geometry object to compare point clouds.
 geom = pointcloud.PointCloud(x, y)
-prob = linear_problem.LinearProblem(geom, a, b)
+# compute coupling using the Sinkhorn algorithm.
+out = jax.jit(linear.solve)(geom,a,b)
 
-solver = sinkhorn.Sinkhorn()
-out = solver(prob)
+# plot
+plot.Plot()(out)
 ```
 
-The call to `solver(prob)` above works out the optimal transport solution. The `out` object contains a transport matrix
+The call to `solve(prob)` above works out the optimal transport solution. The `out` object contains a transport matrix
 (here of size $12\times 14$) that quantifies the association strength between each point of the first point cloud, to one or
 more points from the second, as illustrated in the plot below. We provide more flexibility to define custom cost
-functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/).
+functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/). The last command displays the transport matrix by using a `Plot` object.
 
-![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/images/couplings.png)
+![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/images/coupling.png)
 
 ## Citation
 If you have found this work useful, please consider citing this reference:
@@ -89,4 +96,4 @@ If you have found this work useful, please consider citing this reference:
 }
 ```
 ## See also
-The [moscot](https://moscot.readthedocs.io/en/latest/index.html) package for OT analysis of multi-omics data also uses OTT as a backbone.
+The [moscot](https://moscot.readthedocs.io/en/latest/index.html) package for OT analysis of multi-omics data uses OTT as a backbone.

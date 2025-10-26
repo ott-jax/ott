@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple, Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -23,29 +23,35 @@ from ott.math import fixed_point_loop
 from ott.math import utils as mu
 from ott.problems.linear import barycenter_problem, linear_problem
 from ott.solvers import was_solver
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 __all__ = ["FreeBarycenterState", "FreeWassersteinBarycenter"]
+
+LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
 
 class FreeBarycenterState(NamedTuple):
   """Holds the state of the Wasserstein barycenter solver.
 
   Args:
-    costs: Holds the sequence of regularized GW costs seen through the outer
+    x: Barycenter points.
+    a: Barycenter weights.
+    costs: Holds the sequence of regularized costs seen through the outer
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
+    linear_outputs: Holds latest output objects returned by linear solver when
+      recomputing transport between barycenter vs. each of the input measures.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
-    x: barycenter points.
-    a: barycenter weights.
   """
 
+  x: jnp.ndarray
+  a: jnp.ndarray
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
+  linear_outputs: Optional[LinearOutput] = None
   errors: Optional[jnp.ndarray] = None
-  x: Optional[jnp.ndarray] = None
-  a: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
     """Return a copy of self, possibly with overwrites."""
@@ -66,7 +72,7 @@ class FreeBarycenterState(NamedTuple):
     Returns:
       The updated state.
     """
-    seg_y, seg_b = bar_prob.segmented_y_b
+    seg_y, seg_b, _ = bar_prob.segmented_y_b
 
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_linear_ot(
@@ -77,14 +83,13 @@ class FreeBarycenterState(NamedTuple):
       )
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
       out = linear_solver(prob)
-      return (
-          out.reg_ot_cost, out.converged, out.matrix,
-          out.errors if store_errors else None
-      )
+      # instantiate matrix since it is a property of out.
+      return out, out.matrix
 
-    reg_ot_costs, convergeds, matrices, errors = solve_linear_ot(
-        self.a, self.x, seg_b, seg_y
-    )
+    outs, matrices = solve_linear_ot(self.a, self.x, seg_b, seg_y)
+    reg_ot_costs = outs.reg_ot_cost
+    convergeds = outs.converged
+    errors = outs.errors
 
     cost = jnp.sum(reg_ot_costs * bar_prob.weights)
     updated_costs = self.costs.at[iteration].set(cost)
@@ -107,11 +112,71 @@ class FreeBarycenterState(NamedTuple):
     )(bar_prob.weights, barycenters_per_measure)
 
     return self.set(
+        x=x_new,
         costs=updated_costs,
         linear_convergence=linear_convergence,
-        errors=errors,
-        x=x_new
+        linear_outputs=outs,
+        errors=errors
     )
+
+
+class FreeBarycenterOutput(NamedTuple):
+  """Holds the output of a Free Wasserstein barycenter solver.
+
+  Objects of this class contain both solutions and problem definition of a
+  regularized Free Barycenter OT problem, along several methods that can be used
+  to access its content.
+
+  Args:
+    x: barycenter points.
+    a: barycenter weights.
+    costs: Holds the sequence of regularized GW costs seen through the outer
+      loop of the solver.
+    linear_convergence: Holds the sequence of bool convergence flags of the
+      inner Sinkhorn iterations.
+    linear_outputs: Holds latest output objects returned by linear solver when
+      recomputing transport between barycenter vs. each of the input measures.
+    errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
+      at each iteration.
+  """
+
+  x: jnp.ndarray
+  a: jnp.ndarray
+  bar_prob: barycenter_problem.FreeBarycenterProblem
+  costs: jnp.ndarray
+  linear_convergence: jnp.ndarray
+  linear_outputs: LinearOutput
+  errors: Optional[jnp.ndarray] = None
+
+  @property
+  def all_linear_solvers_converged(self) -> bool:
+    """Whether all linear convergence flags converged."""
+    return jnp.all(self.linear_convergence[self.linear_convergence != -1])
+
+  def matrix_at_index(self, measure_index: int) -> jnp.ndarray:
+    """Return the transport matrix from barycenter to measure_index measure."""
+    size_measure = self.bar_prob.num_per_measure[measure_index]
+    matrix = self.linear_output_at_index(measure_index).matrix
+    return jax.lax.dynamic_slice_in_dim(matrix, 0, size_measure, axis=-1)
+
+  @property
+  def bar_size(self) -> int:
+    """Size of the barycenter."""
+    return self.x.shape[0]
+
+  @property
+  def num_iters(self) -> int:
+    """Number of outer iterations performed to converge."""
+    return jnp.sum(self.linear_convergence != -1)
+
+  @property
+  def costs_along_iterations(self) -> jnp.ndarray:
+    """Costs vector with superfluous values removed."""
+    return self.costs[:self.num_iters]
+
+  def linear_output_at_index(self, i: int) -> LinearOutput:
+    """Linear solver output of transport from barycenter to measure i."""
+    return jax.tree.map(lambda x: x[i], self.linear_outputs)
 
 
 @jax.tree_util.register_pytree_node_class
@@ -125,9 +190,8 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       x_init: Optional[jnp.ndarray] = None,
       rng: Optional[jax.Array] = None,
   ) -> FreeBarycenterState:
-    # TODO(michalk8): no reason for iterations to be outside this class
     rng = utils.default_prng_key(rng)
-    return iterations(self, bar_size, bar_prob, x_init, rng)
+    return self.iterations(bar_size, bar_prob, x_init, rng)
 
   def init_state(
       self,
@@ -174,52 +238,78 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       ))
     else:
       errors = None
+    state = FreeBarycenterState(
+        x=x,
+        a=a,
+        costs=-jnp.ones((num_iter,)),
+        linear_convergence=-jnp.ones((num_iter,)),
+        errors=errors
+    )
+    abstract_tree = jax.eval_shape(
+        functools.partial(state.update, store_errors=self.store_inner_errors),
+        0, bar_prob, self.linear_solver
+    )
+
+    linear_outputs = jax.tree.map(jnp.zeros_like, abstract_tree.linear_outputs)
+
     return FreeBarycenterState(
-        -jnp.ones((num_iter,)), -jnp.ones((num_iter,)), errors, x, a
+        x=x,
+        a=a,
+        costs=-jnp.ones((num_iter,)),
+        linear_convergence=-jnp.ones((num_iter,)),
+        linear_outputs=linear_outputs,
+        errors=errors
     )
 
   def output_from_state(  # noqa: D102
-      self, state: FreeBarycenterState
-  ) -> FreeBarycenterState:
-    # TODO(michalk8): create an output variable to match rest of the framework
-    return state
-
-
-def iterations(
-    solver: FreeWassersteinBarycenter, bar_size: int,
-    bar_prob: barycenter_problem.FreeBarycenterProblem, x_init: jnp.ndarray,
-    rng: jax.Array
-) -> FreeBarycenterState:
-  """Jittable Wasserstein barycenter outer loop."""
-
-  def cond_fn(
-      iteration: int,
-      constants: Tuple[FreeWassersteinBarycenter,
-                       barycenter_problem.FreeBarycenterProblem],
-      state: FreeBarycenterState
-  ) -> bool:
-    solver, _ = constants
-    return solver._continue(state, iteration)
-
-  def body_fn(
-      iteration, constants: Tuple[FreeWassersteinBarycenter,
-                                  barycenter_problem.FreeBarycenterProblem],
-      state: FreeBarycenterState, compute_error: bool
-  ) -> FreeBarycenterState:
-    del compute_error  # Always assumed True
-    solver, bar_prob = constants
-    return state.update(
-        iteration, bar_prob, solver.linear_solver, solver.store_inner_errors
+      self,
+      state: FreeBarycenterState,
+      bar_prob: barycenter_problem.FreeBarycenterProblem
+  ) -> FreeBarycenterOutput:
+    """Create an output from a barycenter state."""
+    return FreeBarycenterOutput(
+        x=state.x,
+        a=state.a,
+        bar_prob=bar_prob,
+        costs=state.costs,
+        linear_convergence=state.linear_convergence,
+        linear_outputs=state.linear_outputs,
+        errors=state.errors,
     )
 
-  state = fixed_point_loop.fixpoint_iter(
-      cond_fn=cond_fn,
-      body_fn=body_fn,
-      min_iterations=solver.min_iterations,
-      max_iterations=solver.max_iterations,
-      inner_iterations=1,
-      constants=(solver, bar_prob),
-      state=solver.init_state(bar_prob, bar_size, x_init, rng)
-  )
+  def iterations(
+      self, bar_size: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
+      x_init: jnp.ndarray, rng: jax.Array
+  ) -> FreeBarycenterState:
+    """Wasserstein barycenter outer loop."""
 
-  return solver.output_from_state(state)
+    def cond_fn(
+        iteration: int,
+        constants: Tuple[FreeWassersteinBarycenter,
+                         barycenter_problem.FreeBarycenterProblem],
+        state: FreeBarycenterState
+    ) -> bool:
+      return self._continue(state, iteration)
+
+    def body_fn(
+        iteration, constants: Tuple[FreeWassersteinBarycenter,
+                                    barycenter_problem.FreeBarycenterProblem],
+        state: FreeBarycenterState, compute_error: bool
+    ) -> FreeBarycenterState:
+      del compute_error  # Always assumed True
+      bar_prob = constants
+      return state.update(
+          iteration, bar_prob, self.linear_solver, self.store_inner_errors
+      )
+
+    state = fixed_point_loop.fixpoint_iter(
+        cond_fn=cond_fn,
+        body_fn=body_fn,
+        min_iterations=self.min_iterations,
+        max_iterations=self.max_iterations,
+        inner_iterations=1,
+        constants=bar_prob,
+        state=self.init_state(bar_prob, bar_size, x_init, rng)
+    )
+
+    return self.output_from_state(state, bar_prob)
