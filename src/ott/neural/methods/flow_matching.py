@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+import inspect
 from typing import (
     Any,
     Callable,
@@ -78,7 +79,11 @@ def flow_matching_step(
     return loss_fn(v_pred, v_t).mean()
 
   loss, grads = nnx.value_and_grad(compute_loss)(model, rngs)
-  optimizer.update(model, grads)
+  if "model" in inspect.signature(optimizer.update).parameters:
+    optimizer.update(model, grads)
+  else:
+    # for flax version < 0.11.0
+    optimizer.update(grads)
   grad_norm = optax.global_norm(grads)
 
   if model_callback_fn is not None:
