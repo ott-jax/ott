@@ -8,4 +8,5 @@ Data Loaders
 .. autosummary::
     :toctree: _autosummary
 
+    ot_dataloader.LinearOTDataloader
     semidiscrete_dataloader.SemidiscreteDataloader

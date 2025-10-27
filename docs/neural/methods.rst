@@ -9,6 +9,7 @@ Flow Matching
     :toctree: _autosummary
 
     flow_matching.flow_matching_step
+    flow_matching.interpolate_samples
     flow_matching.evaluate_velocity_field
     flow_matching.curvature
     flow_matching.gaussian_nll

@@ -101,5 +101,4 @@ def _align(
 
   ixs = jr.choice(rng, n * m, shape=(n,), p=probs, replace=replace)
   row_ixs, col_ixs = ixs // m, ixs % m
-  jax.debug.print("r={},c={}", row_ixs[:5], col_ixs[:5])
   return x[row_ixs], y[col_ixs]
