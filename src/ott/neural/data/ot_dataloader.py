@@ -29,13 +29,13 @@ class LinearOTDataloader:
   """Linear OT dataloader.
 
   This dataloader wraps an iterable ``dataset`` which generates
-  ``(source, target)`` arrays with shape ``[batch_size, ...]`` and aligns them
+  ``(source, target)`` arrays with shape ``[batch, ...]`` and aligns them
   using the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm.
 
   Args:
     rng: Random number generator.
     dataset: Iterable dataset which yields a tuple of source and target arrays
-      of shape ``[batch_size, ...]``.
+      of shape ``[batch, ...]``.
     epsilon: Epsilon regularization.
       See :class:`~ott.geometry.geometry.Geometry` for more information.
     relative_epsilon: Whether ``epsilon`` refers to a fraction of the
@@ -79,7 +79,11 @@ class LinearOTDataloader:
     return self
 
   def __next__(self) -> Tuple[jax.Array, jax.Array]:
-    """TODO."""
+    """Align source and target samples in a batch.
+
+    Returns:
+      The aligned source and target arrays of shape ``[batch, ...]``.
+    """
     assert self._data_it is not None, "Please call `iter()` first."
     assert self._rng_it is not None, "Please call `iter()` first."
     self._rng_it, rng_sample = jr.split(self._rng_it, 2)

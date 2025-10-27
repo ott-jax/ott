@@ -29,7 +29,7 @@ class SemidiscreteDataloader:
 
   This dataloader samples from the continuous source distribution and
   couples it with the discrete target distribution. It returns aligned tuples of
-  ``(source, target)`` arrays of shape ``[batch_size, ...]``.
+  ``(source, target)`` arrays of shape ``[batch, ...]``.
 
   Args:
     rng: Random number seed.
@@ -80,7 +80,7 @@ class SemidiscreteDataloader:
     """Sample from the source distribution and match it with the data.
 
     Returns:
-      A tuple of samples and data, arrays of shape ``[batch_size, ...]``.
+      A tuple of samples and data, arrays of shape ``[batch, ...]``.
     """
     assert self._rng_it is not None, "Please call `iter()` first."
     self._rng_it, rng_sample = jr.split(self._rng_it, 2)
