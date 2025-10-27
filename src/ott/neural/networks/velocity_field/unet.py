@@ -123,7 +123,7 @@ class TimestepEmbedSequential(nnx.Module):
 
   def __init__(self, *layers: nnx.Module):
     super().__init__()
-    self.layers = nnx.List(layers)
+    self.layers = nnx.List(layers) if hasattr(nnx, "List") else list(layers)
 
   def __call__(
       self,
@@ -560,7 +560,7 @@ class UNet(nnx.Module):
       self.label_emb = None
 
     # Input blocks
-    self.input_blocks = nnx.List()
+    self.input_blocks = nnx.List() if hasattr(nnx, "List") else []
     input_block_chans = [model_channels]
     ch = int(channel_mult[0] * model_channels)
     ds = 1
@@ -668,7 +668,7 @@ class UNet(nnx.Module):
     )
 
     # Output blocks
-    self.output_blocks = nnx.List()
+    self.output_blocks = nnx.List() if hasattr(nnx, "List") else []
     for level, mult in list(enumerate(channel_mult))[::-1]:
       for i in range(num_res_blocks + 1):
         ich = input_block_chans.pop()
