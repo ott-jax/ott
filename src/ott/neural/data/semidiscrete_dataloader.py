@@ -32,10 +32,10 @@ class SemidiscreteDataloader:
   ``(source, target)`` arrays of shape ``[batch_size, ...]``.
 
   Args:
+    rng: Random number seed.
     sd_out: Semidiscrete output object storing a precomputed OT solution between
       the (continuous) source distribution and the dataset of interest.
     batch_size: Batch size.
-    rng: Random number seed.
     subset_size_threshold: Threshold above which to sample from a subset of the
       coupling matrix. Only applicable when the problem is :meth:`entropically
       regularized <ott.geometry.semidiscrete_pointcloud.SemidiscretePointCloud.is_entropy_regularized>`.
@@ -45,9 +45,9 @@ class SemidiscreteDataloader:
       using the :func:`~jax.lax.top_k` values if ``m > subset_size_threshold``.
     out_shardings: Output shardings for the aligned batch.
   """  # noqa: E501
+  rng: jax.Array
   sd_out: semidiscrete.SemidiscreteOutput
   batch_size: int
-  rng: jax.Array
   subset_size_threshold: Optional[int] = None
   subset_size: Optional[int] = None
   out_shardings: Optional[jax.sharding.Sharding] = None

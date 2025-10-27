@@ -50,7 +50,7 @@ class TestSemidiscreteDataloader:
     m, d = 19, 2
     rng_solve, rng_dl = jr.split(rng, 2)
     out = _solve_semidiscrete(rng_solve, shape=(m, d), epsilon=0.1)
-    dl = sddl.SemidiscreteDataloader(out, batch_size=batch_size, rng=rng_dl)
+    dl = sddl.SemidiscreteDataloader(rng, out, batch_size=batch_size)
 
     src1, tgt1 = next(iter(dl))
     src2, tgt2 = next(iter(dl))
@@ -66,30 +66,30 @@ class TestSemidiscreteDataloader:
     out = _solve_semidiscrete(rng_solve, shape=(m, d), epsilon=0.2)
 
     with pytest.raises(AssertionError, match=r"Batch size must be positive"):
-      _ = sddl.SemidiscreteDataloader(out, batch_size=0, rng=rng_dl)
+      _ = sddl.SemidiscreteDataloader(rng_dl, out, batch_size=0)
     with pytest.raises(AssertionError, match=r"Subset threshold must be in"):
       _ = sddl.SemidiscreteDataloader(
-          out, batch_size=32, subset_size_threshold=0, rng=rng
+          rng_dl, out, batch_size=32, subset_size_threshold=0
       )
     with pytest.raises(AssertionError, match=r"Subset threshold must be in"):
       _ = sddl.SemidiscreteDataloader(
-          out, batch_size=32, subset_size_threshold=m, rng=rng
+          rng_dl, out, batch_size=32, subset_size_threshold=m
       )
     with pytest.raises(AssertionError, match=r"Subset size must be in"):
       _ = sddl.SemidiscreteDataloader(
+          rng_dl,
           out,
           batch_size=32,
           subset_size_threshold=m // 2,
           subset_size=0,
-          rng=rng
       )
     with pytest.raises(AssertionError, match=r"Subset size must be in"):
       _ = sddl.SemidiscreteDataloader(
+          rng_dl,
           out,
           batch_size=32,
           subset_size_threshold=m // 2,
           subset_size=m,
-          rng=rng
       )
 
   @pytest.mark.parametrize(("subset_size_threshold", "subset_size"), [(7, 7),
@@ -104,11 +104,11 @@ class TestSemidiscreteDataloader:
     out = _solve_semidiscrete(rng_solve, shape=(m, d), epsilon=0.2)
 
     dl = sddl.SemidiscreteDataloader(
+        rng_dl,
         out,
         batch_size=batch_size,
         subset_size_threshold=subset_size_threshold,
         subset_size=subset_size,
-        rng=rng_dl
     )
 
     src, tgt = next(iter(dl))
@@ -125,7 +125,7 @@ class TestSemidiscreteDataloader:
     mesh = jax.make_mesh((jax.device_count(),), ("data",))
     sharding = jsh.NamedSharding(mesh, jsh.PartitionSpec("data"))
     dl = sddl.SemidiscreteDataloader(
-        out, batch_size=batch_size, rng=rng_dl, out_shardings=sharding
+        rng_dl, out, batch_size=batch_size, out_shardings=sharding
     )
 
     src, tgt = next(iter(dl))
