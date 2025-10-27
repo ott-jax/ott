@@ -26,6 +26,7 @@ from typing import (
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import jax.tree_util as jtu
 import numpy as np
 
@@ -35,18 +36,20 @@ from flax import nnx
 
 __all__ = [
     "flow_matching_step",
+    "interpolate_samples",
     "evaluate_velocity_field",
     "curvature",
     "gaussian_nll",
 ]
 
 DivState = Tuple[jax.Array, jax.Array]  # velocity, divergence
+Batch = Dict[Literal["t", "x_t", "v_t", "cond"], jax.Array]
 
 
 def flow_matching_step(
     model: nnx.Module,
     optimizer: nnx.Optimizer,
-    batch: Dict[Literal["t", "x_t", "v_t", "cond"], jax.Array],
+    batch: Batch,
     *,
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
     model_callback_fn: Optional[Callable[[nnx.Module], None]] = None,
@@ -90,6 +93,33 @@ def flow_matching_step(
     model_callback_fn(model)
 
   return {"loss": loss, "grad_norm": grad_norm}
+
+
+def interpolate_samples(
+    rng: jax.Array,
+    x0: jax.Array,
+    x1: jax.Array,
+    cond: Optional[jax.Array] = None,
+    *,
+    time_sampler: Optional[Callable[[jax.Array, ...], jax.Array]] = None
+) -> Batch:
+  """TODO."""
+  if time_sampler is None:
+    time_sampler = jr.uniform
+
+  batch_size = len(x0)
+  t = time_sampler(rng, (batch_size,))
+  assert t.shape == (batch_size,), (t.shape, (batch_size,))
+  t_ = jnp.expand_dims(t, axis=range(1, x0.ndim))
+
+  batch = {
+      "t": t,
+      "x_t": (1.0 - t_) * x0 + t_ * x1,
+      "v_t": x1 - x0,
+  }
+  if cond is not None:
+    batch["cond"] = cond
+  return batch
 
 
 def evaluate_velocity_field(
