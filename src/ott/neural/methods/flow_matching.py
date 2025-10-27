@@ -162,7 +162,7 @@ def evaluate_velocity_field(
     cond: Condition of shape ``[*cond_dims]``.
     t0: Start time of the integration.
     t1: End time of the integration.
-    reverse: Whether to integrate from ``t1`` to ``t0``.
+    reverse: Whether to integrate from :math:`t_1` to :math:`t_0`.
     num_steps: Number of steps used for solvers with a constant step size.
     solver: ODE solver. If :obj:`None` and ``step_size = None``,
       use :class:`~diffrax.Dopri5`. Otherwise use :class:`~diffrax.Euler`.
