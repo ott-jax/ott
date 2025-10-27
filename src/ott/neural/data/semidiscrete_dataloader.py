@@ -108,7 +108,7 @@ def _sample(
   else:
     tgt_idx = _sample_from_coupling(
         rng_tmat,
-        coupling=out_sampled.matrix,
+        out_sampled.matrix,
         subset_size_threshold=subset_size_threshold,
         subset_size=subset_size,
         axis=1,
@@ -121,8 +121,8 @@ def _sample(
 
 def _sample_from_coupling(
     rng: jax.Array,
-    *,
     coupling: jax.Array,
+    *,
     subset_size_threshold: Optional[int],
     subset_size: int,
     axis: int,

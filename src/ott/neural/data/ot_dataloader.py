@@ -66,8 +66,8 @@ class LinearOTDataloader:
             max_iterations=self.max_iterations
         ),
         static_argnames=["cost_fn", "epsilon", "relative_epsilon", "replace"],
-        in_shardings=self.shardings,
-        out_shardings=self.shardings,
+        in_shardings=(None, self.shardings, self.shardings),
+        out_shardings=(self.shardings, self.shardings),
     )
     self._data_it: Optional[Iterator[Tuple[jax.Array, jax.Array]]] = None
     self._rng_it: Optional[jax.Array] = None
@@ -88,10 +88,10 @@ class LinearOTDataloader:
         rng_sample,
         x,
         y,
-        cost_fn=self.cost_fn,
-        epsilon=self.epsilon,
-        relative_epsilon=self.relative_epsilon,
-        replace=self.replace,
+        self.cost_fn,
+        self.epsilon,
+        self.relative_epsilon,
+        self.replace,
     )
 
 
@@ -99,7 +99,6 @@ def _align(
     rng: jax.Array,
     x: jax.Array,
     y: jax.Array,
-    *,
     cost_fn: costs.CostFn,
     epsilon: Optional[float],
     relative_epsilon: Optional[...],
