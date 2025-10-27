@@ -58,6 +58,7 @@ covariance
 covariances
 covariates
 dataclass
+dataloader
 dataloaders
 dataset
 datasets
@@ -137,6 +138,7 @@ quantiles
 quantizes
 recenter
 recentered
+recurse
 regularizer
 regularizers
 reimplementation
@@ -174,6 +176,7 @@ subsampled
 subsamples
 subsampling
 thresholding
+timestep
 torus
 toruses
 transcriptome

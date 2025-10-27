@@ -12,6 +12,6 @@ and solvers to estimate such neural networks.
 .. toctree::
     :maxdepth: 2
 
-    datasets
+    data
     methods
     networks

@@ -9,12 +9,38 @@ Networks
     :toctree: _autosummary
 
     icnn.ICNN
-    velocity_field.VelocityField
     potentials.BasePotential
     potentials.PotentialMLP
     potentials.MLP
     potentials.PotentialTrainState
 
+ott.neural.networks.velocity_field
+==================================
+.. module:: ott.neural.networks.velocity_field
+.. currentmodule:: ott.neural.networks.velocity_field
+
+MLP
+---
+.. autosummary::
+    :toctree: _autosummary
+
+    mlp.MLP
+
+UNet
+----
+.. autosummary::
+    :toctree: _autosummary
+
+    unet.UNet
+
+EMA
+---
+.. autosummary::
+    :toctree: _autosummary
+
+    ema.EMA
+    ema.init_ema
+    ema.update_ema
 
 ott.neural.networks.layers
 ==========================
@@ -31,4 +57,3 @@ Layers
     conjugate.ConjugateResults
     posdef.PositiveDense
     posdef.PosDefPotentials
-    time_encoder.cyclical_time_encoder

@@ -232,3 +232,33 @@ class TestSemidiscreteSolver:
         np.testing.assert_allclose(
             out_sampled.matrix.sum(), 1.0, rtol=1e-5, atol=1e-5
         )
+
+  @pytest.mark.parametrize("epsilon_dp", [None, 0.1])
+  @pytest.mark.parametrize("epsilon_prob", [0.0, 1e-2])
+  def test_sd_dual_potentials(
+      self, rng: jax.Array, epsilon_prob: float, epsilon_dp: Optional[float]
+  ):
+    rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
+
+    prob = _random_problem(rng_prob, m=15, d=4, epsilon=epsilon_prob)
+    x = prob.geom.sample(rng_sample, 6).x
+    y = prob.geom.y
+
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=10,
+        batch_size=5,
+        error_eval_every=5,
+        error_num_iterations=3,
+        optimizer=optax.sgd(1e-1),
+    )
+
+    out = jax.jit(solver)(rng_solver, prob)
+    # if epsilon_dp=None, epsilon_prob is used
+    dp = out.to_dual_potentials(epsilon_dp)
+
+    y_hat = dp.transport(x, forward=True)
+    assert y_hat.shape == x.shape
+    np.testing.assert_array_equal(jnp.isfinite(y_hat), True)
+
+    with pytest.raises(AssertionError, match=r"The `g` potential is not"):
+      _ = dp.transport(y, forward=False)

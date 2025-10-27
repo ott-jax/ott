@@ -104,11 +104,13 @@ class DualPotentials:
   @property
   def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Vectorized gradient of the potential function :attr:`f`."""
+    assert self.f is not None, "The `f` potential is not computed."
     return jax.vmap(jax.grad(self.f, argnums=0))
 
   @property
   def _grad_g(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
     """Vectorized gradient of the potential function :attr:`g`."""
+    assert self.g is not None, "The `g` potential is not computed."
     return jax.vmap(jax.grad(self.g, argnums=0))
 
   def plot_ot_map(

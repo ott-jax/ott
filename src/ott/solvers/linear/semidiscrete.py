@@ -165,7 +165,7 @@ class SemidiscreteOutput:
       The dual potential :math:`f`.
     """
     f_fn = self.prob.potential_fn_from_dual_vec(self.g, epsilon=epsilon)
-    cost_fn = self.prob.geom.cost_fn
+    cost_fn = self.geom.cost_fn
     return potentials.DualPotentials(f=f_fn, g=None, cost_fn=cost_fn)
 
   def marginal_chi2_error(
@@ -197,8 +197,8 @@ class SemidiscreteOutput:
   def _output_from_samples(
       self, x: jax.Array
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
-    epsilon = self.prob.geom.epsilon
-    geom = self.prob.geom._from_samples(x, epsilon)
+    epsilon = self.geom.epsilon
+    geom = self.geom._from_samples(x, epsilon)
     prob = linear_problem.LinearProblem(
         geom, a=None, b=self.prob.b, tau_a=1.0, tau_b=self.prob.tau_b
     )
@@ -210,8 +210,8 @@ class SemidiscreteOutput:
     num_samples, _ = prob.geom.shape
 
     # TODO(michalk8): allow for passing epsilon?
-    if self.prob.geom.is_entropy_regularized:
-      b, epsilon = self.prob.b, self.prob.geom.epsilon
+    if self.geom.is_entropy_regularized:
+      b, epsilon = self.prob.b, self.geom.epsilon
       f, _ = prob._c_transform(self.g, axis=1)
       # SinkhornOutput's potentials must contain
       # probability weight normalization
