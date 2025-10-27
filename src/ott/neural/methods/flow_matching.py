@@ -101,14 +101,32 @@ def interpolate_samples(
     x1: jax.Array,
     cond: Optional[jax.Array] = None,
     *,
-    time_sampler: Optional[Callable[[jax.Array, ...], jax.Array]] = None
+    time_sampler: Optional[Callable[[jax.Array, Tuple[int], jnp.dtype],
+                                    jax.Array]] = None
 ) -> Batch:
-  """TODO."""
+  """Sample time and interpolate.
+
+  Args:
+    rng: Random number generator.
+    x0: Source samples at :math:`t_0`, array of shape ``[batch_size, ...]``.
+    x1: Target samples at :math:`t_1`, array of shape ``[batch_size, ...]``.
+    cond: Condition.
+    time_sampler: Time sampler with signature ``(rng, shape, dtype) -> time``.
+
+  Returns:
+    Dictionary containing the following values:
+
+    - ``'t'`` - time, array of shape ``[batch_size,]``.
+    - ``'x_t'`` - position :math:`x_t`, array of shape ``[batch_size, ...]``.
+    - ``'v_t'`` - target velocity :math:`x_1 - x_0`,
+      array of shape ``[batch_size, ...]``.
+    - ``'cond'`` - condition (optional), array of shape ``[batch_size, ...]``.
+  """
   if time_sampler is None:
     time_sampler = jr.uniform
 
   batch_size = len(x0)
-  t = time_sampler(rng, (batch_size,))
+  t = time_sampler(rng, (batch_size,), x0.dtype)
   assert t.shape == (batch_size,), (t.shape, (batch_size,))
   t_ = jnp.expand_dims(t, axis=range(1, x0.ndim))
 

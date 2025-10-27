@@ -26,7 +26,28 @@ __all__ = ["LinearOTDataloader"]
 
 @dataclasses.dataclass(frozen=False, repr=False)
 class LinearOTDataloader:
-  """TODO."""
+  """Linear OT dataloader.
+
+  This dataloader wraps an iterable ``dataset`` which generates
+  ``(source, target)`` arrays with shape ``[batch_size, ...]`` and aligns them
+  using the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm.
+
+  Args:
+    rng: Random number generator.
+    dataset: Iterable dataset which yields a tuple of source and target arrays
+      of shape ``[batch_size, ...]``.
+    epsilon: Epsilon regularization.
+      See :class:`~ott.geometry.geometry.Geometry` for more information.
+    relative_epsilon: Whether ``epsilon`` refers to a fraction of the
+      :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix` or
+      :attr:`~ott.geometry.pointcloud.PointCloud.std_cost_matrix`.
+    cost_fn: Cost function between two points.
+    threshold: Convergence threshold for
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
+    max_iterations: Maximum number of Sinkhorn iterations.
+    replace: Whether to sample with replacement.
+    shardings: Input and output shardings for the source and target arrays.
+  """
   rng: jax.Array
   dataset: Iterable[Tuple[jax.Array, jax.Array]]
   epsilon: Optional[float] = None
@@ -35,10 +56,9 @@ class LinearOTDataloader:
   threshold: float = 1e-3
   max_iterations: int = 2000
   replace: bool = True
-  in_shardings: Optional[jax.sharding.Sharding] = None
-  out_shardings: Optional[jax.sharding.Sharding] = None
+  shardings: Optional[jax.sharding.Sharding] = None
 
-  def __post_init__(self):
+  def __post_init__(self) -> None:
     self._align_fn = jax.jit(
         functools.partial(
             _align,
@@ -46,8 +66,8 @@ class LinearOTDataloader:
             max_iterations=self.max_iterations
         ),
         static_argnames=["cost_fn", "epsilon", "relative_epsilon", "replace"],
-        in_shardings=self.in_shardings,
-        out_shardings=self.out_shardings,
+        in_shardings=self.shardings,
+        out_shardings=self.shardings,
     )
     self._data_it: Optional[Iterator[Tuple[jax.Array, jax.Array]]] = None
     self._rng_it: Optional[jax.Array] = None

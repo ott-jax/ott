@@ -27,7 +27,7 @@ __all__ = ["SemidiscreteDataloader"]
 class SemidiscreteDataloader:
   """Semidiscrete dataloader.
 
-  The dataloader samples from the continuous source distribution and
+  This dataloader samples from the continuous source distribution and
   couples it with the discrete target distribution. It returns aligned tuples of
   ``(source, target)`` arrays of shape ``[batch_size, ...]``.
 
