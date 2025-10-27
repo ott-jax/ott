@@ -40,16 +40,13 @@ def _prepare_batch(
   batch_size, *_ = shape
   x0 = jr.normal(rng_x0, shape) * x0_stddev
   x1 = jr.normal(rng_x1, shape) + 5.0
-  t = jr.uniform(rng_t, (batch_size,))
   cond = jr.choice(
       rng_cond, num_classes, (batch_size,)
   ) if num_classes else None
-
-  t_expanded = jnp.expand_dims(t, range(1, len(shape)))
-  x_t = (1.0 - t_expanded) * x0 + t_expanded * x1
-  v_t = x1 - x0
-
-  return {"t": t, "x_t": x_t, "v_t": v_t, "cond": cond, "x0": x0, "x1": x1}
+  batch = fm.interpolate_samples(rng_t, x0, x1, cond)
+  batch["x0"] = x0
+  batch["x1"] = x1
+  return batch
 
 
 class TestFlowMatching:
