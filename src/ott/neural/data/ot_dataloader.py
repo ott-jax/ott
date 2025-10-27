@@ -101,7 +101,7 @@ def _align(
     y: jax.Array,
     cost_fn: costs.CostFn,
     epsilon: Optional[float],
-    relative_epsilon: Optional[...],
+    relative_epsilon: Optional[Literal["mean", "std"]],
     replace: bool,
     **kwargs: Any,
 ) -> Tuple[jax.Array, jax.Array]:
