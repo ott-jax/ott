@@ -59,8 +59,8 @@ class MLP(nnx.Module):
     self.blocks = nnx.Sequential(
         *(
             block_fn(in_dim, out_dim, rngs=rngs)
-            for in_dim, out_dim in zip(hidden_dims[:-1], hidden_dims[1:])
-        )
+            for in_dim, out_dim in zip(hidden_dims[:-2], hidden_dims[1:-1])
+        ), nnx.Linear(hidden_dims[-2], hidden_dims[-1], rngs=rngs)
     )
     self.time_enc_num_freqs = time_enc_num_freqs
 
