@@ -53,10 +53,10 @@ class TestEMA:
 
     model_ema = ema.EMA(model, decay=decay)
     update_ema(model, model_ema)
-    # nnx.jit(model_ema)(model) throws TraceError
+    # nnx.jit(model_ema)(model)  # throws TraceError below
 
     ema_state = nnx.to_flat_state(nnx.state(model_ema))
     for (k_act, act), (k_exp, exp) in zip(ema_state, expected_ema_state):
       k_act = k_act[1:]  # drop the `ema` prefix
       assert k_act == k_exp, (k_act, k_exp)
-      np.testing.assert_array_equal(act, exp, err_msg=str(k_act))
+      np.testing.assert_array_equal(act.value, exp.value, err_msg=str(k_act))
