@@ -52,16 +52,25 @@ class MLP(nnx.Module):
       time_enc_num_freqs = max(1, min(dim // 16, 64))
 
     time_dim = 2 * time_enc_num_freqs
-    hidden_dims = [dim + time_dim + cond_dim] + list(hidden_dims) + [dim]
+    hidden_dims = [dim + time_dim + cond_dim] + list(hidden_dims)
     block_fn = functools.partial(
         Block, act_fn=act_fn, dropout_rate=dropout_rate, **kwargs
     )
-    self.blocks = nnx.Sequential(
+
+    blocks = [
         *(
             block_fn(in_dim, out_dim, rngs=rngs)
-            for in_dim, out_dim in zip(hidden_dims[:-2], hidden_dims[1:-1])
-        ), nnx.Linear(hidden_dims[-2], hidden_dims[-1], rngs=rngs)
+            for in_dim, out_dim in zip(hidden_dims[:-1], hidden_dims[1:])
+        )
+    ]
+    final_block = block_fn(
+        hidden_dims[-1],
+        dim,
+        act_fn=jax.nn.identity,
+        rngs=rngs,
     )
+
+    self.blocks = nnx.Sequential(*blocks, final_block)
     self.time_enc_num_freqs = time_enc_num_freqs
 
   def __call__(
