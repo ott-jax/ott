@@ -149,7 +149,7 @@ Packages
     bibliography
     contributing
 
-.. |Downloads| image:: https://static.pepy.tech/badge/ott-jax
+.. |Downloads| image:: https://static.pepy.tech/personalized-badge/ott-jax?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=BLUE&left_text=downloads
     :target: https://pypi.org/project/ott-jax/
     :alt: Documentation
 
