@@ -259,19 +259,19 @@ class SemidiscreteOutput:
 
 
 def constant_epsilon_scheduler(
-    step: jax.Array, problem: sdlp.SemidiscreteLinearProblem
+    step: jax.Array, target_epsilon: jax.Array
 ) -> jax.Array:
   """Constant epsilon scheduler.
 
   Args:
     step: Current step (ignored).
-    problem: Semidiscrete problem.
+    target_epsilon: Epsilon at the last iteration.
 
   Returns:
-    The epsilon value stored in the semidiscrete geometry.
+    The target epsilon.
   """
   del step
-  return problem.epsilon
+  return target_epsilon
 
 
 @jtu.register_static
@@ -305,7 +305,7 @@ class SemidiscreteSolver:
   error_num_iterations: int = 1000
   threshold: float = 1e-3
   potential_ema: float = 0.99
-  epsilon_scheduler: Callable[[jax.Array, sdlp.SemidiscreteLinearProblem],
+  epsilon_scheduler: Callable[[jax.Array, jax.Array],
                               jax.Array] = constant_epsilon_scheduler
   callback: Optional[Callable[[SemidiscreteState], None]] = None
 
@@ -335,7 +335,7 @@ class SemidiscreteSolver:
       del prob
       loss = state.losses[it - 1]
       err = jnp.abs(state.errors[it // self.error_eval_every - 1])
-
+      # TODO(michalk8): add epsilon condition
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
       # continue if not converged and not diverged
@@ -421,7 +421,7 @@ class SemidiscreteSolver:
     rng_error = utils.default_prng_key(rng_error)
 
     g_old = state.g
-    epsilon = self.epsilon_scheduler(it, prob)
+    epsilon = self.epsilon_scheduler(it, prob.epsilon)
     lin_prob = prob.sample(rng, self.batch_size, epsilon=epsilon)
 
     loss, grads = jax.value_and_grad(_semidiscrete_loss)(g_old, lin_prob)
