@@ -236,8 +236,7 @@ class SemidiscreteOutput:
       epsilon = self.geom.epsilon
       is_entropy_regularized = self.geom.is_entropy_regularized
     else:
-      with jax.ensure_compile_time_eval():
-        is_entropy_regularized = epsilon > 0.0
+      is_entropy_regularized = epsilon > 0.0
 
     if is_entropy_regularized:
       f, _ = prob._c_transform(self.g, axis=1)

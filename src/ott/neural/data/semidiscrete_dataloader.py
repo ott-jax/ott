@@ -36,6 +36,8 @@ class SemidiscreteDataloader:
     sd_out: Semidiscrete output object storing a precomputed OT solution between
       the (continuous) source distribution and the dataset of interest.
     batch_size: Batch size.
+    epsilon: Epsilon regularization. If :obj:`None`, use the one stored
+      in the :attr:`geometry <ott.solvers.linear.semidiscrete.SemidiscreteOutput.geom>`.
     subset_size_threshold: Threshold above which to sample from a subset of the
       coupling matrix. Only applicable when the problem is :meth:`entropically
       regularized <ott.geometry.semidiscrete_pointcloud.SemidiscretePointCloud.is_entropy_regularized>`.
@@ -48,6 +50,7 @@ class SemidiscreteDataloader:
   rng: jax.Array
   sd_out: semidiscrete.SemidiscreteOutput
   batch_size: int
+  epsilon: Optional[float] = None
   subset_size_threshold: Optional[int] = None
   subset_size: Optional[int] = None
   out_shardings: Optional[jax.sharding.Sharding] = None
@@ -68,7 +71,9 @@ class SemidiscreteDataloader:
     self._sample_fn = jax.jit(
         _sample,
         out_shardings=self.out_shardings,
-        static_argnames=["batch_size", "subset_size_threshold", "subset_size"],
+        static_argnames=[
+            "batch_size", "epsilon", "subset_size_threshold", "subset_size"
+        ],
     )
 
   def __iter__(self) -> "SemidiscreteDataloader":
@@ -88,6 +93,7 @@ class SemidiscreteDataloader:
         rng_sample,
         self.sd_out,
         self.batch_size,
+        self.epsilon,
         self.subset_size_threshold,
         self.subset_size,
     )
@@ -97,11 +103,12 @@ def _sample(
     rng: jax.Array,
     out: semidiscrete.SemidiscreteOutput,
     batch_size: int,
+    epsilon: Optional[float],
     subset_size_threshold: Optional[int],
     subset_size: int,
 ) -> Tuple[jax.Array, jax.Array]:
   rng_sample, rng_tmat = jr.split(rng, 2)
-  out_sampled = out.sample(rng_sample, batch_size)
+  out_sampled = out.sample(rng_sample, batch_size, epsilon=epsilon)
 
   if isinstance(out_sampled, semidiscrete.HardAssignmentOutput):
     tgt_idx = out_sampled.paired_indices[1]
