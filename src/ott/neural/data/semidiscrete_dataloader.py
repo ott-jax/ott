@@ -38,6 +38,11 @@ class SemidiscreteDataloader:
     batch_size: Batch size.
     epsilon: Epsilon regularization. If :obj:`None`, use the one stored
       in the :attr:`geometry <ott.solvers.linear.semidiscrete.SemidiscreteOutput.geom>`.
+    epsilon: Epsilon regularization. In the context of this class, this epsilon
+      value can be interpreted exclusively as a softmax temperature.
+      If :obj:`None`, use the one stored in the
+      :attr:`geometry <ott.solvers.linear.semidiscrete.SemidiscreteOutput.geom>`
+      which was used to compute the potential stored in the ``sd_out``.
     subset_size_threshold: Threshold above which to sample from a subset of the
       coupling matrix. Only applicable when the problem is :meth:`entropically
       regularized <ott.geometry.semidiscrete_pointcloud.SemidiscretePointCloud.is_entropy_regularized>`.
