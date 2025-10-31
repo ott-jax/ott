@@ -32,7 +32,7 @@ class SemidiscreteDataloader:
   ``(source, target)`` arrays of shape ``[batch, ...]``.
 
   Args:
-    rng: Random number seed.
+    rng: Random number seed used for sampling from the source distribution.
     sd_out: Semidiscrete output object storing a precomputed OT solution between
       the (continuous) source distribution and the dataset of interest.
     batch_size: Batch size.

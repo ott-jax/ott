@@ -13,7 +13,7 @@
 # limitations under the License.
 import dataclasses
 import math
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.experimental.sparse as jesp
@@ -31,6 +31,9 @@ from ott.math import fixed_point_loop
 from ott.problems.linear import linear_problem, potentials
 from ott.problems.linear import semidiscrete_linear_problem as sdlp
 from ott.solvers.linear import sinkhorn
+
+if TYPE_CHECKING:
+  from ott.neural.data import semidiscrete_dataloader
 
 __all__ = [
     "SemidiscreteState",
@@ -167,6 +170,29 @@ class SemidiscreteOutput:
     f_fn = self.prob.potential_fn_from_dual_vec(self.g, epsilon=epsilon)
     cost_fn = self.geom.cost_fn
     return potentials.DualPotentials(f=f_fn, g=None, cost_fn=cost_fn)
+
+  def to_dataloader(
+      self, rng: jax.Array, batch_size: int, **kwargs: Any
+  ) -> "semidiscrete_dataloader.SemidiscreteDataloader":
+    """Create a semidiscrete dataloader.
+
+    Args:
+      rng: Random number seed used for sampling from the source distribution.
+      batch_size: Batch size.
+      kwargs: Keyword arguments for
+        :class:`~ott.neural.data.semidiscrete_dataloader.SemidiscreteDataloader`.
+
+    Returns:
+      The semidiscrete dataloader.
+    """  # noqa: E501
+    from ott.neural.data import semidiscrete_dataloader
+
+    return semidiscrete_dataloader.SemidiscreteDataloader(
+        rng,
+        sd_out=self,
+        batch_size=batch_size,
+        **kwargs,
+    )
 
   def marginal_chi2_error(
       self,
