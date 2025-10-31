@@ -51,17 +51,22 @@ class SemidiscreteLinearProblem:
       self,
       rng: jax.Array,
       num_samples: int,
+      *,
+      epsilon: Optional[float] = None,
   ) -> linear_problem.LinearProblem:
     """Sample a linear OT problem.
 
     Args:
       rng: Random key used for seeding.
       num_samples: Number of samples.
+      epsilon: Epsilon regularization. If :obj:`None`, use :attr:`epsilon`.
 
     Returns:
       The sampled linear problem.
     """
-    geom = self.geom.sample(rng, num_samples)
+    if epsilon is None:
+      epsilon = self.epsilon
+    geom = self.geom.sample(rng, num_samples, epsilon=epsilon)
     return linear_problem.LinearProblem(
         geom, a=None, b=self._b, tau_a=1.0, tau_b=self.tau_b
     )
@@ -93,6 +98,11 @@ class SemidiscreteLinearProblem:
       return self._b
     _, m = self.geom.shape
     return jnp.full((m,), fill_value=1.0 / m, dtype=self.geom.y.dtype)
+
+  @property
+  def epsilon(self) -> jax.Array:
+    """Entropic regularization."""
+    return self.geom.epsilon
 
   def tree_flatten(self):  # noqa: D102
     return (self.geom, self._b), {"tau_b": self.tau_b}

@@ -70,7 +70,13 @@ class SemidiscretePointCloud:
     self._relative_epsilon_seed = relative_epsilon_seed
     self._relative_epsilon_num_samples = relative_epsilon_num_samples
 
-  def sample(self, rng: jax.Array, num_samples: int) -> pointcloud.PointCloud:
+  def sample(
+      self,
+      rng: jax.Array,
+      num_samples: int,
+      *,
+      epsilon: Optional[float] = None
+  ) -> pointcloud.PointCloud:
     """Sample a point cloud.
 
     .. note::
@@ -83,6 +89,7 @@ class SemidiscretePointCloud:
     Args:
       rng: Random key used for seeding.
       num_samples: Number of samples.
+      epsilon: Epsilon regularization. If :obj:`None`, use :attr:`epsilon`.
 
     Returns:
       The sampled point cloud.
@@ -90,7 +97,9 @@ class SemidiscretePointCloud:
     assert num_samples > 0, f"Number of samples must be > 0, got {num_samples}."
     shape = (num_samples, *self.y.shape[1:])
     x = self.sampler(rng, shape, self.dtype)
-    return self._from_samples(x, self.epsilon)
+    if epsilon is None:
+      epsilon = self.epsilon
+    return self._from_samples(x, epsilon)
 
   def _from_samples(
       self, x: jax.Array, epsilon: jax.Array

@@ -158,8 +158,33 @@ class SemidiscreteOutput:
     Returns:
       The sampled output.
     """
-    prob = self.prob.sample(rng, num_samples)
-    return self._output_from_problem(prob, epsilon)
+    prob = self.prob.sample(rng, num_samples, epsilon=epsilon)
+    is_entreg = self.geom.is_entropy_regularized if epsilon is None else (
+        epsilon > 0.0
+    )
+
+    if is_entreg:
+      f, _ = prob._c_transform(self.g, axis=1)
+      # SinkhornOutput's potentials must contain prob. weight normalization
+      f_tilde = f + prob.epsilon * jnp.log(1.0 / num_samples)
+      g_tilde = self.g + prob.epsilon * jnp.log(prob.b)
+
+      return sinkhorn.SinkhornOutput(
+          potentials=(f_tilde, g_tilde),
+          ot_prob=prob,
+      )
+
+    f, _ = prob._c_transform(self.g, axis=1)
+    z = self.g[None, :] - prob.geom.cost_matrix
+    row_ixs = jnp.arange(num_samples)
+    col_ixs = jnp.argmax(jnp.where(prob.b[None, :], z, -jnp.inf), axis=-1)
+
+    return HardAssignmentOutput(
+        prob,
+        paired_indices=jnp.stack([row_ixs, col_ixs]),
+        f=f,
+        g=self.g,
+    )
 
   def to_dual_potentials(
       self, epsilon: Optional[float] = None
@@ -224,42 +249,6 @@ class SemidiscreteOutput:
         self.prob,
         num_iters=num_iters,
         batch_size=batch_size,
-    )
-
-  def _output_from_problem(
-      self,
-      prob: linear_problem.LinearProblem,
-      epsilon: Optional[float],
-  ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
-    num_samples, _ = prob.geom.shape
-    if epsilon is None:
-      epsilon = self.geom.epsilon
-      is_entropy_regularized = self.geom.is_entropy_regularized
-    else:
-      is_entropy_regularized = epsilon > 0.0
-
-    if is_entropy_regularized:
-      f, _ = prob._c_transform(self.g, axis=1)
-      # SinkhornOutput's potentials must contain prob. weight normalization
-      f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
-      g_tilde = self.g + epsilon * jnp.log(self.prob.b)
-      return sinkhorn.SinkhornOutput(
-          potentials=(f_tilde, g_tilde),
-          ot_prob=prob,
-      )
-
-    f, _ = prob._c_transform(self.g, axis=1)
-    z = self.g[None, :] - prob.geom.cost_matrix
-
-    row_ixs = jnp.arange(num_samples)
-    pos_weights = self.prob.b[None, :] > 0.0
-    col_ixs = jnp.argmax(jnp.where(pos_weights, z, -jnp.inf), axis=-1)
-
-    return HardAssignmentOutput(
-        prob,
-        paired_indices=jnp.stack([row_ixs, col_ixs]),
-        f=f,
-        g=self.g,
     )
 
   @property

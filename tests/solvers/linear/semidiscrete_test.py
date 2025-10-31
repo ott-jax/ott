@@ -262,3 +262,37 @@ class TestSemidiscreteSolver:
 
     with pytest.raises(AssertionError, match=r"The `g` potential is not"):
       _ = dp.transport(y, forward=False)
+
+  @pytest.mark.parametrize("sample_eps", [0.0, 0.1, None])
+  @pytest.mark.parametrize("solve_eps", [0.0, 0.1, None])
+  def test_sample_different_epsilon(
+      self, rng: jax.Array, solve_eps: float, sample_eps: float
+  ):
+    rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
+    n, m = 6, 16
+
+    prob = _random_problem(rng_prob, m=m, d=4, epsilon=solve_eps)
+
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=10,
+        batch_size=4,
+        error_eval_every=5,
+        error_num_iterations=3,
+        optimizer=optax.sgd(1e-1),
+    )
+    out = jax.jit(solver)(rng_solver, prob)
+
+    out_sampled = out.sample(rng_sample, n, epsilon=sample_eps)
+    is_entreg_solve = (solve_eps is None or solve_eps > 0.0)
+    is_entreg_sample = (is_entreg_solve and sample_eps is None
+                       ) or (sample_eps is not None and sample_eps > 0.0)
+
+    if is_entreg_sample:
+      assert isinstance(out_sampled, sinkhorn.SinkhornOutput)
+    else:
+      assert isinstance(out_sampled, semidiscrete.HardAssignmentOutput)
+
+    assert out_sampled.ot_prob.geom.shape == (n, m)
+    np.testing.assert_allclose(
+        out_sampled.matrix.sum(), 1.0, rtol=1e-5, atol=1e-5
+    )
