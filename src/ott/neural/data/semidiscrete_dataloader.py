@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -45,6 +45,8 @@ class SemidiscreteDataloader:
     subset_size: Size of the subset of the coupling matrix. This will
       subset a coupling of shape ``[batch, m]`` to ``[batch, subset_size]``
       using the :func:`~jax.lax.top_k` values if ``m > subset_size_threshold``.
+    return_indices: Whether to return ``(source, target, targed_ixs)`` instead
+      of ``(source, target)``.
     out_shardings: Output shardings for the aligned batch.
   """  # noqa: E501
   rng: jax.Array
@@ -53,6 +55,7 @@ class SemidiscreteDataloader:
   epsilon: Optional[float] = None
   subset_size_threshold: Optional[int] = None
   subset_size: Optional[int] = None
+  return_indices: bool = False
   out_shardings: Optional[jax.sharding.Sharding] = None
 
   def __post_init__(self) -> None:
@@ -72,7 +75,11 @@ class SemidiscreteDataloader:
         _sample,
         out_shardings=self.out_shardings,
         static_argnames=[
-            "batch_size", "epsilon", "subset_size_threshold", "subset_size"
+            "batch_size",
+            "epsilon",
+            "subset_size_threshold",
+            "subset_size",
+            "return_indices",
         ],
     )
 
@@ -81,7 +88,10 @@ class SemidiscreteDataloader:
     self._rng_it = self.rng
     return self
 
-  def __next__(self) -> Tuple[jax.Array, jax.Array]:
+  def __next__(
+      self
+  ) -> Union[Tuple[jax.Array, jax.Array], Tuple[jax.Array, jax.Array,
+                                                jax.Array]]:
     """Sample from the source distribution and match it with the data.
 
     Returns:
@@ -96,6 +106,7 @@ class SemidiscreteDataloader:
         self.epsilon,
         self.subset_size_threshold,
         self.subset_size,
+        self.return_indices,
     )
 
 
@@ -106,7 +117,8 @@ def _sample(
     epsilon: Optional[float],
     subset_size_threshold: Optional[int],
     subset_size: int,
-) -> Tuple[jax.Array, jax.Array]:
+    return_indices: bool,
+) -> Union[Tuple[jax.Array, jax.Array], Tuple[jax.Array, jax.Array, jax.Array]]:
   rng_sample, rng_tmat = jr.split(rng, 2)
   out_sampled = out.sample(rng_sample, batch_size, epsilon=epsilon)
 
@@ -123,7 +135,7 @@ def _sample(
 
   src = out_sampled.geom.x
   tgt = out_sampled.geom.y[tgt_idx]
-  return src, tgt
+  return (src, tgt, tgt_idx) if return_indices else (src, tgt)
 
 
 def _sample_from_coupling(
