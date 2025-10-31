@@ -339,7 +339,7 @@ class SemidiscreteSolver:
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
       target_eps_not_reached = ~jnp.isclose(state.epsilon, prob.epsilon)
-      # cont. if not converged and not diverged and not reached target epsilon
+      # cont. if not converged and not diverged or not reached target epsilon
       return jnp.logical_or(
           it == 0,
           jnp.logical_or(
