@@ -45,8 +45,8 @@ class SemidiscreteDataloader:
     subset_size: Size of the subset of the coupling matrix. This will
       subset a coupling of shape ``[batch, m]`` to ``[batch, subset_size]``
       using the :func:`~jax.lax.top_k` values if ``m > subset_size_threshold``.
-    return_indices: Whether to return ``(source, target, targed_ixs)`` instead
-      of ``(source, target)``.
+    return_indices: Whether to return, in addition to paired source and target
+      data points, the indices corresponding to the selected target data points.
     out_shardings: Output shardings for the aligned batch.
   """  # noqa: E501
   rng: jax.Array
@@ -95,7 +95,8 @@ class SemidiscreteDataloader:
     """Sample from the source distribution and match it with the data.
 
     Returns:
-      A tuple of samples and data, arrays of shape ``[batch, ...]``.
+      A tuple of samples and data, arrays of shape ``[batch, ...]`` and
+      optionally the sampled target indices of shape ``[batch,]``.
     """
     assert self._rng_it is not None, "Please call `iter()` first."
     self._rng_it, rng_sample = jr.split(self._rng_it, 2)
