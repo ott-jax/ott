@@ -40,6 +40,7 @@ __all__ = [
     "HardAssignmentOutput",
     "SemidiscreteOutput",
     "SemidiscreteSolver",
+    "constant_epsilon_scheduler",
 ]
 
 
@@ -257,6 +258,22 @@ class SemidiscreteOutput:
     return self.prob.geom
 
 
+def constant_epsilon_scheduler(
+    step: jax.Array, problem: sdlp.SemidiscreteLinearProblem
+) -> jax.Array:
+  """Constant epsilon scheduler.
+
+  Args:
+    step: Current step (ignored).
+    problem: Semidiscrete problem.
+
+  Returns:
+    The epsilon value stored in the semidiscrete geometry.
+  """
+  del step
+  return problem.epsilon
+
+
 @jtu.register_static
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class SemidiscreteSolver:
@@ -274,6 +291,9 @@ class SemidiscreteSolver:
       the marginal chi-squared error.
     threshold: Convergence threshold for the marginal chi-squared error.
     potential_ema: Exponential moving average of the dual potential.
+    epsilon_scheduler: Epsilon scheduler along the iterations with a signature
+      ``(step, prob) -> epsilon``.
+      By default, :func:`constant_epsilon_scheduler` is used.
     callback: Callback with a signature ``(state) -> None`` that is called
       at every iteration.
   """
@@ -285,6 +305,8 @@ class SemidiscreteSolver:
   error_num_iterations: int = 1000
   threshold: float = 1e-3
   potential_ema: float = 0.99
+  epsilon_scheduler: Callable[[jax.Array, sdlp.SemidiscreteLinearProblem],
+                              jax.Array] = constant_epsilon_scheduler
   callback: Optional[Callable[[SemidiscreteState], None]] = None
 
   def __call__(
@@ -399,7 +421,8 @@ class SemidiscreteSolver:
     rng_error = utils.default_prng_key(rng_error)
 
     g_old = state.g
-    lin_prob = prob.sample(rng, self.batch_size)
+    epsilon = self.epsilon_scheduler(it, prob)
+    lin_prob = prob.sample(rng, self.batch_size, epsilon=epsilon)
 
     loss, grads = jax.value_and_grad(_semidiscrete_loss)(g_old, lin_prob)
     grad_norm = jnp.linalg.norm(grads)

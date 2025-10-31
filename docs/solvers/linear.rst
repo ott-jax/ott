@@ -54,6 +54,7 @@ Semidiscrete Solvers
     semidiscrete.SemidiscreteState
     semidiscrete.SemidiscreteOutput
     semidiscrete.HardAssignmentOutput
+    semidiscrete.constant_epsilon_scheduler
 
 Sinkhorn Acceleration
 ---------------------
