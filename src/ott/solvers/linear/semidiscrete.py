@@ -294,7 +294,7 @@ class SemidiscreteSolver:
     threshold: Convergence threshold for the marginal chi-squared error.
     potential_ema: Exponential moving average of the dual potential.
     epsilon_scheduler: Epsilon scheduler along the iterations with a signature
-      ``(step, prob) -> epsilon``.
+      ``(step, target_epsilon) -> epsilon``.
       By default, :func:`constant_epsilon_scheduler` is used.
     callback: Callback with a signature ``(state) -> None`` that is called
       at every iteration.
