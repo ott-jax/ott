@@ -141,19 +141,25 @@ class SemidiscreteOutput:
   converged: Optional[bool] = None
 
   def sample(
-      self, rng: jax.Array, num_samples: int
+      self,
+      rng: jax.Array,
+      num_samples: int,
+      *,
+      epsilon: Optional[float] = None,
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
     """Sample a point cloud and compute the OT solution.
 
     Args:
       rng: Random key used for seeding.
       num_samples: Number of samples.
+      epsilon: Epsilon regularization. If :obj:`None`, use the one stored
+        in the :attr:`geometry <geom>`.
 
     Returns:
       The sampled output.
     """
     prob = self.prob.sample(rng, num_samples)
-    return self._output_from_problem(prob)
+    return self._output_from_problem(prob, epsilon)
 
   def to_dual_potentials(
       self, epsilon: Optional[float] = None
@@ -162,7 +168,7 @@ class SemidiscreteOutput:
 
     Args:
       epsilon: Epsilon regularization. If :obj:`None`, use the one stored
-        in the :attr:`geom`.
+        in the :attr:`geometry <geom>`.
 
     Returns:
       The dual potential :math:`f`.
@@ -220,29 +226,24 @@ class SemidiscreteOutput:
         batch_size=batch_size,
     )
 
-  def _output_from_samples(
-      self, x: jax.Array
-  ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
-    epsilon = self.geom.epsilon
-    geom = self.geom._from_samples(x, epsilon)
-    prob = linear_problem.LinearProblem(
-        geom, a=None, b=self.prob.b, tau_a=1.0, tau_b=self.prob.tau_b
-    )
-    return self._output_from_problem(prob)
-
   def _output_from_problem(
-      self, prob: linear_problem.LinearProblem
+      self,
+      prob: linear_problem.LinearProblem,
+      epsilon: Optional[float],
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
     num_samples, _ = prob.geom.shape
+    if epsilon is None:
+      epsilon = self.geom.epsilon
+      is_entropy_regularized = self.geom.is_entropy_regularized
+    else:
+      with jax.ensure_compile_time_eval():
+        is_entropy_regularized = epsilon > 0.0
 
-    # TODO(michalk8): allow for passing epsilon?
-    if self.geom.is_entropy_regularized:
-      b, epsilon = self.prob.b, self.geom.epsilon
+    if is_entropy_regularized:
       f, _ = prob._c_transform(self.g, axis=1)
-      # SinkhornOutput's potentials must contain
-      # probability weight normalization
+      # SinkhornOutput's potentials must contain prob. weight normalization
       f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
-      g_tilde = self.g + epsilon * jnp.log(b)
+      g_tilde = self.g + epsilon * jnp.log(self.prob.b)
       return sinkhorn.SinkhornOutput(
           potentials=(f_tilde, g_tilde),
           ot_prob=prob,
