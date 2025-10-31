@@ -51,6 +51,7 @@ class SemidiscreteState:
 
   Args:
     it: Iteration number.
+    epsilon: Epsilon value at the current iteration.
     g: Dual potential.
     g_ema: Exponential moving average of the dual potential.
     opt_state: State of the optimizer.
@@ -59,6 +60,7 @@ class SemidiscreteState:
     errors: Marginal deviation errors.
   """
   it: jax.Array
+  epsilon: jax.Array
   g: jax.Array
   g_ema: jax.Array
   opt_state: Any
@@ -332,15 +334,19 @@ class SemidiscreteSolver:
         prob: sdlp.SemidiscreteLinearProblem,
         state: SemidiscreteState,
     ) -> bool:
-      del prob
       loss = state.losses[it - 1]
       err = jnp.abs(state.errors[it // self.error_eval_every - 1])
-      # TODO(michalk8): add epsilon condition
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
-      # continue if not converged and not diverged
+      target_eps_not_reached = ~jnp.isclose(state.epsilon, prob.epsilon)
+      jax.debug.print("se={}, pe={}", state.epsilon, prob.epsilon)
+      # cont. if not converged and not diverged and not reached target epsilon
       return jnp.logical_or(
-          it == 0, jnp.logical_and(not_converged, not_diverged)
+          it == 0,
+          jnp.logical_or(
+              jnp.logical_and(not_converged, not_diverged),
+              target_eps_not_reached
+          )
       )
 
     def body_fn(
@@ -368,6 +374,7 @@ class SemidiscreteSolver:
 
     state = SemidiscreteState(
         it=jnp.array(0),
+        epsilon=jnp.nan,
         g=g_init,
         g_ema=g_init,
         opt_state=self.optimizer.init(g_init),
@@ -448,6 +455,7 @@ class SemidiscreteSolver:
 
     state = SemidiscreteState(
         it=it + 1,
+        epsilon=epsilon,
         g=g_new,
         g_ema=g_ema,
         opt_state=opt_state,
