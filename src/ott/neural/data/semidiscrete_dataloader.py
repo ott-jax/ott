@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -32,10 +32,17 @@ class SemidiscreteDataloader:
   ``(source, target)`` arrays of shape ``[batch, ...]``.
 
   Args:
-    rng: Random number seed.
+    rng: Random number seed used for sampling from the source distribution.
     sd_out: Semidiscrete output object storing a precomputed OT solution between
       the (continuous) source distribution and the dataset of interest.
     batch_size: Batch size.
+    epsilon: Epsilon regularization. If :obj:`None`, use the one stored
+      in the :attr:`geometry <ott.solvers.linear.semidiscrete.SemidiscreteOutput.geom>`.
+    epsilon: Epsilon regularization. In the context of this class, this epsilon
+      value can be interpreted exclusively as a softmax temperature.
+      If :obj:`None`, use the one stored in the
+      :attr:`geometry <ott.solvers.linear.semidiscrete.SemidiscreteOutput.geom>`
+      which was used to compute the potential stored in the ``sd_out``.
     subset_size_threshold: Threshold above which to sample from a subset of the
       coupling matrix. Only applicable when the problem is :meth:`entropically
       regularized <ott.geometry.semidiscrete_pointcloud.SemidiscretePointCloud.is_entropy_regularized>`.
@@ -43,13 +50,17 @@ class SemidiscreteDataloader:
     subset_size: Size of the subset of the coupling matrix. This will
       subset a coupling of shape ``[batch, m]`` to ``[batch, subset_size]``
       using the :func:`~jax.lax.top_k` values if ``m > subset_size_threshold``.
+    return_indices: Whether to return, in addition to paired source and target
+      data points, the indices corresponding to the selected target data points.
     out_shardings: Output shardings for the aligned batch.
   """  # noqa: E501
   rng: jax.Array
   sd_out: semidiscrete.SemidiscreteOutput
   batch_size: int
+  epsilon: Optional[float] = None
   subset_size_threshold: Optional[int] = None
   subset_size: Optional[int] = None
+  return_indices: bool = False
   out_shardings: Optional[jax.sharding.Sharding] = None
 
   def __post_init__(self) -> None:
@@ -68,7 +79,13 @@ class SemidiscreteDataloader:
     self._sample_fn = jax.jit(
         _sample,
         out_shardings=self.out_shardings,
-        static_argnames=["batch_size", "subset_size_threshold", "subset_size"],
+        static_argnames=[
+            "batch_size",
+            "epsilon",
+            "subset_size_threshold",
+            "subset_size",
+            "return_indices",
+        ],
     )
 
   def __iter__(self) -> "SemidiscreteDataloader":
@@ -76,11 +93,15 @@ class SemidiscreteDataloader:
     self._rng_it = self.rng
     return self
 
-  def __next__(self) -> Tuple[jax.Array, jax.Array]:
+  def __next__(
+      self
+  ) -> Union[Tuple[jax.Array, jax.Array], Tuple[jax.Array, jax.Array,
+                                                jax.Array]]:
     """Sample from the source distribution and match it with the data.
 
     Returns:
-      A tuple of samples and data, arrays of shape ``[batch, ...]``.
+      A tuple of samples and data, arrays of shape ``[batch, ...]`` and
+      optionally the sampled target indices of shape ``[batch,]``.
     """
     assert self._rng_it is not None, "Please call `iter()` first."
     self._rng_it, rng_sample = jr.split(self._rng_it, 2)
@@ -88,8 +109,10 @@ class SemidiscreteDataloader:
         rng_sample,
         self.sd_out,
         self.batch_size,
+        self.epsilon,
         self.subset_size_threshold,
         self.subset_size,
+        self.return_indices,
     )
 
 
@@ -97,11 +120,13 @@ def _sample(
     rng: jax.Array,
     out: semidiscrete.SemidiscreteOutput,
     batch_size: int,
+    epsilon: Optional[float],
     subset_size_threshold: Optional[int],
     subset_size: int,
-) -> Tuple[jax.Array, jax.Array]:
+    return_indices: bool,
+) -> Union[Tuple[jax.Array, jax.Array], Tuple[jax.Array, jax.Array, jax.Array]]:
   rng_sample, rng_tmat = jr.split(rng, 2)
-  out_sampled = out.sample(rng_sample, batch_size)
+  out_sampled = out.sample(rng_sample, batch_size, epsilon=epsilon)
 
   if isinstance(out_sampled, semidiscrete.HardAssignmentOutput):
     tgt_idx = out_sampled.paired_indices[1]
@@ -116,7 +141,7 @@ def _sample(
 
   src = out_sampled.geom.x
   tgt = out_sampled.geom.y[tgt_idx]
-  return src, tgt
+  return (src, tgt, tgt_idx) if return_indices else (src, tgt)
 
 
 def _sample_from_coupling(

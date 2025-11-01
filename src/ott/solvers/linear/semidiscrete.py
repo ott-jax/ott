@@ -13,7 +13,7 @@
 # limitations under the License.
 import dataclasses
 import math
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Union
 
 import jax
 import jax.experimental.sparse as jesp
@@ -32,11 +32,15 @@ from ott.problems.linear import linear_problem, potentials
 from ott.problems.linear import semidiscrete_linear_problem as sdlp
 from ott.solvers.linear import sinkhorn
 
+if TYPE_CHECKING:
+  from ott.neural.data import semidiscrete_dataloader
+
 __all__ = [
     "SemidiscreteState",
     "HardAssignmentOutput",
     "SemidiscreteOutput",
     "SemidiscreteSolver",
+    "constant_epsilon_scheduler",
 ]
 
 
@@ -47,6 +51,7 @@ class SemidiscreteState:
 
   Args:
     it: Iteration number.
+    epsilon: Epsilon value at the current iteration.
     g: Dual potential.
     g_ema: Exponential moving average of the dual potential.
     opt_state: State of the optimizer.
@@ -55,6 +60,7 @@ class SemidiscreteState:
     errors: Marginal deviation errors.
   """
   it: jax.Array
+  epsilon: jax.Array
   g: jax.Array
   g_ema: jax.Array
   opt_state: Any
@@ -138,19 +144,50 @@ class SemidiscreteOutput:
   converged: Optional[bool] = None
 
   def sample(
-      self, rng: jax.Array, num_samples: int
+      self,
+      rng: jax.Array,
+      num_samples: int,
+      *,
+      epsilon: Optional[float] = None,
   ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
     """Sample a point cloud and compute the OT solution.
 
     Args:
       rng: Random key used for seeding.
       num_samples: Number of samples.
+      epsilon: Epsilon regularization. If :obj:`None`, use the one stored
+        in the :attr:`geometry <geom>`.
 
     Returns:
       The sampled output.
     """
-    prob = self.prob.sample(rng, num_samples)
-    return self._output_from_problem(prob)
+    prob = self.prob.sample(rng, num_samples, epsilon=epsilon)
+    is_entreg = self.geom.is_entropy_regularized if epsilon is None else (
+        epsilon > 0.0
+    )
+
+    if is_entreg:
+      f, _ = prob._c_transform(self.g, axis=1)
+      # SinkhornOutput's potentials must contain prob. weight normalization
+      f_tilde = f + prob.epsilon * jnp.log(1.0 / num_samples)
+      g_tilde = self.g + prob.epsilon * jnp.log(prob.b)
+
+      return sinkhorn.SinkhornOutput(
+          potentials=(f_tilde, g_tilde),
+          ot_prob=prob,
+      )
+
+    f, _ = prob._c_transform(self.g, axis=1)
+    z = self.g[None, :] - prob.geom.cost_matrix
+    row_ixs = jnp.arange(num_samples)
+    col_ixs = jnp.argmax(jnp.where(prob.b[None, :], z, -jnp.inf), axis=-1)
+
+    return HardAssignmentOutput(
+        prob,
+        paired_indices=jnp.stack([row_ixs, col_ixs]),
+        f=f,
+        g=self.g,
+    )
 
   def to_dual_potentials(
       self, epsilon: Optional[float] = None
@@ -159,7 +196,7 @@ class SemidiscreteOutput:
 
     Args:
       epsilon: Epsilon regularization. If :obj:`None`, use the one stored
-        in the :attr:`geom`.
+        in the :attr:`geometry <geom>`.
 
     Returns:
       The dual potential :math:`f`.
@@ -167,6 +204,29 @@ class SemidiscreteOutput:
     f_fn = self.prob.potential_fn_from_dual_vec(self.g, epsilon=epsilon)
     cost_fn = self.geom.cost_fn
     return potentials.DualPotentials(f=f_fn, g=None, cost_fn=cost_fn)
+
+  def to_dataloader(
+      self, rng: jax.Array, batch_size: int, **kwargs: Any
+  ) -> "semidiscrete_dataloader.SemidiscreteDataloader":
+    """Create a semidiscrete dataloader.
+
+    Args:
+      rng: Random number seed used for sampling from the source distribution.
+      batch_size: Batch size.
+      kwargs: Keyword arguments for
+        :class:`~ott.neural.data.semidiscrete_dataloader.SemidiscreteDataloader`.
+
+    Returns:
+      The semidiscrete dataloader.
+    """  # noqa: E501
+    from ott.neural.data import semidiscrete_dataloader
+
+    return semidiscrete_dataloader.SemidiscreteDataloader(
+        rng,
+        sd_out=self,
+        batch_size=batch_size,
+        **kwargs,
+    )
 
   def marginal_chi2_error(
       self,
@@ -194,52 +254,26 @@ class SemidiscreteOutput:
         batch_size=batch_size,
     )
 
-  def _output_from_samples(
-      self, x: jax.Array
-  ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
-    epsilon = self.geom.epsilon
-    geom = self.geom._from_samples(x, epsilon)
-    prob = linear_problem.LinearProblem(
-        geom, a=None, b=self.prob.b, tau_a=1.0, tau_b=self.prob.tau_b
-    )
-    return self._output_from_problem(prob)
-
-  def _output_from_problem(
-      self, prob: linear_problem.LinearProblem
-  ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
-    num_samples, _ = prob.geom.shape
-
-    # TODO(michalk8): allow for passing epsilon?
-    if self.geom.is_entropy_regularized:
-      b, epsilon = self.prob.b, self.geom.epsilon
-      f, _ = prob._c_transform(self.g, axis=1)
-      # SinkhornOutput's potentials must contain
-      # probability weight normalization
-      f_tilde = f + epsilon * jnp.log(1.0 / num_samples)
-      g_tilde = self.g + epsilon * jnp.log(b)
-      return sinkhorn.SinkhornOutput(
-          potentials=(f_tilde, g_tilde),
-          ot_prob=prob,
-      )
-
-    f, _ = prob._c_transform(self.g, axis=1)
-    z = self.g[None, :] - prob.geom.cost_matrix
-
-    row_ixs = jnp.arange(num_samples)
-    pos_weights = self.prob.b[None, :] > 0.0
-    col_ixs = jnp.argmax(jnp.where(pos_weights, z, -jnp.inf), axis=-1)
-
-    return HardAssignmentOutput(
-        prob,
-        paired_indices=jnp.stack([row_ixs, col_ixs]),
-        f=f,
-        g=self.g,
-    )
-
   @property
   def geom(self) -> sdpc.SemidiscretePointCloud:
     """Semidiscrete geometry."""
     return self.prob.geom
+
+
+def constant_epsilon_scheduler(
+    step: jax.Array, target_epsilon: jax.Array
+) -> jax.Array:
+  """Constant epsilon scheduler.
+
+  Args:
+    step: Current step (ignored).
+    target_epsilon: Epsilon at the last iteration.
+
+  Returns:
+    The target epsilon.
+  """
+  del step
+  return target_epsilon
 
 
 @jtu.register_static
@@ -259,6 +293,9 @@ class SemidiscreteSolver:
       the marginal chi-squared error.
     threshold: Convergence threshold for the marginal chi-squared error.
     potential_ema: Exponential moving average of the dual potential.
+    epsilon_scheduler: Epsilon scheduler along the iterations with a signature
+      ``(step, target_epsilon) -> epsilon``.
+      By default, :func:`constant_epsilon_scheduler` is used.
     callback: Callback with a signature ``(state) -> None`` that is called
       at every iteration.
   """
@@ -270,6 +307,8 @@ class SemidiscreteSolver:
   error_num_iterations: int = 1000
   threshold: float = 1e-3
   potential_ema: float = 0.99
+  epsilon_scheduler: Callable[[jax.Array, jax.Array],
+                              jax.Array] = constant_epsilon_scheduler
   callback: Optional[Callable[[SemidiscreteState], None]] = None
 
   def __call__(
@@ -295,15 +334,18 @@ class SemidiscreteSolver:
         prob: sdlp.SemidiscreteLinearProblem,
         state: SemidiscreteState,
     ) -> bool:
-      del prob
       loss = state.losses[it - 1]
       err = jnp.abs(state.errors[it // self.error_eval_every - 1])
-
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
-      # continue if not converged and not diverged
+      target_eps_not_reached = ~jnp.isclose(state.epsilon, prob.epsilon)
+      # cont. if not converged and not diverged or not reached target epsilon
       return jnp.logical_or(
-          it == 0, jnp.logical_and(not_converged, not_diverged)
+          it == 0,
+          jnp.logical_or(
+              jnp.logical_and(not_converged, not_diverged),
+              target_eps_not_reached
+          )
       )
 
     def body_fn(
@@ -331,6 +373,7 @@ class SemidiscreteSolver:
 
     state = SemidiscreteState(
         it=jnp.array(0),
+        epsilon=jnp.nan,
         g=g_init,
         g_ema=g_init,
         opt_state=self.optimizer.init(g_init),
@@ -384,7 +427,8 @@ class SemidiscreteSolver:
     rng_error = utils.default_prng_key(rng_error)
 
     g_old = state.g
-    lin_prob = prob.sample(rng, self.batch_size)
+    epsilon = self.epsilon_scheduler(it, prob.epsilon)
+    lin_prob = prob.sample(rng, self.batch_size, epsilon=epsilon)
 
     loss, grads = jax.value_and_grad(_semidiscrete_loss)(g_old, lin_prob)
     grad_norm = jnp.linalg.norm(grads)
@@ -410,6 +454,7 @@ class SemidiscreteSolver:
 
     state = SemidiscreteState(
         it=it + 1,
+        epsilon=epsilon,
         g=g_new,
         g_ema=g_ema,
         opt_state=opt_state,
