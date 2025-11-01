@@ -23,7 +23,7 @@ __all__ = ["legendre"]
 
 def legendre(
     fun: Callable[[jnp.ndarray], jnp.ndarray],
-) -> Callable[[jnp.ndarray], jnp.ndarray]:
+) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], jnp.ndarray]:
   """Legendre (Fenchel) transform of a function.
 
   The solution is computed numerically using L-BFGS.

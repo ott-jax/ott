@@ -288,9 +288,10 @@ class SemidiscreteSolver:
     error_eval_every: Compute the chi-squared error every ``error_eval_every``
       iterations.
     error_batch_size: Batch size to use when computing
-      the marginal chi-squared error. If :obj:`None`, use ``batch_size``.
-    error_num_iterations: Number of iterations used to estimate
-      the marginal chi-squared error.
+      the marginal chi-squared error. If :obj:`None`, use four times
+      ``batch_size``.
+    error_num_repeats: Number of repeats used to estimate
+      the marginal chi-squared error, set to four by default.
     threshold: Convergence threshold for the marginal chi-squared error.
     potential_ema: Exponential moving average of the dual potential.
     epsilon_scheduler: Epsilon scheduler along the iterations with a signature
@@ -304,7 +305,7 @@ class SemidiscreteSolver:
   optimizer: optax.GradientTransformation
   error_eval_every: int = 1000
   error_batch_size: Optional[int] = None
-  error_num_iterations: int = 1000
+  error_num_repeats: int = 4
   threshold: float = 1e-3
   potential_ema: float = 0.99
   epsilon_scheduler: Callable[[jax.Array, jax.Array],
@@ -435,7 +436,9 @@ class SemidiscreteSolver:
     losses = state.losses.at[it].set(loss)
     grad_norms = state.grad_norms.at[it].set(grad_norm)
 
-    updates, opt_state = self.optimizer.update(grads, state.opt_state, g_old)
+    updates, opt_state = self.optimizer.update(
+        grads, state.opt_state, g_old, value=loss
+    )
     g_new = optax.apply_updates(g_old, updates)
     g_ema = optax.incremental_update(g_new, state.g_ema, self.potential_ema)
 
@@ -444,8 +447,8 @@ class SemidiscreteSolver:
       compute_error,
       lambda: _marginal_chi2_error(
         rng_error, g_ema, prob,
-        num_iters=self.error_num_iterations,
-        batch_size=self.error_batch_size or self.batch_size,
+        num_iters=self.error_num_repeats,
+        batch_size=self.error_batch_size or 4 * self.batch_size,
       ),
       lambda: jnp.array(jnp.inf, dtype=state.errors.dtype),
     )
@@ -552,14 +555,33 @@ def _marginal_chi2_error(
 ) -> jax.Array:
 
   def compute_chi2(matrix: Union[jax.Array, jesp.BCOO]) -> jax.Array:
-    # we assume each rows sums to one
-    # also convert to flow to avoid integer overflows
+    """Compute chi2 metric.
+
+    Implements Eq. 3.5  in https://arxiv.org/pdf/2509.25519v1,
+    from reference :cite:`mousavi:25`.
+
+    Args:
+      matrix: coupling matrix, either dense or sparse.
+
+    Returns:
+      Chi2 metric estimator, lowerbounded by -1.0
+    """
+    # normalize coupling matrix to have columns sum to 1.
     matrix = batch_size * matrix
-    p2 = m * (matrix @ matrix.T)
-    if isinstance(p2, jesp.BCOO):
-      # no trace impl. for BCOO, densify
-      p2 = p2.todense()
-    return (p2.sum() - p2.trace()) / (batch_size * (batch_size - 1.0)) - 1.0
+
+    if isinstance(matrix, jesp.BCOO):
+      matrix_sq = matrix
+      matrix_sq.data = matrix_sq.data ** 2
+      out = jesp.bcoo_reduce_sum(
+          matrix, axes=(0,)
+      ).todense() ** 2 - jesp.bcoo_reduce_sum(
+          matrix_sq, axes=(0,)
+      ).todense()
+    else:
+      out = jnp.sum(matrix, axis=0) ** 2 - jnp.sum(matrix ** 2, axis=0)
+
+    out = jnp.sum(out / prob.b) / (batch_size * (batch_size - 1.0))
+    return out - 1.0
 
   def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
     rng_it = jr.fold_in(rng, it)
@@ -569,7 +591,6 @@ def _marginal_chi2_error(
     return chi2_err_avg, None
 
   out = SemidiscreteOutput(g=g, prob=prob)
-  _, m = prob.geom.shape
 
   chi2_err = jnp.zeros((), dtype=g.dtype)
   chi2_err, _ = jax.lax.scan(body, init=chi2_err, xs=jnp.arange(num_iters))

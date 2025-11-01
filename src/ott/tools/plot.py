@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List, Optional, Sequence, Tuple, Union
+from typing import Callable, List, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 import scipy.sparse as sp
 
+from ott import math
 from ott.experimental import mmsinkhorn
 from ott.geometry import pointcloud
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
@@ -27,9 +29,10 @@ try:
   import matplotlib.colors as mcolors
   import matplotlib.patches as ptc
   import matplotlib.pyplot as plt
+  from IPython import display
   from matplotlib import animation
 except ImportError:
-  plt = animation = None
+  plt = animation = display = None
 
 # TODO(michalk8): make sure all outputs conform to a unified transport interface
 Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
@@ -38,9 +41,21 @@ Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
 
 @jax.jit
 def ccworder(A: jnp.ndarray) -> jnp.ndarray:
-  """Helper function to plot good-looking polygons.
+  """Order points in counter-clockwise direction for polygon plotting.
 
-  https://stackoverflow.com/questions/5040412/how-to-draw-the-largest-polygon-from-a-set-of-points
+  This helper function reorders a set of 2D points so that they can be used to
+  draw a polygon with maximal area. It centers the points at the origin and
+  then sorts them by their angular position.
+
+  Args:
+    A: Array of shape ``[n, 2]`` containing 2D point coordinates.
+
+  Returns:
+    Array of indices that reorder the input points in counter-clockwise order
+    starting from the angle 0 (positive x-axis).
+
+  Note:
+    Based on: https://stackoverflow.com/questions/5040412/how-to-draw-the-largest-polygon-from-a-set-of-points
   """
   A = A - jnp.mean(A, 0, keepdims=True)
   return jnp.argsort(jnp.arctan2(A[:, 1], A[:, 0]))
@@ -424,3 +439,513 @@ class PlotMM(Plot):
         interval=1000.0 / frame_rate,
         blit=True,
     )
+
+
+def get_plotkwargs(
+    background: bool,
+    small_alpha: float = 0.2,
+    large_alpha: float = 0.7,
+    darkmode: bool = False,
+    small_size: int = 50,
+    mid_size: int = 60,
+    size_multiplier: float = 1.2
+) -> dict:
+  r"""Generate marker styling specifications for transport visualization.
+
+  This utility function creates a dictionary of matplotlib styling parameters
+  for various types of points and arrows used in optimal transport
+  visualizations. It provides consistent color schemes for both light and dark
+  modes and handles different marker types for source, target, and intermediate
+  points.
+
+  Args:
+    background: Whether points in source (``x``) and target (``y``) sets should
+      have small alphas to de-emphasize them and highlight other elements like
+      dynamic points or arrows.
+    small_alpha: Alpha (transparency) value for background points.
+      Default is ``0.2``.
+    large_alpha: Alpha value for foreground/highlighted points. Default is
+      ``0.7``.
+    darkmode: Whether to use colors suitable for dark background plots.
+      If ``True``, uses lighter colors; if ``False``, uses standard colors.
+      Default is ``False``.
+    small_size: Base marker size for regular source/target points.
+      Default is ``50``.
+    mid_size: Marker size for highlighted new source points. Default is ``60``.
+    size_multiplier: Multiplicative factor to enlarge transported points
+      relative to their base size. Default is ``1.2``.
+
+  Returns:
+    A dictionary with the following keys, each containing marker styling
+    parameters (as dict) for matplotlib scatter/quiver plots:
+
+    - ``'x'``: Regular source points :math:`\\mu_0`
+    - ``'tx'``: Transported source points :math:`\\mu_t`
+    - ``'xnew'``: New batch of highlighted source points
+    - ``'txnew_interm'``: Intermediate positions of new transported points
+    - ``'txnew'``: Final positions of new transported points
+    - ``'y'``: Target points :math:`\\mu_1`
+    - ``'ifm'``: Independent flow matching (IFM) interpolated points
+    - ``'arrows_grid'``: Velocity field arrows on grid points
+    - ``'arrows_dynamic'``: Velocity field arrows for moving points
+    - ``'arrows_ifm'``: Velocity field arrows for IFM points
+  """
+  sourcecolor = "lightcoral" if darkmode else "red"
+  newsourcecolor = "salmon" if darkmode else "red"
+  targetcolor = "deepskyblue" if darkmode else "blue"
+  edgecolor = "white" if darkmode else "black"
+  ifmcolor = "palegreen" if darkmode else "green"
+  arrowscolor = "white" if darkmode else "black"
+  arrows_ifm_color = "palegreen" if darkmode else "green"
+
+  mid_alpha = (large_alpha + small_alpha) / 2
+  # Regular points from source
+  x = {
+      "s": small_size,
+      "label": r"$\mu_0$",
+      "marker": "o",
+      "color": sourcecolor,
+      "edgecolor": edgecolor,
+      "alpha": small_alpha if background else large_alpha,
+  }
+
+  # Points being transported
+  tx = {
+      "s": small_size * size_multiplier,
+      "label": r"$\mu_t$",
+      "marker": "o",
+      "color": sourcecolor,
+      "edgecolor": edgecolor,
+      "alpha": large_alpha
+  }
+
+  # New batch of source points supposed to be highlighted
+  xnew = {
+      "s": mid_size,
+      "marker": "h",
+      "edgecolor": edgecolor,
+      "color": newsourcecolor,
+      "alpha": large_alpha,
+  }
+
+  txnew_interm = {
+      "s": mid_size * size_multiplier,
+      "marker": "h",
+      "edgecolor": edgecolor,
+      "color": newsourcecolor,
+      "alpha": small_alpha,
+  }
+
+  txnew = {
+      "s": mid_size * size_multiplier,
+      "marker": "h",
+      "edgecolor": edgecolor,
+      "color": newsourcecolor,
+      "alpha": large_alpha,
+  }
+
+  # Target Points
+  y = {
+      "s": small_size,
+      "label": r"$\mu_1$",
+      "marker": "s",
+      "edgecolor": edgecolor,
+      "color": targetcolor,
+      "alpha": small_alpha if background else large_alpha,
+  }
+
+  # IFM Points
+  ifm = {
+      "s": small_size,
+      "label": r"IFM $\mu_t$",
+      "marker": "d",
+      "edgecolor": edgecolor,
+      "color": ifmcolor,
+      "alpha": mid_alpha,
+  }
+
+  arrows_ifm = {"color": arrows_ifm_color, "alpha": large_alpha}
+
+  arrows_grid = {
+      "color": arrowscolor,
+      "alpha": mid_alpha if background else large_alpha
+  }
+
+  arrows_dynamic = {"color": arrowscolor, "alpha": mid_alpha}
+
+  return {
+      "x": x,
+      "tx": tx,
+      "xnew": xnew,
+      "txnew_interm": txnew_interm,
+      "txnew": txnew,
+      "y": y,
+      "ifm": ifm,
+      "arrows_grid": arrows_grid,
+      "arrows_dynamic": arrows_dynamic,
+      "arrows_ifm": arrows_ifm,
+  }
+
+
+def transport_animation(
+    n_frames: int,
+    brenier_potential: Callable[[jnp.ndarray], jnp.ndarray],
+    static_source_points: jnp.ndarray,
+    static_target_points: Optional[jnp.ndarray] = None,
+    n_grid: int = 0,
+    dynamic_points: Optional[jnp.ndarray] = None,
+    title: Optional[str] = None,
+    velocity_field: Optional[Callable[[jnp.array, jnp.array],
+                                      jnp.array]] = None,
+    plot_dynamic_transport: bool = False,
+    plot_monge: bool = False,
+    plot_ifm_interpolant: bool = False,
+    plot_ifm_arrows: bool = False,
+    max_points_ifm_interpolant: int = 256,
+    use_mp4: bool = True,
+    figsize: Tuple[int, int] = (8, 6),
+    times: Optional[jnp.array] = None,
+    xlimits: Tuple[float, float] = None,
+    ylimits: Tuple[float, float] = None,
+    save_prefix: Optional[str] = None,
+    padding: float = 0.1
+):
+  r"""Create animated visualizations of optimal transport and flow matching.
+
+  This function generates animations illustrating various aspects of optimal
+  transport, including Monge maps, McCann interpolation, Benamou-Brenier
+  velocity fields, and flow matching approaches. It supports multiple
+  visualization modes and can display static point clouds, dynamic trajectories,
+  and velocity fields on grids.
+
+  Args:
+    n_frames: Number of animation frames. Must be at least ``1``. If ``1``,
+      creates a static plot instead of an animation.
+    brenier_potential: Convex function :math:`\\varphi` whose gradient defines
+      the Brenier (optimal) map :math:`\\nabla\\varphi: \\mu_0 \\to \\mu_1`.
+      Used to compute target points, velocity fields, and optimal transport
+      visualizations.
+    static_source_points: Source distribution points of shape ``[n, 2]``,
+      representing samples from :math:`\\mu_0`. Always displayed in the plot.
+    static_target_points: Target distribution points of shape ``[n, 2]``,
+      representing samples from :math:`\\mu_1`. If ``None``, computed as
+      :math:`\\nabla\\varphi(\\text{static_source_points})`. Default ``None``.
+    n_grid: Number of grid points per dimension for displaying velocity fields.
+      If ``> 0``, displays velocity field arrows on a uniform :math:`n_{grid}
+      \\times n_{grid}` grid. Default is ``0`` (no grid).
+    dynamic_points: Additional points of shape ``[m, 2]`` to highlight and
+      transport dynamically through the animation. Useful for emphasizing
+      specific trajectories. Default is ``None``.
+    title: Title for the plot/animation. Default is ``None``.
+    velocity_field: Optional learned/estimated velocity field function with
+      signature ``v(t, x) -> velocity`` where ``t`` is time (shape ``[batch]``)
+      and ``x`` is position (shape ``[batch, 2]``). If ``None``, uses
+      Benamou-Brenier velocity from ``brenier_potential``. Default is ``None``.
+    plot_dynamic_transport: Whether to show arrows and trajectories for
+      ``dynamic_points`` as they are transported over time. Cannot be ``True``
+      simultaneously with ``plot_monge``. Default is ``False``.
+    plot_monge: Whether to display the Monge map as static arrows from source
+      to target. Shows the complete optimal transport map at once. Cannot be
+      ``True`` simultaneously with ``plot_dynamic_transport``.
+      Default is ``False``.
+    plot_ifm_interpolant: Whether to visualize the independent flow matching
+      (IFM) interpolant :math:`(1-t)x_0 + tx_1` for random pairs of source and
+      target points. Default is ``False``.
+    plot_ifm_arrows: Whether to display velocity arrows for the IFM
+      interpolant. Only relevant when ``plot_ifm_interpolant=True``.
+      Default is ``False``.
+    max_points_ifm_interpolant: Maximum number of point pairs to show when
+      plotting IFM interpolant. Limits computational cost and visual clutter.
+      Default is ``256``.
+    use_mp4: Whether to render animation as MP4 video (``True``) or interactive
+      JavaScript HTML (``False``). Default is ``True``.
+    figsize: Figure size as ``(width, height)`` in inches. Default is
+      ``(8, 6)``.
+    times: Custom time points for animation frames of shape ``[n_frames]``.
+      If ``None``, uses ``linspace(0, 1, n_frames)``. Default is ``None``.
+    xlimits: X-axis limits as ``(xmin, xmax)``. If ``None``, computed
+      automatically from all points with padding. Default is ``None``.
+    ylimits: Y-axis limits as ``(ymin, ymax)``. If ``None``, computed
+      automatically from all points with padding. Default is ``None``.
+    save_prefix: Path prefix for saving the animation/plot to disk. If provided,
+      saves static plots as ``{save_prefix}{title}.pdf`` and animations as
+      ``{save_prefix}{title}.mp4``. Default is ``None`` (no saving).
+    padding: Fractional padding to add around automatically computed axis
+      limits. For example, ``0.1`` adds 10% padding on each side. Default is
+      ``0.1``.
+
+  Returns:
+    A :class:`~matplotlib.animation.FuncAnimation` object containing the
+    animation (or static frame if ``n_frames=1``).
+
+  """
+  assert n_frames >= 1, f"n_frames must be nonnegative, got {n_frames}"
+  assert not(plot_monge and plot_dynamic_transport), \
+    "Cannot plot both Monge transport and dynamic transport"
+
+  n_src = static_source_points.shape[0]
+  global dyn_points_t, v_points
+  batch_size = static_source_points.shape[0]
+
+  plot_transport_arrows = plot_dynamic_transport or plot_monge
+
+  # If we are plotting extra stuff on top of data,
+  # data is displayed in low alpha as background
+  background = plot_transport_arrows or plot_ifm_arrows
+  dict_pk = get_plotkwargs(background=background)
+
+  fig, ax = plt.subplots(figsize=figsize)
+  fig.tight_layout(pad=2.0)
+
+  # Time parameterization
+  times = jnp.linspace(0.0, 1.0, n_frames) if times is None else times
+  delta_times = jnp.diff(times)
+
+  # Make sure we have target points, either froms source and potential, or
+  # from data directly (assumed to be paired in that case)
+  if static_target_points is not None:
+    assert static_target_points.shape == static_source_points.shape
+  elif brenier_potential is not None:
+    static_target_points = jax.vmap(jax.grad(brenier_potential))(
+        static_source_points
+    )
+  else:
+    raise ValueError("Cannot resolve target set of poitnts.")
+
+  if velocity_field is None and brenier_potential is not None:
+    vel_brenier = jax.vmap(
+        math.velocity_from_brenier_potential(brenier_potential), in_axes=[0, 0]
+    )
+  else:
+    vel_brenier = None
+
+  ax.scatter(
+      static_target_points[:, 0], static_target_points[:, 1], **dict_pk["y"]
+  )
+
+  ax.scatter(
+      static_source_points[:, 0], static_source_points[:, 1], **dict_pk["x"]
+  )
+  # scale of arrows for first step (and maybe last-and-only step).
+  dt = 1.0 if plot_monge or n_frames == 1 else delta_times[0]
+  # Define space of points that will move (all by default if arrows
+  # are requested and no dynamic_points are passed)
+  if dynamic_points is None:
+    dyn_points = static_source_points
+  else:
+    dyn_points = dynamic_points
+  dyn_end_points = None
+
+  if plot_transport_arrows:
+    # Where do these arrows come from?
+    if velocity_field is None:
+      if dynamic_points is None:
+        v_points = static_target_points - static_source_points
+        dyn_end_points = static_target_points
+      else:
+        dyn_end_points = jax.vmap(jax.grad(brenier_potential))(dyn_points)
+        v_points = dyn_end_points - dyn_points
+    elif velocity_field is not None:
+      # If velocity field is passed, evaluate at time 0.
+      v_points = velocity_field(
+          jnp.zeros((dynamic_points.shape[0],)), dynamic_points
+      )
+    else:
+      raise ValueError(
+          "Transport arrows cannot be recovered from passed arguments"
+      )
+
+    # Plot arrows
+    quiver_points = ax.quiver(
+        dyn_points[:, 0],
+        dyn_points[:, 1],
+        dt * v_points[:, 0],
+        dt * v_points[:, 1],
+        angles="xy",
+        scale_units="xy",
+        scale=1,
+        **dict_pk["arrows_dynamic"],
+    )
+
+    # Add dynamic points
+    scatter_interm_points_before = ax.scatter(
+        dyn_points[:, 0], dyn_points[:, 1], **dict_pk["txnew_interm"]
+    )
+
+    # We might want to add another marker right after
+    # the arrow, to illustrate the displacement, except when plotting monge
+    if not plot_monge:
+      scatter_interm_points_after = ax.scatter(
+          dyn_points[:, 0] + dt * v_points[:, 0],
+          dyn_points[:, 1] + dt * v_points[:, 1], **(dict_pk["txnew"])
+      )
+
+  if dynamic_points is not None:
+    ax.scatter(dyn_points[:, 0], dyn_points[:, 1], **dict_pk["tx"])
+
+  # Gather all points to set limits adaptively if needed.
+  all_points = jnp.concatenate(
+      (
+          dyn_points,
+          dyn_end_points if dyn_end_points is not None else dyn_points,
+          static_source_points,
+          static_target_points,
+      ),
+      axis=0,
+  )
+
+  if xlimits is None:
+    xlimits = jnp.min(all_points[:, 0]), jnp.max(all_points[:, 0])
+    xscale = xlimits[1] - xlimits[0]
+    xlimits = (xlimits[0] - padding * xscale, xlimits[1] + padding * xscale)
+
+  if ylimits is None:
+    ylimits = jnp.min(all_points[:, 1]), jnp.max(all_points[:, 1])
+    yscale = ylimits[1] - ylimits[0]
+    ylimits = (ylimits[0] - padding * yscale, ylimits[1] + padding * yscale)
+
+  # Display velocities on grids.
+  if n_grid > 0:
+    assert brenier_potential is not None or velocity_field is not None, \
+      "To display field on grid points, provide Brenier potential or velocity."
+    x = jnp.linspace(*xlimits, n_grid)
+    y = jnp.linspace(*ylimits, n_grid)
+    X, Y = jnp.meshgrid(x, y)
+    points_grid = jnp.stack([X, Y], axis=-1).reshape(-1, 2)
+
+    zero_time = times[0] * jnp.ones((points_grid.shape[0],))
+    if velocity_field is None:
+      v_grid = vel_brenier(zero_time, points_grid)
+    else:
+      v_grid = velocity_field(zero_time, points_grid)
+
+    quiver_grid = ax.quiver(
+        points_grid[:, 0],
+        points_grid[:, 1],
+        dt * v_grid[:, 0],
+        dt * v_grid[:, 1],
+        angles="xy",
+        scale_units="xy",
+        scale=1,
+        **dict_pk["arrows_grid"],
+    )
+
+  if plot_ifm_interpolant:
+    max_p = max_points_ifm_interpolant if plot_ifm_arrows else n_src ** 2
+    product_points = jnp.stack((
+        jnp.repeat(static_source_points, axis=0, repeats=batch_size),
+        jnp.tile(static_target_points, reps=(batch_size, 1)),
+    ))
+
+    if max_p < n_src ** 2:
+      product_points = product_points[:,
+                                      jr.choice(
+                                          jr.key(2),
+                                          n_src * n_src, (max_p,),
+                                          replace=False
+                                      ), :]
+
+    product_points_at_t = product_points[0, :, :]
+    prod_scatter = ax.scatter(
+        product_points_at_t[:, 0], product_points_at_t[:, 1], **dict_pk["ifm"]
+    )
+    if plot_ifm_arrows:
+      prod_quiver = ax.quiver(
+          product_points_at_t[:, 0],
+          product_points_at_t[:, 1],
+          dt * (product_points[1, :, 0] - product_points[0, :, 0]),
+          dt * (product_points[1, :, 1] - product_points[0, :, 1]),
+          angles="xy",
+          scale_units="xy",
+          scale=1,
+          **dict_pk["arrows_ifm"]
+      )
+
+  # End of static frame
+
+  ax.set_title(title)
+  ax.legend()
+  ax.grid(True)
+  ax.set_aspect("equal")
+  ax.set_xlim(*xlimits)
+  ax.set_ylim(*ylimits)
+
+  # Dynamic frame
+
+  # Initialize dynamic points at t=0
+  dyn_points_t = dyn_points
+
+  def update_frame(frame):
+
+    global dyn_points_t, v_points
+    t = times[frame]
+
+    # Update grid arrows (locations stay fixed)
+    if n_grid > 0 and t < 1.0:
+      dt = delta_times[frame - 1] if frame > 0 else delta_times[0]
+
+      times_t = jnp.ones((points_grid.shape[0],)) * t
+
+      if velocity_field is None:
+        v_grid = vel_brenier(times_t, points_grid)
+      else:
+        v_grid = velocity_field(times_t, points_grid)
+
+      quiver_grid.set_UVC(dt * v_grid[:, 0], dt * v_grid[:, 1])
+
+    # Update moving point arrows (locations move with time)
+    if plot_transport_arrows and not plot_monge:
+      dt = delta_times[frame - 1] if frame > 0 else delta_times[0]
+      if t >= 1.0:
+        # Stop displaying arrows at t=1.0
+        v_points = np.zeros_like(v_points)
+        if velocity_field is None:
+          dyn_points_t = dyn_end_points
+      else:
+        if velocity_field is not None:
+          v_points = velocity_field(
+              jnp.ones((dyn_points_t.shape[0],)) * t, dyn_points_t
+          )
+        else:
+          # velocity field is constant, path can be reconstructed.
+          dyn_points_t = (1 - t) * dyn_points + t * dyn_end_points
+
+      quiver_points.set_offsets(dyn_points_t)
+      quiver_points.set_UVC(dt * v_points[:, 0], dt * v_points[:, 1])
+      scatter_interm_points_after.set_offsets(dyn_points_t + v_points * dt)
+      scatter_interm_points_before.set_offsets(dyn_points_t)
+      # Make move for next iteration if integrating along path.
+      if velocity_field is not None:
+        dyn_points_t = dyn_points_t + dt * v_points
+
+    if (n_grid > 0 or plot_transport_arrows) and not plot_monge:
+      ax.set_title(title + " at time " + f"{t:.2f}")
+
+    if plot_ifm_interpolant:
+      product_points_at_t = (1 - t) * product_points[
+          0, :, :] + t * product_points[1, :, :]
+      prod_scatter.set_offsets(product_points_at_t)
+
+      if plot_ifm_arrows:
+        prod_quiver.set_offsets(product_points_at_t)
+      ax.set_title(title + " at time " + f"{t:.2f}")
+
+  ani = animation.FuncAnimation(
+      fig, update_frame, frames=n_frames, blit=False, interval=300, repeat=True
+  )
+  if n_frames == 1:
+    if save_prefix:
+      plt.savefig(save_prefix + title + ".pdf")
+    plt.show()
+  else:
+    plt.close()
+    if use_mp4:
+      display.display(display.HTML(ani.to_html5_video()))
+      if save_prefix:
+        ani.save(save_prefix + title + ".mp4", bitrate=2000)
+    else:
+      html = display.HTML(ani.to_jshtml())
+      display.display(html,)
+      plt.close()
+
+  return ani

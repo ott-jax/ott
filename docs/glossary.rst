@@ -107,7 +107,7 @@ Glossary
         supports of :math:`\mu,\nu` and :math:`f\oplus g\leq c` means that for
         any pair :math:`x,y` in the respective supports, one has
         :math:`f(x)+g(y)\leq c(x,y)`. The
-        :term:`semidiscrete optimal transport problem` studies more specifically
+        :term:`semidiscrete problem` studies more specifically
         the mixed setting in which either measure is discrete and the other
         continuous.
 
@@ -234,6 +234,14 @@ Glossary
         need to be differentiated w.r.t. :math:`x` when computing the
         gradient of :math:`h`. Note that this result is not valid for higher
         order differentiation.
+
+    flow matching
+        Family of methods :cite:`lipman:22` designed to fit a time-dependent
+        velocity flow model so that it maps progressively a given source to a
+        target distribution. The estimation of that velocity flow is done
+        by specifying a pre-defined stochastic interpolant :cite:`albergo:23`
+        between said distribution, and fitting the velocity field so that it
+        agrees with that interpolation.
 
     Gangbo-McCann theorem
         Fundamental result in optimal transport theory :cite:`gangbo:96`
@@ -407,7 +415,7 @@ Glossary
         vectors :math:`a,b` are equal, and set both to a uniform weight vector
         of the form :math:`(\tfrac{1}{n},\dots,\tfrac{1}{n})\in\mathbb{R}^n`.
 
-    semidiscrete optimal transport problem
+    semidiscrete problem
         Refers to the optimal transport problem where one of the two measures
         is discrete (a weighted sum of Dirac masses) and the other is absolutely
         continuous, which, in the context of this toolbox, means that one can
@@ -417,7 +425,6 @@ Glossary
         methods can be used to approximate the objective and its gradients in
         lower dimension :cite:`merigot:11`, whereas simpler SGD methods
         can be leveraged in higher dimensions :cite:`genevay:16`.
-
 
     Sinkhorn algorithm
         Fixed point iteration that solves the

@@ -14,8 +14,6 @@
 from . import fixed_point_loop, matrix_square_root, unbalanced_functions, utils
 from ._lbfgs import lbfgs
 from ._legendre import legendre
+from ._velocity_from_brenier_potential import velocity_from_brenier_potential
 
-__all__ = [
-    "lbfgs",
-    "legendre",
-]
+__all__ = ["lbfgs", "legendre", "velocity_from_brenier_potential"]
