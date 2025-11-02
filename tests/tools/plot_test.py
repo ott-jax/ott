@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
+
 import jax
 
 from ott.geometry import pointcloud
@@ -26,6 +28,9 @@ class TestPlotting:
     try:
       import matplotlib.pyplot as plt
     except ImportError:
+      warnings.warn(
+          "Not testing plot as matplotlib is not installed.", stacklevel=2
+      )
       return
     monkeypatch.setattr(plt, "show", lambda: None)
     n, m, d = 12, 7, 3
