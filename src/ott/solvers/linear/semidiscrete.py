@@ -212,7 +212,7 @@ class SemidiscreteOutput:
 
     Args:
       rng: Random number seed used for sampling from the source distribution.
-      batch_size: Batch size.
+      batch_size: Batch size used in the dataloader to sample from source.
       kwargs: Keyword arguments for
         :class:`~ott.neural.data.semidiscrete_dataloader.SemidiscreteDataloader`.
 
@@ -288,10 +288,9 @@ class SemidiscreteSolver:
     error_eval_every: Compute the chi-squared error every ``error_eval_every``
       iterations.
     error_batch_size: Batch size to use when computing
-      the marginal chi-squared error. If :obj:`None`, use four times
-      ``batch_size``.
+      the marginal chi-squared error. If :obj:`None`, use ``batch_size``.
     error_num_repeats: Number of repeats used to estimate
-      the marginal chi-squared error, set to four by default.
+      the marginal chi-squared error, set to sixteen by default.
     threshold: Convergence threshold for the marginal chi-squared error.
     potential_ema: Exponential moving average of the dual potential.
     epsilon_scheduler: Epsilon scheduler along the iterations with a signature
@@ -305,7 +304,7 @@ class SemidiscreteSolver:
   optimizer: optax.GradientTransformation
   error_eval_every: int = 1000
   error_batch_size: Optional[int] = None
-  error_num_repeats: int = 4
+  error_num_repeats: int = 16
   threshold: float = 1e-3
   potential_ema: float = 0.99
   epsilon_scheduler: Callable[[jax.Array, jax.Array],
@@ -448,7 +447,7 @@ class SemidiscreteSolver:
       lambda: _marginal_chi2_error(
         rng_error, g_ema, prob,
         num_iters=self.error_num_repeats,
-        batch_size=self.error_batch_size or 4 * self.batch_size,
+        batch_size=self.error_batch_size or self.batch_size,
       ),
       lambda: jnp.array(jnp.inf, dtype=state.errors.dtype),
     )

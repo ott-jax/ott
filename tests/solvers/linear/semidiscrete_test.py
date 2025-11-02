@@ -160,36 +160,44 @@ class TestSemidiscreteSolver:
     else:
       assert isinstance(out_sampled, semidiscrete.HardAssignmentOutput)
 
-  @pytest.mark.parametrize("epsilon", [5e-1, 1])
+  @pytest.mark.parametrize("epsilon", [1e-1, None])
   def test_match_with_finiteOT(self, rng: jax.Array, epsilon: Optional[float]):
     rng_solver, rng_sample, rng_b, rng_y = jr.split(rng, 4)
-    m, d = 4, 1
-    b = jr.uniform(rng_b, (m,))
+    m, d = 8, 2
+    b = jr.uniform(rng_b, (m,)) + 1.  # balanced distribution helps converge
     b /= b.sum()
     y = jr.normal(rng_y, (m, d))
     geom = sdpc.SemidiscretePointCloud(
         jr.normal, y, epsilon=epsilon, cost_fn=costs.NegDotProduct()
     )
-    prob = sdlp.SemidiscreteLinearProblem(geom, b=b)
-    num_iterations = 1_024
+    sd_prob = sdlp.SemidiscreteLinearProblem(geom, b=b)
+    num_iterations = 1024
+
+    schedule = optax.linear_schedule(
+        init_value=1,
+        transition_begin=num_iterations // 4,
+        transition_steps=num_iterations // 2,
+        end_value=5e-3,
+    )
 
     solver = semidiscrete.SemidiscreteSolver(
         num_iterations=num_iterations,
-        batch_size=2_048,
-        error_eval_every=512,
-        optimizer=optax.sgd(learning_rate=5e-2),
-        threshold=1e-7
+        batch_size=256,
+        optimizer=optax.sgd(learning_rate=schedule),
+        potential_ema=.95  # testing
     )
 
-    out_sd = jax.jit(solver)(rng_solver, prob)
+    out_sd = jax.jit(solver)(rng_solver, sd_prob)
 
-    n = 16_384
-    finite_geom = geom.sample(rng_sample, num_samples=n, epsilon=epsilon)
-    out_ot = linear.solve(finite_geom, threshold=1e-5)
+    n = 2_048
+    finite_geom = geom.sample(
+        rng_sample, num_samples=n, epsilon=sd_prob.epsilon
+    )
+    out_ot = linear.solve(finite_geom)
     assert out_ot.converged
     g_ot = out_ot.g - jnp.mean(out_ot.g)
     g_sd = out_sd.g - jnp.mean(out_sd.g)
-    np.testing.assert_allclose(g_ot, g_sd, rtol=1e-1, atol=1e-1)
+    np.testing.assert_allclose(g_ot, g_sd, rtol=1e-2, atol=1e-1)
 
   @pytest.mark.parametrize("epsilon", [0.0, 1e-2, None])
   def test_initial_potential(self, rng: jax.Array, epsilon: Optional[float]):
