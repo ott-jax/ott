@@ -14,8 +14,6 @@
 
 import jax
 
-import matplotlib.pyplot as plt
-
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
@@ -25,6 +23,10 @@ from ott.tools import plot
 class TestPlotting:
 
   def test_plot(self, rng: jax.Array, monkeypatch):
+    try:
+      import matplotlib.pyplot as plt
+    except ImportError:
+      return
     monkeypatch.setattr(plt, "show", lambda: None)
     n, m, d = 12, 7, 3
     rngs = jax.random.split(rng, 3)

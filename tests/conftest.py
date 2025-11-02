@@ -20,11 +20,13 @@ import pytest
 import jax
 import jax.experimental
 
-import matplotlib as mpl
+try:
+  import matplotlib as mpl
 
-
-def pytest_sessionstart(session: pytest.Session) -> None:
-  mpl.use("Agg")
+  def pytest_sessionstart(session: pytest.Session) -> None:
+    mpl.use("Agg")
+except ImportError:
+  mpl = None
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
