@@ -26,7 +26,7 @@ try:
   def pytest_sessionstart(session: pytest.Session) -> None:
     mpl.use("Agg")
 except ImportError:
-  mpl = None
+  pass
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
