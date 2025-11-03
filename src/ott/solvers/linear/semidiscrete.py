@@ -569,13 +569,8 @@ def _marginal_chi2_error(
     matrix = batch_size * matrix
 
     if isinstance(matrix, jesp.BCOO):
-      matrix_sq = matrix
-      matrix_sq.data = matrix_sq.data ** 2
-      out = jesp.bcoo_reduce_sum(
-          matrix, axes=(0,)
-      ).todense() ** 2 - jesp.bcoo_reduce_sum(
-          matrix_sq, axes=(0,)
-      ).todense()
+      out = jesp.bcoo_reduce_sum(matrix, axes=(0,)).todense() ** 2
+      out -= jesp.bcoo_reduce_sum(matrix ** 2, axes=(0,)).todense()
     else:
       out = jnp.sum(matrix, axis=0) ** 2 - jnp.sum(matrix ** 2, axis=0)
 
