@@ -40,7 +40,7 @@ Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
 
 
 @jax.jit
-def ccworder(A: jnp.ndarray) -> jnp.ndarray:
+def ccworder(A: jax.Array) -> jax.Array:
   """Order points in counter-clockwise direction for polygon plotting.
 
   This helper function reorders a set of 2D points so that they can be used to
@@ -61,8 +61,7 @@ def ccworder(A: jnp.ndarray) -> jnp.ndarray:
   return jnp.argsort(jnp.arctan2(A[:, 1], A[:, 0]))
 
 
-def bidimensional(x: jnp.ndarray,
-                  y: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def bidimensional(x: jax.Array, y: jax.Array) -> Tuple[jax.Array, jax.Array]:
   """Apply PCA to reduce to bi-dimensional data."""
   if x.shape[1] < 3:
     return x, y
@@ -152,7 +151,7 @@ class Plot:
     scales_y = b * self._scale * b.shape[0]
     return x, y, scales_x, scales_y
 
-  def _mapping(self, x: jnp.ndarray, y: jnp.ndarray, matrix: jnp.ndarray):
+  def _mapping(self, x: jax.Array, y: jax.Array, matrix: jax.Array):
     """Compute the lines representing the mapping between the 2 point clouds."""
     # Only plot the lines with a cost above the threshold.
     u, v = jnp.where(matrix > self._threshold)
@@ -589,28 +588,26 @@ def get_plotkwargs(
 
 def transport_animation(
     n_frames: int,
-    brenier_potential: Callable[[jnp.ndarray], jnp.ndarray],
-    static_source_points: jnp.ndarray,
-    static_target_points: Optional[jnp.ndarray] = None,
+    brenier_potential: Callable[[jax.Array], jax.Array],
+    static_source_points: jax.Array,
+    static_target_points: Optional[jax.Array] = None,
     n_grid: int = 0,
-    dynamic_points: Optional[jnp.ndarray] = None,
-    title: Optional[str] = None,
-    velocity_field: Optional[Callable[[jnp.array, jnp.array],
-                                      jnp.array]] = None,
+    dynamic_points: Optional[jax.Array] = None,
+    velocity_field: Optional[Callable[[jax.Array, jax.Array],
+                                      jax.Array]] = None,
     plot_dynamic_transport: bool = False,
     plot_monge: bool = False,
     plot_ifm_interpolant: bool = False,
     plot_ifm_arrows: bool = False,
     max_points_ifm_interpolant: int = 256,
-    use_mp4: bool = True,
+    title: Optional[str] = None,
     figsize: Tuple[int, int] = (8, 6),
-    times: Optional[jnp.array] = None,
-    xlimits: Tuple[float, float] = None,
-    ylimits: Tuple[float, float] = None,
-    save_prefix: Optional[str] = None,
+    xlimits: Optional[Tuple[float, float]] = None,
+    ylimits: Optional[Tuple[float, float]] = None,
     padding: float = 0.1,
-    interval: int = 300
-):
+    interval: int = 300,
+    save_path: Optional[str] = None,
+) -> "matplotlib.animation.FuncAnimation":  # noqa: F821
   r"""Create animated visualizations of optimal transport and flow matching.
 
   This function generates animations illustrating various aspects of optimal
@@ -629,58 +626,45 @@ def transport_animation(
     static_source_points: Source distribution points of shape ``[n, 2]``,
       representing samples from :math:`\\mu_0`. Always displayed in the plot.
     static_target_points: Target distribution points of shape ``[n, 2]``,
-      representing samples from :math:`\\mu_1`. If ``None``, computed as
-      :math:`\\nabla\\varphi(\\text{static_source_points})`. Default ``None``.
+      representing samples from :math:`\\mu_1`. If :obj:`None`, computed as
+      :math:`\\nabla\\varphi(\\text{static_source_points})`.
     n_grid: Number of grid points per dimension for displaying velocity fields.
       If ``> 0``, displays velocity field arrows on a uniform :math:`n_{grid}
-      \\times n_{grid}` grid. Default is ``0`` (no grid).
+      \\times n_{grid}` grid.
     dynamic_points: Additional points of shape ``[m, 2]`` to highlight and
       transport dynamically through the animation. Useful for emphasizing
-      specific trajectories. Default is ``None``.
-    title: Title for the plot/animation. Default is ``None``.
+      specific trajectories.
     velocity_field: Optional learned/estimated velocity field function with
       signature ``v(t, x) -> velocity`` where ``t`` is time (shape ``[batch]``)
-      and ``x`` is position (shape ``[batch, 2]``). If ``None``, uses
-      Benamou-Brenier velocity from ``brenier_potential``. Default is ``None``.
+      and ``x`` is position (shape ``[batch, 2]``). If :obj:`None`, uses
+      Benamou-Brenier velocity from ``brenier_potential``.
     plot_dynamic_transport: Whether to show arrows and trajectories for
       ``dynamic_points`` as they are transported over time. Cannot be ``True``
-      simultaneously with ``plot_monge``. Default is ``False``.
+      simultaneously with ``plot_monge``.
     plot_monge: Whether to display the Monge map as static arrows from source
       to target. Shows the complete optimal transport map at once. Cannot be
       ``True`` simultaneously with ``plot_dynamic_transport``.
-      Default is ``False``.
     plot_ifm_interpolant: Whether to visualize the independent flow matching
       (IFM) interpolant :math:`(1-t)x_0 + tx_1` for random pairs of source and
-      target points. Default is ``False``.
+      target points.
     plot_ifm_arrows: Whether to display velocity arrows for the IFM
       interpolant. Only relevant when ``plot_ifm_interpolant=True``.
-      Default is ``False``.
     max_points_ifm_interpolant: Maximum number of point pairs to show when
       plotting IFM interpolant. Limits computational cost and visual clutter.
-      Default is ``256``.
-    use_mp4: Whether to render animation as MP4 video (``True``) or interactive
-      JavaScript HTML (``False``). Default is ``True``.
-    figsize: Figure size as ``(width, height)`` in inches. Default is
-      ``(8, 6)``.
-    times: Custom time points for animation frames of shape ``[n_frames]``.
-      If ``None``, uses ``linspace(0, 1, n_frames)``. Default is ``None``.
-    xlimits: X-axis limits as ``(xmin, xmax)``. If ``None``, computed
-      automatically from all points with padding. Default is ``None``.
-    ylimits: Y-axis limits as ``(ymin, ymax)``. If ``None``, computed
-      automatically from all points with padding. Default is ``None``.
-    save_prefix: Path prefix for saving the animation/plot to disk. If provided,
-      saves static plots as ``{save_prefix}{title}.pdf`` and animations as
-      ``{save_prefix}{title}.mp4``. Default is ``None`` (no saving).
+    title: Title for the plot/animation.
+    figsize: Figure size as ``(width, height)`` in inches.
+    xlimits: X-axis limits as ``(xmin, xmax)``. If :obj:`None`, computed
+      automatically from all points with padding.
+    ylimits: Y-axis limits as ``(ymin, ymax)``. If :obj:`None`, computed
+      automatically from all points with padding.
     padding: Fractional padding to add around automatically computed axis
-      limits. For example, ``0.1`` adds 10% padding on each side. Default is
-      ``0.1``.
+      limits. For example, ``0.1`` adds 10% padding on each side.
     interval: Used for animations, delay between frames in milliseconds.
-
-
+    save_path: Path prefix for saving the animation/plot to disk.
 
   Returns:
-    A :class:`~matplotlib.animation.FuncAnimation` object containing the
-    animation (or static frame if ``n_frames=1``).
+    An animation object containing the animation (or static frame if
+    ``n_frames=1``).
 
   """
   assert n_frames >= 1, f"n_frames must be nonnegative, got {n_frames}"
@@ -688,8 +672,6 @@ def transport_animation(
     "Cannot plot both Monge transport and dynamic transport"
 
   n_src = static_source_points.shape[0]
-  global dyn_points_t, v_points
-  batch_size = static_source_points.shape[0]
 
   plot_transport_arrows = plot_dynamic_transport or plot_monge
 
@@ -702,7 +684,7 @@ def transport_animation(
   fig.tight_layout(pad=2.0)
 
   # Time parameterization
-  times = jnp.linspace(0.0, 1.0, n_frames) if times is None else times
+  times = jnp.linspace(0.0, 1.0, n_frames)
   delta_times = jnp.diff(times)
 
   # Make sure we have target points, either froms source and potential, or
@@ -831,8 +813,8 @@ def transport_animation(
   if plot_ifm_interpolant:
     max_p = max_points_ifm_interpolant if plot_ifm_arrows else n_src ** 2
     product_points = jnp.stack((
-        jnp.repeat(static_source_points, axis=0, repeats=batch_size),
-        jnp.tile(static_target_points, reps=(batch_size, 1)),
+        jnp.repeat(static_source_points, axis=0, repeats=n_src),
+        jnp.tile(static_target_points, reps=(n_src, 1)),
     ))
 
     if max_p < n_src ** 2:
@@ -874,8 +856,7 @@ def transport_animation(
   dyn_points_t = dyn_points
 
   def update_frame(frame):
-
-    global dyn_points_t, v_points
+    nonlocal dyn_points_t, v_points
     t = times[frame]
 
     # Update grid arrows (locations stay fixed)
@@ -917,7 +898,7 @@ def transport_animation(
         dyn_points_t = dyn_points_t + dt * v_points
 
     if (n_grid > 0 or plot_transport_arrows) and not plot_monge:
-      ax.set_title(title + " at time " + f"{t:.2f}")
+      ax.set_title(f"{title} at time {t:.2f}")
 
     if plot_ifm_interpolant:
       product_points_at_t = (1 - t) * product_points[
@@ -926,7 +907,7 @@ def transport_animation(
 
       if plot_ifm_arrows:
         prod_quiver.set_offsets(product_points_at_t)
-      ax.set_title(title + " at time " + f"{t:.2f}")
+      ax.set_title(f"{title} at time {t:.2f}")
 
   ani = animation.FuncAnimation(
       fig,
@@ -936,19 +917,12 @@ def transport_animation(
       interval=interval,
       repeat=True
   )
-  if n_frames == 1:
-    if save_prefix:
-      plt.savefig(save_prefix + title + ".pdf")
-    plt.show()
-  else:
-    plt.close()
-    if use_mp4:
-      display.display(display.HTML(ani.to_html5_video()))
-      if save_prefix:
-        ani.save(save_prefix + title + ".mp4", bitrate=2000)
-    else:
-      html = display.HTML(ani.to_jshtml())
-      display.display(html,)
-      plt.close()
 
+  if save_path is not None:
+    if n_frames == 1:
+      plt.savefig(save_path)
+    else:
+      ani.save(save_path, bitrate=2000)
+  if n_frames >= 1:
+    plt.close()
   return ani
