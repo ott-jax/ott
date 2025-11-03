@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from typing import Callable
 
 import jax
@@ -39,8 +40,8 @@ def velocity_from_brenier_potential(
     dimension of ``potential``.
   """
 
-  @jax.jit
-  def vel(t, z):
+  @functools.partial(jax.vmap, in_axes=[0, 0])
+  def vel(t: jnp.array, z: jnp.array) -> jnp.array:
 
     def pot_t(x: jnp.ndarray) -> jnp.ndarray:
       return 0.5 * (1 - t) * jnp.sum(x ** 2) + t * potential(x)

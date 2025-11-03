@@ -608,7 +608,8 @@ def transport_animation(
     xlimits: Tuple[float, float] = None,
     ylimits: Tuple[float, float] = None,
     save_prefix: Optional[str] = None,
-    padding: float = 0.1
+    padding: float = 0.1,
+    interval: int = 300
 ):
   r"""Create animated visualizations of optimal transport and flow matching.
 
@@ -673,6 +674,9 @@ def transport_animation(
     padding: Fractional padding to add around automatically computed axis
       limits. For example, ``0.1`` adds 10% padding on each side. Default is
       ``0.1``.
+    interval: Used for animations, delay between frames in milliseconds.
+
+
 
   Returns:
     A :class:`~matplotlib.animation.FuncAnimation` object containing the
@@ -713,9 +717,7 @@ def transport_animation(
     raise ValueError("Cannot resolve target set of poitnts.")
 
   if velocity_field is None and brenier_potential is not None:
-    vel_brenier = jax.vmap(
-        math.velocity_from_brenier_potential(brenier_potential), in_axes=[0, 0]
-    )
+    vel_brenier = math.velocity_from_brenier_potential(brenier_potential)
   else:
     vel_brenier = None
 
@@ -745,14 +747,10 @@ def transport_animation(
       else:
         dyn_end_points = jax.vmap(jax.grad(brenier_potential))(dyn_points)
         v_points = dyn_end_points - dyn_points
-    elif velocity_field is not None:
+    else:
       # If velocity field is passed, evaluate at time 0.
       v_points = velocity_field(
           jnp.zeros((dynamic_points.shape[0],)), dynamic_points
-      )
-    else:
-      raise ValueError(
-          "Transport arrows cannot be recovered from passed arguments"
       )
 
     # Plot arrows
@@ -931,7 +929,12 @@ def transport_animation(
       ax.set_title(title + " at time " + f"{t:.2f}")
 
   ani = animation.FuncAnimation(
-      fig, update_frame, frames=n_frames, blit=False, interval=300, repeat=True
+      fig,
+      update_frame,
+      frames=n_frames,
+      blit=False,
+      interval=interval,
+      repeat=True
   )
   if n_frames == 1:
     if save_prefix:
