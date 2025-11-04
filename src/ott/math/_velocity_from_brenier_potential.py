@@ -45,7 +45,8 @@ def velocity_from_brenier_potential(
     def pot_t(x: jnp.ndarray) -> jnp.ndarray:
       return 0.5 * (1 - t) * jnp.sum(x ** 2) + t * potential(x)
 
-    x = jax.grad(math.legendre(pot_t, **kwargs))(z)
+    grad_pot_t_star = jax.grad(math.legendre(pot_t, **kwargs))
+    x = jax.lax.cond(t == 0.0, lambda z: z, grad_pot_t_star, z)
     return jax.grad(potential)(x) - x
 
   return vel
