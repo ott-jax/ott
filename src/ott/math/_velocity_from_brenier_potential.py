@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Callable
+from typing import Any, Callable
 
 import jax
 import jax.numpy as jnp
@@ -23,7 +23,8 @@ __all__ = ["velocity_from_brenier_potential"]
 
 
 def velocity_from_brenier_potential(
-    potential: Callable[[jnp.ndarray], jnp.ndarray]
+    potential: Callable[[jnp.ndarray], jnp.ndarray],
+    **kwargs: Any,
 ) -> Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
   """Get optimal time-dependent velocity field from :term:`Brenier potential`.
 
@@ -31,6 +32,7 @@ def velocity_from_brenier_potential(
 
   Args:
     potential: A convex potential of shape ``[d,]``.
+    kwargs: Keyword arguments for :func:`~ott.math.legendre`.
 
   Returns:
     A time-parameterized velocity field ``vel(t, x)`` that expects time array
@@ -43,7 +45,7 @@ def velocity_from_brenier_potential(
     def pot_t(x: jnp.ndarray) -> jnp.ndarray:
       return 0.5 * (1 - t) * jnp.sum(x ** 2) + t * potential(x)
 
-    x = jax.grad(math.legendre(pot_t))(z)
+    x = jax.grad(math.legendre(pot_t, **kwargs))(z)
     return jax.grad(potential)(x) - x
 
   return vel
