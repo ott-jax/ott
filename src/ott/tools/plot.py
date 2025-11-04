@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -19,58 +19,22 @@ import jax.random as jr
 import numpy as np
 import scipy.sparse as sp
 
+import matplotlib.colors as mcolors
+import matplotlib.patches as ptc
+import matplotlib.pyplot as plt
+from matplotlib import animation
+
 from ott import math
 from ott.experimental import mmsinkhorn
 from ott.geometry import pointcloud
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein
 
-try:
-  import matplotlib.colors as mcolors
-  import matplotlib.patches as ptc
-  import matplotlib.pyplot as plt
-  from matplotlib import animation
-except ImportError:
-  plt = animation = None
-
 # TODO(michalk8): make sure all outputs conform to a unified transport interface
 Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
                   gromov_wasserstein.GWOutput]
 
-__all__ = ["Plot", "get_plotkwargs", "transport_animation"]
-
-
-@jax.jit
-def ccworder(A: jax.Array) -> jax.Array:
-  """Order points in counter-clockwise direction for polygon plotting.
-
-  This helper function reorders a set of 2D points so that they can be used to
-  draw a polygon with maximal area. It centers the points at the origin and
-  then sorts them by their angular position.
-
-  Args:
-    A: Array of shape ``[n, 2]`` containing 2D point coordinates.
-
-  Returns:
-    Array of indices that reorder the input points in counter-clockwise order
-    starting from the angle 0 (positive x-axis).
-
-  Note:
-    Based on: https://stackoverflow.com/questions/5040412/how-to-draw-the-largest-polygon-from-a-set-of-points
-  """
-  A = A - jnp.mean(A, 0, keepdims=True)
-  return jnp.argsort(jnp.arctan2(A[:, 1], A[:, 0]))
-
-
-def bidimensional(x: jax.Array, y: jax.Array) -> Tuple[jax.Array, jax.Array]:
-  """Apply PCA to reduce to bi-dimensional data."""
-  if x.shape[1] < 3:
-    return x, y
-
-  u, s, _ = sp.linalg.svds(np.array(jnp.concatenate([x, y], axis=0)), k=2)
-  proj = u * s
-  k = x.shape[0]
-  return proj[:k], proj[k:]
+__all__ = ["Plot", "transport_animation"]
 
 
 class Plot:
@@ -116,9 +80,6 @@ class Plot:
       xlim: Optional[List[float]] = None,
       ylim: Optional[List[float]] = None,
   ):
-    if plt is None:
-      raise RuntimeError("Please install `matplotlib` first.")
-
     if ax is None and fig is None:
       fig, ax = plt.subplots()
     elif fig is None:
@@ -184,7 +145,7 @@ class Plot:
 
     return result
 
-  def __call__(self, ot: Transport) -> List["plt.Artist"]:
+  def __call__(self, ot: Transport) -> List[plt.Artist]:
     """Plot couplings in 2-D, using PCA if data is higher dimensional."""
     x, y, sx, sy = self._scatter(ot)
     self._points_x = self.ax.scatter(
@@ -224,7 +185,7 @@ class Plot:
 
   def update(self,
              ot: Transport,
-             title: Optional[str] = None) -> List["plt.Artist"]:
+             title: Optional[str] = None) -> List[plt.Artist]:
     """Update a plot with a transport instance."""
     x, y, _, _ = self._scatter(ot)
     self._points_x.set_offsets(x)
@@ -270,7 +231,7 @@ class Plot:
       transports: Sequence[Transport],
       titles: Optional[Sequence[str]] = None,
       frame_rate: float = 10.0
-  ) -> "animation.FuncAnimation":
+  ) -> animation.FuncAnimation:
     """Make an animation from several transports."""
     _ = self(transports[0])
     if titles is None:
@@ -288,7 +249,6 @@ class Plot:
     )
 
 
-# TODO(zoepiran): add support for data of d > 2 (PCA on all k's)
 class PlotMM(Plot):
   """Plots an optimal transport map for :class:`~ott.experimental.mmsinkhorn.MMSinkhorn`.
 
@@ -313,16 +273,14 @@ class PlotMM(Plot):
 
   def __init__(
       self,
-      fig: Optional["plt.Figure"] = None,
-      ax: Optional["plt.Axes"] = None,
+      fig: Optional[plt.Figure] = None,
+      ax: Optional[plt.Axes] = None,
       fix_axes_lim: bool = False,
-      cmap: Union[str, "mcolors.Colormap"] = "cividis_r",
+      cmap: Union[str, mcolors.Colormap] = "cividis_r",
       markers: str = "svopxdh",
       alpha: float = 0.6,
       title: Optional[str] = None,
   ):
-    if plt is None:
-      raise RuntimeError("Please install `matplotlib` first.")
     if isinstance(cmap, str):
       cmap = plt.colormaps[cmap]
     super().__init__(fig=fig, ax=ax, cmap=cmap, alpha=alpha, title=title)
@@ -387,7 +345,7 @@ class PlotMM(Plot):
       ot: mmsinkhorn.MMSinkhornOutput,
       title: Optional[str] = None,
       top_k: Optional[int] = None,
-  ) -> List["plt.Artist"]:
+  ) -> List[plt.Artist]:
     """Update a plot with a transport instance."""
     n0 = max(ot.shape)
     top_k = n0 if top_k is None else top_k
@@ -426,7 +384,7 @@ class PlotMM(Plot):
       titles: Optional[Sequence[str]] = None,
       frame_rate: float = 10.0,
       top_k: Optional[int] = None,
-  ) -> "animation.FuncAnimation":
+  ) -> animation.FuncAnimation:
     """Make an animation from several transports."""
     ot, *_ = transports
     _ = self(ot, top_k=top_k)
@@ -443,48 +401,43 @@ class PlotMM(Plot):
 
 def get_plotkwargs(
     background: bool,
+    *,
     small_alpha: float = 0.2,
     large_alpha: float = 0.7,
     darkmode: bool = False,
     small_size: int = 50,
     mid_size: int = 60,
     size_multiplier: float = 1.2
-) -> dict:
+) -> Dict[str, Any]:
   r"""Generate marker styling specifications for transport visualization.
 
   This utility function creates a dictionary of matplotlib styling parameters
   for various types of points and arrows used in optimal transport
-  visualizations. It provides consistent color schemes for both light and dark
-  modes and handles different marker types for source, target, and intermediate
-  points.
+  visualizations.
 
   Args:
-    background: Whether points in source (``x``) and target (``y``) sets should
-      have small alphas to de-emphasize them and highlight other elements like
-      dynamic points or arrows.
-    small_alpha: Alpha (transparency) value for background points.
-      Default is ``0.2``.
-    large_alpha: Alpha value for foreground/highlighted points. Default is
-      ``0.7``.
+    background: Whether source and target points should have small alphas to
+      de-emphasize them and highlight other elements like dynamic points
+      or arrows.
+    small_alpha: Transparency value for background points.
+    large_alpha: Transparency value for foreground/highlighted points.
     darkmode: Whether to use colors suitable for dark background plots.
-      If ``True``, uses lighter colors; if ``False``, uses standard colors.
-      Default is ``False``.
+      If :obj:`True``, use lighter colors, otherwise use standard colors.
     small_size: Base marker size for regular source/target points.
-      Default is ``50``.
-    mid_size: Marker size for highlighted new source points. Default is ``60``.
+    mid_size: Marker size for highlighted new source points.
     size_multiplier: Multiplicative factor to enlarge transported points
-      relative to their base size. Default is ``1.2``.
+      relative to their base size.
 
   Returns:
     A dictionary with the following keys, each containing marker styling
-    parameters (as dict) for matplotlib scatter/quiver plots:
+    parameters for matplotlib scatter/quiver plots:
 
-    - ``'x'``: Regular source points :math:`\\mu_0`
-    - ``'tx'``: Transported source points :math:`\\mu_t`
+    - ``'x'``: Regular source points :math:`\mu_0`
+    - ``'tx'``: Transported source points :math:`\mu_t`
     - ``'xnew'``: New batch of highlighted source points
     - ``'txnew_interm'``: Intermediate positions of new transported points
     - ``'txnew'``: Final positions of new transported points
-    - ``'y'``: Target points :math:`\\mu_1`
+    - ``'y'``: Target points :math:`\mu_1`
     - ``'ifm'``: Independent flow matching (IFM) interpolated points
     - ``'arrows_grid'``: Velocity field arrows on grid points
     - ``'arrows_dynamic'``: Velocity field arrows for moving points
@@ -608,7 +561,7 @@ def transport_animation(
     padding: float = 0.1,
     interval: int = 300,
     save_path: Optional[str] = None,
-) -> "mpl.animation.FuncAnimation":  # noqa: F821
+) -> animation.FuncAnimation:  # noqa: F821
   r"""Create animated visualizations of optimal transport and flow matching.
 
   This function generates animations illustrating various aspects of optimal
@@ -667,9 +620,6 @@ def transport_animation(
     An animation object containing the animation (or static frame if
     ``n_frames=1``).
   """
-  if plt is None:
-    raise RuntimeError("Please install `matplotlib` first.")
-
   assert n_frames >= 1, f"n_frames must be nonnegative, got {n_frames}"
   assert not(plot_monge and plot_dynamic_transport), \
     "Cannot plot both Monge transport and dynamic transport"
@@ -853,12 +803,10 @@ def transport_animation(
   ax.set_xlim(*xlimits)
   ax.set_ylim(*ylimits)
 
-  # Dynamic frame
-
   # Initialize dynamic points at t=0
   dyn_points_t = dyn_points
 
-  def update_frame(frame):
+  def update_frame(frame) -> None:
     nonlocal dyn_points_t, v_points
     t = times[frame]
 
@@ -929,3 +877,36 @@ def transport_animation(
   if n_frames >= 1:
     plt.close()
   return ani
+
+
+@jax.jit
+def ccworder(A: jax.Array) -> jax.Array:
+  """Order points in counter-clockwise direction for polygon plotting.
+
+  This helper function reorders a set of 2D points so that they can be used to
+  draw a polygon with maximal area. It centers the points at the origin and
+  then sorts them by their angular position.
+
+  Args:
+    A: Array of shape ``[n, 2]`` containing 2D point coordinates.
+
+  Returns:
+    Array of indices that reorder the input points in counter-clockwise order
+    starting from the angle 0 (positive x-axis).
+
+  Note:
+    Based on: https://stackoverflow.com/questions/5040412/how-to-draw-the-largest-polygon-from-a-set-of-points
+  """
+  A = A - jnp.mean(A, 0, keepdims=True)
+  return jnp.argsort(jnp.arctan2(A[:, 1], A[:, 0]))
+
+
+def bidimensional(x: jax.Array, y: jax.Array) -> Tuple[jax.Array, jax.Array]:
+  """Apply PCA to reduce to bi-dimensional data."""
+  if x.shape[1] < 3:
+    return x, y
+
+  u, s, _ = sp.linalg.svds(np.array(jnp.concatenate([x, y], axis=0)), k=2)
+  proj = u * s
+  k = x.shape[0]
+  return proj[:k], proj[k:]
