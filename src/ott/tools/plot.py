@@ -617,12 +617,11 @@ def transport_animation(
     save_path: Path prefix for saving the animation/plot to disk.
 
   Returns:
-    An animation object containing the animation (or static frame if
-    ``n_frames=1``).
+    An animation object containing the animation.
   """
-  assert n_frames >= 1, f"n_frames must be nonnegative, got {n_frames}"
+  assert n_frames >= 1, f"n_frames must be non-negative, got {n_frames}."
   assert not(plot_monge and plot_dynamic_transport), \
-    "Cannot plot both Monge transport and dynamic transport"
+    "Cannot plot both Monge transport and dynamic transport."
 
   n_src = static_source_points.shape[0]
 
@@ -640,7 +639,7 @@ def transport_animation(
   times = jnp.linspace(0.0, 1.0, n_frames)
   delta_times = jnp.diff(times)
 
-  # Make sure we have target points, either froms source and potential, or
+  # Make sure we have target points, either from source and potential, or
   # from data directly (assumed to be paired in that case)
   if static_target_points is not None:
     assert static_target_points.shape == static_source_points.shape
@@ -649,7 +648,7 @@ def transport_animation(
         static_source_points
     )
   else:
-    raise ValueError("Cannot resolve target set of poitnts.")
+    raise ValueError("Cannot resolve target set of points.")
 
   if velocity_field is None and brenier_potential is not None:
     vel_brenier = math.velocity_from_brenier_potential(brenier_potential)
