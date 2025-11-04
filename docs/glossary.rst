@@ -51,6 +51,9 @@ Glossary
         :term:`Gangbo-McCann theorem` when instantiated with the squared
         Euclidean cost :math:`c(x,y)=\tfrac12\|x-y\|^2`.
 
+    Brenier potential
+        TODO.
+
     c-transform
         The c-transform of a function :math:`g` with respect to a
         :term:`ground cost` :math:`c(x,y)` is defined as the function :math:`g^c`

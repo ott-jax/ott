@@ -33,12 +33,12 @@ def legendre(
     fun: A function to be transformed, must be convex for the transform
       to be properly defined.
     kwargs: Keyword arguments for :func:`~ott.math.lbfgs`, e.g. maximal
-    iterations ``max_iters``, convergence tolerance ``tol`` or
-    :func:`optax.lbfgs` arguments.
+      iterations ``max_iters``, convergence tolerance ``tol`` or
+      :func:`optax.lbfgs` arguments.
 
   Returns:
-    A function that computes numerically the Legendre transform of `fun` at
-    a given point.
+    A function that computes numerically the Legendre transform of
+    the ``fun`` at a given point.
   """
 
   def fun_star(
@@ -53,7 +53,7 @@ def legendre(
         If :obj:`None`, use ``x``.
 
     Returns:
-        The Legendre transform of ``fun`` evaluated at ``x``.
+        The Legendre transform of the ``fun`` evaluated at ``x``.
     """
     x_init = x if x_init is None else x_init
 
