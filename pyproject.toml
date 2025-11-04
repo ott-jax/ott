@@ -81,6 +81,7 @@ test = [
     "matplotlib",
 ]
 docs = [
+    "matplotlib",
     "sphinx>=4.0",
     "sphinx-book-theme>=1.0.1",
     "sphinx_autodoc_typehints>=1.12.0",

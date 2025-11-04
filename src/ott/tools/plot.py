@@ -874,8 +874,7 @@ def transport_animation(
       plt.savefig(save_path)
     else:
       ani.save(save_path, bitrate=2000)
-  if n_frames >= 1:
-    plt.close()
+  plt.close(fig)
   return ani
 
 
