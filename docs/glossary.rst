@@ -42,7 +42,8 @@ Glossary
         distance, and the source measure is absolutely continuous (e.g. has a
         density), then there exists a unique optimal :term:`transport map`
         between the source and target measures, which is the gradient of a
-        convex function. Conversely, any :term:`transport map` :math:`T` that is
+        convex function (a so-called :term:`Brenier potential`).
+        Conversely, any :term:`transport map` :math:`T` that is
         the gradient of a convex function is optimal for the squared Euclidean
         cost when considering the OT problem between any source distribution
         :math:`\mu`. to that same source modified by the
@@ -52,7 +53,24 @@ Glossary
         Euclidean cost :math:`c(x,y)=\tfrac12\|x-y\|^2`.
 
     Brenier potential
-        TODO.
+        Convex potential function whose gradient transports optimally
+        (w.r.t. the squared-Euclidean cost) a probability measure in
+        :math:`\mathcal{P}(\mathbb{R}^d)` onto another (i.e. whose gradient is
+        the :term:`Monge map` between them). More specifically, the
+        Brenier potential :math:`\varphi` for the optimal transport problem from
+        a measure :math:`\mu` to :math:`\nu` solves a variant of the
+        :term:`dual Kantorovich problem` that reads
+
+        .. math::
+
+          \min_{\varphi: \mathbb{R}^d\rightarrow \mathbb{R}} \int \varphi d\mu + \int \varphi^* d\nu\,.
+
+        where :math:`\varphi^*` is the :term:`Legendre transform` of
+        :math:`\varphi`. Note that if one picks an arbitrary source measure
+        :math:`\mu` and a convex potential :math:`\varphi`, and thereafter sets
+        :math:`\nu:=\naba\varphi \#\mu`, then :math:`\varphi` is necessarily a
+        Brenier potential solving the OT problem from :math:`\mu` to
+        :math:`\nu`.
 
     c-transform
         The c-transform of a function :math:`g` with respect to a
