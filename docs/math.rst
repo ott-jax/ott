@@ -40,6 +40,7 @@ Miscellaneous
 
     lbfgs
     legendre
+    velocity_from_brenier_potential
     utils.norm
     utils.logsumexp
     utils.softmin

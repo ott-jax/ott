@@ -30,14 +30,11 @@ def velocity_from_brenier_potential(
   The solution is computed numerically using a :term:`Legendre transform`.
 
   Args:
-    potential: A convex potential.
-    kwargs: passed to the solver function returned by the
-      :func:`~ott.math.legendre` transform.
+    potential: A convex potential of shape ``[d,]``.
 
   Returns:
-    A time-parameterized velocity field ``vel(t,x)`` that expects a single ``t``
-    time value and an array ``x`` of size ``[d]`` where ``d`` is the input
-    dimension of ``potential``.
+    A time-parameterized velocity field ``vel(t, x)`` that expects time array
+    of shape ``[n,]`` and inputs of shape ``[n, d]``.
   """
 
   @functools.partial(jax.vmap, in_axes=[0, 0])
