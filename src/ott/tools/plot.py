@@ -667,9 +667,7 @@ def transport_animation(
   # Define space of points that will move (all by default if arrows
   # are requested and no dynamic_points are passed)
   if dynamic_points is None:
-    dyn_points = static_source_points
-  else:
-    dyn_points = dynamic_points
+    dynamic_points = static_source_points
   dyn_end_points = None
 
   if plot_transport_arrows:
@@ -679,8 +677,8 @@ def transport_animation(
         v_points = static_target_points - static_source_points
         dyn_end_points = static_target_points
       else:
-        dyn_end_points = jax.vmap(jax.grad(brenier_potential))(dyn_points)
-        v_points = dyn_end_points - dyn_points
+        dyn_end_points = jax.vmap(jax.grad(brenier_potential))(dynamic_points)
+        v_points = dyn_end_points - dynamic_points
     else:
       # If velocity field is passed, evaluate at time 0.
       v_points = velocity_field(
@@ -689,8 +687,8 @@ def transport_animation(
 
     # Plot arrows
     quiver_points = ax.quiver(
-        dyn_points[:, 0],
-        dyn_points[:, 1],
+        dynamic_points[:, 0],
+        dynamic_points[:, 1],
         dt * v_points[:, 0],
         dt * v_points[:, 1],
         angles="xy",
@@ -701,25 +699,25 @@ def transport_animation(
 
     # Add dynamic points
     scatter_interm_points_before = ax.scatter(
-        dyn_points[:, 0], dyn_points[:, 1], **dict_pk["txnew_interm"]
+        dynamic_points[:, 0], dynamic_points[:, 1], **dict_pk["txnew_interm"]
     )
 
     # We might want to add another marker right after
     # the arrow, to illustrate the displacement, except when plotting monge
     if not plot_monge:
       scatter_interm_points_after = ax.scatter(
-          dyn_points[:, 0] + dt * v_points[:, 0],
-          dyn_points[:, 1] + dt * v_points[:, 1], **(dict_pk["txnew"])
+          dynamic_points[:, 0] + dt * v_points[:, 0],
+          dynamic_points[:, 1] + dt * v_points[:, 1], **(dict_pk["txnew"])
       )
 
   if dynamic_points is not None:
-    ax.scatter(dyn_points[:, 0], dyn_points[:, 1], **dict_pk["tx"])
+    ax.scatter(dynamic_points[:, 0], dynamic_points[:, 1], **dict_pk["tx"])
 
   # Gather all points to set limits adaptively if needed.
   all_points = jnp.concatenate(
       (
-          dyn_points,
-          dyn_end_points if dyn_end_points is not None else dyn_points,
+          dynamic_points,
+          dynamic_points if dyn_end_points is None else dyn_end_points,
           static_source_points,
           static_target_points,
       ),
@@ -803,7 +801,7 @@ def transport_animation(
   ax.set_ylim(*ylimits)
 
   # Initialize dynamic points at t=0
-  dyn_points_t = dyn_points
+  dyn_points_t = dynamic_points
 
   def update_frame(frame) -> None:
     nonlocal dyn_points_t, v_points
@@ -837,7 +835,7 @@ def transport_animation(
           )
         else:
           # velocity field is constant, path can be reconstructed.
-          dyn_points_t = (1 - t) * dyn_points + t * dyn_end_points
+          dyn_points_t = (1 - t) * dynamic_points + t * dyn_end_points
 
       quiver_points.set_offsets(dyn_points_t)
       quiver_points.set_UVC(dt * v_points[:, 0], dt * v_points[:, 1])
