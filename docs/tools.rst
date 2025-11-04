@@ -96,6 +96,7 @@ Plotting
     :toctree: _autosummary
 
     plot.Plot
+    plot.transport_animation
 
 ott.tools.gaussian_mixture package
 ----------------------------------
