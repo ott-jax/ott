@@ -555,9 +555,9 @@ def transport_animation(
     static_tgt_points: jax.Array,
     *,
     n_grid: int = 0,
-    dynamic_src_points: Optional[jax.Array] = None,
     velocity_field: Optional[Callable[[jax.Array, jax.Array],
                                       jax.Array]] = None,
+    dynamic_src_points: Optional[jax.Array] = None,
     num_ifm_interpolants: Union[int, Literal["all"]] = 0,
     plot_ifm_arrows: bool = False,
     title: Optional[str] = None,
@@ -571,35 +571,38 @@ def transport_animation(
   r"""Create animated visualizations of optimal transport and flow matching.
 
   This function generates animations illustrating various aspects of optimal
-  transport, including Monge maps, McCann interpolation, Benamou-Brenier
-  velocity fields, and flow matching approaches. It supports multiple
-  visualization modes and can display static point clouds, dynamic trajectories,
-  and velocity fields on grids.
+  transport, including :term`Monge map`, McCann interpolation,
+  :term:`Benamou-Brenier` velocity fields, and flow matching approaches.
+  It supports multiple visualization modes and can display static point clouds,
+  dynamic trajectories, and velocity fields on grids.
 
   Args:
-    n_frames: Number of animation frames. Must be at least ``1``. If ``1``,
+    n_frames: Number of animation frames ``> 1``. If ``1``,
       creates a static plot instead of an animation.
     static_src_points: Source distribution points of shape ``[n, 2]``,
-      representing samples from :math:`\\mu_0`. Always displayed in the plot.
+      representing samples from :math:`\mu_0`.
     static_tgt_points: Target distribution points of shape ``[n, 2]``,
-      representing samples from :math:`\\mu_1`.
+      representing samples from :math:`\mu_1`.
     n_grid: Number of grid points per dimension for displaying velocity fields.
-      If ``> 0``, displays velocity field arrows on a uniform :math:`n_{grid}
-      \\times n_{grid}` grid.
-    dynamic_src_points: TODO.
-    velocity_field: Optional learned/estimated velocity field function with
-      signature ``v(t, x) -> velocity`` where ``t`` is time (shape ``[batch]``)
-      and ``x`` is position (shape ``[batch, 2]``).
-    num_ifm_interpolants: Whether to visualize the independent flow matching
-      (IFM) interpolant :math:`(1-t)x_0 + tx_1` for random pairs of source and
-      target points.
+      If :math:`> 0`, displays velocity field arrows on a uniform
+      :math:`n_{grid} \times n_{grid}` grid.
+    velocity_field: Optional learned/estimated velocity field function with a
+      signature ``v(t, x) -> velocity`` where ``t`` is time of shape
+      ``[batch,]`` and ``x`` is position of shape ``[batch, 2]``.
+    dynamic_src_points: Additional points of shape ``[m, 2]`` to highlight and
+      transport dynamically through the animation. Useful for emphasizing
+      specific trajectories. If :obj:`None` and the velocity field is specified,
+      use ``static_src_points``.
+    num_ifm_interpolants: Number of random pairs of source and target points for
+      the independent flow matching (IFM) interpolant :math:`(1-t)x_0 + tx_1`.
+      If ``'all'``, use ``len(static_src_points) ** 2``.
     plot_ifm_arrows: Whether to display velocity arrows for the IFM
-      interpolant. Only relevant when ``num_ifm_interpolants=True``.
-    title: Title for the plot/animation.
+      interpolant. Only relevant when ``num_ifm_interpolants > 0``.
+    title: Title for the animation/plot.
     figsize: Figure size as ``(width, height)`` in inches.
-    xlimits: X-axis limits as ``(xmin, xmax)``. If :obj:`None`, computed
+    xlimits: X-axis limits as ``(xmin, xmax)``. If :obj:`None`, it is computed
       automatically from all points with padding.
-    ylimits: Y-axis limits as ``(ymin, ymax)``. If :obj:`None`, computed
+    ylimits: Y-axis limits as ``(ymin, ymax)``. If :obj:`None`, it is computed
       automatically from all points with padding.
     padding: Fractional padding to add around automatically computed axis
       limits. For example, ``0.1`` adds 10% padding on each side.
