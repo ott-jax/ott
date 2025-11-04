@@ -610,7 +610,7 @@ def transport_animation(
     save_path: Path where to save the animation/plot.
 
   Returns:
-    An animation object.
+    An animation object if ``n_frames > 1``, otherwise a figure.
   """
   assert n_frames >= 1, f"n_frames must be > 0, got {n_frames}."
   assert static_tgt_points.shape == static_src_points.shape
