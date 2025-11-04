@@ -29,14 +29,15 @@ try:
   import matplotlib.colors as mcolors
   import matplotlib.patches as ptc
   import matplotlib.pyplot as plt
-  from IPython import display
   from matplotlib import animation
 except ImportError:
-  plt = animation = display = None
+  plt = animation = None
 
 # TODO(michalk8): make sure all outputs conform to a unified transport interface
 Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
                   gromov_wasserstein.GWOutput]
+
+__all__ = ["Plot", "get_plotkwargs", "transport_animation"]
 
 
 @jax.jit
@@ -607,7 +608,7 @@ def transport_animation(
     padding: float = 0.1,
     interval: int = 300,
     save_path: Optional[str] = None,
-) -> "matplotlib.animation.FuncAnimation":  # noqa: F821
+) -> "mpl.animation.FuncAnimation":  # noqa: F821
   r"""Create animated visualizations of optimal transport and flow matching.
 
   This function generates animations illustrating various aspects of optimal
@@ -665,8 +666,10 @@ def transport_animation(
   Returns:
     An animation object containing the animation (or static frame if
     ``n_frames=1``).
-
   """
+  if plt is None:
+    raise RuntimeError("Please install `matplotlib` first.")
+
   assert n_frames >= 1, f"n_frames must be nonnegative, got {n_frames}"
   assert not(plot_monge and plot_dynamic_transport), \
     "Cannot plot both Monge transport and dynamic transport"
