@@ -91,6 +91,7 @@ initializations
 initializer
 initializers
 instantiation
+interpolant
 interpretable
 invertible
 iso

@@ -31,8 +31,8 @@ class CustomTransposeLinearOperator(lx.FunctionLinearOperator):
   """Implement a linear operator that can specify its transpose directly."""
   fn: Callable[[PyTree[Float[Array, "..."]]], PyTree[Float[Array, "..."]]]
   fn_t: Callable[[PyTree[Float[Array, "..."]]], PyTree[Float[Array, "..."]]]
-  input_structure: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.static_field()
-  input_structure_t: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.static_field()
+  input_structure: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.field(static=True)
+  input_structure_t: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.field(static=True)
   tags: frozenset[object]
 
   def __init__(self, fn, fn_t, input_structure, input_structure_t, tags=()):

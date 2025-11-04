@@ -28,8 +28,8 @@ __all__ = ["LinearOTDataloader"]
 class LinearOTDataloader:
   """Linear OT dataloader.
 
-  This dataloader wraps an iterable ``dataset`` which generates
-  ``(source, target)`` arrays with shape ``[batch, ...]`` and aligns them
+  This dataloader wraps a dataloader that generates ``(source, target)``
+  arrays with shape ``[batch, ...]`` and aligns them
   using the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` algorithm.
 
   Args:

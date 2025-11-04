@@ -23,7 +23,8 @@ __all__ = ["legendre"]
 
 def legendre(
     fun: Callable[[jnp.ndarray], jnp.ndarray],
-) -> Callable[[jnp.ndarray], jnp.ndarray]:
+    **kwargs: Any,
+) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], jnp.ndarray]:
   """Legendre (Fenchel) transform of a function.
 
   The solution is computed numerically using L-BFGS.
@@ -31,16 +32,18 @@ def legendre(
   Args:
     fun: A function to be transformed, must be convex for the transform
       to be properly defined.
+    kwargs: Keyword arguments for :func:`~ott.math.lbfgs`, e.g. maximal
+      iterations ``max_iters``, convergence tolerance ``tol`` or
+      :func:`optax.lbfgs` arguments.
 
   Returns:
-    A function that computes numerically the Legendre transform of `fun` at
-    a given point.
+    A function that computes numerically the Legendre transform of
+    the ``fun`` at a given point.
   """
 
   def fun_star(
       x: jnp.ndarray,
       x_init: Optional[jnp.ndarray] = None,
-      **kwargs: Any,
   ) -> float:
     """Runs optimization to compute the Legendre transform of ``fun`` at ``x``.
 
@@ -48,12 +51,9 @@ def legendre(
       x: Array of shape ``[d,]`` where to evaluate the function.
       x_init: Initialization for optimization, of the same size of ``x``.
         If :obj:`None`, use ``x``.
-      kwargs: Keyword arguments for :func:`~ott.math.lbfgs`, e.g. maximal
-      iterations ``max_iters``, convergence tolerance ``tol`` or
-      :func:`optax.lbfgs` arguments.
 
     Returns:
-        The Legendre transform of ``fun`` evaluated at ``x``.
+        The Legendre transform of the ``fun`` evaluated at ``x``.
     """
     x_init = x if x_init is None else x_init
 

@@ -23,6 +23,7 @@ import numpy as np
 
 import optax
 
+from ott.geometry import costs
 from ott.geometry import semidiscrete_pointcloud as sdpc
 from ott.problems.linear import linear_problem
 from ott.problems.linear import semidiscrete_linear_problem as sdlp
@@ -96,7 +97,7 @@ class TestSemidiscreteSolver:
         batch_size=32,
         optimizer=optax.sgd(1e-3),
         error_eval_every=5,
-        error_num_iterations=3,
+        error_num_repeats=3,
     )
     out = jax.jit(solver)(rng_solver, prob)
     sampled_out = out.sample(rng_sample, 17)
@@ -120,8 +121,8 @@ class TestSemidiscreteSolver:
     solver = semidiscrete.SemidiscreteSolver(
         num_iterations=num_iters,
         batch_size=5,
-        error_eval_every=5,
-        error_num_iterations=1,
+        error_eval_every=10,
+        error_num_repeats=1,
         optimizer=optax.sgd(1e-1),
         callback=print_state,
     )
@@ -147,7 +148,7 @@ class TestSemidiscreteSolver:
         num_iterations=10,
         batch_size=5,
         error_eval_every=5,
-        error_num_iterations=3,
+        error_num_repeats=3,
         optimizer=optax.sgd(1e-1),
     )
 
@@ -159,6 +160,45 @@ class TestSemidiscreteSolver:
     else:
       assert isinstance(out_sampled, semidiscrete.HardAssignmentOutput)
 
+  @pytest.mark.parametrize("epsilon", [1e-1, None])
+  def test_match_with_finiteOT(self, rng: jax.Array, epsilon: Optional[float]):
+    rng_solver, rng_sample, rng_b, rng_y = jr.split(rng, 4)
+    m, d = 8, 2
+    b = jr.uniform(rng_b, (m,)) + 1.  # balanced distribution helps converge
+    b /= b.sum()
+    y = jr.normal(rng_y, (m, d))
+    geom = sdpc.SemidiscretePointCloud(
+        jr.normal, y, epsilon=epsilon, cost_fn=costs.NegDotProduct()
+    )
+    sd_prob = sdlp.SemidiscreteLinearProblem(geom, b=b)
+    num_iterations = 1024
+
+    schedule = optax.linear_schedule(
+        init_value=1,
+        transition_begin=num_iterations // 4,
+        transition_steps=num_iterations // 2,
+        end_value=5e-3,
+    )
+
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=num_iterations,
+        batch_size=256,
+        optimizer=optax.sgd(learning_rate=schedule),
+        potential_ema=.95  # testing
+    )
+
+    out_sd = jax.jit(solver)(rng_solver, sd_prob)
+
+    n = 2_048
+    finite_geom = geom.sample(
+        rng_sample, num_samples=n, epsilon=sd_prob.epsilon
+    )
+    out_ot = linear.solve(finite_geom)
+    assert out_ot.converged
+    g_ot = out_ot.g - jnp.mean(out_ot.g)
+    g_sd = out_sd.g - jnp.mean(out_sd.g)
+    np.testing.assert_allclose(g_ot, g_sd, rtol=1e-2, atol=1e-1)
+
   @pytest.mark.parametrize("epsilon", [0.0, 1e-2, None])
   def test_initial_potential(self, rng: jax.Array, epsilon: Optional[float]):
     rng_prob, rng_solver = jr.split(rng, 2)
@@ -168,7 +208,7 @@ class TestSemidiscreteSolver:
         num_iterations=10,
         batch_size=64,
         error_eval_every=10,
-        error_num_iterations=5,
+        error_num_repeats=5,
         optimizer=optax.adam(5e-2, b1=0.5, b2=0.9),
     )
 
@@ -248,7 +288,7 @@ class TestSemidiscreteSolver:
         num_iterations=10,
         batch_size=5,
         error_eval_every=5,
-        error_num_iterations=3,
+        error_num_repeats=3,
         optimizer=optax.sgd(1e-1),
     )
 
@@ -277,7 +317,7 @@ class TestSemidiscreteSolver:
         num_iterations=10,
         batch_size=4,
         error_eval_every=5,
-        error_num_iterations=3,
+        error_num_repeats=3,
         optimizer=optax.sgd(1e-1),
     )
     out = jax.jit(solver)(rng_solver, prob)

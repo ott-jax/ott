@@ -42,7 +42,8 @@ Glossary
         distance, and the source measure is absolutely continuous (e.g. has a
         density), then there exists a unique optimal :term:`transport map`
         between the source and target measures, which is the gradient of a
-        convex function. Conversely, any :term:`transport map` :math:`T` that is
+        convex function (a so-called :term:`Brenier potential`).
+        Conversely, any :term:`transport map` :math:`T` that is
         the gradient of a convex function is optimal for the squared Euclidean
         cost when considering the OT problem between any source distribution
         :math:`\mu`. to that same source modified by the
@@ -50,6 +51,26 @@ Glossary
         theorem is a special case of the more general
         :term:`Gangbo-McCann theorem` when instantiated with the squared
         Euclidean cost :math:`c(x,y)=\tfrac12\|x-y\|^2`.
+
+    Brenier potential
+        Convex potential function whose gradient transports optimally
+        (w.r.t. the squared-Euclidean cost) a probability measure in
+        :math:`\mathcal{P}(\mathbb{R}^d)` onto another (i.e. whose gradient is
+        the :term:`Monge map` between them). More specifically, the
+        Brenier potential :math:`\varphi` for the optimal transport problem from
+        a measure :math:`\mu` to :math:`\nu` solves a variant of the
+        :term:`dual Kantorovich problem` that reads
+
+        .. math::
+
+          \min_{\varphi: \mathbb{R}^d\rightarrow \mathbb{R}} \int \varphi d\mu + \int \varphi^* d\nu\,.
+
+        where :math:`\varphi^*` is the :term:`Legendre transform` of
+        :math:`\varphi`. Note that if one picks an arbitrary source measure
+        :math:`\mu` and a convex potential :math:`\varphi`, and thereafter sets
+        :math:`\nu:=\naba\varphi \#\mu`, then :math:`\varphi` is necessarily a
+        Brenier potential solving the OT problem from :math:`\mu` to
+        :math:`\nu`.
 
     c-transform
         The c-transform of a function :math:`g` with respect to a
@@ -107,7 +128,7 @@ Glossary
         supports of :math:`\mu,\nu` and :math:`f\oplus g\leq c` means that for
         any pair :math:`x,y` in the respective supports, one has
         :math:`f(x)+g(y)\leq c(x,y)`. The
-        :term:`semidiscrete optimal transport problem` studies more specifically
+        :term:`semidiscrete problem` studies more specifically
         the mixed setting in which either measure is discrete and the other
         continuous.
 
@@ -234,6 +255,14 @@ Glossary
         need to be differentiated w.r.t. :math:`x` when computing the
         gradient of :math:`h`. Note that this result is not valid for higher
         order differentiation.
+
+    flow matching
+        Family of methods :cite:`lipman:22` designed to fit a time-dependent
+        velocity flow model so that it maps progressively a given source to a
+        target distribution. The estimation of that velocity flow is done
+        by specifying a pre-defined stochastic interpolant :cite:`albergo:23`
+        between said distribution, and fitting the velocity field so that it
+        agrees with that interpolation.
 
     Gangbo-McCann theorem
         Fundamental result in optimal transport theory :cite:`gangbo:96`
@@ -407,7 +436,7 @@ Glossary
         vectors :math:`a,b` are equal, and set both to a uniform weight vector
         of the form :math:`(\tfrac{1}{n},\dots,\tfrac{1}{n})\in\mathbb{R}^n`.
 
-    semidiscrete optimal transport problem
+    semidiscrete problem
         Refers to the optimal transport problem where one of the two measures
         is discrete (a weighted sum of Dirac masses) and the other is absolutely
         continuous, which, in the context of this toolbox, means that one can
@@ -417,7 +446,6 @@ Glossary
         methods can be used to approximate the objective and its gradients in
         lower dimension :cite:`merigot:11`, whereas simpler SGD methods
         can be leveraged in higher dimensions :cite:`genevay:16`.
-
 
     Sinkhorn algorithm
         Fixed point iteration that solves the

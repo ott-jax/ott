@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import jax
 
 import matplotlib.pyplot as plt
@@ -24,8 +23,7 @@ from ott.tools import plot
 
 class TestPlotting:
 
-  def test_plot(self, rng: jax.Array, monkeypatch):
-    monkeypatch.setattr(plt, "show", lambda: None)
+  def test_plot(self, rng: jax.Array):
     n, m, d = 12, 7, 3
     rngs = jax.random.split(rng, 3)
     xs = [

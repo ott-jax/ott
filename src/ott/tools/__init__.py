@@ -11,11 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import contextlib
+
 from . import (
     conformal,
     gaussian_mixture,
     k_means,
-    plot,
     progot,
     segment_sinkhorn,
     sinkhorn_divergence,
@@ -23,3 +24,8 @@ from . import (
     soft_sort,
     unreg,
 )
+
+with contextlib.suppress(ImportError):  # matplotlib is optional
+  from . import plot
+
+del contextlib
