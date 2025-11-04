@@ -577,7 +577,7 @@ def transport_animation(
   dynamic trajectories, and velocity fields on grids.
 
   Args:
-    n_frames: Number of animation frames ``> 1``. If ``1``,
+    n_frames: Number of animation frames :math:`> 1`. If ``1``,
       creates a static plot instead of an animation.
     static_src_points: Source distribution points of shape ``[n, 2]``,
       representing samples from :math:`\mu_0`.
@@ -607,7 +607,7 @@ def transport_animation(
     padding: Fractional padding to add around automatically computed axis
       limits. For example, ``0.1`` adds 10% padding on each side.
     interval: Used for animations, delay between frames in milliseconds.
-    save_path: Path prefix for saving the animation/plot to disk.
+    save_path: Path where to save the animation/plot.
 
   Returns:
     An animation object.
