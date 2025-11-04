@@ -19,6 +19,7 @@ import jax.numpy as jnp
 
 from ott import utils
 from ott.math import unbalanced_functions as uf
+from ott.solvers.linear import lineax_implicit
 
 if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
@@ -153,7 +154,8 @@ class ImplicitDiff:
     Returns:
       A tuple of two vectors, of the same size as ``gr``.
     """
-    solver = _get_solver() if self.solver is None else self.solver
+    if self.solver is None:
+      solver = lineax_implicit.solve_lineax
     solver_kwargs = {} if self.solver_kwargs is None else self.solver_kwargs
     geom = ot_prob.geom
     marginal_a, marginal_b, app_transport = (
@@ -318,12 +320,3 @@ def solve_jax_cg(
   else:
     lin_reg = op
   return jax.scipy.sparse.linalg.cg(lin_reg, b, **kwargs)[0]
-
-
-def _get_solver() -> Solver_t:
-  """Get lineax solver when possible, default to jax.scipy else."""
-  try:
-    from ott.solvers.linear import lineax_implicit
-    return lineax_implicit.solve_lineax
-  except ImportError:
-    return solve_jax_cg
