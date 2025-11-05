@@ -5,6 +5,8 @@ ott.neural.methods
 
 Flow Matching
 -------------
+.. module:: ott.neural.methods.flow_matching
+.. currentmodule:: ott.neural.methods
 .. autosummary::
     :toctree: _autosummary
 
