@@ -500,7 +500,7 @@ def get_plotkwargs(
 
   txnew = {
       "s": mid_size * size_multiplier,
-      "marker": "h",
+      "marker": "p",
       "edgecolor": edgecolor,
       "color": newsourcecolor,
       "alpha": large_alpha,

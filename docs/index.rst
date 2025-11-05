@@ -29,7 +29,13 @@ To achieve this, ``OTT`` rests on two families of tools:
   above, notably the family of :term:`entropic map` approximations. Such maps
   can also be parameterized as neural architectures such as an MLP or as
   gradients of :term:`input convex neural network` :cite:`amos:17`, trained with
-  advanced SGD approaches :cite:`makkuva:20,korotin:21,amos:23`.
+  advanced SGD approaches :cite:`makkuva:20,korotin:21,amos:23`. Such functions
+  can also be parameterized as Neural ODEs, where to an input source point is
+  associated the end-result of a path integral with a time-parameterized
+  velocity field. Such velocity fields can be parameterized as neural networks
+  and learned from data, using the framework of flow matching
+  :cite:`lipman:22,albergo:23` augmented with OT couplings for noise/data
+  :cite:`pooladian:23,tong:23,zhang:25,mousavi:25`.
 
 Installation
 ------------
@@ -108,16 +114,23 @@ Packages
   still prove useful for users. This includes at the moment the
   :class:`~ott.solvers.linear.mmsinkhorn.MMSinkhorn` solver class to compute an
   optimal :term:`multimarginal coupling`
-- :mod:`ott.neural` provides tools to parameterize and optimal
-  :term:`transport map`, :term:`coupling` or conditional probabilities as
-  neural networks.
-- :mod:`ott.tools` provides an interface to exploit OT solutions, as produced by
+- :mod:`ott.neural` provides tools to parameterize and compute an optimal
+  :term:`transport map` as a neural network. Such networks can be parameterized
+  as an :term:`input convex neural network`, and trained to approximate the
+  :term:`Brenier potential` between two measures. Alternatively, one can
+  parameterize that map as a neural ODE, using a time-dependent velocity field
+  trained with :mod:`~ott.neural.methods.flow_matching`
+  :cite:`lipman:22,albergo:23` using independent couplings or more advanced OT
+  couplings :cite:`pooladian:23,tong:23,zhang:25,mousavi:25`.
+- :mod:`ott.tools` provides an interface to exploit OT solutions produced by
   solvers from the :mod:`ott.solvers` module. Such tasks include computing
   approximations to Wasserstein distances :cite:`genevay:18,sejourne:19`,
   approximating OT between GMMs, or computing differentiable sort and quantile
-  operations :cite:`cuturi:19`.
+  operations :cite:`cuturi:19`. That module also provides plotting tools to
+  display OT solutions.
 - :mod:`ott.math` holds low-level miscellaneous mathematical primitives, such as
-  an implementation of the matrix square-root.
+  an implementation of the matrix square-root, or the
+  :term:`Legendre transform`.
 - :mod:`ott.utils` provides miscellaneous helper functions.
 
 .. toctree::
