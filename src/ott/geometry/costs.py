@@ -382,6 +382,11 @@ class NegDotProduct(CostFn):
     """Compute squared Euclidean norm for vector. Only used for rescaling."""
     return jnp.sum(x ** 2, axis=-1)
 
+  def barycenter(self, weights: jnp.ndarray,
+                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+    """Output usual barycenter of vectors when using NegDotProduct cost."""
+    return jnp.average(xs, weights=weights, axis=0), None
+
 
 @jtu.register_pytree_node_class
 class RegTICost(TICost):
