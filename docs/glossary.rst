@@ -68,7 +68,7 @@ Glossary
         where :math:`\varphi^*` is the :term:`Legendre transform` of
         :math:`\varphi`. Note that if one picks an arbitrary source measure
         :math:`\mu` and a convex potential :math:`\varphi`, and thereafter sets
-        :math:`\nu:=\naba\varphi \#\mu`, then :math:`\varphi` is necessarily a
+        :math:`\nu:=\nabla\varphi \#\mu`, then :math:`\varphi` is necessarily a
         Brenier potential solving the OT problem from :math:`\mu` to
         :math:`\nu`.
 
