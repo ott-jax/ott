@@ -32,7 +32,7 @@ class TestEMA:
 
     ema_state = nnx.to_flat_state(nnx.state(model_ema))
     for k, v in ema_state:
-      np.testing.assert_array_equal(v.value, 0.0, err_msg=str(k))
+      np.testing.assert_array_equal(v[...], 0.0, err_msg=str(k))
 
   @pytest.mark.parametrize(("dropout_rate", "decay"), [(0.0, 0.3), (0.2, 0.9)])
   def test_update(self, dropout_rate: float, decay: float):
@@ -59,4 +59,4 @@ class TestEMA:
     for (k_act, act), (k_exp, exp) in zip(ema_state, expected_ema_state):
       k_act = k_act[1:]  # drop the `ema` prefix
       assert k_act == k_exp, (k_act, k_exp)
-      np.testing.assert_array_equal(act.value, exp.value, err_msg=str(k_act))
+      np.testing.assert_array_equal(act[...], exp[...], err_msg=str(k_act))

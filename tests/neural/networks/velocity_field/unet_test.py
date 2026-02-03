@@ -77,7 +77,7 @@ class TestUNet:
 
     state = nnx.to_flat_state(nnx.state(model))
     for k, v in state:
-      assert v.value.dtype == param_dtype, k
+      assert v[...].dtype == param_dtype, k
 
     v_t = nnx.jit(model)(t, x, rngs=nnx.Rngs(1))
     assert v_t.dtype == t.dtype
