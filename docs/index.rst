@@ -182,4 +182,4 @@ Packages
 .. _auto-vectorization (VMAP): https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html#jax.vmap
 .. _automatic: https://jax.readthedocs.io/en/latest/jax.html#automatic-differentiation
 .. _implicit: https://jax.readthedocs.io/en/latest/_autosummary/jax.custom_jvp.html#jax.custom_jvp
-.. _conda: https://anaconda.org/conda-forge/ott-jax
+.. _conda: https://anaconda.org/channels/conda-forge/packages/ott-jax/overview
