@@ -78,7 +78,7 @@ def rng() -> jax.Array:
 
 @pytest.fixture()
 def enable_x64() -> bool:
-  with jax.experimental.enable_x64(True):
+  with jax.enable_x64(True):
     try:
       yield
     finally:
