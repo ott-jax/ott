@@ -378,7 +378,7 @@ class PointCloud(geometry.Geometry):
           "the cost matrix when the cost is not squared euclidean or dotp "
           "is not implemented."
       )
-    if utils.is_scalar(self._scale_cost):
+    if jnp.isscalar(self._scale_cost):
       return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
