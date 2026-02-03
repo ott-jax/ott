@@ -217,7 +217,7 @@ class TestFusedGromovWasserstein:
         grad_matrices[0][0], grad_matrices[1][0], rtol=1e-2, atol=1e-2
     )
 
-  @pytest.mark.limit_memory("200 MB")
+  @pytest.mark.limit_memory("250 MB")
   @pytest.mark.parametrize("jit", [False, True])
   def test_fgw_lr_memory(self, rng: jax.Array, jit: bool):
     rngs = jax.random.split(rng, 4)

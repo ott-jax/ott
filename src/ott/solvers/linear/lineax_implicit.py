@@ -63,7 +63,8 @@ def solve_lineax(
     lin_t: Linear operator, corresponding to transpose of `lin`.
     symmetric: whether `lin` is symmetric.
     nonsym_solver: solver used when handling non-symmetric cases. Note that
-      :class:`~lineax.CG` is used by default in the symmetric case.
+      :class:`~lineax.Normal` with :class:`~lineax.CG`
+      is used by default in the symmetric case.
     ridge_kernel: promotes zero-sum solutions. Only use if `tau_a = tau_b = 1.0`
     ridge_identity: handles rank deficient transport matrices (this happens
       typically when rows/cols in cost/kernel matrices are collinear, or,
@@ -91,9 +92,9 @@ def solve_lineax(
     return lx.linear_solve(fn_operator, b, solver).value
   # In the non-symmetric case, use NormalCG by default, but consider
   # user defined choice of alternative lx solver.
-  solver_type = lx.NormalCG if nonsym_solver is None else nonsym_solver
-  solver = solver_type(**kwargs)
+  if nonsym_solver is None:
+    nonsym_solver = lx.Normal(lx.CG(**kwargs))
   fn_operator = CustomTransposeLinearOperator(
       lin_reg, lin_t_reg, input_structure, input_structure
   )
-  return lx.linear_solve(fn_operator, b, solver).value
+  return lx.linear_solve(fn_operator, b, nonsym_solver).value

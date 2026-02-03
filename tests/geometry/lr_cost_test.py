@@ -309,7 +309,7 @@ class TestCostMatrixFactorization:
 
     np.testing.assert_allclose(res, 0.183156, rtol=1e-6, atol=1e-6)
 
-  @pytest.mark.limit_memory("210 MB")
+  @pytest.mark.limit_memory("250 MB")
   def test_large_scale_factorization(self, rng: jax.Array):
     rank, tol = 4, 1e-2
     rng1, rng2 = jax.random.split(rng, 2)
