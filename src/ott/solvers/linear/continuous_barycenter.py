@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+import warnings
 from typing import Any, Dict, NamedTuple, Optional, Sequence, Tuple, Union
 
 import jax
@@ -65,6 +66,7 @@ class FreeBarycenterState(NamedTuple):
       store_errors: bool,
       *,
       tau_a: float = 1.0,
+      tau_b: float = 1.0,
       learn_a: bool = False,
   ) -> "FreeBarycenterState":
     """Update the state of the solver.
@@ -78,6 +80,10 @@ class FreeBarycenterState(NamedTuple):
         Must lie in ``(0, 1]``.  When ``tau_a < 1``, unbalanced transport
         is used on the barycenter side, allowing the transport row marginals
         to differ from the current barycenter weights ``a``.
+      tau_b: Relaxation parameter for the input-measure marginal constraint.
+        Must lie in ``(0, 1]``.  When ``tau_b < 1``, the input measures
+        do not need to be fully transported, providing robustness to
+        outliers.
       learn_a: If ``True``, update barycenter weights at every iteration
         using the weighted arithmetic mean of transport-plan row marginals.
         Requires ``tau_a < 1`` to be effective, since balanced transport
@@ -95,10 +101,10 @@ class FreeBarycenterState(NamedTuple):
       geom = pointcloud.PointCloud(
           x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
       )
-      # Preserve exact old behaviour when tau_a == 1.0.
-      if tau_a < 1.0:
+      # Preserve exact old behaviour when both taus are 1.0.
+      if tau_a < 1.0 or tau_b < 1.0:
         prob = linear_problem.LinearProblem(
-            geom, a=a, b=b, tau_a=tau_a, tau_b=1.0
+            geom, a=a, b=b, tau_a=tau_a, tau_b=tau_b
         )
       else:
         prob = linear_problem.LinearProblem(geom, a=a, b=b)
@@ -234,6 +240,10 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       Must lie in ``(0, 1]``.  When ``tau_a < 1``, unbalanced transport is
       used on the barycenter side, so that the transport row marginals can
       differ from ``a``.  Default ``1.0`` (balanced).
+    tau_b: Relaxation parameter for the input-measure marginal constraint.
+      Must lie in ``(0, 1]``.  When ``tau_b < 1``, the input measures do
+      not need to be fully transported, providing robustness to outliers.
+      Default ``1.0`` (balanced).
     learn_a: If ``True``, update barycenter weights at every outer
       iteration using the weighted arithmetic mean of transport-plan row
       marginals.  Requires ``tau_a < 1`` to be effective, since balanced
@@ -249,6 +259,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       linear_solver,
       *,
       tau_a: float = 1.0,
+      tau_b: float = 1.0,
       learn_a: bool = False,
       a_init: Optional[jnp.ndarray] = None,
       **kwargs,
@@ -256,7 +267,18 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
     super().__init__(linear_solver=linear_solver, **kwargs)
     if not (0.0 < tau_a <= 1.0):
       raise ValueError("tau_a must be in (0, 1].")
+    if not (0.0 < tau_b <= 1.0):
+      raise ValueError("tau_b must be in (0, 1].")
+    if learn_a and tau_a == 1.0:
+      warnings.warn(
+          "`learn_a=True` has no effect when `tau_a=1.0` (balanced). "
+          "The current implementation learns weights from unbalanced "
+          "row marginals, which coincide with `a` when balanced. "
+          "Set `tau_a < 1` to enable weight learning.",
+          stacklevel=2,
+      )
     self.tau_a = tau_a
+    self.tau_b = tau_b
     self.learn_a = learn_a
     self.a_init = a_init
 
@@ -266,6 +288,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
         "max_iterations": self.max_iterations,
         "store_inner_errors": self.store_inner_errors,
         "tau_a": self.tau_a,
+        "tau_b": self.tau_b,
         "learn_a": self.learn_a,
     })
 
@@ -349,6 +372,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
             state.update,
             store_errors=self.store_inner_errors,
             tau_a=self.tau_a,
+            tau_b=self.tau_b,
             learn_a=self.learn_a,
         ), 0, bar_prob, self.linear_solver
     )
@@ -407,6 +431,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
           self.linear_solver,
           self.store_inner_errors,
           tau_a=self.tau_a,
+          tau_b=self.tau_b,
           learn_a=self.learn_a,
       )
 
