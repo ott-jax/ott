@@ -19,9 +19,10 @@ import jax.numpy as jnp
 import numpy as np
 
 from ott import datasets
-from ott.geometry import costs
+from ott.geometry import costs, regularizers
 from ott.neural.methods import conditional_monge_gap
 from ott.neural.methods.monge_gap import monge_gap_from_samples
+from ott.neural.networks import potentials
 from ott.neural.networks.conditional_perturbation_network import (
     ConditionalPerturbationNetwork,
 )
@@ -154,6 +155,204 @@ class TestConditionalMongeGap:
         np.testing.assert_allclose(
             float(avg_gap), float(jnp.mean(per_cond_gaps)), rtol=1e-5,
         )
+
+
+    @pytest.mark.parametrize("n_samples", [10, 30])
+    @pytest.mark.parametrize("n_features", [4, 10])
+    def test_non_negativity_neural_map(
+        self, rng: jax.Array, n_samples: int, n_features: int,
+    ):
+        """Non-negativity with a learned nonlinear map (mirrors monge_gap_test)."""
+        k = 2
+        per_cond = n_samples // k
+        n = per_cond * k
+        rng1, rng2 = jax.random.split(rng)
+
+        source = jax.random.normal(rng1, (n, n_features))
+        model = potentials.PotentialMLP(dim_hidden=[8, 8], is_potential=False)
+        params = model.init(rng2, x=source[0])
+        target = model.apply(params, source)
+        condition = jnp.repeat(jnp.arange(k), per_cond)
+
+        gap = conditional_monge_gap.cmonge_gap_from_samples(
+            source, target, condition,
+            num_segments=k, max_measure_size=per_cond,
+        )
+        np.testing.assert_array_equal(jnp.isfinite(gap), True)
+        np.testing.assert_array_equal(gap >= 0, True)
+
+    @pytest.mark.parametrize("cost_fn", [
+        costs.PNormP(p=1),
+        costs.RegTICost(regularizers.L1(), lam=2.0),
+        costs.RegTICost(regularizers.STVS(gamma=3.0), lam=1.0),
+    ], ids=["pnorm-1", "l1-lam2", "stvs-lam1"])
+    def test_different_costs_give_different_values(
+        self, rng: jax.Array, cost_fn: costs.CostFn,
+    ):
+        """Non-Euclidean costs produce different cmonge_gap than Euclidean."""
+        n, d, k = 30, 5, 3
+        per_cond = n // k
+        rng1, rng2 = jax.random.split(rng)
+        source = jax.random.normal(rng1, (n, d))
+        target = jax.random.normal(rng2, (n, d)) * 0.1 + 3.0
+        condition = jnp.repeat(jnp.arange(k), per_cond)
+
+        gap_eucl = conditional_monge_gap.cmonge_gap_from_samples(
+            source, target, condition, cost_fn=costs.Euclidean(),
+            num_segments=k, max_measure_size=per_cond,
+        )
+        gap_other = conditional_monge_gap.cmonge_gap_from_samples(
+            source, target, condition, cost_fn=cost_fn,
+            num_segments=k, max_measure_size=per_cond,
+        )
+
+        with pytest.raises(AssertionError, match=r"tolerance"):
+            np.testing.assert_allclose(
+                gap_eucl, gap_other, rtol=1e-1, atol=1e-1,
+            )
+        np.testing.assert_array_equal(jnp.isfinite(gap_eucl), True)
+        np.testing.assert_array_equal(jnp.isfinite(gap_other), True)
+
+    def test_uniform_conditions_equals_averaged_monge_gap(
+        self, rng: jax.Array,
+    ):
+        """cmonge_gap with equal-size conditions == mean of monge_gap calls."""
+        k = 3
+        per_cond = 20
+        d = 5
+        n = k * per_cond
+
+        # Different offsets per condition so gaps are distinct
+        offsets = jnp.array([0.1, 1.0, 3.0])
+        rngs = jax.random.split(rng, 2 * k)
+        sources, targets = [], []
+        for c in range(k):
+            s = jax.random.normal(rngs[2 * c], (per_cond, d))
+            t = s + offsets[c] + 0.05 * jax.random.normal(
+                rngs[2 * c + 1], (per_cond, d)
+            )
+            sources.append(s)
+            targets.append(t)
+
+        source = jnp.concatenate(sources, axis=0)
+        target = jnp.concatenate(targets, axis=0)
+        condition = jnp.repeat(jnp.arange(k), per_cond)
+
+        # Segmented cmonge_gap
+        avg_gap, per_cond_gaps = conditional_monge_gap.cmonge_gap_from_samples(
+            source, target, condition,
+            num_segments=k, max_measure_size=per_cond,
+            return_output=True,
+        )
+
+        # Manual per-condition monge_gap calls
+        manual_gaps = []
+        for c in range(k):
+            gap_c = monge_gap_from_samples(sources[c], targets[c])
+            manual_gaps.append(float(gap_c))
+        manual_avg = sum(manual_gaps) / k
+
+        # Average should match
+        np.testing.assert_allclose(float(avg_gap), manual_avg, atol=1e-5)
+        # Per-condition gaps should match individual calls
+        for c in range(k):
+            np.testing.assert_allclose(
+                float(per_cond_gaps[c]), manual_gaps[c], atol=1e-5,
+            )
+
+    def test_unequal_conditions_shifts_average(self, rng: jax.Array):
+        """With unequal n_k, per-condition gaps change and shift the average.
+
+        The segment interface pads all conditions to max_measure_size, so
+        per-condition gaps with padding do NOT exactly match non-padded
+        monge_gap_from_samples calls (the geometry differs). We verify
+        structural properties instead: gaps are finite, easy < hard,
+        average = mean(per_cond_gaps), and the average shifts when n_k changes.
+        """
+        d = 5
+        rng_easy, rng_hard, rng_noise = jax.random.split(rng, 3)
+
+        base_easy = jax.random.normal(rng_easy, (60, d))
+        base_hard = jax.random.normal(rng_hard, (60, d))
+        noise = 0.01 * jax.random.normal(rng_noise, (60, d))
+
+        target_easy = base_easy + noise
+        target_hard = base_hard + 5.0
+
+        # (a) Equal sizes: 30/30
+        n_eq = 30
+        src_eq = jnp.concatenate([base_easy[:n_eq], base_hard[:n_eq]])
+        tgt_eq = jnp.concatenate([target_easy[:n_eq], target_hard[:n_eq]])
+        cond_eq = jnp.repeat(jnp.arange(2), n_eq)
+
+        avg_eq, gaps_eq = conditional_monge_gap.cmonge_gap_from_samples(
+            src_eq, tgt_eq, cond_eq,
+            num_segments=2, max_measure_size=n_eq,
+            return_output=True,
+        )
+
+        # (b) Unequal sizes: 50 easy / 10 hard
+        n_a, n_b = 50, 10
+        src_uneq = jnp.concatenate([base_easy[:n_a], base_hard[:n_b]])
+        tgt_uneq = jnp.concatenate([target_easy[:n_a], target_hard[:n_b]])
+        cond_uneq = jnp.concatenate([
+            jnp.zeros(n_a, dtype=jnp.int32),
+            jnp.ones(n_b, dtype=jnp.int32),
+        ])
+
+        avg_uneq, gaps_uneq = conditional_monge_gap.cmonge_gap_from_samples(
+            src_uneq, tgt_uneq, cond_uneq,
+            num_segments=2, max_measure_size=n_a,
+            return_output=True,
+        )
+
+        # All gaps are finite and non-negative
+        for gaps in [gaps_eq, gaps_uneq]:
+            np.testing.assert_array_equal(jnp.all(jnp.isfinite(gaps)), True)
+            np.testing.assert_array_equal(jnp.all(gaps >= 0), True)
+
+        # Easy condition has smaller gap than hard condition
+        assert gaps_eq[0] < gaps_eq[1]
+        assert gaps_uneq[0] < gaps_uneq[1]
+
+        # Average is the mean of per-condition gaps
+        np.testing.assert_allclose(
+            float(avg_eq), float(jnp.mean(gaps_eq)), rtol=1e-5,
+        )
+        np.testing.assert_allclose(
+            float(avg_uneq), float(jnp.mean(gaps_uneq)), rtol=1e-5,
+        )
+
+        # Averages differ between equal and unequal splits (n_k affects
+        # the padded OT cost estimation, shifting per-condition gaps)
+        assert float(avg_eq) != float(avg_uneq)
+
+    def test_per_condition_gaps_reflect_difficulty(self, rng: jax.Array):
+        """Per-condition gaps increase with offset magnitude."""
+        k = 3
+        per_cond = 25
+        d = 4
+        offsets = jnp.array([0.0, 1.5, 5.0])
+
+        rngs = jax.random.split(rng, 2 * k)
+        sources, targets = [], []
+        for c in range(k):
+            s = jax.random.normal(rngs[2 * c], (per_cond, d))
+            t = s + offsets[c]
+            sources.append(s)
+            targets.append(t)
+
+        source = jnp.concatenate(sources, axis=0)
+        target = jnp.concatenate(targets, axis=0)
+        condition = jnp.repeat(jnp.arange(k), per_cond)
+
+        _, per_cond_gaps = conditional_monge_gap.cmonge_gap_from_samples(
+            source, target, condition,
+            num_segments=k, max_measure_size=per_cond,
+            return_output=True,
+        )
+
+        assert per_cond_gaps[0] < per_cond_gaps[1] < per_cond_gaps[2]
 
 
 @pytest.mark.fast()
