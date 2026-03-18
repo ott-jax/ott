@@ -13,6 +13,7 @@
 # limitations under the License.
 import collections
 import functools
+import logging
 from typing import (
     Any,
     Callable,
@@ -39,6 +40,8 @@ from ott.neural.networks.conditional_perturbation_network import (
 )
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "cmonge_gap_from_samples",
@@ -106,6 +109,25 @@ def cmonge_gap_from_samples(
     cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
     dim = source.shape[1]
     padding_vector = cost_fn._padder(dim=dim)
+
+    # Warn if any condition is heavily padded (>10x below max_measure_size),
+    # which can cause numerical differences vs non-padded Sinkhorn solves.
+    # Skipped silently under JIT where condition values are traced.
+    if max_measure_size is not None and num_segments is not None:
+        try:
+            counts = jnp.bincount(condition, length=num_segments)
+            min_count = int(jnp.min(counts))
+            if min_count > 0 and max_measure_size // min_count >= 10:
+                logger.warning(
+                    "Condition with %d samples will be padded to %d "
+                    "(%.0fx). Per-condition Monge gap values may differ "
+                    "from non-padded monge_gap_from_samples calls.",
+                    min_count,
+                    max_measure_size,
+                    max_measure_size / min_count,
+                )
+        except jax.errors.ConcretizationTypeError:
+            pass
 
     # NOTE: Eval function takes some logic from:
     # ott.neural.methods.monge_gap.monge_gap_from_samples`

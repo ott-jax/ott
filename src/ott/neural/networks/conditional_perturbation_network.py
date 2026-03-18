@@ -33,22 +33,28 @@ class ConditionalPerturbationNetwork(BasePotential):
     )
     context_entity_bonds: Iterable[Tuple[int, int]] = (
         (0, 10),
-        (0, 11),
-    )  # Start/stop index per modality
+        (10, 20),
+    )  # (start, stop) slicing bounds per context modality in c;
+    # should be contiguous, non-overlapping by default.
     num_contexts: int = 2
 
     @nn.compact
     def __call__(
         self, x: jnp.ndarray, c: Optional[jnp.ndarray] = None
     ) -> Union[jnp.ndarray, Dict[str, jnp.ndarray]]:  # noqa: D102
-        """Args:
-            x (jnp.ndarray): The input data of shape bs x dim_data
-            c (jnp.ndarray): The context of shape bs x dim_cond with
-                possibly different modalities
-                concatenated, as can be specified via context_entity_bonds.
+        """Forward pass: map (x, c) -> x + residual.
+
+        Args:
+            x: Input data of shape ``(batch, dim_data)``.
+            c: Context vector of shape ``(batch, dim_cond)``.  May
+                contain multiple modalities concatenated along the last
+                axis.  ``context_entity_bonds`` specifies which slice
+                ``c[:, start:stop]`` belongs to each modality.  Slices
+                should generally be contiguous and non-overlapping, e.g.
+                ``((0, 10), (10, 20))`` for two 10-dim modalities.
 
         Returns:
-            jnp.ndarray: _description_
+            Mapped output of shape ``(batch, dim_data)``.
         """
         return_batch = False
         if isinstance(x, dict):

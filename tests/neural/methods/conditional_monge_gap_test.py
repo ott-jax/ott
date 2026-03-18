@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 import pytest
 
 import jax
@@ -238,19 +240,49 @@ class TestConditionalMongeGap:
         target = jnp.concatenate(targets, axis=0)
         condition = jnp.repeat(jnp.arange(k), per_cond)
 
-        # Segmented cmonge_gap
+        # Segmented cmonge_gap (single call, vmapped)
+        t0 = time.perf_counter()
         avg_gap, per_cond_gaps = conditional_monge_gap.cmonge_gap_from_samples(
             source, target, condition,
             num_segments=k, max_measure_size=per_cond,
             return_output=True,
         )
+        # Force computation to complete before timing
+        avg_gap.block_until_ready()
+        t_cmonge = time.perf_counter() - t0
 
-        # Manual per-condition monge_gap calls
+        # Manual per-condition monge_gap calls (K sequential calls)
+        t0 = time.perf_counter()
         manual_gaps = []
         for c in range(k):
             gap_c = monge_gap_from_samples(sources[c], targets[c])
             manual_gaps.append(float(gap_c))
         manual_avg = sum(manual_gaps) / k
+        t_loop = time.perf_counter() - t0
+
+        # Single-condition overhead: cmonge_gap(K=1) vs monge_gap
+        t0 = time.perf_counter()
+        gap_single_cmonge = conditional_monge_gap.cmonge_gap_from_samples(
+            sources[0], targets[0],
+            jnp.zeros(per_cond, dtype=jnp.int32),
+            num_segments=1, max_measure_size=per_cond,
+        )
+        gap_single_cmonge.block_until_ready()
+        t_cmonge_1 = time.perf_counter() - t0
+
+        t0 = time.perf_counter()
+        gap_single_monge = monge_gap_from_samples(sources[0], targets[0])
+        float(gap_single_monge)  # block
+        t_monge_1 = time.perf_counter() - t0
+
+        print(
+            f"\n  K={k}: cmonge_gap: {t_cmonge:.3f}s | "
+            f"loop({k}x monge_gap): {t_loop:.3f}s | "
+            f"speedup: {t_loop / t_cmonge:.1f}x"
+            f"\n  K=1: cmonge_gap: {t_cmonge_1:.3f}s | "
+            f"monge_gap: {t_monge_1:.3f}s | "
+            f"overhead: {t_cmonge_1 / t_monge_1:.1f}x"
+        )
 
         # Average should match
         np.testing.assert_allclose(float(avg_gap), manual_avg, atol=1e-5)
