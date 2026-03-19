@@ -98,8 +98,6 @@ class GWOutput(NamedTuple):
 
   @property
   def n_iters(self) -> int:  # noqa: D102
-    if self.costs is None:
-      return -1
     return jnp.sum(self.costs != -1)
 
 
