@@ -486,7 +486,7 @@ Glossary
           \text{SD}(\mu, \nu):= \Delta(\mu, \nu)
           - \tfrac12 \left(\Delta(\mu, \mu) + \Delta(\nu, \nu)\right)
 
-        where :math:`Delta` is either the output of either
+        where :math:`\Delta` is either the output of either
         :term:`entropy-regularized optimal transport` or
         :term:`low-rank optimal transport`
 
@@ -544,8 +544,8 @@ Glossary
         distance is truly a distance (in the sense that it satisfies all 3
         `metric axioms <https://en.wikipedia.org/wiki/Metric_space#Definition>`__
         ) if the  :term:`ground cost` is itself a distance to a power
-        :math:`p\leq 1`, and the :math:`p` root of the objective of the
-        :term:`Kantorovich problem` is used.
+        :math:`p\geq 1` and the :math:`p`-th root of the objective of the
+        :term:`Kantorovich problem` is used. See Chapter 5 in :cite:`santambrogio:15`.
 
     Wasserstein barycenter
         The notion of a mean of vectors generalized to the Wasserstein space
