@@ -47,18 +47,18 @@ class ConditionalPerturbationNetwork(BasePotential):
   ) -> Union[jnp.ndarray, Dict[str, jnp.ndarray]]:  # noqa: D102
     """Forward pass: map (x, c) -> x + residual.
 
-        Args:
-            x: Input data of shape ``(batch, dim_data)``.
-            c: Context vector of shape ``(batch, dim_cond)``.  May
-                contain multiple modalities concatenated along the last
-                axis.  ``context_entity_bonds`` specifies which slice
-                ``c[:, start:stop]`` belongs to each modality.  Slices
-                should generally be contiguous and non-overlapping, e.g.
-                ``((0, 10), (10, 20))`` for two 10-dim modalities.
+    Args:
+        x: Input data of shape ``(batch, dim_data)``.
+        c: Context vector of shape ``(batch, dim_cond)``.  May
+            contain multiple modalities concatenated along the last
+            axis.  ``context_entity_bonds`` specifies which slice
+            ``c[:, start:stop]`` belongs to each modality.  Slices
+            should generally be contiguous and non-overlapping, e.g.
+            ``((0, 10), (10, 20))`` for two 10-dim modalities.
 
-        Returns:
-            Mapped output of shape ``(batch, dim_data)``.
-        """
+    Returns:
+        Mapped output of shape ``(batch, dim_data)``.
+    """
     return_batch = False
     if isinstance(x, dict):
       c = x["c"]

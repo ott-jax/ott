@@ -31,7 +31,7 @@ from ott.neural.networks.conditional_perturbation_network import (
 from ott.tools import sinkhorn_divergence
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestConditionalMongeGap:
 
   @pytest.mark.parametrize("n_samples", [10, 30])
@@ -464,7 +464,7 @@ class TestConditionalMongeGap:
     assert per_cond_gaps[0] < per_cond_gaps[1] < per_cond_gaps[2]
 
 
-@pytest.mark.fast
+@pytest.mark.fast()
 class TestConditionalMongeGapEstimator:
 
   def test_estimator_convergence(self):

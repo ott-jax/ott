@@ -34,10 +34,10 @@ Name_t = Literal["simple", "circle", "square_five", "square_four"]
 class Dataset(NamedTuple):
   r"""Samplers from source and target measures.
 
-    Args:
-      source_iter: loader for the source measure
-      target_iter: loader for the target measure
-    """
+  Args:
+    source_iter: loader for the source measure
+    target_iter: loader for the target measure
+  """
 
   source_iter: Iterator[jnp.ndarray]
   target_iter: Iterator[jnp.ndarray]
@@ -46,13 +46,13 @@ class Dataset(NamedTuple):
 class ConditionalDataset(NamedTuple):
   r"""Samplers from conditional source and target measures.
 
-    Args:
-      source_iter: loader for the source measure, ``[batch, d]``
-      target_iter: loader for the target measure, ``[batch, d]``
-      condition_iter: loader for condition vectors,
-        ``[batch, dim_c]``
-      label_iter: loader for integer condition labels, ``[batch]``
-    """
+  Args:
+    source_iter: loader for the source measure, ``[batch, d]``
+    target_iter: loader for the target measure, ``[batch, d]``
+    condition_iter: loader for condition vectors,
+      ``[batch, dim_c]``
+    label_iter: loader for integer condition labels, ``[batch]``
+  """
 
   source_iter: Iterator[jnp.ndarray]
   target_iter: Iterator[jnp.ndarray]
@@ -64,21 +64,21 @@ class ConditionalDataset(NamedTuple):
 class GaussianMixture:
   """A mixture of Gaussians.
 
-    Args:
-      name: the name specifying the centers of the mixture components:
+  Args:
+    name: the name specifying the centers of the mixture components:
 
-        - ``simple`` - data clustered in one center,
-        - ``circle`` - two-dimensional Gaussians arranged on a circle,
-        - ``square_five`` - two-dimensional Gaussians on a square with
-          one Gaussian in the center, and
-        - ``square_four`` - two-dimensional Gaussians in the corners of a
-          rectangle
+      - ``simple`` - data clustered in one center,
+      - ``circle`` - two-dimensional Gaussians arranged on a circle,
+      - ``square_five`` - two-dimensional Gaussians on a square with
+        one Gaussian in the center, and
+      - ``square_four`` - two-dimensional Gaussians in the corners of a
+        rectangle
 
-      batch_size: batch size of the samples
-      rng: initial PRNG key
-      scale: scale of the Gaussian means
-      std: the standard deviation of the individual Gaussian samples
-    """
+    batch_size: batch size of the samples
+    rng: initial PRNG key
+    scale: scale of the Gaussian means
+    std: the standard deviation of the individual Gaussian samples
+  """
 
   name: Name_t
   batch_size: int
@@ -115,9 +115,9 @@ class GaussianMixture:
   def __iter__(self) -> Iterator[jnp.array]:
     """Random sample generator from Gaussian mixture.
 
-        Returns:
-          A generator of samples from the Gaussian mixture.
-        """
+    Returns:
+      A generator of samples from the Gaussian mixture.
+    """
     return self._create_sample_generators()
 
   def _create_sample_generators(self) -> Iterator[jnp.array]:
@@ -139,16 +139,16 @@ def create_gaussian_mixture_samplers(
 ) -> Tuple[Dataset, Dataset, int]:
   """Gaussian samplers.
 
-    Args:
-      name_source: name of the source sampler
-      name_target: name of the target sampler
-      train_batch_size: the training batch size
-      valid_batch_size: the validation batch size
-      rng: initial PRNG key
+  Args:
+    name_source: name of the source sampler
+    name_target: name of the target sampler
+    train_batch_size: the training batch size
+    valid_batch_size: the validation batch size
+    rng: initial PRNG key
 
-    Returns:
-      The dataset and dimension of the data.
-    """
+  Returns:
+    The dataset and dimension of the data.
+  """
   rng = utils.default_prng_key(rng)
   rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
   train_dataset = Dataset(
@@ -175,17 +175,17 @@ def create_gaussian_mixture_samplers(
 class ConditionalGaussianMixture:
   """Conditional Gaussian sampler for testing.
 
-    For each condition *k*, draws source ~ N(0, I) and
-    target ~ source + offset_k.
-    Condition vectors are one-hot encoded labels.
+  For each condition *k*, draws source ~ N(0, I) and
+  target ~ source + offset_k.
+  Condition vectors are one-hot encoded labels.
 
-    Args:
-      num_conditions: number of distinct conditions.
-      batch_size: total batch size (divided equally among conditions).
-      dim: data dimensionality.
-      offsets: ``[num_conditions, dim]`` translation per condition.
-      rng: initial PRNG key.
-    """
+  Args:
+    num_conditions: number of distinct conditions.
+    batch_size: total batch size (divided equally among conditions).
+    dim: data dimensionality.
+    offsets: ``[num_conditions, dim]`` translation per condition.
+    rng: initial PRNG key.
+  """
 
   num_conditions: int
   batch_size: int
@@ -229,21 +229,21 @@ def create_conditional_gaussian_mixture_samplers(
 ) -> Tuple[ConditionalDataset, ConditionalDataset, int, int, int]:
   """Create conditional Gaussian samplers for testing.
 
-    Each condition defines a different translation of the source distribution.
+  Each condition defines a different translation of the source distribution.
 
-    Args:
-      num_conditions: number of distinct conditions.
-      dim: data dimensionality.
-      train_batch_size: training batch size (should be divisible by
-        ``num_conditions``).
-      valid_batch_size: validation batch size.
-      rng: initial PRNG key.
+  Args:
+    num_conditions: number of distinct conditions.
+    dim: data dimensionality.
+    train_batch_size: training batch size (should be divisible by
+      ``num_conditions``).
+    valid_batch_size: validation batch size.
+    rng: initial PRNG key.
 
-    Returns:
-      ``(train_dataset, valid_dataset, dim_data, num_conditions,
-      max_measure_size)`` where ``max_measure_size =
-      batch_size // num_conditions``.
-    """
+  Returns:
+    ``(train_dataset, valid_dataset, dim_data, num_conditions,
+    max_measure_size)`` where ``max_measure_size =
+    batch_size // num_conditions``.
+  """
   rng = utils.default_prng_key(rng)
   rng1, rng2, rng_off = jax.random.split(rng, 3)
 

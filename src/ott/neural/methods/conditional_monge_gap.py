@@ -64,48 +64,48 @@ def cmonge_gap_from_samples(
 ) -> Union[float, Tuple[float, jnp.ndarray]]:
   r"""Conditional Monge gap from samples using the segment interface.
 
-    Computes the average Monge gap across conditions:
+  Computes the average Monge gap across conditions:
 
-    .. math::
+  .. math::
 
-        \frac{1}{K} \sum_{k=1}^{K} \left[
-        \frac{1}{n_k} \sum_{i:\, c_i = k} c(x_i, y_i) -
-        W_{c, \varepsilon}\!\bigl(\hat{\rho}_{n_k}^{(k)},\,
-        \hat{\nu}_{n_k}^{(k)}\bigr) \right]
+      \frac{1}{K} \sum_{k=1}^{K} \left[
+      \frac{1}{n_k} \sum_{i:\, c_i = k} c(x_i, y_i) -
+      W_{c, \varepsilon}\!\bigl(\hat{\rho}_{n_k}^{(k)},\,
+      \hat{\nu}_{n_k}^{(k)}\bigr) \right]
 
-    where :math:`W_{c, \varepsilon}` is the
-    :term:`entropy-regularized optimal transport` cost.
+  where :math:`W_{c, \varepsilon}` is the
+  :term:`entropy-regularized optimal transport` cost.
 
-    This implementation uses :func:`~ott.geometry.segment._segment_interface`
-    to pad and ``vmap`` across conditions, making it fully JIT-compatible.
+  This implementation uses :func:`~ott.geometry.segment._segment_interface`
+  to pad and ``vmap`` across conditions, making it fully JIT-compatible.
 
-    Args:
-        source: samples from first measure, array of shape ``[n, d]``.
-        target: samples from second measure, array of shape ``[n, d]``.
-            Assumed paired with ``source``, i.e. ``target[i] = T(source[i])``.
-        condition: integer array of shape ``[n]`` indicating the condition
-            for each source-target pair. Values in ``range(num_segments)``.
-        cost_fn: a cost function between two points in dimension :math:`d`.
-            If :obj:`None`, :class:`~ott.geometry.costs.SqEuclidean` is used.
-        epsilon: regularization parameter. See
-            :class:`~ott.geometry.pointcloud.PointCloud`.
-        relative_epsilon: when set, ``epsilon`` refers to a fraction of the
-            :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`.
-        scale_cost: option to rescale the cost matrix. Implemented scalings
-            are ``'median'``, ``'mean'`` and ``'max_cost'``. Alternatively, a
-            float factor can be given to rescale the cost such that
-            ``cost_matrix /= scale_cost``.
-        return_output: if :obj:`True`, also return per-condition Monge gaps.
-        num_segments: number of distinct conditions. Required for JIT.
-        max_measure_size: maximum number of points in any single condition
-            (used for padding). Required for JIT.
-        kwargs: keyword arguments for the
-            :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
+  Args:
+      source: samples from first measure, array of shape ``[n, d]``.
+      target: samples from second measure, array of shape ``[n, d]``.
+          Assumed paired with ``source``, i.e. ``target[i] = T(source[i])``.
+      condition: integer array of shape ``[n]`` indicating the condition
+          for each source-target pair. Values in ``range(num_segments)``.
+      cost_fn: a cost function between two points in dimension :math:`d`.
+          If :obj:`None`, :class:`~ott.geometry.costs.SqEuclidean` is used.
+      epsilon: regularization parameter. See
+          :class:`~ott.geometry.pointcloud.PointCloud`.
+      relative_epsilon: when set, ``epsilon`` refers to a fraction of the
+          :attr:`~ott.geometry.pointcloud.PointCloud.mean_cost_matrix`.
+      scale_cost: option to rescale the cost matrix. Implemented scalings
+          are ``'median'``, ``'mean'`` and ``'max_cost'``. Alternatively, a
+          float factor can be given to rescale the cost such that
+          ``cost_matrix /= scale_cost``.
+      return_output: if :obj:`True`, also return per-condition Monge gaps.
+      num_segments: number of distinct conditions. Required for JIT.
+      max_measure_size: maximum number of points in any single condition
+          (used for padding). Required for JIT.
+      kwargs: keyword arguments for the
+          :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
 
-    Returns:
-        The average Monge gap across conditions and, when ``return_output``
-        is :obj:`True`, a ``[num_segments]`` array of per-condition gaps.
-    """
+  Returns:
+      The average Monge gap across conditions and, when ``return_output``
+      is :obj:`True`, a ``[num_segments]`` array of per-condition gaps.
+  """
   cost_fn = costs.SqEuclidean() if cost_fn is None else cost_fn
   dim = source.shape[1]
   padding_vector = cost_fn._padder(dim=dim)
@@ -180,39 +180,39 @@ def cmonge_gap_from_samples(
 class ConditionalMongeGapEstimator:
   r"""Conditional map estimator between probability measures.
 
-    Estimates a condition-dependent map :math:`T(\cdot, c)` by minimizing:
+  Estimates a condition-dependent map :math:`T(\cdot, c)` by minimizing:
 
-    .. math::
+  .. math::
 
-        \min_\theta \; \Delta\bigl(T_\theta(\cdot, c) \sharp \mu,\, \nu\bigr)
-        + \lambda \; R_{\text{cond}}\bigl(T_\theta(\cdot, c) \sharp \rho,\,
-        \rho \mid c\bigr)
+      \min_\theta \; \Delta\bigl(T_\theta(\cdot, c) \sharp \mu,\, \nu\bigr)
+      + \lambda \; R_{\text{cond}}\bigl(T_\theta(\cdot, c) \sharp \rho,\,
+      \rho \mid c\bigr)
 
-    where :math:`\Delta` is a fitting loss (e.g.
-    :func:`~ott.tools.sinkhorn_divergence.sinkdiv`),
-    :math:`R_{\text{cond}}` is the conditional Monge gap regularizer
-    :func:`cmonge_gap_from_samples`, and :math:`c` is a condition label.
+  where :math:`\Delta` is a fitting loss (e.g.
+  :func:`~ott.tools.sinkhorn_divergence.sinkdiv`),
+  :math:`R_{\text{cond}}` is the conditional Monge gap regularizer
+  :func:`cmonge_gap_from_samples`, and :math:`c` is a condition label.
 
-    This mirrors :class:`~ott.neural.methods.monge_gap.MongeGapEstimator`
-    but handles condition-aware maps and per-condition regularization.
+  This mirrors :class:`~ott.neural.methods.monge_gap.MongeGapEstimator`
+  but handles condition-aware maps and per-condition regularization.
 
-    Args:
-        dim_data: input dimensionality of the data.
-        model: a :class:`~ott.neural.networks.\
+  Args:
+      dim_data: input dimensionality of the data.
+      model: a :class:`~ott.neural.networks.\
 conditional_perturbation_network.ConditionalPerturbationNetwork` or any
-            ``nn.Module`` whose ``__call__`` signature is ``(x, c)``.
-        optimizer: optimizer for the map parameters.
-        fitting_loss: callable ``(mapped, target) -> (loss, log)`` that
-            measures how well the pushforward matches the target distribution.
-        regularizer: callable ``(source, mapped, condition_labels) ->
-            (loss, log)`` that computes the conditional Monge gap or similar
-            per-condition regularizer.
-        regularizer_strength: scalar or schedule for :math:`\lambda`.
-        num_train_iters: number of training iterations.
-        logging: whether to record train/eval metrics.
-        valid_freq: how often to evaluate on the validation set.
-        rng: random seed.
-    """
+          ``nn.Module`` whose ``__call__`` signature is ``(x, c)``.
+      optimizer: optimizer for the map parameters.
+      fitting_loss: callable ``(mapped, target) -> (loss, log)`` that
+          measures how well the pushforward matches the target distribution.
+      regularizer: callable ``(source, mapped, condition_labels) ->
+          (loss, log)`` that computes the conditional Monge gap or similar
+          per-condition regularizer.
+      regularizer_strength: scalar or schedule for :math:`\lambda`.
+      num_train_iters: number of training iterations.
+      logging: whether to record train/eval metrics.
+      valid_freq: how often to evaluate on the validation set.
+      rng: random seed.
+  """
 
   def __init__(
       self,
@@ -268,8 +268,8 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
                                                                Optional[Any]]]:
     """Conditional regularizer ``(source, mapped, labels) -> (loss, log)``.
 
-        Defaults to zero if not provided.
-        """
+    Defaults to zero if not provided.
+    """
     if self._regularizer is not None:
       return self._regularizer
     return lambda *_, **__: (0.0, None)
@@ -280,8 +280,8 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
   ) -> Callable[[jnp.ndarray, jnp.ndarray], Tuple[float, Optional[Any]]]:
     """Fitting loss ``(mapped, target) -> (loss, log)``.
 
-        Defaults to zero if not provided.
-        """
+    Defaults to zero if not provided.
+    """
     if self._fitting_loss is not None:
       return self._fitting_loss
     return lambda *_, **__: (0.0, None)
