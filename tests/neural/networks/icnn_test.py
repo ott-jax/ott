@@ -30,7 +30,7 @@ class TestICNN:
     n_samples, n_features = 10, 2
     dim_hidden = (64, 64)
 
-    model = icnn.ICNN(dim_hidden, rngs=nnx.Rngs(0))
+    model = icnn.ICNN(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
 
     rng1, rng2 = jax.random.split(rng, 2)
     x = jax.random.normal(rng1, (n_samples, n_features)) * 0.1
@@ -50,11 +50,9 @@ class TestICNN:
     """Tests if Hessian of ICNN is positive-semidefinite."""
     n_features = 2
     dim_hidden = (64, 64)
-    model = icnn.ICNN(dim_hidden, rngs=nnx.Rngs(0))
+    model = icnn.ICNN(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
 
     rng1, rng2 = jax.random.split(rng)
-    # Trigger lazy init
-    _ = model(jax.random.normal(rng1, (1, n_features)))
 
     data = jax.random.normal(rng2, (n_features,))
 
@@ -69,7 +67,12 @@ class TestICNN:
     n_samples, n_features, output_dim = 10, 3, 4
     dim_hidden = (32, 32)
 
-    model = icnn.ICNN(dim_hidden, output_dim=output_dim, rngs=nnx.Rngs(0))
+    model = icnn.ICNN(
+        dim_hidden,
+        input_dim=n_features,
+        output_dim=output_dim,
+        rngs=nnx.Rngs(0)
+    )
 
     x = jax.random.normal(rng, (n_samples, n_features))
     out = model(x)
@@ -80,7 +83,9 @@ class TestICNN:
     n_features = 4
     dim_hidden = (32, 32, 32, 32)
 
-    model = icnn.ICNN(dim_hidden, wx_inject=2, rngs=nnx.Rngs(0))
+    model = icnn.ICNN(
+        dim_hidden, input_dim=n_features, wx_inject=2, rngs=nnx.Rngs(0)
+    )
     x = jax.random.normal(rng, (5, n_features))
     out = model(x)
     assert out.shape == (5,)
@@ -90,7 +95,9 @@ class TestICNN:
     n_features = 3
     dim_hidden = (32, 32)
 
-    model = icnn.ICNN(dim_hidden, pos_def_rank=2, rngs=nnx.Rngs(0))
+    model = icnn.ICNN(
+        dim_hidden, input_dim=n_features, pos_def_rank=2, rngs=nnx.Rngs(0)
+    )
     x = jax.random.normal(rng, (5, n_features))
     out = model(x)
     assert out.shape == (5,)
@@ -105,7 +112,9 @@ class TestICNN:
         "use_softmax": mode == "softmax",
         "use_sinkhorn": mode == "sinkhorn",
     }
-    model = icnn.ICNN(dim_hidden, rngs=nnx.Rngs(0), **kwargs)
+    model = icnn.ICNN(
+        dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0), **kwargs
+    )
 
     rng1, rng2 = jax.random.split(rng)
     x = jax.random.normal(rng1, (n_samples, n_features)) * 0.1
@@ -132,7 +141,7 @@ class TestKeyNet:
     n_samples, n_features = 10, 4
     dim_hidden = (32, 32)
 
-    model = icnn.KeyNet(dim_hidden, rngs=nnx.Rngs(0))
+    model = icnn.KeyNet(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
     x = jax.random.normal(rng, (n_samples, n_features))
 
     # gradient returns vectors
@@ -148,7 +157,9 @@ class TestKeyNet:
     n_features = 4
     dim_hidden = (32, 32)
 
-    model = icnn.KeyNet(dim_hidden, resnet=True, rngs=nnx.Rngs(0))
+    model = icnn.KeyNet(
+        dim_hidden, input_dim=n_features, resnet=True, rngs=nnx.Rngs(0)
+    )
     x = jax.random.normal(rng, (5, n_features))
 
     grad_out = model.gradient(x)
@@ -160,7 +171,12 @@ class TestKeyNet:
     output_dim = 8
     dim_hidden = (32, 32)
 
-    model = icnn.KeyNet(dim_hidden, output_dim=output_dim, rngs=nnx.Rngs(0))
+    model = icnn.KeyNet(
+        dim_hidden,
+        input_dim=n_features,
+        output_dim=output_dim,
+        rngs=nnx.Rngs(0)
+    )
     x = jax.random.normal(rng, (5, n_features))
 
     grad_out = model.gradient(x)
@@ -171,7 +187,7 @@ class TestKeyNet:
     n_features = 4
     dim_hidden = (32, 32)
 
-    model = icnn.KeyNet(dim_hidden, rngs=nnx.Rngs(0))
+    model = icnn.KeyNet(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
     x = jax.random.normal(rng, (n_features,))
 
     grad_out = model.gradient(x)
