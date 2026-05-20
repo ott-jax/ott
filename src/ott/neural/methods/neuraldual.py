@@ -27,6 +27,7 @@ import jax
 import jax.numpy as jnp
 
 import optax
+from flax import nnx
 
 from ott import utils
 from ott.geometry import costs
@@ -144,16 +145,26 @@ class W2NeuralDual:
       optimizer_g = optax.adam(learning_rate=0.0001, b1=0.5, b2=0.9, eps=1e-8)
 
     # set default neural architectures
+    rng = utils.default_prng_key(rng)
+    rng, rng_init_f, rng_init_g = jax.random.split(rng, 3)
     if neural_f is None:
-      neural_f = icnn.ICNN(dim_data=dim_data, dim_hidden=[64, 64, 64, 64])
+      neural_f = icnn.ICNN(
+          input_dim=dim_data,
+          dim_hidden=[64, 64, 64, 64],
+          rngs=nnx.Rngs(rng_init_f),
+      )
     if neural_g is None:
-      neural_g = icnn.ICNN(dim_data=dim_data, dim_hidden=[64, 64, 64, 64])
+      neural_g = icnn.ICNN(
+          input_dim=dim_data,
+          dim_hidden=[64, 64, 64, 64],
+          rngs=nnx.Rngs(rng_init_g),
+      )
     self.neural_f = neural_f
     self.neural_g = neural_g
 
     # set optimizer and networks
     self.setup(
-        utils.default_prng_key(rng),
+        rng,
         neural_f,
         neural_g,
         dim_data,
