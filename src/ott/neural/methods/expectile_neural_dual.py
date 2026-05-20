@@ -186,11 +186,11 @@ class ExpectileNeuralDual:
 
     # set default neural architectures
     if neural_f is None:
-      neural_f = potentials.MLP(
+      neural_f = potentials.LinenMLP(
           dim_hidden=[128, 128, 128, 128, 1], act_fn=jax.nn.elu
       )
     if neural_g is None:
-      neural_g = potentials.MLP(
+      neural_g = potentials.LinenMLP(
           dim_hidden=[128, 128, 128, 128, 1], act_fn=jax.nn.elu
       )
 
