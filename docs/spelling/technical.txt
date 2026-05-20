@@ -147,6 +147,7 @@ renormalize
 renormalized
 reparameterization
 reproducibility
+relu
 rescale
 rescaled
 rescales
@@ -164,6 +165,7 @@ sharded
 sharding
 sigmoid
 simplicial
+softmax
 softplus
 stateful
 sublinear
