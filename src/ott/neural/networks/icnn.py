@@ -181,9 +181,8 @@ class ICNN(nnx.Module):
             kernel_init=k_init,
             bias_init=b_init,
             rngs=rngs,
-        ) for d_in, d_out, k_init, b_init in zip(
-            dims[1:-1], dims[2:], wz_kernel_inits, wz_bias_inits
-        )
+        ) for d_in, d_out, k_init, b_init in
+        zip(dims[1:-1], dims[2:], wz_kernel_inits, wz_bias_inits)
     ])
 
     self.pos_def_potentials = (

@@ -65,9 +65,7 @@ def _principled_icnn_weights(
 
   def _corr_func(fan_in: int, *, rho: float) -> float:
     mix_mom = (1 - rho ** 2) ** 0.5 + rho * math.acos(-rho)
-    return fan_in * (
-        math.pi - fan_in + (fan_in - 1) * mix_mom
-    ) / (2 * math.pi)
+    return fan_in * (math.pi - fan_in + (fan_in - 1) * mix_mom) / (2 * math.pi)
 
   mean_sq = rho / _corr_func(fan_in, rho=rho)
   var = (2.0 / (1.0 + (alpha ** 2))) * (1.0 / fan_in) * (1.0 - rho)
@@ -148,8 +146,8 @@ def _principled_init_fixed(
 
   def get_factors():
     a = ((1 - alpha) ** 2) * (
-        6 * math.pi - 6 * fan_in +
-        (fan_in - 1) * (3 * (3 ** 0.5) + 2 * math.pi)
+        6 * math.pi - 6 * fan_in + (fan_in - 1) *
+        (3 * (3 ** 0.5) + 2 * math.pi)
     )
     b = 6 * (fan_in + 1) * math.pi * alpha
     return a, b
@@ -175,9 +173,8 @@ def _principled_init_fixed(
       )
     rngs = jr.split(rng, d_out)
     sample_fn = jax.vmap(
-        lambda r, m, v: sample_weights(
-            r, (d_in,), dtype, log_mean=m, log_var=v
-        ),
+        lambda r, m, v:
+        sample_weights(r, (d_in,), dtype, log_mean=m, log_var=v),
         in_axes=[0, 0, 0],
         out_axes=1,
     )

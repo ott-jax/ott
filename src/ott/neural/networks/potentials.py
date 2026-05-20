@@ -19,8 +19,7 @@ import jax.numpy as jnp
 
 import optax
 from flax import linen as nn
-from flax import nnx
-from flax import struct
+from flax import nnx, struct
 from flax.core import frozen_dict
 from flax.training import train_state
 
@@ -282,9 +281,8 @@ class BaseDualPotential(abc.ABC, nnx.Module):
       if squeeze:
         x = jnp.expand_dims(x, 0)
       grad_g_x = jax.lax.stop_gradient(self(x))
-      value = -other_potential_value_fn(grad_g_x) + jax.vmap(jnp.dot)(
-          grad_g_x, x
-      )
+      value = -other_potential_value_fn(grad_g_x) + jax.vmap(jnp.dot
+                                                            )(grad_g_x, x)
       return value.squeeze(0) if squeeze else value
 
     return value_fn

@@ -127,6 +127,7 @@ class TestICNN:
       out.append((t * out_x + (1 - t) * out_y) - out_xy)
 
     np.testing.assert_array_equal(np.array(out) >= -1e-5, True)
+
   @pytest.mark.parametrize("mode", ["softmax", "sinkhorn"])
   def test_icnn_stochastic_weights(self, rng: jax.Array, mode: str):
     """Tests ICNN with softmax/sinkhorn weight normalization."""

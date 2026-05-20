@@ -48,18 +48,12 @@ def neural_models(request: str) -> ModelPair_t:
     )
   if request.param == "mlps":
     return (
-        potentials.PotentialMLP(
-            dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(0)
-        ),
-        potentials.PotentialMLP(
-            dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(1)
-        ),
+        potentials.PotentialMLP(dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(0)),
+        potentials.PotentialMLP(dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(1)),
     )
   if request.param == "mlps-grad":
     return (
-        potentials.PotentialMLP(
-            dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(0)
-        ),
+        potentials.PotentialMLP(dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(0)),
         potentials.PotentialMLP(
             dim_hidden=[128], input_dim=2, is_potential=False, rngs=nnx.Rngs(1)
         ),

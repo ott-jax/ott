@@ -333,12 +333,11 @@ class W2NeuralDual:
 
   def _get_parallel_step_fn(self, train: bool):
     """Create parallel training/validation step function."""
-    _diff_both = (
-        nnx.DiffState(0, nnx.Param), nnx.DiffState(1, nnx.Param)
-    )
+    _diff_both = (nnx.DiffState(0, nnx.Param), nnx.DiffState(1, nnx.Param))
 
     @nnx.jit
     def train_step(model_f, model_g, opt_f, opt_g, batch):
+
       def loss_fn_both(model_f, model_g):
         dual_loss, amor_loss, _, _ = self._compute_losses(
             model_f, model_g, batch
@@ -379,10 +378,9 @@ class W2NeuralDual:
 
     @nnx.jit
     def train_step_f(model_f, model_g, opt_f, batch):
+
       def loss_fn(model_f, model_g):
-        dual_loss, _, _, _ = self._compute_losses(
-            model_f, model_g, batch
-        )
+        dual_loss, _, _, _ = self._compute_losses(model_f, model_g, batch)
         return dual_loss
 
       loss, grads = nnx.value_and_grad(
@@ -390,17 +388,14 @@ class W2NeuralDual:
       )(model_f, model_g)
       opt_f.update(model_f, grads)
 
-      _, _, _, W2_dist = self._compute_losses(
-          model_f, model_g, batch
-      )
+      _, _, _, W2_dist = self._compute_losses(model_f, model_g, batch)
       return loss, W2_dist
 
     @nnx.jit
     def train_step_g(model_f, model_g, opt_g, batch):
+
       def loss_fn(model_f, model_g):
-        _, amor_loss, _, _ = self._compute_losses(
-            model_f, model_g, batch
-        )
+        _, amor_loss, _, _ = self._compute_losses(model_f, model_g, batch)
         return amor_loss
 
       loss, grads = nnx.value_and_grad(
@@ -408,9 +403,7 @@ class W2NeuralDual:
       )(model_f, model_g)
       opt_g.update(model_g, grads)
 
-      _, _, _, W2_dist = self._compute_losses(
-          model_f, model_g, batch
-      )
+      _, _, _, W2_dist = self._compute_losses(model_f, model_g, batch)
       return loss, W2_dist
 
     @nnx.jit
@@ -453,25 +446,23 @@ class W2NeuralDual:
       if update_forward:
         train_batch["source"] = jnp.asarray(next(trainloader_source))
         train_batch["target"] = jnp.asarray(next(trainloader_target))
-        (loss, loss_f, loss_g,
-         w_dist) = self.train_step_parallel(
-             self.neural_f,
-             self.neural_g,
-             self.opt_f,
-             self.opt_g,
-             train_batch,
-         )
+        (loss, loss_f, loss_g, w_dist) = self.train_step_parallel(
+            self.neural_f,
+            self.neural_g,
+            self.opt_f,
+            self.opt_g,
+            train_batch,
+        )
       else:
         train_batch["target"] = jnp.asarray(next(trainloader_source))
         train_batch["source"] = jnp.asarray(next(trainloader_target))
-        (loss, loss_f, loss_g,
-         w_dist) = self.train_step_parallel(
-             self.neural_g,
-             self.neural_f,
-             self.opt_g,
-             self.opt_f,
-             train_batch,
-         )
+        (loss, loss_f, loss_g, w_dist) = self.train_step_parallel(
+            self.neural_g,
+            self.neural_f,
+            self.opt_g,
+            self.opt_f,
+            train_batch,
+        )
 
       if self.logging and step % self.log_freq == 0:
         self._update_logs(train_logs, loss_f, loss_g, w_dist)
