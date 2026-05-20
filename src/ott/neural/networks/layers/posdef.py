@@ -11,204 +11,204 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Optional, Tuple
+"""Positive-weight dense layer for input convex neural networks."""
+
+from typing import Callable, Optional
 
 import jax
 import jax.numpy as jnp
 
-from flax import linen as nn
+from flax import nnx
 
 __all__ = ["PositiveDense", "PosDefPotentials"]
 
-PRNGKey = jax.Array
-Shape = Tuple[int, ...]
-Dtype = Any
-Array = jnp.ndarray
-
-DEFAULT_KERNEL_INIT = lambda *a, **k: nn.initializers.lecun_normal()(*a, **k)
-DEFAULT_BIAS_INIT = nn.initializers.zeros
-DEFAULT_RECTIFIER = nn.activation.relu
+DEFAULT_KERNEL_INIT = nnx.initializers.lecun_normal()
+DEFAULT_BIAS_INIT = nnx.initializers.zeros_init()
+DEFAULT_DIAG_INIT = nnx.initializers.constant(-2.0)
 
 
-class PositiveDense(nn.Module):
-  """A linear transformation using a matrix with all entries non-negative.
+def _sinkhorn_normalize(
+    log_kernel: jax.Array,
+    num_iter: int = 10,
+    epsilon: float = 0.1,
+) -> jax.Array:
+  """Sinkhorn normalization in log-space for positive weight matrices."""
+  log_k = log_kernel / epsilon
+
+  def body_fn(carry, _):
+    log_u, log_v = carry
+    log_u = -jax.nn.logsumexp(log_k + log_v[None, :], axis=1)
+    log_v = -jax.nn.logsumexp(log_k + log_u[:, None], axis=0)
+    return (log_u, log_v), None
+
+  d_in, d_out = log_kernel.shape
+  log_u = jnp.zeros(d_in)
+  log_v = jnp.zeros(d_out)
+  (log_u, log_v), _ = jax.lax.scan(
+      body_fn, (log_u, log_v), None, length=num_iter
+  )
+  return jnp.exp(log_k + log_u[:, None] + log_v[None, :])
+
+
+class PositiveDense(nnx.Module):
+  """A linear transformation with non-negative weights.
+
+  Three modes for enforcing positivity:
+
+  - **Element-wise rectifier** (default): applies ``rectifier_fn``
+    (e.g., softplus, relu) to each weight independently.
+  - **Softmax** (``use_softmax=True``): column-wise softmax so each
+    column sums to 1, producing stochastic weight matrices.
+  - **Sinkhorn** (``use_sinkhorn=True``): Sinkhorn normalization in
+    log-space produces approximately doubly-stochastic matrices.
 
   Args:
-    dim_hidden: Number of output dimensions.
-    rectifier_fn: Rectifier function. The default is
-      :func:`~flax.linen.activation.relu`.
-    use_bias: Whether to add bias to the output.
-    kernel_init: Initializer for the matrix. The default is
-      :func:`~flax.linen.initializers.lecun_normal`.
-    bias_init: Initializer for the bias. The default is
-      :func:`~flax.linen.initializers.zeros`.
-    precision: Numerical precision of the computation.
+    in_features: Input dimension.
+    out_features: Output dimension.
+    rectifier_fn: Function to enforce non-negativity. Ignored when
+      ``use_softmax`` or ``use_sinkhorn`` is True.
+    use_softmax: If True, use column-wise softmax normalization.
+    use_sinkhorn: If True, use Sinkhorn normalization.
+    use_bias: Whether to add a bias term.
+    kernel_init: Initializer for the kernel.
+    bias_init: Initializer for the bias.
+    rngs: Random number generators.
   """
 
-  dim_hidden: int
-  rectifier_fn: Callable[[Array], Array] = DEFAULT_RECTIFIER
-  use_bias: bool = True
-  kernel_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
-  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_BIAS_INIT
-  precision: Optional[jax.lax.Precision] = None
-
-  @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-    """Applies a linear transformation to x along the last dimension.
-
-    Args:
-      x: Array of shape ``[batch, ..., features]``.
-
-    Returns:
-      Array of shape ``[batch, ..., dim_hidden]``.
-    """
-    # TODO(michalk8): update when refactoring neuraldual
-    # assert x.ndim > 1, x.ndim
-
-    kernel = self.param(
-        "kernel", self.kernel_init, (x.shape[-1], self.dim_hidden)
+  def __init__(
+      self,
+      in_features: int,
+      out_features: int,
+      *,
+      rectifier_fn: Optional[Callable[[jax.Array],
+                                      jax.Array]] = jax.nn.softplus,
+      use_softmax: bool = False,
+      use_sinkhorn: bool = False,
+      use_bias: bool = True,
+      kernel_init: nnx.initializers.Initializer = DEFAULT_KERNEL_INIT,
+      bias_init: nnx.initializers.Initializer = DEFAULT_BIAS_INIT,
+      rngs: nnx.Rngs,
+  ):
+    self.rectifier_fn = rectifier_fn
+    self.use_softmax = use_softmax
+    self.use_sinkhorn = use_sinkhorn
+    if out_features == 1 and use_sinkhorn:
+      self.use_sinkhorn = False
+      self.use_softmax = True
+    self.kernel = nnx.Param(
+        kernel_init(rngs.params(), (in_features, out_features))
     )
-    kernel = self.rectifier_fn(kernel)
+    self.bias = (
+        nnx.Param(bias_init(rngs.params(),
+                            (out_features,))) if use_bias else None
+    )
 
-    x = jnp.tensordot(x, kernel, axes=(-1, 0), precision=self.precision)
-    if self.use_bias:
-      x = x + self.param("bias", self.bias_init, (self.dim_hidden,))
+  def __call__(self, x: jax.Array) -> jax.Array:
+    """Apply positive-weight linear transformation."""
+    kernel = self._get_positive_kernel()
+    out = x @ kernel
+    if self.bias is not None:
+      out = out + self.bias[...]
+    return out
 
-    return x
+  def _get_positive_kernel(self) -> jax.Array:
+    """Get the positive kernel via the configured normalization."""
+    raw = self.kernel[...]
+    if self.use_sinkhorn:
+      return _sinkhorn_normalize(jnp.clip(raw, -5.0, 5.0))
+    if self.use_softmax:
+      return jax.nn.softmax(raw, axis=0)
+    return self.rectifier_fn(raw)
 
 
-class PosDefPotentials(nn.Module):
-  r""":math:`\frac{1}{2} x^T (A_i A_i^T + \text{Diag}(d_i)) x + b_i^T x^2 + c_i`
-    potentials.
+class PosDefPotentials(nnx.Module):
+  """Low-rank plus diagonal positive definite quadratic potentials.
 
-  This class implements a layer that takes (batched) ``d``-dimensional vectors
-  ``x`` in, to output a ``num_potentials``-dimensional vector. Each of the
-  entries in that output is a positive definite quadratic form evaluated at
-  ``x``; each of these quadratic terms is parameterized as a low-rank plus
-  diagonal matrix. The low-rank term is parameterized as :math:`A_i A_i^T`,
-  where each of these matrices is of size ``(rank, d)``. Taken together,
-  these matrices form a tensor ``(num_potentials, rank, d)``.
-  The diagonal terms :math:`d_i` form a ``(num_potentials, d)`` matrix of
-  positive values; the linear terms :math:`b_i` form a ``(num_potentials, d)``
-  matrix. Finally, the :math:`c_i` are contained in a vector of size
-  ``(num_potentials,)``.
+  Computes: sum_i 0.5 * x^T (A_i A_i^T + diag(d_i)) x + b_i^T x + c_i
+
+  This is used as an optional additive term in the ICNN to ensure
+  strong convexity.
 
   Args:
-    num_potentials: Dimension of the output.
-    rank: Rank of the matrices :math:`A_i` used as low-rank factors
-      for the quadratic potentials.
-    rectifier_fn: Rectifier function to ensure non-negativity of the diagonals
-      :math:`d_i`. The default is :func:`~flax.linen.activation.relu`.
-    use_linear: Whether to add a linear layers :math:`b_i` to the outputs.
-    use_bias: Whether to add biases :math:`c_i` to the outputs.
-    kernel_lr_init: Initializer for the matrices :math:`A_i`
-      of the quadratic potentials when ``rank > 0``.
-      The default is :func:`~flax.linen.initializers.lecun_normal`.
-    kernel_diag_init: Initializer for the diagonals :math:`d_i`.
-      The default is :func:`~flax.linen.initializers.ones`.
-    kernel_linear_init: Initializer for the linear layers :math:`b_i`.
-      The default is :func:`~flax.linen.initializers.lecun_normal`.
-    bias_init: Initializer for the bias. The default is
-      :func:`~flax.linen.initializers.zeros`.
-    precision: Numerical precision of the computation.
-  """  # noqa: D205,E501
+    in_features: Input dimension.
+    num_potentials: Number of output potentials.
+    rank: Rank of the low-rank factors A_i.
+    use_linear: Whether to include the linear term b^T x.
+    use_bias: Whether to include the scalar bias c.
+    rngs: Random number generators.
+  """
 
-  num_potentials: int
-  rank: int = 0
-  rectifier_fn: Callable[[Array], Array] = DEFAULT_RECTIFIER
-  use_linear: bool = True
-  use_bias: bool = True
-  kernel_lr_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_KERNEL_INIT
-  kernel_diag_init: Callable[[PRNGKey, Shape, Dtype],
-                             Array] = nn.initializers.ones
-  kernel_linear_init: Callable[[PRNGKey, Shape, Dtype],
-                               Array] = DEFAULT_KERNEL_INIT
-  bias_init: Callable[[PRNGKey, Shape, Dtype], Array] = DEFAULT_BIAS_INIT
-  precision: Optional[jax.lax.Precision] = None
+  def __init__(
+      self,
+      in_features: int,
+      num_potentials: int,
+      *,
+      rank: int = 1,
+      use_linear: bool = True,
+      use_bias: bool = True,
+      kernel_diag_init: nnx.initializers.Initializer = DEFAULT_DIAG_INIT,
+      kernel_lr_init: nnx.initializers.Initializer = DEFAULT_KERNEL_INIT,
+      kernel_linear_init: nnx.initializers.Initializer = DEFAULT_KERNEL_INIT,
+      bias_init: nnx.initializers.Initializer = DEFAULT_BIAS_INIT,
+      rectifier_fn: Callable[[jax.Array], jax.Array] = jax.nn.softplus,
+      rngs: nnx.Rngs,
+  ):
+    self.rectifier_fn = rectifier_fn
+    self.num_potentials = num_potentials
 
-  @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-    """Compute quadratic forms of the input.
-
-    Args:
-      x: Array of shape ``[batch, ..., features]``.
-
-    Returns:
-      Array of shape ``[batch, ..., num_potentials]``.
-    """
-    # TODO(michalk8): update when refactoring neuraldual
-    # assert x.ndim > 1, x.ndim
-
-    dim_data = x.shape[-1]
-    x = x.reshape((-1, dim_data))
-
-    diag_kernel = self.param(
-        "diag_kernel", self.kernel_diag_init, (dim_data, self.num_potentials)
+    # Diagonal: [num_potentials, in_features]
+    self.kernel_diag = nnx.Param(
+        kernel_diag_init(rngs.params(), (num_potentials, in_features))
     )
-    # ensures the diag_kernel parameter stays non negative
-    diag_kernel = self.rectifier_fn(diag_kernel)
-
-    # (batch, dim_data, 1), (1, dim_data, num_potentials)
-    y = 0.5 * jnp.sum(((x ** 2)[..., None] * diag_kernel[None]), axis=1)
-
-    if self.rank > 0:
-      quad_kernel = self.param(
-          "quad_kernel", self.kernel_lr_init,
-          (self.num_potentials, dim_data, self.rank)
-      )
-      # (batch, num_potentials, rank)
-      quad = 0.5 * jnp.tensordot(
-          x, quad_kernel, axes=(-1, 1), precision=self.precision
-      ) ** 2
-      y = y + jnp.sum(quad, axis=-1)
-
-    if self.use_linear:
-      linear_kernel = self.param(
-          "lin_kernel", self.kernel_linear_init,
-          (dim_data, self.num_potentials)
-      )
-      y = y + jnp.dot(x, linear_kernel, precision=self.precision)
-
-    if self.use_bias:
-      y = y + self.param("bias", self.bias_init, (self.num_potentials,))
-
-    return y
-
-  @classmethod
-  def init_from_samples(
-      cls, source: jnp.ndarray, target: jnp.ndarray, **kwargs: Any
-  ) -> "PosDefPotentials":
-    """Initialize the layer using Gaussian approximation :cite:`bunne:22`.
-
-    Args:
-      source: Samples from the source distribution, array of shape ``[n, d]``.
-      target: Samples from the target distribution, array of shape ``[m, d]``.
-      kwargs: Keyword arguments for initialization. Note that ``use_linear``
-        will be always set to :obj:`True`.
-
-    Returns:
-      The layer with fixed linear and quadratic initialization.
-    """
-    factor, mean = _compute_gaussian_map_params(source, target)
-
-    kwargs["use_linear"] = True
-    return cls(
-        kernel_lr_init=lambda *_, **__: factor,
-        kernel_linear_init=lambda *_, **__: mean.T,
-        **kwargs,
+    # Low-rank factors: [num_potentials, in_features, rank]
+    self.kernel_lr = nnx.Param(
+        kernel_lr_init(rngs.params(), (num_potentials, in_features, rank))
+    )
+    # Linear term: [num_potentials, in_features]
+    self.kernel_linear = (
+        nnx.Param(
+            kernel_linear_init(rngs.params(), (num_potentials, in_features))
+        ) if use_linear else None
+    )
+    # Bias: [num_potentials]
+    self.bias = (
+        nnx.Param(bias_init(rngs.params(),
+                            (num_potentials,))) if use_bias else None
     )
 
+  def __call__(self, x: jax.Array) -> jax.Array:
+    """Evaluate positive definite quadratic potentials.
 
-def _compute_gaussian_map_params(
-    source: jnp.ndarray, target: jnp.ndarray
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  from ott.math import matrix_square_root
-  from ott.tools.gaussian_mixture import gaussian
+    Args:
+      x: Input array of shape ``[..., in_features]``.
 
-  g_s = gaussian.Gaussian.from_samples(source)
-  g_t = gaussian.Gaussian.from_samples(target)
-  lin_op = g_s.scale.gaussian_map(g_t.scale)
-  b = jnp.squeeze(g_t.loc) - lin_op @ jnp.squeeze(g_s.loc)
-  lin_op = matrix_square_root.sqrtm_only(lin_op)
+    Returns:
+      Output array of shape ``[..., num_potentials]``.
+    """
+    # Quadratic term: 0.5 * x^T (A A^T + diag(d)) x
+    diag = self.rectifier_fn(self.kernel_diag[...])  # [n_pot, d]
+    lr = self.kernel_lr[...]  # [n_pot, d, rank]
 
-  return jnp.expand_dims(lin_op, 0), jnp.expand_dims(b, 0)
+    # x: [..., d] -> [..., 1, d]
+    x_expanded = x[..., None, :]
+
+    # Diagonal part: sum_d x_d^2 * diag_d -> [..., n_pot]
+    quad_diag = jnp.sum(x_expanded ** 2 * diag, axis=-1)
+
+    # Low-rank part: ||A^T x||^2 -> [..., n_pot]
+    # x_expanded: [..., 1, d], lr: [n_pot, d, rank]
+    atx = jnp.einsum("...d,ndr->...nr", x, lr)  # [..., n_pot, rank]
+    quad_lr = jnp.sum(atx ** 2, axis=-1)  # [..., n_pot]
+
+    out = 0.5 * (quad_diag + quad_lr)
+
+    # Linear term
+    if self.kernel_linear is not None:
+      linear = jnp.einsum("...d,nd->...n", x, self.kernel_linear[...])
+      out = out + linear
+
+    # Bias
+    if self.bias is not None:
+      out = out + self.bias[...]
+
+    return out
