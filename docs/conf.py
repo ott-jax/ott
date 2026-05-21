@@ -85,6 +85,14 @@ autosummary_generate = True
 autodoc_typehints = "description"
 always_document_param_types = True
 
+# Suppress warnings from unresolvable forward references in type annotations
+# (e.g., chex.ArrayTree leaking through flax/optax signatures) and from
+# jax.custom_jvp/custom_vjp decorated functions that sphinx can't introspect.
+suppress_warnings = [
+    "sphinx_autodoc_typehints.forward_reference",
+    "autodoc",
+]
+
 # myst-nb
 myst_heading_anchors = 2
 nb_execution_mode = "off"
@@ -184,11 +192,15 @@ html_theme_options = {
 
 
 class ChexFilter(logging.Filter):
-  """Filter warning related to :class:`chex.ArrayTree` missing link."""
+  """Filter known warnings from autodoc type resolution."""
+
+  _SUPPRESS = [
+      "name 'ArrayTree' is not defined",
+  ]
 
   def filter(self, record: logging.LogRecord) -> bool:
     msg = record.getMessage()
-    return "name 'ArrayTree' is not defined" not in msg
+    return not any(s in msg for s in self._SUPPRESS)
 
 
 class SpellingAutosummaryFilter(logging.Filter):
