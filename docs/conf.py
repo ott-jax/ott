@@ -91,6 +91,7 @@ always_document_param_types = True
 suppress_warnings = [
     "sphinx_autodoc_typehints.forward_reference",
     "autodoc",
+    "autosummary",
 ]
 
 # myst-nb
@@ -196,6 +197,8 @@ class ChexFilter(logging.Filter):
 
   _SUPPRESS = [
       "name 'ArrayTree' is not defined",
+      "failed to import object",
+      "list assignment index out of range",
   ]
 
   def filter(self, record: logging.LogRecord) -> bool:
@@ -226,9 +229,14 @@ class SpellingAutosummaryFilter(logging.Filter):
     return "autosummary" not in msg and "misspelled words" not in msg
 
 
-sphinx_logging.getLogger("sphinx_autodoc_typehints").logger.addFilter(
-    ChexFilter()
-)
+_chex_filter = ChexFilter()
+for _name in (
+    "sphinx_autodoc_typehints",
+    "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
+    "sphinx",
+):
+  sphinx_logging.getLogger(_name).logger.addFilter(_chex_filter)
 
 sphinx_logging.getLogger("sphinxcontrib.spelling.builder").logger.addFilter(
     SpellingAutosummaryFilter()
