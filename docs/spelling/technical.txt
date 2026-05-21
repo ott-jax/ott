@@ -143,11 +143,11 @@ recurse
 regularizer
 regularizers
 reimplementation
+relu
 renormalize
 renormalized
 reparameterization
 reproducibility
-relu
 rescale
 rescaled
 rescales
