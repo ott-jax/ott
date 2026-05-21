@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git pull:*)",
+      "Bash(python3:*)",
+      "Bash(python:*)",
+      "Bash(/Users/marcocuturi/miniforge3/envs/otfm/bin/python:*)",
+      "Bash(PYTHONPATH=/Users/marcocuturi/VS19/ott/src /Users/marcocuturi/miniforge3/envs/otfm/bin/pytest:*)",
+      "Bash(grep:*)",
+      "Bash(/Users/marcocuturi/miniforge3/envs/otfm/bin/python3:*)"
+    ]
+  }
+}

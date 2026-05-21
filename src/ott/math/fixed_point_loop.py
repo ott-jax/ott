@@ -235,8 +235,8 @@ def fixpoint_iter_bwd(
 fixpoint_iter_backprop = jax.custom_vjp(
     fixpoint_iter,
     nondiff_argnames=(
-        "cond_fn", "body_fn", "min_iterations",
-        "max_iterations", "inner_iterations"
+        "cond_fn", "body_fn", "min_iterations", "max_iterations",
+        "inner_iterations"
     )
 )
 

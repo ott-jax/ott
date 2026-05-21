@@ -26,8 +26,8 @@ __all__ = ["sqrtm", "sqrtm_only", "inv_sqrtm_only"]
 @functools.partial(
     jax.custom_vjp,
     nondiff_argnames=(
-        "threshold", "min_iterations", "inner_iterations",
-        "max_iterations", "regularization"
+        "threshold", "min_iterations", "inner_iterations", "max_iterations",
+        "regularization"
     )
 )
 def sqrtm(
@@ -242,8 +242,8 @@ sqrtm.defvjp(sqrtm_fwd, sqrtm_bwd)
 @functools.partial(
     jax.custom_vjp,
     nondiff_argnames=(
-        "threshold", "min_iterations", "inner_iterations",
-        "max_iterations", "regularization"
+        "threshold", "min_iterations", "inner_iterations", "max_iterations",
+        "regularization"
     )
 )
 def sqrtm_only(  # noqa: D103
@@ -294,8 +294,8 @@ sqrtm_only.defvjp(sqrtm_only_fwd, sqrtm_only_bwd)
 @functools.partial(
     jax.custom_vjp,
     nondiff_argnames=(
-        "threshold", "min_iterations", "inner_iterations",
-        "max_iterations", "regularization"
+        "threshold", "min_iterations", "inner_iterations", "max_iterations",
+        "regularization"
     )
 )
 def inv_sqrtm_only(  # noqa: D103

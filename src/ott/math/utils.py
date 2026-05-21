@@ -46,9 +46,7 @@ def safe_log(  # noqa: D103
   return jnp.where(x > 0.0, jnp.log(x), jnp.log(eps))
 
 
-@functools.partial(
-    jax.custom_jvp, nondiff_argnames=("ord", "axis", "keepdims")
-)
+@functools.partial(jax.custom_jvp, nondiff_argnames=("ord", "axis", "keepdims"))
 @functools.partial(jax.jit, static_argnames=("ord", "axis", "keepdims"))
 def norm(
     x: jnp.ndarray,
