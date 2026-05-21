@@ -59,7 +59,7 @@ Changelog = "https://github.com/ott-jax/ott/releases"
 
 [project.optional-dependencies]
 neural = [
-    "flax>=0.12.0",
+    "flax>=0.11.0",
     "optax>=0.2.4",
     "diffrax>=0.4.1",
 ]
