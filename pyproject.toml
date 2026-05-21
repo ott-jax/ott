@@ -191,8 +191,8 @@ skip_missing_interpreters = true
 [testenv]
 extras =
     test
-    # https://github.com/google/flax/issues/3329
-    py{3.9,3.10,3.11,3.12,3.13},py3.10-jax-default: neural
+    # neural requires flax>=0.11.0 (NNX API); skip on py3.9/3.10
+    py{3.11,3.12,3.13}: neural
 pass_env = CUDA_*,PYTEST_*,CI
 commands_pre =
     gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
