@@ -46,7 +46,7 @@ def safe_log(  # noqa: D103
   return jnp.where(x > 0.0, jnp.log(x), jnp.log(eps))
 
 
-@functools.partial(jax.custom_jvp, nondiff_argnums=[1, 2, 3])
+@functools.partial(jax.custom_jvp, nondiff_argnames=("ord", "axis", "keepdims"))
 @functools.partial(jax.jit, static_argnames=("ord", "axis", "keepdims"))
 def norm(
     x: jnp.ndarray,
@@ -129,7 +129,9 @@ def gen_js(p: jnp.ndarray, q: jnp.ndarray, c: float = 0.5) -> float:
   return c * (gen_kl(p, q) + gen_kl(q, p))
 
 
-@functools.partial(jax.custom_jvp, nondiff_argnums=(1, 2, 4))
+@functools.partial(
+    jax.custom_jvp, nondiff_argnames=("axis", "keepdims", "return_sign")
+)
 def logsumexp(  # noqa: D103
     mat, axis=None, keepdims=False, b=None, return_sign=False
 ):
@@ -186,7 +188,7 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
   return lse, res
 
 
-@functools.partial(jax.custom_vjp, nondiff_argnums=(2,))
+@functools.partial(jax.custom_vjp, nondiff_argnames=("axis",))
 def softmin(
     x: jnp.ndarray,
     gamma: float,
@@ -248,7 +250,7 @@ def sort_and_argsort(
   return jnp.sort(x), None
 
 
-@functools.partial(jax.custom_jvp, nondiff_argnums=(1, 2))
+@functools.partial(jax.custom_jvp, nondiff_argnames=("tol", "max_iter"))
 def lambertw(
     z: jnp.ndarray, tol: float = 1e-8, max_iter: int = 100
 ) -> jnp.ndarray:

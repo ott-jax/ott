@@ -23,7 +23,13 @@ from ott.math import fixed_point_loop
 __all__ = ["sqrtm", "sqrtm_only", "inv_sqrtm_only"]
 
 
-@functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
+@functools.partial(
+    jax.custom_vjp,
+    nondiff_argnames=(
+        "threshold", "min_iterations", "inner_iterations", "max_iterations",
+        "regularization"
+    )
+)
 def sqrtm(
     x: jnp.ndarray,
     threshold: float = 1e-6,
@@ -233,7 +239,13 @@ sqrtm.defvjp(sqrtm_fwd, sqrtm_bwd)
 # These functions have lower complexity gradients than sqrtm.
 
 
-@functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
+@functools.partial(
+    jax.custom_vjp,
+    nondiff_argnames=(
+        "threshold", "min_iterations", "inner_iterations", "max_iterations",
+        "regularization"
+    )
+)
 def sqrtm_only(  # noqa: D103
     x: jnp.ndarray,
     threshold: float = 1e-6,
@@ -279,7 +291,13 @@ def sqrtm_only_bwd(  # noqa: D103
 sqrtm_only.defvjp(sqrtm_only_fwd, sqrtm_only_bwd)
 
 
-@functools.partial(jax.custom_vjp, nondiff_argnums=(1, 2, 3, 4, 5))
+@functools.partial(
+    jax.custom_vjp,
+    nondiff_argnames=(
+        "threshold", "min_iterations", "inner_iterations", "max_iterations",
+        "regularization"
+    )
+)
 def inv_sqrtm_only(  # noqa: D103
     x: jnp.ndarray,
     threshold: float = 1e-6,

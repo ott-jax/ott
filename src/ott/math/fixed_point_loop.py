@@ -233,7 +233,11 @@ def fixpoint_iter_bwd(
 
 # definition of backprop friendly variant of fixpoint_iter.
 fixpoint_iter_backprop = jax.custom_vjp(
-    fixpoint_iter, nondiff_argnums=(0, 1, 2, 3, 4)
+    fixpoint_iter,
+    nondiff_argnames=(
+        "cond_fn", "body_fn", "min_iterations", "max_iterations",
+        "inner_iterations"
+    )
 )
 
 fixpoint_iter_backprop.defvjp(fixpoint_iter_fwd, fixpoint_iter_bwd)
