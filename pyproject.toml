@@ -185,7 +185,7 @@ ignore_path = ["docs/**/_autosummary", "docs/contributing.rst"]
 legacy_tox_ini = """
 [tox]
 min_version = 4.0
-env_list = lint-code,py{3.11,3.12,3.13}
+env_list = lint-code,py{3.11,3.12,3.13},py3.12-jax-default
 skip_missing_interpreters = true
 
 [testenv]
