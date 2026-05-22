@@ -42,7 +42,13 @@ class CustomTransposeLinearOperator(lx.FunctionLinearOperator):
 
   def transpose(self):
     """Provide custom transposition operator from function."""
-    return lx.FunctionLinearOperator(self.fn_t, self.input_structure_t)
+    # Pass closure_convert=False because self.fn_t is already
+    # closure-converted in __init__. Re-converting under a JAX
+    # transformation (e.g., the transpose rule of linear_solve_p)
+    # can produce a jaxpr/consts mismatch with JAX >= 0.10.
+    return lx.FunctionLinearOperator(
+        self.fn_t, self.input_structure_t, closure_convert=False
+    )
 
 
 def solve_lineax(
