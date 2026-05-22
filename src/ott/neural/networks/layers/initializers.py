@@ -22,7 +22,6 @@ from typing import Callable, Literal, Tuple
 
 import jax
 import jax.numpy as jnp
-import jax.random as jr
 
 from flax import nnx
 
@@ -126,14 +125,18 @@ def principled_icnn_init(
   )
 
   def weights_init(
-      rng: jax.Array, shape: Tuple[int, ...], dtype: jnp.dtype = None
+      rng: jax.Array,
+      shape: Tuple[int, ...],
+      dtype: jnp.dtype = None
   ) -> jax.Array:
     w = nnx.initializers.normal(stddev=w_log_var ** 0.5)(rng, shape, dtype)
     w = jnp.exp(w_log_mean + w)
     return inv_fn(w)
 
   def biases_init(
-      rng: jax.Array, shape: Tuple[int, ...], dtype: jnp.dtype = None
+      rng: jax.Array,
+      shape: Tuple[int, ...],
+      dtype: jnp.dtype = None
   ) -> jax.Array:
     return nnx.initializers.constant(b_mean)(rng, shape, dtype)
 
@@ -162,7 +165,6 @@ def _principled_init_fixed(
     return inv_fn(w)
 
   def weights_init(rng, shape, dtype=None):
-    d_in, d_out = shape
     a, b = get_factors()
     mean_sq = 6 * math.pi / (fan_in * (a + b))
     var = (1.0 / (1 + (alpha ** 2))) * (1.0 / fan_in)
@@ -171,9 +173,7 @@ def _principled_init_fixed(
     log_mean = math.log(mean_sq) - log_mom2 / 2.0
     log_var = log_mom2 - math.log(mean_sq)
 
-    return sample_weights(
-        rng, shape, dtype, log_mean=log_mean, log_var=log_var
-    )
+    return sample_weights(rng, shape, dtype, log_mean=log_mean, log_var=log_var)
 
   def biases_init(rng, shape, dtype=None):
     a, b = get_factors()

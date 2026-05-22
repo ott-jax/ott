@@ -339,9 +339,7 @@ class W2NeuralDual:
     def train_step(model_f, model_g, opt_f, opt_g, batch):
 
       def loss_fn_both(model_f, model_g):
-        dual_loss, amor_loss, _ = self._compute_losses(
-            model_f, model_g, batch
-        )
+        dual_loss, amor_loss, _ = self._compute_losses(model_f, model_g, batch)
         return dual_loss + amor_loss
 
       # Differentiate w.r.t. both models
