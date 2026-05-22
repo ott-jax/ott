@@ -11,44 +11,53 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Optional, TypeVar
-
-import equinox as eqx
-import lineax as lx
-from jaxtyping import Array, Float, PyTree
+from typing import Any, Callable, Optional
 
 import jax
 import jax.numpy as jnp
-import jax.tree_util as jtu
 
-_T = TypeVar("_T")
-_FlatPyTree = tuple[list[_T], jtu.PyTreeDef]
-
-__all__ = ["CustomTransposeLinearOperator", "solve_lineax"]
+__all__ = ["solve_lineax"]
 
 
-class CustomTransposeLinearOperator(lx.FunctionLinearOperator):
-  """Implement a linear operator that can specify its transpose directly."""
-  fn: Callable[[PyTree[Float[Array, "..."]]], PyTree[Float[Array, "..."]]]
-  fn_t: Callable[[PyTree[Float[Array, "..."]]], PyTree[Float[Array, "..."]]]
-  input_structure: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.field(static=True)
-  input_structure_t: _FlatPyTree[jax.ShapeDtypeStruct] = eqx.field(static=True)
-  tags: frozenset[object]
+def _cg(
+    matvec: Callable[[jnp.ndarray], jnp.ndarray],
+    b: jnp.ndarray,
+    *,
+    rtol: float = 1e-6,
+    atol: float = 1e-6,
+    maxiter: Optional[int] = None,
+) -> jnp.ndarray:
+  """Conjugate gradient solver using jax.lax.while_loop."""
+  if maxiter is None:
+    maxiter = 10 * b.shape[0]
 
-  def __init__(self, fn, fn_t, input_structure, input_structure_t, tags=()):
-    super().__init__(fn, input_structure, tags)
-    self.fn_t = eqx.filter_closure_convert(fn_t, input_structure_t)
-    self.input_structure_t = input_structure_t
+  b_norm = jnp.linalg.norm(b)
+  tol = jnp.maximum(atol, rtol * b_norm)
 
-  def transpose(self):
-    """Provide custom transposition operator from function."""
-    # Pass closure_convert=False because self.fn_t is already
-    # closure-converted in __init__. Re-converting under a JAX
-    # transformation (e.g., the transpose rule of linear_solve_p)
-    # can produce a jaxpr/consts mismatch with JAX >= 0.10.
-    return lx.FunctionLinearOperator(
-        self.fn_t, self.input_structure_t, closure_convert=False
-    )
+  x0 = jnp.zeros_like(b)
+  r0 = b
+  p0 = r0
+  rtr0 = jnp.vdot(r0, r0)
+
+  def cond_fun(state):
+    _, _, _, rtr, k = state
+    return (jnp.sqrt(rtr) > tol) & (k < maxiter)
+
+  def body_fun(state):
+    x, r, p, rtr, k = state
+    Ap = matvec(p)
+    alpha = rtr / jnp.vdot(p, Ap)
+    x_new = x + alpha * p
+    r_new = r - alpha * Ap
+    rtr_new = jnp.vdot(r_new, r_new)
+    beta = rtr_new / rtr
+    p_new = r_new + beta * p
+    return x_new, r_new, p_new, rtr_new, k + 1
+
+  x, _, _, _, _ = jax.lax.while_loop(
+      cond_fun, body_fun, (x0, r0, p0, rtr0, 0)
+  )
+  return x
 
 
 def solve_lineax(
@@ -56,29 +65,29 @@ def solve_lineax(
     b: jnp.ndarray,
     lin_t: Optional[Callable] = None,
     symmetric: bool = False,
-    nonsym_solver: Optional[lx.AbstractLinearSolver] = None,
+    nonsym_solver: Optional[Any] = None,
     ridge_identity: float = 0.0,
     ridge_kernel: float = 0.0,
     **kwargs: Any
 ) -> jnp.ndarray:
-  """Wrapper around lineax solvers.
+  """Solve a linear system using conjugate gradients.
+
+  This implementation uses a JAX-native CG solver that works correctly inside
+  JAX transformations (VJP backward pass), avoiding equinox closure conversion
+  issues that affect lineax on certain JAX versions.
 
   Args:
     lin: Linear operator
     b: vector. Returned `x` is such that `lin(x)=b`
     lin_t: Linear operator, corresponding to transpose of `lin`.
     symmetric: whether `lin` is symmetric.
-    nonsym_solver: solver used when handling non-symmetric cases. Note that
-      :class:`~lineax.Normal` with :class:`~lineax.CG`
-      is used by default in the symmetric case.
+    nonsym_solver: unused, kept for API compatibility.
     ridge_kernel: promotes zero-sum solutions. Only use if `tau_a = tau_b = 1.0`
     ridge_identity: handles rank deficient transport matrices (this happens
       typically when rows/cols in cost/kernel matrices are collinear, or,
       equivalently when two points from either measure are close).
-    kwargs: arguments passed to :class:`~lineax.AbstractLinearSolver` linear
-      solver.
+    kwargs: arguments passed to the CG solver (rtol, atol, maxiter).
   """
-  input_structure = jax.eval_shape(lambda: b)
   kwargs.setdefault("rtol", 1e-6)
   kwargs.setdefault("atol", 1e-6)
 
@@ -91,16 +100,8 @@ def solve_lineax(
     lin_reg, lin_t_reg = lin, lin_t
 
   if symmetric:
-    solver = lx.CG(**kwargs)
-    fn_operator = lx.FunctionLinearOperator(
-        lin_reg, input_structure, tags=lx.positive_semidefinite_tag
-    )
-    return lx.linear_solve(fn_operator, b, solver).value
-  # In the non-symmetric case, use NormalCG by default, but consider
-  # user defined choice of alternative lx solver.
-  if nonsym_solver is None:
-    nonsym_solver = lx.Normal(lx.CG(**kwargs))
-  fn_operator = CustomTransposeLinearOperator(
-      lin_reg, lin_t_reg, input_structure, input_structure
-  )
-  return lx.linear_solve(fn_operator, b, nonsym_solver).value
+    return _cg(lin_reg, b, **kwargs)
+  # Non-symmetric: solve normal equations A^T A x = A^T b
+  normal_matvec = lambda x: lin_t_reg(lin_reg(x))
+  normal_b = lin_t_reg(b)
+  return _cg(normal_matvec, normal_b, **kwargs)
