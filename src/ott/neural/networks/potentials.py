@@ -324,6 +324,7 @@ class PotentialMLP(BaseDualPotential):
       act_fn: Callable[[jnp.ndarray], jnp.ndarray] = jax.nn.leaky_relu,
       rngs: nnx.Rngs,
   ):
+    super().__init__()
     self._is_potential = is_potential
     self._act_fn = act_fn
     self._input_dim = input_dim

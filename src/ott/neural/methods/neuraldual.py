@@ -271,11 +271,11 @@ class W2NeuralDual:
       model_f: nnx.Module,
       model_g: nnx.Module,
       batch: Dict[str, jnp.ndarray],
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Compute all losses.
 
     Returns:
-      ``(dual_loss, amor_loss, loss_f, W2_dist)``
+      ``(dual_loss, amor_loss, W2_dist)``
     """
     source, target = batch["source"], batch["target"]
 
@@ -310,7 +310,7 @@ class W2NeuralDual:
     if self.amortization_loss == "regression":
       amor_loss = ((init_source_hat - source_hat_detach) ** 2).mean()
     elif self.amortization_loss == "objective":
-      # Detach f's parameters for the amortization objective
+      # Stop gradients through f's parameters only (not inputs)
       f_graphdef, f_state = nnx.split(model_f)
       f_state_stopped = jax.lax.stop_gradient(f_state)
       model_f_detached = nnx.merge(f_graphdef, f_state_stopped)
@@ -327,7 +327,7 @@ class W2NeuralDual:
         jnp.mean(jnp.sum(target ** 2, axis=-1))
     W2_dist = C - 2.0 * (f_source.mean() + f_star_target.mean())
 
-    return dual_loss, amor_loss, dual_loss, W2_dist
+    return dual_loss, amor_loss, W2_dist
 
   # ---- parallel step functions -------------------------------------------
 
@@ -339,7 +339,7 @@ class W2NeuralDual:
     def train_step(model_f, model_g, opt_f, opt_g, batch):
 
       def loss_fn_both(model_f, model_g):
-        dual_loss, amor_loss, _, _ = self._compute_losses(
+        dual_loss, amor_loss, _ = self._compute_losses(
             model_f, model_g, batch
         )
         return dual_loss + amor_loss
@@ -353,17 +353,17 @@ class W2NeuralDual:
       opt_g.update(model_g, grads_g)
 
       # Recompute individual losses for logging
-      dual_loss, amor_loss, loss_f, W2_dist = self._compute_losses(
+      dual_loss, amor_loss, W2_dist = self._compute_losses(
           model_f, model_g, batch
       )
-      return loss, loss_f, amor_loss, W2_dist
+      return loss, dual_loss, amor_loss, W2_dist
 
     @nnx.jit
     def valid_step(model_f, model_g, batch):
-      dual_loss, amor_loss, loss_f, W2_dist = self._compute_losses(
+      dual_loss, amor_loss, W2_dist = self._compute_losses(
           model_f, model_g, batch
       )
-      return loss_f, amor_loss, W2_dist
+      return dual_loss, amor_loss, W2_dist
 
     return train_step if train else valid_step
 
@@ -380,35 +380,31 @@ class W2NeuralDual:
     def train_step_f(model_f, model_g, opt_f, batch):
 
       def loss_fn(model_f, model_g):
-        dual_loss, _, _, _ = self._compute_losses(model_f, model_g, batch)
+        dual_loss, _, _ = self._compute_losses(model_f, model_g, batch)
         return dual_loss
 
-      loss, grads = nnx.value_and_grad(
-          loss_fn, argnums=_diff_f
-      )(model_f, model_g)
+      grads = nnx.grad(loss_fn, argnums=_diff_f)(model_f, model_g)
       opt_f.update(model_f, grads)
 
-      _, _, _, W2_dist = self._compute_losses(model_f, model_g, batch)
-      return loss, W2_dist
+      dual_loss, _, W2_dist = self._compute_losses(model_f, model_g, batch)
+      return dual_loss, W2_dist
 
     @nnx.jit
     def train_step_g(model_f, model_g, opt_g, batch):
 
       def loss_fn(model_f, model_g):
-        _, amor_loss, _, _ = self._compute_losses(model_f, model_g, batch)
+        _, amor_loss, _ = self._compute_losses(model_f, model_g, batch)
         return amor_loss
 
-      loss, grads = nnx.value_and_grad(
-          loss_fn, argnums=_diff_g
-      )(model_f, model_g)
+      grads = nnx.grad(loss_fn, argnums=_diff_g)(model_f, model_g)
       opt_g.update(model_g, grads)
 
-      _, _, _, W2_dist = self._compute_losses(model_f, model_g, batch)
-      return loss, W2_dist
+      _, amor_loss, W2_dist = self._compute_losses(model_f, model_g, batch)
+      return amor_loss, W2_dist
 
     @nnx.jit
     def valid_step(model_f, model_g, batch):
-      dual_loss, amor_loss, _, W2_dist = self._compute_losses(
+      dual_loss, amor_loss, W2_dist = self._compute_losses(
           model_f, model_g, batch
       )
       if to_optimize == "f":

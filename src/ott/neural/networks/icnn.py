@@ -131,10 +131,10 @@ class ICNN(nnx.Module):
 
     # Compute per-layer wz initializers for principled init
     if principled_init:
+      alpha = _get_act_alpha(act_fn)
       wz_kernel_inits = []
       wz_bias_inits = []
       for d_in in dims[1:-2]:
-        alpha = _get_act_alpha(act_fn)
         w_init, b_init = initializers.principled_icnn_init(
             d_in, alpha=alpha, rectifier_fn=rectifier_fn
         )
@@ -182,7 +182,7 @@ class ICNN(nnx.Module):
             bias_init=b_init,
             rngs=rngs,
         ) for d_in, d_out, k_init, b_init in
-        zip(dims[1:-1], dims[2:], wz_kernel_inits, wz_bias_inits)
+        zip(dims[1:-1], dims[2:], wz_kernel_inits, wz_bias_inits, strict=True)
     ])
 
     self.pos_def_potentials = (

@@ -125,12 +125,16 @@ def principled_icnn_init(
       fan_in, target_mean_sq=w_mean_sq, target_var=target_var
   )
 
-  def weights_init(rng, shape, dtype=None):
+  def weights_init(
+      rng: jax.Array, shape: Tuple[int, ...], dtype: jnp.dtype = None
+  ) -> jax.Array:
     w = nnx.initializers.normal(stddev=w_log_var ** 0.5)(rng, shape, dtype)
     w = jnp.exp(w_log_mean + w)
     return inv_fn(w)
 
-  def biases_init(rng, shape, dtype=None):
+  def biases_init(
+      rng: jax.Array, shape: Tuple[int, ...], dtype: jnp.dtype = None
+  ) -> jax.Array:
     return nnx.initializers.constant(b_mean)(rng, shape, dtype)
 
   return weights_init, biases_init
@@ -163,22 +167,13 @@ def _principled_init_fixed(
     mean_sq = 6 * math.pi / (fan_in * (a + b))
     var = (1.0 / (1 + (alpha ** 2))) * (1.0 / fan_in)
 
-    log_mom2 = jnp.log(mean_sq + var)
-    log_mean = jnp.log(mean_sq) - log_mom2 / 2.0
-    log_var = log_mom2 - jnp.log(mean_sq)
+    log_mom2 = math.log(mean_sq + var)
+    log_mean = math.log(mean_sq) - log_mom2 / 2.0
+    log_var = log_mom2 - math.log(mean_sq)
 
-    if jnp.isscalar(log_var):
-      return sample_weights(
-          rng, shape, dtype, log_mean=log_mean, log_var=log_var
-      )
-    rngs = jr.split(rng, d_out)
-    sample_fn = jax.vmap(
-        lambda r, m, v:
-        sample_weights(r, (d_in,), dtype, log_mean=m, log_var=v),
-        in_axes=[0, 0, 0],
-        out_axes=1,
+    return sample_weights(
+        rng, shape, dtype, log_mean=log_mean, log_var=log_var
     )
-    return sample_fn(rngs, log_mean, log_var)
 
   def biases_init(rng, shape, dtype=None):
     a, b = get_factors()

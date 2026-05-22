@@ -54,9 +54,7 @@ def _cg(
     p_new = r_new + beta * p
     return x_new, r_new, p_new, rtr_new, k + 1
 
-  x, _, _, _, _ = jax.lax.while_loop(
-      cond_fun, body_fun, (x0, r0, p0, rtr0, 0)
-  )
+  x, _, _, _, _ = jax.lax.while_loop(cond_fun, body_fun, (x0, r0, p0, rtr0, 0))
   return x
 
 
