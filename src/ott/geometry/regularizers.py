@@ -13,9 +13,7 @@
 # limitations under the License.
 import abc
 import functools
-from typing import Any, Callable, Optional, Tuple, Union
-
-import lineax as lx
+from typing import Any, Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -185,7 +183,7 @@ class Orthogonal(ProximalOperator):
   def __init__(
       self,
       f: ProximalOperator,
-      A: Optional[Union[jnp.ndarray, lx.AbstractLinearOperator]],
+      A: Optional[jnp.ndarray],
       b: Optional[jnp.ndarray] = None,
       nu: float = 1.0,
   ):
@@ -193,23 +191,23 @@ class Orthogonal(ProximalOperator):
     super().__init__()
     self.f = f
     # AA^T = alpha I
-    self.A = lx.MatrixLinearOperator(A) if isinstance(A, jnp.ndarray) else A
+    self.A = A
     self.b = b
     self.nu = nu
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
-    z = self.A.mv(x)
+    z = self.A @ x
     if self.b is not None:
       z = z + self.b
     return self.f(z)
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
-    w = self.A.mv(v)
+    w = self.A @ v
     if self.b is None:
       tmp = self.f.prox(w, tau * self.nu)
     else:
       tmp = self.f.prox(w + self.b, tau * self.nu) - self.b
-    return v - (1.0 / self.nu) * (self.A.T.mv(w - tmp))
+    return v - (1.0 / self.nu) * (self.A.T @ (w - tmp))
 
   @property
   def is_fully_orthogonal(self) -> bool:
@@ -239,22 +237,22 @@ class Quadratic(ProximalOperator):
       :math:`A`, defined as :math:`A^{\perp} := I - A^T (AA^T)^{-1} A`.
     is_orthogonal: Whether :math:`AA^T = I`.
     is_factor: Whether to factor the matrix :math:`Q` as mentioned above.
-    solver: Linear solver. If :obj:`None`, use :func:`lineax.linear_solve`.
+    solver: Linear solver. If :obj:`None`, use :func:`jnp.linalg.solve`.
   """
 
   def __init__(
       self,
-      A: Optional[Union[jnp.ndarray, lx.AbstractLinearOperator]] = None,
+      A: Optional[jnp.ndarray] = None,
       b: Optional[jnp.ndarray] = None,
       *,
       is_complement: bool = False,
       is_orthogonal: bool = False,
       is_factor: bool = False,
-      solver: Optional[Callable[[lx.AbstractLinearOperator, jnp.ndarray],
+      solver: Optional[Callable[[jnp.ndarray, jnp.ndarray],
                                 jnp.ndarray]] = None,
   ):
     super().__init__()
-    self.A = lx.MatrixLinearOperator(A) if isinstance(A, jnp.ndarray) else A
+    self.A = A
     self.b = b
     self._is_complement = is_complement
     self._is_orthogonal = is_orthogonal
@@ -263,7 +261,7 @@ class Quadratic(ProximalOperator):
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
     Q = self.Q
-    y = 0.5 * (jnp.dot(x, x) if Q is None else jnp.dot(x, Q.mv(x)))
+    y = 0.5 * (jnp.dot(x, x) if Q is None else jnp.dot(x, Q @ x))
     return y if self.b is None else (y + jnp.dot(x, self.b))
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
@@ -274,28 +272,29 @@ class Quadratic(ProximalOperator):
     if Q is None:
       return (1.0 / (1.0 + tau)) * b
 
-    iden = lx.IdentityLinearOperator(Q.out_structure())
+    n = Q.shape[0]
+    iden = jnp.eye(n)
     if self.is_factor:  # use matrix inversion lemma
       if self.is_complement:
         # eq. 14 in :cite:`klein:24`
         # A_comp = I - A^T(AA^T)^{-1}A
         # prox(v) = (I + tau A_comp^T A_comp)^{-1} (v - tau * b)
         op = iden + tau * (iden - self.A_comp)
-        return (1.0 / (1.0 + tau)) * op.mv(b)
+        return (1.0 / (1.0 + tau)) * (op @ b)
       if self.is_orthogonal:
         # https://en.wikipedia.org/wiki/Woodbury_matrix_identity
         op = iden - (tau / (1.0 + tau)) * (self.A.T @ self.A)
-        return op.mv(b)
+        return op @ b
 
     A = iden + tau * Q
 
     if self._solver is None:
       # use default solver
-      return lx.linear_solve(A, b).value
+      return jnp.linalg.solve(A, b)
     return self._solver(A, b)
 
   @property
-  def A_comp(self) -> Optional[lx.AbstractLinearOperator]:
+  def A_comp(self) -> Optional[jnp.ndarray]:
     r"""Orthogonal complement :math:`A^{\perp}` of :math:`A`."""
     return _complement(
         self.A, self.is_orthogonal
@@ -317,7 +316,7 @@ class Quadratic(ProximalOperator):
     return self.A is not None and self._is_orthogonal
 
   @property
-  def Q(self) -> Optional[lx.AbstractLinearOperator]:
+  def Q(self) -> Optional[jnp.ndarray]:
     r"""Linear operator :math:`Q`."""
     Q = self.A_comp if self.is_complement else self.A
     if Q is None:
@@ -356,7 +355,7 @@ class SqL2(ProximalOperator):
 
   def __init__(
       self,
-      A: Optional[Union[jnp.ndarray, lx.AbstractLinearOperator]] = None,
+      A: Optional[jnp.ndarray] = None,
       **kwargs: Any,
   ):
     super().__init__()
@@ -498,23 +497,19 @@ class SqKOverlap(ProximalOperator):
     return (), {"k": self.k}
 
 
-def _invert(A: lx.AbstractLinearOperator) -> lx.MatrixLinearOperator:
-  d = A.out_size()
-  b = jnp.zeros(d)
-
-  solve_fn = jax.vmap(lambda ix: lx.linear_solve(A, b.at[ix].set(1.0)).value)
-  inv = solve_fn(jnp.arange(d))
-  return lx.MatrixLinearOperator(inv)
+def _invert(A: jnp.ndarray) -> jnp.ndarray:
+  return jnp.linalg.inv(A)
 
 
 @functools.partial(jax.jit, static_argnums=1)
 def _complement(
-    A: lx.AbstractLinearOperator, is_orthogonal: bool
-) -> lx.AbstractLinearOperator:
-  iden = lx.IdentityLinearOperator(A.in_structure())
+    A: jnp.ndarray, is_orthogonal: bool
+) -> jnp.ndarray:
+  n = A.shape[1]
+  iden = jnp.eye(n)
   if is_orthogonal:
     # AA^T = I
     return iden - (A.T @ A)
 
-  A_inv = _invert(lx.TaggedLinearOperator(A @ A.T, tags={lx.symmetric_tag}))
+  A_inv = _invert(A @ A.T)
   return iden - A.T @ (A_inv @ A)

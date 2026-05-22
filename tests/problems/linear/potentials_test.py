@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import lineax as lx
-
 import pytest
 
 import jax
@@ -249,7 +247,6 @@ class TestDualPotentials:
       return u.dot(v_h)
 
     def create_cost(A: jnp.ndarray) -> costs.RegTICost:
-      A = lx.MatrixLinearOperator(A)
       orth = regularizers.Orthogonal(reg, A=A)
       return costs.RegTICost(orth, lam=1.0)
 
@@ -286,7 +283,7 @@ class TestDualPotentials:
     expected = (loss_p_delta - loss_m_delta) / (2.0 * eps)
 
     grad_matrix = jax.jit(jax.grad(loss))(cost_fn)
-    grad_matrix = grad_matrix.regularizer.f.A.as_matrix()
+    grad_matrix = grad_matrix.regularizer.f.A
     np.testing.assert_allclose(
         expected, jnp.vdot(delta, grad_matrix), rtol=1e-2, atol=1e-2
     )
