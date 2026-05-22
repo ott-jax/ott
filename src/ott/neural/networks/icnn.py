@@ -226,6 +226,23 @@ class ICNN(nnx.Module):
 
     return z.squeeze(0) if squeeze else z
 
+  def gradient(self, x: jax.Array) -> jax.Array:
+    """Gradient of the convex potential w.r.t. input.
+
+    For scalar output (``output_dim == 1``), returns the gradient.
+    For vector output, returns the Jacobian.
+
+    Args:
+      x: Input of shape ``[batch, input_dim]`` or ``[input_dim]``.
+
+    Returns:
+      Gradients of shape ``[batch, input_dim]`` (scalar output) or
+      ``[batch, output_dim, input_dim]`` (vector output).
+    """
+    if self._output_dim == 1:
+      return jax.vmap(jax.grad(self))(x)
+    return jax.vmap(jax.jacobian(self))(x)
+
   @property
   def is_potential(self) -> bool:
     """Whether this module represents a potential (True) or vector field."""
