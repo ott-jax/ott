@@ -1127,7 +1127,8 @@ def _iterations_implicit_bwd(res, gr: SinkhornOutput):
   out = solver.implicit_diff.gradient(
       ot_prob, f, g, solver.lse_mode, gr.potentials
   )
-  return *out, None, None
+  return out[0], jax.tree.map(jnp.zeros_like, solver
+                             ), jax.tree.map(jnp.zeros_like, gr.potentials)
 
 
 # sets threshold, norm_errors, geom, a and b to be differentiable, as those are

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ott-jax"
 description = "Optimal Transport Tools in JAX"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dynamic = ["version"]
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}
@@ -58,7 +58,7 @@ Changelog = "https://github.com/ott-jax/ott/releases"
 
 [project.optional-dependencies]
 neural = [
-    "flax>=0.6.6",
+    "flax>=0.11.0",
     "optax>=0.2.4",
     "diffrax>=0.4.1",
 ]
@@ -184,14 +184,14 @@ ignore_path = ["docs/**/_autosummary", "docs/contributing.rst"]
 legacy_tox_ini = """
 [tox]
 min_version = 4.0
-env_list = lint-code,py{3.9,3.10,3.11,3.12,3.13},py3.10-jax-default
+env_list = lint-code,py{3.11,3.12,3.13},py3.12-jax-default
 skip_missing_interpreters = true
 
 [testenv]
 extras =
     test
-    # https://github.com/google/flax/issues/3329
-    py{3.9,3.10,3.11,3.12,3.13},py3.10-jax-default: neural
+    # neural requires flax>=0.11.0 (NNX API, Python>=3.11)
+    py{3.11,3.12,3.13}: neural
 pass_env = CUDA_*,PYTEST_*,CI
 commands_pre =
     gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html

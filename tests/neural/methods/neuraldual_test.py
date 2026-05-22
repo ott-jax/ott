@@ -25,7 +25,7 @@ from ott.neural.methods import neuraldual
 from ott.neural.networks import icnn, potentials
 from ott.neural.networks.layers import conjugate
 
-ModelPair_t = Tuple[potentials.BasePotential, potentials.BasePotential]
+ModelPair_t = Tuple[nnx.Module, nnx.Module]
 DatasetPair_t = Tuple[datasets.Dataset, datasets.Dataset]
 
 
@@ -47,12 +47,16 @@ def neural_models(request: str) -> ModelPair_t:
         icnn.ICNN(input_dim=2, dim_hidden=[32], rngs=nnx.Rngs(1))
     )
   if request.param == "mlps":
-    return potentials.PotentialMLP(dim_hidden=[32]
-                                  ), potentials.PotentialMLP(dim_hidden=[32]),
+    return (
+        potentials.PotentialMLP(dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(0)),
+        potentials.PotentialMLP(dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(1)),
+    )
   if request.param == "mlps-grad":
     return (
-        potentials.PotentialMLP(dim_hidden=[32]),
-        potentials.PotentialMLP(is_potential=False, dim_hidden=[128])
+        potentials.PotentialMLP(dim_hidden=[32], input_dim=2, rngs=nnx.Rngs(0)),
+        potentials.PotentialMLP(
+            dim_hidden=[128], input_dim=2, is_potential=False, rngs=nnx.Rngs(1)
+        ),
     )
   raise ValueError(f"Invalid request: {request.param}")
 

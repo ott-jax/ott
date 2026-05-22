@@ -20,12 +20,22 @@ import jax.numpy as jnp
 
 from flax import nnx
 
-from ott.neural.networks.layers import posdef
+from ott.neural.networks.layers import initializers, posdef
 
 __all__ = ["ICNN", "KeyNet"]
 
 DEFAULT_KERNEL_INIT = nnx.initializers.lecun_normal()
 DEFAULT_BIAS_INIT = nnx.initializers.zeros_init()
+
+
+def _get_act_alpha(act_fn: Callable) -> float:
+  """Get the negative slope (alpha) of an activation for principled init."""
+  if act_fn is jax.nn.relu:
+    return 0.0
+  if act_fn is jax.nn.leaky_relu:
+    return 0.01
+  # For unknown activations, assume ReLU-like
+  return 0.0
 
 
 def _normalize_wx_inject(
@@ -105,6 +115,7 @@ class ICNN(nnx.Module):
       use_softmax: bool = False,
       use_sinkhorn: bool = False,
       pos_def_rank: int = 0,
+      principled_init: bool = False,
       kernel_init: nnx.initializers.Initializer = DEFAULT_KERNEL_INIT,
       wz_kernel_init: nnx.initializers.Initializer = DEFAULT_KERNEL_INIT,
       bias_init: nnx.initializers.Initializer = DEFAULT_BIAS_INIT,
@@ -117,6 +128,28 @@ class ICNN(nnx.Module):
     dims = [input_dim] + dim_hidden
     num_layers = len(dims) - 2
     inject_mask = _normalize_wx_inject(wx_inject, num_layers)
+
+    # Compute per-layer wz initializers for principled init
+    if principled_init:
+      alpha = _get_act_alpha(act_fn)
+      wz_kernel_inits = []
+      wz_bias_inits = []
+      for d_in in dims[1:-2]:
+        w_init, b_init = initializers.principled_icnn_init(
+            d_in, alpha=alpha, rectifier_fn=rectifier_fn
+        )
+        wz_kernel_inits.append(w_init)
+        wz_bias_inits.append(b_init)
+      # Last layer: identity activation (alpha=1)
+      if num_layers > 0:
+        w_init, b_init = initializers.principled_icnn_init(
+            dims[-2], alpha=1.0, rectifier_fn=rectifier_fn
+        )
+        wz_kernel_inits.append(w_init)
+        wz_bias_inits.append(b_init)
+    else:
+      wz_kernel_inits = [wz_kernel_init] * num_layers
+      wz_bias_inits = [bias_init] * num_layers
 
     self.wx0 = nnx.Linear(
         input_dim,
@@ -145,10 +178,11 @@ class ICNN(nnx.Module):
             use_softmax=use_softmax,
             use_sinkhorn=use_sinkhorn,
             use_bias=use_bias,
-            kernel_init=wz_kernel_init,
-            bias_init=bias_init,
+            kernel_init=k_init,
+            bias_init=b_init,
             rngs=rngs,
-        ) for d_in, d_out in zip(dims[1:-1], dims[2:])
+        ) for d_in, d_out, k_init, b_init in
+        zip(dims[1:-1], dims[2:], wz_kernel_inits, wz_bias_inits, strict=True)
     ])
 
     self.pos_def_potentials = (

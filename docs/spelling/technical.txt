@@ -28,6 +28,7 @@ Mahalanobis
 McCann
 Monge
 Moreau
+Pallas
 Postcomposition
 SGD
 Schrödinger
@@ -64,6 +65,7 @@ dataset
 datasets
 debiased
 debiasing
+diag
 differentiability
 dimensionality
 discretization
@@ -84,7 +86,6 @@ heterogeneous
 histone
 hyperparameter
 hyperparameters
-iPSCs
 iPSCs
 iff
 initializations
@@ -143,6 +144,7 @@ recurse
 regularizer
 regularizers
 reimplementation
+relu
 renormalize
 renormalized
 reparameterization
@@ -164,6 +166,7 @@ sharded
 sharding
 sigmoid
 simplicial
+softmax
 softplus
 stateful
 sublinear

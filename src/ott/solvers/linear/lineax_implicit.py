@@ -54,9 +54,7 @@ def _cg(
     p_new = r_new + beta * p
     return x_new, r_new, p_new, rtr_new, k + 1
 
-  x, _, _, _, _ = jax.lax.while_loop(
-      cond_fun, body_fun, (x0, r0, p0, rtr0, 0)
-  )
+  x, _, _, _, _ = jax.lax.while_loop(cond_fun, body_fun, (x0, r0, p0, rtr0, 0))
   return x
 
 
@@ -71,6 +69,10 @@ def solve_lineax(
     **kwargs: Any
 ) -> jnp.ndarray:
   """Solve a linear system using conjugate gradients.
+
+  This implementation uses a JAX-native CG solver that works correctly inside
+  JAX transformations (VJP backward pass), avoiding equinox closure conversion
+  issues that affect lineax on certain JAX versions.
 
   Args:
     lin: Linear operator

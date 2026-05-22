@@ -39,7 +39,7 @@ class TestMongeGap:
     rng1, rng2 = jax.random.split(rng, 2)
     reference_points = jax.random.normal(rng1, (n_samples, n_features))
 
-    model = potentials.PotentialMLP(dim_hidden=[8, 8], is_potential=False)
+    model = potentials.LinenPotentialMLP(dim_hidden=[8, 8], is_potential=False)
     params = model.init(rng2, x=reference_points[0])
     target = model.apply(params, reference_points)
 
@@ -155,7 +155,7 @@ class TestMongeGapEstimator:
       return gap, out.n_iters
 
     # define the model
-    model = potentials.PotentialMLP(dim_hidden=[16, 8], is_potential=False)
+    model = potentials.LinenPotentialMLP(dim_hidden=[16, 8], is_potential=False)
 
     # generate data
     train_dataset, valid_dataset, dim_data = (

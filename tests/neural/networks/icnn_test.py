@@ -102,6 +102,32 @@ class TestICNN:
     out = model(x)
     assert out.shape == (5,)
 
+  def test_icnn_principled_init(self, rng: jax.Array):
+    """Tests ICNN with principled initialization preserves convexity."""
+    n_samples, n_features = 10, 4
+    dim_hidden = (32, 32)
+
+    model = icnn.ICNN(
+        dim_hidden,
+        input_dim=n_features,
+        principled_init=True,
+        rngs=nnx.Rngs(0),
+    )
+
+    rng1, rng2 = jax.random.split(rng)
+    x = jax.random.normal(rng1, (n_samples, n_features)) * 0.1
+    y = jax.random.normal(rng2, (n_samples, n_features))
+
+    out_x = model(x)
+    out_y = model(y)
+
+    out = []
+    for t in jnp.linspace(0, 1):
+      out_xy = model(t * x + (1 - t) * y)
+      out.append((t * out_x + (1 - t) * out_y) - out_xy)
+
+    np.testing.assert_array_equal(np.array(out) >= -1e-5, True)
+
   @pytest.mark.parametrize("mode", ["softmax", "sinkhorn"])
   def test_icnn_stochastic_weights(self, rng: jax.Array, mode: str):
     """Tests ICNN with softmax/sinkhorn weight normalization."""
