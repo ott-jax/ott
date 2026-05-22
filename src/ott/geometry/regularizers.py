@@ -502,9 +502,7 @@ def _invert(A: jnp.ndarray) -> jnp.ndarray:
 
 
 @functools.partial(jax.jit, static_argnums=1)
-def _complement(
-    A: jnp.ndarray, is_orthogonal: bool
-) -> jnp.ndarray:
+def _complement(A: jnp.ndarray, is_orthogonal: bool) -> jnp.ndarray:
   n = A.shape[1]
   iden = jnp.eye(n)
   if is_orthogonal:
