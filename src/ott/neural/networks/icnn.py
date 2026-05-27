@@ -280,6 +280,7 @@ class KeyNet(nnx.Module):
     output_dim: Output vector dimension. Defaults to ``input_dim``.
       Typically, equals the input dimension for gradient-of-potential
       interpretation.
+    num_outputs: Number of output vectors.
     resnet: If True, output ``x + F(x)`` instead of ``F(x)``.
     act_fn: Activation function.
     wx_inject: Controls input re-injection pattern.
@@ -297,6 +298,7 @@ class KeyNet(nnx.Module):
       *,
       input_dim: int,
       output_dim: Optional[int] = None,
+      num_outputs: Optional[int] = None,
       resnet: bool = False,
       act_fn: Callable[[jax.Array], jax.Array] = jax.nn.relu,
       wx_inject: Union[bool, Tuple[bool, ...], int] = True,
@@ -308,8 +310,11 @@ class KeyNet(nnx.Module):
   ):
     self._resnet = resnet
     self._act_fn_call = act_fn
+    self._num_outputs = num_outputs
 
     output_dim = output_dim if output_dim is not None else input_dim
+    if self._num_outputs is not None:
+      output_dim = output_dim * self._num_outputs
     dims = [input_dim] + list(dim_hidden) + [output_dim]
     num_layers = len(dims) - 2
     inject_mask = _normalize_wx_inject(wx_inject, num_layers)
@@ -364,26 +369,30 @@ class KeyNet(nnx.Module):
     """Compute scalar potential f(x) = <grad(x), x>.
 
     Args:
-      x: Input of shape ``[..., input_dim]``.
+      x: Input of shape ``[batch_size, input_dim]``.
 
     Returns:
-      Scalar output of shape ``[...]``.
+      Scalar output of shape ``[batch_size,]`` or ``[batch_size, num_outputs]``.
     """
     g = self.gradient(x)
-    return jnp.sum(g * x, axis=-1)
+    if self._num_outputs is None:
+      return jnp.sum(g * x, axis=-1)
+    return jnp.sum(g * x[:, None], axis=-1)
 
   def gradient(self, x: jax.Array) -> jax.Array:
     """Compute the vector output (predicted gradient / key).
 
     Args:
-      x: Input of shape ``[..., input_dim]``.
+      x: Input of shape ``[batch_size, input_dim]``.
 
     Returns:
-      Output of shape ``[..., output_dim]``.
+      Output of shape ``[batch_size, output_dim]`` or
+      ``[batch_size, num_outputs, output_dim]``.
     """
     squeeze = x.ndim == 1
     if squeeze:
       x = x[None]
+    batch_size = x.shape[0]
 
     z = self._act_fn_call(self.wx0(x))
 
@@ -395,6 +404,8 @@ class KeyNet(nnx.Module):
 
     if self._resnet:
       z = x + z
+    if self._num_outputs is not None:
+      z = z.reshape(batch_size, self._num_outputs, -1)
 
     return z.squeeze(0) if squeeze else z
 
