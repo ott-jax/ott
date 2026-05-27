@@ -70,14 +70,14 @@ class ICNN(nnx.Module):
   options, and optional positive-definite quadratic potentials
   :cite:`vesseron:24`.
 
-  The network computes a convex function f: R^d -> R^k where convexity
-  holds component-wise when k > 1.
+  The network computes a convex function :math:`f: R^d -> R^k` where convexity
+  holds component-wise when :math:`k > 1`.
 
   Architecture::
 
     z_0 = act(W_x0 @ x)
-    z_i = act(W_z_i @ z_{i-1} + W_x_i @ x)   [wx_inject controls W_x_i]
-    out = z_N + pos_def_potentials(x)          [optional]
+    z_i = act(W_z_i @ z_{i-1} + W_x_i @ x)   # wx_inject controls W_x_i
+    out = z_N + pos_def_potentials(x)        # optional
 
   Convexity is enforced by requiring W_z_i >= 0 (via rectifier) and
   using convex activation functions.
@@ -85,19 +85,30 @@ class ICNN(nnx.Module):
   Args:
     dim_hidden: Sequence of hidden layer sizes. The output dimension
       defaults to 1 (scalar potential); set ``output_dim`` for vector output.
+    input_dim: Dimension of the input ``x``.
     output_dim: Output dimension. Defaults to 1 (scalar convex function).
       When > 1, each output component is convex in the input.
     rectifier_fn: Function applied to W_z kernels to enforce
-      non-negativity. The default is :func:`jax.nn.softplus`.
+      non-negativity. The default is :func:`~jax.nn.softplus`.
     act_fn: Activation function (must be convex for the network to be
-      convex). The default is :func:`jax.nn.relu`.
+      convex). The default is :func:`~jax.nn.relu`.
     wx_inject: Controls input re-injection at intermediate layers.
-      See :func:`_normalize_wx_inject`.
     use_bias: Whether to use bias terms.
+    use_softmax: If True, the ``W_z`` :class:`PositiveDense
+      <ott.neural.networks.layers.posdef.PositiveDense>` layers use
+      column-wise softmax normalization instead of ``rectifier_fn``.
+    use_sinkhorn: If True, the ``W_z`` :class:`PositiveDense
+      <ott.neural.networks.layers.posdef.PositiveDense>` layers use
+      Sinkhorn normalization instead of ``rectifier_fn``.
     pos_def_rank: Rank of optional PosDefPotentials term. Set to 0
       to disable (default).
+    principled_init: If True, override ``wz_kernel_init`` and the W_z
+      bias initializer with the principled ICNN initialization of
+      :cite:`richter-powell:21`, which controls correlation and variance
+      propagation through layers with positive weights.
     kernel_init: Initializer for W_x (unrestricted) weights.
-    wz_kernel_init: Initializer for W_z (positive) weights.
+    wz_kernel_init: Initializer for W_z (positive) weights. Ignored when
+      ``principled_init=True``.
     bias_init: Initializer for biases.
     rngs: Random number generators.
   """
@@ -264,8 +275,10 @@ class KeyNet(nnx.Module):
 
   Args:
     dim_hidden: Sequence of hidden layer sizes.
-    output_dim: Output vector dimension. Typically, equals the input
-      dimension for gradient-of-potential interpretation.
+    input_dim: Dimension of the input ``x``.
+    output_dim: Output vector dimension. Defaults to ``input_dim``.
+      Typically, equals the input dimension for gradient-of-potential
+      interpretation.
     resnet: If True, output ``x + F(x)`` instead of ``F(x)``.
     act_fn: Activation function.
     wx_inject: Controls input re-injection pattern.
