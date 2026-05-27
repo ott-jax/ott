@@ -193,7 +193,7 @@ class TestKeyNet:
 
   def test_keynet_custom_output_dim(self, rng: jax.Array):
     """Tests KeyNet with explicit output_dim != input_dim."""
-    n_features = 4
+    batch_size, n_features = 5, 4
     output_dim = 8
     dim_hidden = (32, 32)
 
@@ -203,21 +203,7 @@ class TestKeyNet:
         output_dim=output_dim,
         rngs=nnx.Rngs(0)
     )
-    x = jax.random.normal(rng, (5, n_features))
+    x = jax.random.normal(rng, (batch_size, n_features))
 
     grad_out = model.gradient(x)
-    assert grad_out.shape == (5, output_dim)
-
-  def test_keynet_unbatched(self, rng: jax.Array):
-    """Tests KeyNet with single (unbatched) input."""
-    n_features = 4
-    dim_hidden = (32, 32)
-
-    model = icnn.KeyNet(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
-    x = jax.random.normal(rng, (n_features,))
-
-    grad_out = model.gradient(x)
-    assert grad_out.shape == (n_features,)
-
-    scalar_out = model(x)
-    assert scalar_out.shape == ()
+    assert grad_out.shape == (batch_size, output_dim)

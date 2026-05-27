@@ -396,11 +396,7 @@ class KeyNet(nnx.Module):
       Output of shape ``[batch_size, output_dim]`` or
       ``[batch_size, num_outputs, output_dim]``.
     """
-    squeeze = x.ndim == 1
-    if squeeze:
-      x = x[None]
-    batch_size = x.shape[0]
-
+    batch_size, _ = x.shape
     z = self._act_fn_call(self.wx0(x))
 
     for wx, wz in zip(self.wx_layers, self.wz_layers, strict=True):
@@ -413,8 +409,7 @@ class KeyNet(nnx.Module):
       z = x + z
     if self._num_outputs is not None:
       z = z.reshape(batch_size, self._num_outputs, -1)
-
-    return z.squeeze(0) if squeeze else z
+    return z
 
   @property
   def is_potential(self) -> bool:
