@@ -178,7 +178,8 @@ class ICNN(nnx.Module):
             use_bias=False,
             kernel_init=kernel_init,
             rngs=rngs,
-        ) if inject else None for d_out, inject in zip(dims[2:], inject_mask)
+        ) if inject else None
+        for d_out, inject in zip(dims[2:], inject_mask, strict=True)
     ])
 
     self.wz_layers = nnx.List([
@@ -223,7 +224,7 @@ class ICNN(nnx.Module):
 
     z = self._act_fn_call(self.wx0(x))
 
-    for wx, wz in zip(self.wx_layers, self.wz_layers):
+    for wx, wz in zip(self.wx_layers, self.wz_layers, strict=True):
       if wx is not None:
         z = self._act_fn_call(wz(z) + wx(x))
       else:
@@ -342,7 +343,8 @@ class KeyNet(nnx.Module):
             (i == num_layers - 1) else kernel_init,
             rngs=rngs
         ) if inject else None
-        for i, (d_out, inject) in enumerate(zip(dims[2:], inject_mask))
+        for i, (d_out,
+                inject) in enumerate(zip(dims[2:], inject_mask, strict=True))
     ])
 
     self.wz_layers = nnx.List([
@@ -354,7 +356,8 @@ class KeyNet(nnx.Module):
             (i == len(dims) - 3) else kernel_init,
             bias_init=bias_init,
             rngs=rngs,
-        ) for i, (d_in, d_out) in enumerate(zip(dims[1:-1], dims[2:]))
+        ) for i, (d_in,
+                  d_out) in enumerate(zip(dims[1:-1], dims[2:], strict=True))
     ])
 
   def __call__(self, x: jax.Array) -> jax.Array:
@@ -384,7 +387,7 @@ class KeyNet(nnx.Module):
 
     z = self._act_fn_call(self.wx0(x))
 
-    for wx, wz in zip(self.wx_layers, self.wz_layers):
+    for wx, wz in zip(self.wx_layers, self.wz_layers, strict=True):
       if wx is not None:
         z = self._act_fn_call(wz(z) + wx(x))
       else:
