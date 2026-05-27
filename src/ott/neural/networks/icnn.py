@@ -252,9 +252,14 @@ class ICNN(nnx.Module):
       Gradients of shape ``[batch, input_dim]`` (scalar output) or
       ``[batch, output_dim, input_dim]`` (vector output).
     """
+
+    def forward(x: jax.Array) -> jax.Array:
+      return nnx.merge(graphdef, state)(x)
+
+    graphdef, state = nnx.split(self)
     if self._output_dim == 1:
-      return jax.vmap(jax.grad(self))(x)
-    return jax.vmap(jax.jacobian(self))(x)
+      return jax.vmap(jax.grad(forward))(x)
+    return jax.vmap(jax.jacobian(forward))(x)
 
   @property
   def is_potential(self) -> bool:
