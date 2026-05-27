@@ -9,6 +9,7 @@ Networks
     :toctree: _autosummary
 
     icnn.ICNN
+    icnn.KeyNet
     potentials.BasePotential
     potentials.PotentialMLP
     potentials.MLP
