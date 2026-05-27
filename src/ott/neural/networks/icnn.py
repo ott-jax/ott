@@ -104,7 +104,7 @@ class ICNN(nnx.Module):
       to disable (default).
     principled_init: If True, override ``wz_kernel_init`` and the W_z
       bias initializer with the principled ICNN initialization of
-      :cite:`richter-powell:21`, which controls correlation and variance
+      :cite:`hoedt:2023`, which controls correlation and variance
       propagation through layers with positive weights.
     kernel_init: Initializer for W_x (unrestricted) weights.
     wz_kernel_init: Initializer for W_z (positive) weights. Ignored when

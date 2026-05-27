@@ -13,7 +13,7 @@
 # limitations under the License.
 """Principled initialization for input convex neural networks.
 
-Implements the initialization scheme from :cite:`richter-powell:21`
+Implements the initialization scheme from :cite:`hoedt:2023`
 for ICNNs with non-negative weights, ensuring controlled correlation
 and variance propagation through layers.
 """
@@ -96,7 +96,7 @@ def principled_icnn_init(
 ) -> Tuple[Initializer, Initializer]:
   """Compute principled weight and bias initializers for ICNN layers.
 
-  Implements the initialization from :cite:`richter-powell:21` that
+  Implements the initialization from :cite:`hoedt:2023` that
   ensures controlled correlation (``target_rho``) and variance
   (``target_var``) propagation through ICNN layers with positive
   weights.
