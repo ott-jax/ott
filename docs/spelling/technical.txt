@@ -22,6 +22,7 @@ Higham
 Jacobian
 Jacobians
 Kantorovich
+KeyNet
 Kullback
 Leibler
 Mahalanobis
@@ -40,6 +41,7 @@ UNet
 Unbalancedness
 Wasserstein
 adaptively
+autodiff
 backend
 backpropagates
 backpropagation
