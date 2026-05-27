@@ -158,6 +158,26 @@ class TestICNN:
 
     np.testing.assert_array_equal(np.array(out) >= -1e-5, True)
 
+  def test_icnn_gradient_shape(self, rng: jax.Array):
+    """Tests ICNN.gradient returns the right shape for scalar/vector output."""
+    n_samples, n_features = 7, 4
+    dim_hidden = (32, 32)
+
+    scalar_model = icnn.ICNN(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
+    x = jax.random.normal(rng, (n_samples, n_features))
+    grad = scalar_model.gradient(x)
+    assert grad.shape == (n_samples, n_features)
+
+    output_dim = 3
+    vector_model = icnn.ICNN(
+        dim_hidden,
+        input_dim=n_features,
+        output_dim=output_dim,
+        rngs=nnx.Rngs(0),
+    )
+    jac = vector_model.gradient(x)
+    assert jac.shape == (n_samples, output_dim, n_features)
+
 
 @pytest.mark.fast()
 class TestKeyNet:
@@ -192,7 +212,6 @@ class TestKeyNet:
     assert grad_out.shape == (5, n_features)
 
   def test_keynet_custom_output_dim(self, rng: jax.Array):
-    """Tests KeyNet with explicit output_dim != input_dim."""
     batch_size, n_features = 5, 4
     output_dim = 8
     dim_hidden = (32, 32)
@@ -207,3 +226,24 @@ class TestKeyNet:
 
     grad_out = model.gradient(x)
     assert grad_out.shape == (batch_size, output_dim)
+
+  @pytest.mark.parametrize("num_outputs", [1, 5])
+  def test_keynet_num_outputs(self, rng: jax.Array, num_outputs: int):
+    batch_size, n_features = 6, 1
+    output_dim = 5
+    dim_hidden = (32, 32)
+
+    model = icnn.KeyNet(
+        dim_hidden,
+        input_dim=n_features,
+        output_dim=output_dim,
+        num_outputs=num_outputs,
+        rngs=nnx.Rngs(0),
+    )
+    x = jax.random.normal(rng, (batch_size, n_features))
+
+    grad_out = model.gradient(x)
+    assert grad_out.shape == (batch_size, num_outputs, output_dim)
+
+    scalar_out = model(x)
+    assert scalar_out.shape == (batch_size, num_outputs)
