@@ -132,6 +132,7 @@ class ICNN(nnx.Module):
       bias_init: nnx.initializers.Initializer = DEFAULT_BIAS_INIT,
       rngs: nnx.Rngs,
   ):
+    super().__init__()
     self._output_dim = output_dim
     self._act_fn_call = act_fn
 
@@ -308,6 +309,7 @@ class KeyNet(nnx.Module):
       final_layer_scale: Optional[float] = None,
       rngs: nnx.Rngs,
   ):
+    super().__init__()
     self._resnet = resnet
     self._act_fn_call = act_fn
     self._num_outputs = num_outputs
