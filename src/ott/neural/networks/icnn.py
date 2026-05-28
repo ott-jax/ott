@@ -246,7 +246,7 @@ class ICNN(nnx.Module):
     For vector output, returns the Jacobian.
 
     Args:
-      x: Input of shape ``[batch, input_dim]`` or ``[input_dim]``.
+      x: Input of shape ``[batch, input_dim]``.
 
     Returns:
       Gradients of shape ``[batch, input_dim]`` (scalar output) or
