@@ -35,7 +35,7 @@ except ImportError:
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax._src.interpreters import batching
+import jax._src.interpreters.batching as batching
 
 try:
   from tqdm import tqdm
