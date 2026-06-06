@@ -33,9 +33,9 @@ except ImportError:
   from typing_extensions import ParamSpec
 
 import jax
+import jax._src.interpreters.batching as batching
 import jax.numpy as jnp
 import numpy as np
-import jax._src.interpreters.batching as batching
 
 try:
   from tqdm import tqdm
