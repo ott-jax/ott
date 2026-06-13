@@ -207,7 +207,7 @@ class TestConditionalMongeGap:
     rng1, rng2 = jax.random.split(rng)
 
     source = jax.random.normal(rng1, (n, n_features))
-    model = potentials.PotentialMLP(dim_hidden=[8, 8], is_potential=False)
+    model = potentials.LinenPotentialMLP(dim_hidden=[8, 8], is_potential=False)
     params = model.init(rng2, x=source[0])
     target = model.apply(params, source)
     condition = jnp.repeat(jnp.arange(k), per_cond)

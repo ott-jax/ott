@@ -226,8 +226,8 @@ class ICNN(nnx.Module):
     z = self._act_fn_call(self.wx0(x))
 
     num_layers = len(self.wz_layers)
-    for i, (wx, wz) in enumerate(zip(self.wx_layers, self.wz_layers,
-                                     strict=True)):
+    for i, (wx,
+            wz) in enumerate(zip(self.wx_layers, self.wz_layers, strict=True)):
       z = wz(z) + wx(x) if wx is not None else wz(z)
       # The final layer is linear: no activation, so the (convex) potential
       # is an unconstrained combination of the last hidden features.
@@ -403,8 +403,8 @@ class KeyNet(nnx.Module):
     z = self._act_fn_call(self.wx0(x))
 
     num_layers = len(self.wz_layers)
-    for i, (wx, wz) in enumerate(zip(self.wx_layers, self.wz_layers,
-                                     strict=True)):
+    for i, (wx,
+            wz) in enumerate(zip(self.wx_layers, self.wz_layers, strict=True)):
       z = wz(z) + wx(x) if wx is not None else wz(z)
       # The final layer is linear: no activation, so the vector output can
       # take arbitrary values (e.g. signed gradients).
