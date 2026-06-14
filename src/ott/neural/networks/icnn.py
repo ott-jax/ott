@@ -63,14 +63,15 @@ def _normalize_wx_inject(
 
 
 class ICNN(nnx.Module):
-  """Input convex neural network (ICNN).
+  r"""Input convex neural network (ICNN).
 
   Implementation of input convex neural networks as introduced in
   :cite:`amos:17` with flexible input re-injection, multiple rectifier
   options, and optional positive-definite quadratic potentials
   :cite:`vesseron:24`.
 
-  The network computes a convex function :math:`f: R^d -> R^k` where convexity
+  The network computes a convex function
+  :math:`f \colon \mathbb{R}^d \to \mathbb{R}^k` where convexity
   holds component-wise when :math:`k > 1`.
 
   Architecture::
@@ -276,17 +277,28 @@ class ICNN(nnx.Module):
 
 
 class KeyNet(nnx.Module):
-  """Vector-output network with ICNN-like architecture.
+  r"""Vector-output network with ICNN-like architecture.
 
-  Unlike :class:`ICNN` which outputs a scalar convex function and requires
-  autodiff to compute gradients, KeyNet directly outputs vectors. The
-  architecture mirrors ICNN but without non-negativity constraints on the
-  layer-to-layer weights.
+  Introduced in :cite:`olausson:26` to amortize maximum inner product search
+  with learned support functions. Unlike :class:`ICNN`, which outputs a scalar
+  convex function and requires autodiff to compute gradients, KeyNet directly
+  outputs vectors. The architecture mirrors :class:`ICNN` but drops the
+  non-negativity constraint on the layer-to-layer weights :math:`W_z`.
 
-  The scalar potential is recovered as f(x) = <KeyNet(x), x>.
+  Architecture::
 
-  When ``resnet=True``, output is ``x + F(x)`` (residual mode), making
-  the model learn a correction to the input query.
+    z_0 = act(W_x0 @ x + b_0)
+    z_i = act(W_z_i @ z_{i-1} + W_x_i @ x + b_i)  # wx_inject controls W_x_i
+    z_N = W_z_N @ z_{N-1} + W_x_N @ x + b_N  # final layer is linear (no act)
+    out = x + z_N if resnet else z_N
+
+  Biases :math:`b_i` (on ``W_x0`` and the ``W_z`` layers) are included only
+  when ``use_bias=True``; the ``W_x`` input-injection terms are always
+  bias-free. The final layer applies no activation, so the output vector is
+  unconstrained (e.g. signed gradients). When ``resnet=True`` the output is
+  :math:`x + F(x)`, i.e. the model learns a correction to the input query.
+  The scalar potential is recovered as
+  :math:`f(x) = \langle \mathrm{KeyNet}(x), x \rangle`.
 
   Args:
     dim_hidden: Sequence of hidden layer sizes.
@@ -295,7 +307,7 @@ class KeyNet(nnx.Module):
       Typically, equals the input dimension for gradient-of-potential
       interpretation.
     num_outputs: Number of output vectors.
-    resnet: If True, output ``x + F(x)`` instead of ``F(x)``.
+    resnet: If True, output :math:`x + F(x)` instead of :math:`F(x)`.
     act_fn: Activation function.
     wx_inject: Controls input re-injection pattern.
     use_bias: Whether to use bias terms.
@@ -381,7 +393,9 @@ class KeyNet(nnx.Module):
     ])
 
   def __call__(self, x: jax.Array) -> jax.Array:
-    """Compute scalar potential f(x) = <grad(x), x>.
+    r"""Compute the scalar potential :math:`f(x) = \langle g(x), x \rangle`.
+
+    Here :math:`g(x)` is the vector returned by :meth:`gradient`.
 
     Args:
       x: Input of shape ``[batch_size, input_dim]``.
@@ -424,5 +438,5 @@ class KeyNet(nnx.Module):
 
   @property
   def is_potential(self) -> bool:
-    """KeyNet models a potential via f(x) = <gradient(x), x>."""
+    r"""KeyNet models a potential via :math:`f(x) = \langle g(x), x \rangle`."""
     return True
