@@ -77,10 +77,13 @@ class ICNN(nnx.Module):
 
     z_0 = act(W_x0 @ x)
     z_i = act(W_z_i @ z_{i-1} + W_x_i @ x)   # wx_inject controls W_x_i
+    z_N = W_z_N @ z_{N-1} + W_x_N @ x         # final layer is linear (no act)
     out = z_N + pos_def_potentials(x)        # optional
 
   Convexity is enforced by requiring W_z_i >= 0 (via rectifier) and
-  using convex activation functions.
+  using convex activation functions. The final layer applies no activation;
+  convexity is preserved since a non-negatively weighted sum (plus bias) of
+  convex features is convex.
 
   Args:
     dim_hidden: Sequence of hidden layer sizes. The output dimension
