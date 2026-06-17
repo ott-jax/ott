@@ -64,7 +64,6 @@ intersphinx_mapping = {
     "numpy": ("https://numpy.org/doc/stable/", None),
     "jax": ("https://jax.readthedocs.io/en/latest/", None),
     "jaxopt": ("https://jaxopt.github.io/stable", None),
-    "lineax": ("https://docs.kidger.site/lineax/", None),
     "flax": ("https://flax.readthedocs.io/en/latest/", None),
     "optax": ("https://optax.readthedocs.io/en/latest/", None),
     "diffrax": ("https://docs.kidger.site/diffrax/", None),

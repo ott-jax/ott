@@ -13,8 +13,6 @@
 # limitations under the License.
 from typing import Optional
 
-import lineax as lx
-
 import pytest
 
 import jax
@@ -125,7 +123,7 @@ class TestQuadratic:
       assert reg.is_complement == is_complement
       assert reg.is_factor == is_factor
       if reg.is_complement:
-        assert isinstance(reg.A_comp, lx.AbstractLinearOperator)
+        assert isinstance(reg.A_comp, jnp.ndarray)
       else:
         assert reg.A_comp is None
 
@@ -144,7 +142,7 @@ class TestQuadratic:
         is_factor=is_factor,
     )
     grad_reg = jax.jit(jax.grad(loss))(reg, x)
-    grad_A = grad_reg.A.as_matrix()
+    grad_A = grad_reg.A
 
     test_properties(reg)
     test_properties(grad_reg)
@@ -200,9 +198,9 @@ class TestQuadratic:
         is_orthogonal=is_orthogonal,
     )
 
-    iden = lx.IdentityLinearOperator(reg_orth.Q.out_structure())
+    iden = jnp.eye(reg_orth.Q.shape[0])
     A, y = iden + tau * reg_orth.Q, x - tau * b
-    expected = lx.linear_solve(A, y).value
+    expected = jnp.linalg.solve(A, y)
     actual = reg_orth.prox(x, tau)
 
     np.testing.assert_allclose(expected, actual, rtol=1e-3, atol=1e-3)
@@ -238,16 +236,16 @@ class TestQuadratic:
     l2 = regularizers.PostComposition(l2, alpha=lam)
     reg = l2.f.f
 
-    A_ = (reg.A_comp if is_complement else reg.A).as_matrix()
+    A_ = (reg.A_comp if is_complement else reg.A)
     expected_norm1 = 0.5 * lam * jnp.dot(A_ @ x, A_ @ x)
-    expected_norm2 = 0.5 * lam * jnp.dot(x, reg.Q.as_matrix() @ x)
+    expected_norm2 = 0.5 * lam * jnp.dot(x, reg.Q @ x)
 
-    assert reg.A.as_matrix().shape == (k, d)
-    assert reg.Q.as_matrix().shape == (d, d)
+    assert reg.A.shape == (k, d)
+    assert reg.Q.shape == (d, d)
     assert reg.is_factor
     assert reg.is_complement == is_complement
     if is_complement:
-      assert reg.A_comp.as_matrix().shape == (d, d)
+      assert reg.A_comp.shape == (d, d)
 
     np.testing.assert_allclose(expected_norm1, l2(x), rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(expected_norm2, l2(x), rtol=1e-5, atol=1e-5)
@@ -299,9 +297,9 @@ class TestQuadratic:
         is_factor=True,
         is_complement=is_complement,
     )
-    iden = lx.IdentityLinearOperator(reg.Q.out_structure())
+    iden = jnp.eye(reg.Q.shape[0])
 
-    expected = lx.linear_solve(iden + tau * reg.Q, x - tau * b).value
+    expected = jnp.linalg.solve(iden + tau * reg.Q, x - tau * b)
     actual = reg.prox(x, tau)
 
     np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-5)
