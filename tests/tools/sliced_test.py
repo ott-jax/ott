@@ -33,7 +33,6 @@ def custom_proj(
     rng: jax.Array, x: jnp.ndarray, *, n_proj: int = 27
 ) -> jnp.ndarray:
   dim = x.shape[1]
-  rng = jr.key(42) if rng is None else rng
   proj_m = jr.uniform(rng, (n_proj, dim))
   return (x @ proj_m.T) ** 2
 
@@ -104,9 +103,10 @@ class TestSliced:
     # Test differentiability. We assume uniform samples because makes diff
     # more accurate (avoiding ties, making computations a lot more sensitive).
     dx = jr.uniform(rng_dx, (n, dim)) - 0.5
-    cost_p, _ = sliced.sliced_wasserstein(x + eps * dx, y)
-    cost_m, _ = sliced.sliced_wasserstein(x - eps * dx, y)
-    g, _ = jax.jit(jax.grad(sliced.sliced_wasserstein, has_aux=True))(x, y)
+    sw = functools.partial(sliced.sliced_wasserstein, proj_fn=proj_fn)
+    cost_p, _ = sw(x + eps * dx, y)
+    cost_m, _ = sw(x - eps * dx, y)
+    g, _ = jax.jit(jax.grad(sw, has_aux=True))(x, y)
 
     np.testing.assert_allclose(
         jnp.sum(g * dx), (cost_p - cost_m) / (2 * eps), atol=1e-3, rtol=1e-3
