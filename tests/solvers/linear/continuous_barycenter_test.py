@@ -69,7 +69,7 @@ class TestBarycenter:
     # Set weights for each segment that sum to 1.
     b = []
     for i in range(num_per_segment.shape[0]):
-      c = jr.uniform(rngs[i], (num_per_segment[i],))
+      c = jr.uniform(rngs[2 + i], (num_per_segment[i],))
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
     # Set a barycenter problem with 8 measures, of irregular sizes.

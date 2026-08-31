@@ -43,10 +43,10 @@ class FusedClouds(_utils.QuadClouds):
 
 
 @pytest.fixture(scope="module")
-def clouds(rng: jax.Array) -> FusedClouds:
+def clouds() -> FusedClouds:
   """Clouds drawn exactly as this module always has."""
   n, m, d_x, d_y, d_xy = 5, 6, 2, 3, 4
-  rngs = jr.split(rng, 7)
+  rngs = jr.split(_utils.root_key(), 9)
   return FusedClouds(
       x=jr.uniform(rngs[0], (n, d_x)),
       y=jr.uniform(rngs[1], (m, d_y)),
@@ -54,8 +54,8 @@ def clouds(rng: jax.Array) -> FusedClouds:
       b=_utils.random_probs(rngs[3], m),
       cx=jr.uniform(rngs[4], (n, n)),
       cy=jr.uniform(rngs[5], (m, m)),
-      x_2=jr.uniform(rngs[0], (n, d_xy)),
-      y_2=jr.uniform(rngs[1], (m, d_xy)),
+      x_2=jr.uniform(rngs[7], (n, d_xy)),
+      y_2=jr.uniform(rngs[8], (m, d_xy)),
       cxy=jr.uniform(rngs[6], (n, m)),
   )
 

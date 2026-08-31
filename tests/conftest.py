@@ -18,7 +18,6 @@ from typing import Any, Iterator, Mapping, Optional, Sequence
 import pytest
 
 import jax
-import jax.random as jr
 
 import matplotlib as mpl
 
@@ -34,9 +33,18 @@ def pytest_addoption(parser: pytest.Parser) -> None:
       "Most of the suite's runtime is compilation, so this makes repeated "
       "runs several times faster.",
   )
+  parser.addoption(
+      "--strict-rng",
+      action="store_true",
+      help="Fail if a PRNG key is consumed twice. Reusing a key silently "
+      "correlates draws that are meant to be independent.",
+  )
 
 
 def pytest_configure(config: pytest.Config) -> None:
+  if config.getoption("--strict-rng"):
+    jax.config.update("jax_debug_key_reuse", True)
+
   cache_dir = config.getoption("--jax-compilation-cache")
   if cache_dir is None:
     return
@@ -45,6 +53,9 @@ def pytest_configure(config: pytest.Config) -> None:
   # 1s default threshold below which JAX declines to persist an entry
   jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.0)
   jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)
+  # NOTE: deliberately not setting `jax_compilation_cache_max_size`; enforcing
+  # it costs ~1.8x on a warm cache. Growth is bounded by keying the CI cache
+  # on the jaxlib version instead, since entries never outlive an upgrade.
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -95,14 +106,16 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
       metafunc.parametrize(argnames, combinations, ids=ids)
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture()
 def rng() -> jax.Array:
-  """Root random key, from which every test derives its own.
+  """A root random key, fresh for every test.
 
-  Session-scoped: keys are immutable values, so sharing one is safe and lets
-  the data fixtures below be shared too.
+  Deliberately not shared across tests: ``--strict-rng`` rejects consuming
+  one key twice, and a shared key would trip on the second test to use it.
+  Fixtures that outlive a single test seed themselves via
+  :func:`tests._utils.root_key` instead of depending on this.
   """
-  return jr.key(0)
+  return _utils.root_key()
 
 
 @pytest.fixture()
@@ -113,10 +126,10 @@ def enable_x64() -> Iterator[None]:
 
 
 @pytest.fixture(scope="session")
-def clouds(rng: jax.Array) -> _utils.PointClouds:
+def clouds() -> _utils.PointClouds:
   """Two weighted point clouds with strictly positive marginals.
 
   Modules needing different data - marginals with exact zeros, other sizes -
   override this fixture at module or class level.
   """
-  return _utils.random_clouds(rng)
+  return _utils.random_clouds(_utils.root_key())

@@ -212,8 +212,9 @@ class TestSemidiscreteSolver:
         optimizer=optax.adam(5e-2, b1=0.5, b2=0.9),
     )
 
+    # same solver randomness either side, so only the warm start differs
     out = jax.jit(solver)(rng_solver, prob)
-    out_init = jax.jit(solver)(rng_solver, prob, out.g)
+    out_init = jax.jit(solver)(jr.clone(rng_solver), prob, out.g)
 
     np.testing.assert_array_less(out_init.losses, out.losses)
 
@@ -222,7 +223,11 @@ class TestSemidiscreteSolver:
     rng_prob, rng_solver = jr.split(rng, 2)
     geom = _random_problem(rng_prob, m=32, d=3, epsilon=0.0).geom
     out = linear.solve_semidiscrete(
-        geom, num_iterations=5, batch_size=7, optimizer=optax.sgd(1.0), rng=rng
+        geom,
+        num_iterations=5,
+        batch_size=7,
+        optimizer=optax.sgd(1.0),
+        rng=rng_solver
     )
     np.testing.assert_array_equal(jnp.isfinite(out.losses), True)
 

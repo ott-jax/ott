@@ -30,10 +30,10 @@ from tests import _utils
 
 
 @pytest.fixture(scope="module")
-def clouds(rng: jax.Array) -> _utils.PointClouds:
+def clouds() -> _utils.PointClouds:
   """Point clouds drawn exactly as this module always has."""
   n, m, dim = 13, 17, 4
-  rng_xy, rng_a, rng_b = jr.split(rng, 3)
+  rng_xy, rng_a, rng_b = jr.split(_utils.root_key(), 3)
   rng_x, rng_y = jr.split(rng_xy, 2)
   return _utils.PointClouds(
       x=jr.uniform(rng_x, (n, dim)),
@@ -437,10 +437,10 @@ class TestSinkhornDivergenceGrad:
 
   @staticmethod
   @pytest.fixture(scope="class")
-  def clouds(rng: jax.Array) -> _utils.PointClouds:
+  def clouds() -> _utils.PointClouds:
     """Smaller, lower-dimensional clouds, as this class has always used."""
     n, m, dim = 13, 12, 3
-    rng_xy, rng_a, rng_b = jr.split(rng, 3)
+    rng_xy, rng_a, rng_b = jr.split(_utils.root_key(), 3)
     rng_x, rng_y, _ = jr.split(rng_xy, 3)
     return _utils.PointClouds(
         x=jr.uniform(rng_x, (n, dim)),

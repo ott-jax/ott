@@ -172,9 +172,9 @@ class TestSinkhornOnline:
 
   @staticmethod
   @pytest.fixture(scope="class")
-  def clouds(rng: jax.Array) -> _utils.PointClouds:
+  def clouds() -> _utils.PointClouds:
     """A source cloud large enough to exercise batching, with zero weights."""
-    _, *rngs = jr.split(rng, 5)
+    _, *rngs = jr.split(_utils.root_key(), 5)
     return _utils.PointClouds(
         x=jr.uniform(rngs[0], (100, 3)),
         y=jr.uniform(rngs[1], (42, 3)),
@@ -235,9 +235,9 @@ class TestSinkhornUnbalanced:
 
   @staticmethod
   @pytest.fixture(scope="class")
-  def clouds(rng: jax.Array) -> _utils.PointClouds:
+  def clouds() -> _utils.PointClouds:
     """Point clouds drawn exactly as this class always has."""
-    _, *rngs = jr.split(rng, 5)
+    _, *rngs = jr.split(_utils.root_key(), 5)
     return _utils.PointClouds(
         x=jr.uniform(rngs[0], (17, 4)),
         y=jr.uniform(rngs[1], (23, 4)),
@@ -319,9 +319,9 @@ class TestSinkhornJIT:
 
   @staticmethod
   @pytest.fixture(scope="class")
-  def clouds(rng: jax.Array) -> _utils.PointClouds:
+  def clouds() -> _utils.PointClouds:
     """Point clouds drawn exactly as this class always has."""
-    _, *rngs = jr.split(rng, 10)
+    _, *rngs = jr.split(_utils.root_key(), 10)
     return _utils.PointClouds(
         x=jr.uniform(rngs[0], (10, 3)),
         y=jr.uniform(rngs[1], (11, 3)),

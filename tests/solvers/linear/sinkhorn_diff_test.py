@@ -29,14 +29,14 @@ from tests import _utils
 
 
 @pytest.fixture(scope="module")
-def clouds(rng: jax.Array) -> _utils.PointClouds:
+def clouds() -> _utils.PointClouds:
   """Point clouds drawn exactly as this module always has.
 
   The implicit-vs-autodiff comparisons below use finite differences with
   tolerances tuned to this particular sample.
   """
   n, m, dim = 38, 73, 3
-  _, rng_x, rng_y, rng_a, rng_b, *_ = jr.split(rng, 10)
+  _, rng_x, rng_y, rng_a, rng_b, *_ = jr.split(_utils.root_key(), 10)
   return _utils.PointClouds(
       x=jr.uniform(rng_x, (n, dim)),
       y=jr.uniform(rng_y, (m, dim)),
@@ -259,7 +259,7 @@ class TestSinkhornJacobian:
     # TODO(cuturi): ensure scaling mode works with backprop.
     d = 3
     n, m = 11, 13
-    rngs = jr.split(rng, 4)
+    rngs = jr.split(rng, 5)
     x = jr.normal(rngs[0], (n, d)) / 10
     y = jr.normal(rngs[1], (m, d)) / 10
 
@@ -287,7 +287,7 @@ class TestSinkhornJacobian:
       out = solver(prob)
       return out.reg_ot_cost, out
 
-    delta = jr.normal(rngs[0], (n, d))
+    delta = jr.normal(rngs[4], (n, d))
     delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
     eps = 1e-5  # perturbation magnitude
 
@@ -570,7 +570,7 @@ class TestSinkhornGradGrid:
 
     reg_ot_and_grad = jax.grad(reg_ot)
     grad_reg_ot = reg_ot_and_grad(x)
-    delta = [jr.uniform(rngs[i], (g,)) for i, g in enumerate(grid_size)]
+    delta = [jr.uniform(rngs[2 + i], (g,)) for i, g in enumerate(grid_size)]
 
     x_p_delta = [(xs + eps * delt) for xs, delt in zip(x, delta)]
     x_m_delta = [(xs - eps * delt) for xs, delt in zip(x, delta)]

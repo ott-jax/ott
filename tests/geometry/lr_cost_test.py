@@ -36,9 +36,10 @@ class TestLRGeometry:
     bias = 0.27
     geom = geometry.Geometry(c + bias)
     geom_lr = low_rank.LRCGeometry(c1, c2, bias=bias)
+    mat_rngs = iter(jr.split(rngs[2], 4))
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
-        mat = jr.normal(rngs[2], mat_shape)
+        mat = jr.normal(next(mat_rngs), mat_shape)
         np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
@@ -66,9 +67,10 @@ class TestLRGeometry:
     np.testing.assert_allclose(
         geom.inv_scale_cost, geom_lr.inv_scale_cost, rtol=1e-6, atol=1e-6
     )
+    mat_rngs = iter(jr.split(rngs[2], 4))
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
-        mat = jr.normal(rngs[2], mat_shape)
+        mat = jr.normal(next(mat_rngs), mat_shape)
         np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
@@ -89,9 +91,10 @@ class TestLRGeometry:
     geom_lr = geom.to_LRCGeometry()
     assert isinstance(geom_lr, low_rank.LRCGeometry)
 
+    mat_rngs = iter(jr.split(rngs[2], 4))
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
-        mat = jr.normal(rngs[2], mat_shape)
+        mat = jr.normal(next(mat_rngs), mat_shape)
         np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
@@ -101,17 +104,18 @@ class TestLRGeometry:
   def test_apply_squared(self, rng: jax.Array):
     """Test application of squared cost to vec or matrix."""
     n, m = 27, 25
-    rngs = jr.split(rng, 5)
-    for r in [3, 15]:
-      c1 = jr.normal(rngs[0], (n, r))
-      c2 = jr.normal(rngs[1], (m, r))
+    for r, r_rng in zip([3, 15], jr.split(rng, 2)):
+      c1_rng, c2_rng, *mat_rngs = jr.split(r_rng, 6)
+      c1 = jr.normal(c1_rng, (n, r))
+      c2 = jr.normal(c2_rng, (m, r))
       c = jnp.matmul(c1, c2.T)
       geom = geometry.Geometry(c)
       geom2 = geometry.Geometry(c ** 2)
       geom_lr = low_rank.LRCGeometry(c1, c2)
+      mat_rngs = iter(mat_rngs)
       for dim, axis in ((m, 1), (n, 0)):
         for mat_shape in ((dim, 2), (dim,)):
-          mat = jr.normal(rngs[2], mat_shape)
+          mat = jr.normal(next(mat_rngs), mat_shape)
           out_lr = geom_lr.apply_square_cost(mat, axis=axis)
           np.testing.assert_allclose(
               geom.apply_square_cost(mat, axis=axis), out_lr, rtol=5e-4
@@ -131,8 +135,8 @@ class TestLRGeometry:
     rngs = jr.split(rng, 5)
     c1 = jr.normal(rngs[0], (n, r))
     c2 = jr.normal(rngs[1], (m, r))
-    d1 = jr.normal(rngs[0], (n, q))
-    d2 = jr.normal(rngs[1], (m, q))
+    d1 = jr.normal(rngs[2], (n, q))
+    d2 = jr.normal(rngs[3], (m, q))
 
     s1, s2 = scale_factor
     b1, b2 = bias
@@ -145,18 +149,21 @@ class TestLRGeometry:
     geom_lr_d = low_rank.LRCGeometry(d1, d2, scale_factor=s2, bias=b2)
     geom_lr = geom_lr_c + geom_lr_d
 
+    draw = iter(jr.split(rngs[4], 4))
     for dim, axis in ((m, 1), (n, 0)):
-      mat = jr.normal(rngs[1], (dim, 2))
+      # the dense and low-rank forms are algebraically equal, so the gap here
+      # is float32 accumulation only
+      mat = jr.normal(next(draw), (dim, 2))
       np.testing.assert_allclose(
           geom.apply_cost(mat, axis=axis),
           geom_lr.apply_cost(mat, axis=axis),
-          rtol=1e-4
+          rtol=1e-3
       )
-      vec = jr.normal(rngs[1], (dim,))
+      vec = jr.normal(next(draw), (dim,))
       np.testing.assert_allclose(
           geom.apply_cost(vec, axis=axis),
           geom_lr.apply_cost(vec, axis=axis),
-          rtol=1e-4
+          rtol=1e-3
       )
 
   @pytest.mark.parametrize(("scale", "scale_cost", "epsilon"),

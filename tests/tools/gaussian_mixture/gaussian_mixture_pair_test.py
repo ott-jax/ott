@@ -22,6 +22,7 @@ import jax.tree_util as jtu
 import numpy as np
 
 from ott.tools.gaussian_mixture import gaussian_mixture, gaussian_mixture_pair
+from tests import _utils
 
 GMMPair_t = Tuple[gaussian_mixture.GaussianMixture,
                   gaussian_mixture.GaussianMixture]
@@ -33,9 +34,9 @@ EPSILON = 1e-3
 
 
 @pytest.fixture(scope="module")
-def gmms(rng: jax.Array) -> GMMPair_t:
+def gmms() -> GMMPair_t:
   """Two random mixtures, drawn exactly as this module always has."""
-  _, subrng0, subrng1 = jr.split(rng, num=3)
+  _, subrng0, subrng1 = jr.split(_utils.root_key(), num=3)
   return tuple(
       gaussian_mixture.GaussianMixture.from_random(
           rng=subrng, n_components=N_COMPONENTS, n_dimensions=N_DIMENSIONS

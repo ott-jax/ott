@@ -254,7 +254,7 @@ class TestRegTICost:
   def test_h_transform_x_init(self, rng: jax.Array, lam: float):
     n, d = 11, 6
     rng_x, rng_y, rng_u = jr.split(rng, 3)
-    y = jr.normal(rng_x, (d,)) + 1.0
+    y = jr.normal(rng_y, (d,)) + 1.0
     u = 1. + jr.uniform(rng_u, (d,))
     x_inits = jr.normal(rng_x, (n, d)) * jnp.linspace(-5.0, 5.0, num=n)[:, None]
 

@@ -24,6 +24,7 @@ from ott.tools.gaussian_mixture import (
     fit_gmm_pair,
     gaussian_mixture_pair,
 )
+from tests import _utils
 from tests.tools.gaussian_mixture import _gmm
 
 #: Regularization strength and unbalancedness of the pair.
@@ -33,9 +34,9 @@ TAU = RHO / (RHO + EPSILON)
 
 
 @pytest.fixture(scope="module")
-def samples(rng: jax.Array) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def samples() -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Points drawn from the reference mixture and from its shifted variant."""
-  _, subrng0, subrng1 = jr.split(rng, num=3)
+  _, subrng0, subrng1 = jr.split(_utils.root_key(), num=3)
   return (
       _gmm.reference().sample(rng=subrng0, size=_gmm.NUM_SAMPLES),
       _gmm.shifted().sample(rng=subrng1, size=_gmm.NUM_SAMPLES),

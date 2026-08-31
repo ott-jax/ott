@@ -30,12 +30,25 @@ import jax.random as jr
 from ott.geometry import pointcloud
 
 __all__ = [
-    "N", "M", "DIM", "PointClouds", "QuadClouds", "random_probs",
-    "random_clouds", "proj"
+    "N", "M", "DIM", "SEED", "root_key", "PointClouds", "QuadClouds",
+    "random_probs", "random_clouds", "proj"
 ]
 
 #: Canonical number of source points, target points and dimensions.
 N, M, DIM = 13, 17, 4
+
+#: Seed every fixture and test derives its randomness from.
+SEED = 0
+
+
+def root_key() -> jax.Array:
+  """A fresh root key.
+
+  Each call returns a distinct array with the same value, so fixtures can
+  seed themselves without consuming a key another fixture also uses -- which
+  ``jax_debug_key_reuse`` would (rightly) reject.
+  """
+  return jr.key(SEED)
 
 
 @dataclasses.dataclass(frozen=True)

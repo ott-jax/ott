@@ -164,7 +164,7 @@ class TestGWBarycenter:
           quadratic_solver, store_inner_errors=True
       )
 
-      x_init = jr.normal(rng, (bar_size, self.ndim_f))
+      x_init = jr.normal(rng_init, (bar_size, self.ndim_f))
       cost_init = pointcloud.PointCloud(x_init).cost_matrix
 
       return solver(prob, bar_size=bar_size, bar_init=(cost_init, x_init))
@@ -172,7 +172,7 @@ class TestGWBarycenter:
     bar_size, epsilon, = 10, 1e-1
     num_per_segment = (7, 12)
 
-    rng1, *rngs = jr.split(rng, len(num_per_segment) + 1)
+    rng_init, rng1, *rngs = jr.split(rng, len(num_per_segment) + 2)
     y = jnp.concatenate([
         self.random_pc(n, d=self.ndim, rng=rng).x
         for n, rng in zip(num_per_segment, rngs)

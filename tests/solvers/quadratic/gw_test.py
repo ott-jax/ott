@@ -114,10 +114,10 @@ TAU_A, TAU_B = 0.8, 0.9
 
 
 @pytest.fixture(scope="module")
-def clouds(rng: jax.Array) -> _utils.QuadClouds:
+def clouds() -> _utils.QuadClouds:
   """Clouds in different ambient dimensions, as this module always has."""
   n, m, d_x, d_y = 6, 7, 2, 3
-  rngs = jr.split(rng, 6)
+  rngs = jr.split(_utils.root_key(), 6)
   return _utils.QuadClouds(
       x=jr.uniform(rngs[0], (n, d_x)),
       y=jr.uniform(rngs[1], (m, d_y)),

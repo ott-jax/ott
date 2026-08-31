@@ -24,6 +24,7 @@ import numpy as np
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
+from tests import _utils
 
 #: Regularization strength shared by the tests below.
 EPS = 5e-2
@@ -47,10 +48,10 @@ class ScaleCostData:
 
 
 @pytest.fixture(scope="module")
-def data(rng: jax.Array) -> ScaleCostData:
+def data() -> ScaleCostData:
   """Inputs drawn exactly as this module always has."""
   n, m, dim = 7, 9, 4
-  _, *rngs = jr.split(rng, 8)
+  _, *rngs = jr.split(_utils.root_key(), 8)
   return ScaleCostData(
       x=jr.uniform(rngs[0], (n, dim)),
       y=jr.uniform(rngs[1], (m, dim)),

@@ -35,9 +35,9 @@ from tests import _utils
 
 
 @pytest.fixture(scope="module")
-def clouds(rng: jax.Array) -> _utils.PointClouds:
+def clouds() -> _utils.PointClouds:
   """Override with marginals containing zeros, to test their handling."""
-  return _utils.random_clouds(rng, zero_a=(0,), zero_b=(3,))
+  return _utils.random_clouds(_utils.root_key(), zero_a=(0,), zero_b=(3,))
 
 
 class TestSinkhorn:

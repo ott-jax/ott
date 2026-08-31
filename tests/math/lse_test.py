@@ -38,9 +38,9 @@ class TestGeometryLse:
       return jnp.sum(out[0] if return_sign else out)
 
     lse = jax.value_and_grad(lse_, argnums=(0, 2))
+    delta_mat = jr.normal(rngs[3], (n, m))
     for axis in (0, 1):
       _, g = lse(mat, axis, None, False)
-      delta_mat = jr.normal(rngs[3], (n, m))
       eps = 1e-3
       val_peps = lse(mat + eps * delta_mat, axis, None, False)[0]
       val_meps = lse(mat - eps * delta_mat, axis, None, False)[0]
@@ -48,8 +48,9 @@ class TestGeometryLse:
                                  jnp.sum(delta_mat * g[0]),
                                  rtol=1e-3,
                                  atol=1e-2)
-    for b, dim, axis in zip((b_0, b_1), (m, n), (1, 0)):
-      delta_b = jr.normal(rngs[4], (dim,)).reshape(b.shape)
+    b_rngs = jr.split(rngs[4], 2)
+    for b_rng, b, dim, axis in zip(b_rngs, (b_0, b_1), (m, n), (1, 0)):
+      delta_b = jr.normal(b_rng, (dim,)).reshape(b.shape)
       _, g = lse(mat, axis, b, True)
       eps = 1e-3
       val_peps = lse(mat + eps * delta_mat, axis, b + eps * delta_b, True)[0]

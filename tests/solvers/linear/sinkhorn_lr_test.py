@@ -15,7 +15,6 @@ from typing import Any, Tuple, Type
 
 import pytest
 
-import jax
 import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
@@ -28,7 +27,7 @@ from tests import _utils
 
 
 @pytest.fixture(scope="module")
-def clouds(rng: jax.Array) -> _utils.PointClouds:
+def clouds() -> _utils.PointClouds:
   """Point clouds with zero weights, drawn exactly as this module always has.
 
   ``test_lr_unbalanced_ti`` compares two dual-update schemes at ``rtol=5e-4``,
@@ -36,7 +35,7 @@ def clouds(rng: jax.Array) -> _utils.PointClouds:
   rather than delegated to :func:`tests._utils.random_clouds`.
   """
   n, m, dim = 23, 27, 4
-  _, rng_x, rng_y, rng_a, rng_b = jr.split(rng, 5)
+  _, rng_x, rng_y, rng_a, rng_b = jr.split(_utils.root_key(), 5)
   return _utils.PointClouds(
       x=jr.uniform(rng_x, (n, dim)),
       y=jr.uniform(rng_y, (m, dim)),

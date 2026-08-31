@@ -22,6 +22,7 @@ import jax.random as jr
 import numpy as np
 
 from ott.math import matrix_square_root
+from tests import _utils
 
 
 def _get_random_spd_matrix(dim: int, rng: jax.Array):
@@ -86,10 +87,10 @@ class Sylvester:
 
 
 @pytest.fixture(scope="module")
-def sylvester(rng: jax.Array) -> Sylvester:
+def sylvester() -> Sylvester:
   """A solvable Sylvester system, drawn as this module always has."""
   m, n = 3, 2
-  _, subrng0, subrng1, subrng2 = jr.split(rng, 4)
+  _, subrng0, subrng1, subrng2 = jr.split(_utils.root_key(), 4)
   a = jr.normal(subrng0, shape=(2, m, m))
   b = jr.normal(subrng1, shape=(2, n, n))
   x = jr.normal(subrng2, shape=(2, m, n))

@@ -229,7 +229,7 @@ class TestSoftSort:
     rngs = jr.split(rng, 2)
     x = jr.uniform(rngs[0], shape=(100,))
     mu, sigma = 2.0, 1.2
-    y = mu + sigma * jr.normal(rng, shape=(48,))
+    y = mu + sigma * jr.normal(rngs[1], shape=(48,))
     mu_target, sigma_target = y.mean(), y.std()
     quantize_fn = soft_sort.quantile_normalization
     if jit:

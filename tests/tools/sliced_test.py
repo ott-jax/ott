@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 from typing import Callable, Optional, Tuple
 
 import pytest
@@ -25,13 +26,11 @@ from ott.solvers import linear
 from ott.tools import sliced
 from tests import _utils
 
-Projector = Callable[[jnp.ndarray, int, jax.Array], jnp.ndarray]
+Projector = Callable[[jax.Array, jnp.ndarray], jnp.ndarray]
 
 
 def custom_proj(
-    x: jnp.ndarray,
-    rng: Optional[jax.Array] = None,
-    n_proj: int = 27
+    rng: jax.Array, x: jnp.ndarray, *, n_proj: int = 27
 ) -> jnp.ndarray:
   dim = x.shape[1]
   rng = jr.key(42) if rng is None else rng
@@ -55,9 +54,14 @@ class TestSliced:
       proj_fn: Optional[Projector]
   ):
     n, m, dim, n_proj = 12, 17, 5, 13
-    rng1, rng2 = jr.split(rng, 2)
-    a, x, b, y = gen_data(rng1, n, m, dim)
-    weights = jr.uniform(rng2, (n_proj,))
+    rng_data, rng_w, rng_proj = jr.split(rng, 3)
+    a, x, b, y = gen_data(rng_data, n, m, dim)
+    weights = jr.uniform(rng_w, (n_proj,))
+
+    # `proj_fn` takes only `(rng, x)`, so bind the number of projections here
+    if proj_fn is None:
+      proj_fn = sliced.random_proj_sphere
+    proj_fn = functools.partial(proj_fn, n_proj=n_proj)
 
     # Test non-negative and returns output as needed.
     cost, out = sliced.sliced_wasserstein(
@@ -67,8 +71,7 @@ class TestSliced:
         b,
         cost_fn=cost_fn,
         proj_fn=proj_fn,
-        n_proj=n_proj,
-        rng=rng2,
+        rng=rng_proj,
         weights=weights
     )
     assert cost > 0.0
@@ -85,7 +88,7 @@ class TestSliced:
 
     # Test matches standard implementation when using identity.
     cost, _ = sliced.sliced_wasserstein(
-        x, y, proj_fn=lambda x: x, cost_fn=cost_fn
+        x, y, proj_fn=lambda _, x: x, cost_fn=cost_fn
     )
     geom = pointcloud.PointCloud(x=x, y=y, cost_fn=cost_fn)
     out_lin = jnp.mean(linear.solve_univariate(geom).ot_costs)
@@ -95,11 +98,12 @@ class TestSliced:
   def test_diff(self, rng: jax.Array, proj_fn: Optional[Projector]):
     eps = 1e-4
     n, m, dim = 13, 16, 7
-    a, x, b, y = gen_data(rng, n, m, dim)
+    rng_data, rng_dx = jr.split(rng, 2)
+    a, x, b, y = gen_data(rng_data, n, m, dim)
 
     # Test differentiability. We assume uniform samples because makes diff
     # more accurate (avoiding ties, making computations a lot more sensitive).
-    dx = jr.uniform(rng, (n, dim)) - 0.5
+    dx = jr.uniform(rng_dx, (n, dim)) - 0.5
     cost_p, _ = sliced.sliced_wasserstein(x + eps * dx, y)
     cost_m, _ = sliced.sliced_wasserstein(x - eps * dx, y)
     g, _ = jax.jit(jax.grad(sliced.sliced_wasserstein, has_aux=True))(x, y)

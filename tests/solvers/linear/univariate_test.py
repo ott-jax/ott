@@ -30,13 +30,13 @@ from tests import _utils
 
 
 @pytest.fixture(scope="module")
-def clouds(rng: jax.Array) -> _utils.PointClouds:
+def clouds() -> _utils.PointClouds:
   """Point clouds drawn exactly as this module always has.
 
   Marginals contain zeros, to test their handling.
   """
   n, m, dim = 7, 5, 3
-  rngs = jr.split(rng, 6)
+  rngs = jr.split(_utils.root_key(), 6)
   return _utils.PointClouds(
       x=jr.uniform(rngs[0], (n, dim)),
       y=jr.uniform(rngs[1], (m, dim)),
@@ -46,10 +46,10 @@ def clouds(rng: jax.Array) -> _utils.PointClouds:
 
 
 @pytest.fixture(scope="module")
-def clouds_xz(rng: jax.Array) -> _utils.PointClouds:
+def clouds_xz() -> _utils.PointClouds:
   """:func:`clouds`' source paired with a second cloud of the same size."""
   n, dim = 7, 3
-  rngs = jr.split(rng, 6)
+  rngs = jr.split(_utils.root_key(), 6)
   return _utils.PointClouds(
       x=jr.uniform(rngs[0], (n, dim)),
       y=jr.uniform(rngs[4], (n, dim)),

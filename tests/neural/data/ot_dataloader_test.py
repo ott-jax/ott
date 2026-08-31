@@ -37,11 +37,12 @@ class TestLinearOtDataloader:
     rng_ds, rng_dl = jr.split(rng, 2)
     shape = (32, 2)
 
+    # reusing the keys is the point: identical inputs must replay identically
     ds1 = _get_dataset(rng_ds, shape)
-    ds2 = _get_dataset(rng_ds, shape)
+    ds2 = _get_dataset(jr.clone(rng_ds), shape)
 
     dl1 = ot_dataloader.LinearOTDataloader(rng_dl, ds1)
-    dl2 = ot_dataloader.LinearOTDataloader(rng_dl, ds2)
+    dl2 = ot_dataloader.LinearOTDataloader(jr.clone(rng_dl), ds2)
 
     src1, tgt1 = next(iter(dl1))
     src2, tgt2 = next(iter(dl2))

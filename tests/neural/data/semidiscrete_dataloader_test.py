@@ -32,7 +32,7 @@ def _solve_semidiscrete(
     rng: jax.Array, *, shape: Tuple[int, ...], epsilon: float
 ) -> semidiscrete.SemidiscreteOutput:
   rng_data, rng_solve = jr.split(rng, 2)
-  y = jr.normal(rng, shape)
+  y = jr.normal(rng_data, shape)
   geom = sdpc.SemidiscretePointCloud(jr.normal, y, epsilon=epsilon)
   return linear.solve_semidiscrete(
       geom,
@@ -50,7 +50,7 @@ class TestSemidiscreteDataloader:
     m, d = 19, 2
     rng_solve, rng_dl = jr.split(rng, 2)
     out = _solve_semidiscrete(rng_solve, shape=(m, d), epsilon=0.1)
-    dl = sddl.SemidiscreteDataloader(rng, out, batch_size=batch_size)
+    dl = sddl.SemidiscreteDataloader(rng_dl, out, batch_size=batch_size)
 
     src1, tgt1 = next(iter(dl))
     src2, tgt2 = next(iter(dl))
