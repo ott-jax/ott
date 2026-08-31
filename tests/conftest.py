@@ -13,14 +13,38 @@
 # limitations under the License.
 import itertools
 from collections import abc
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Iterator, Mapping, Optional, Sequence
 
 import pytest
 
 import jax
-import jax.experimental
+import jax.random as jr
 
 import matplotlib as mpl
+
+from tests import _utils
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+  parser.addoption(
+      "--jax-compilation-cache",
+      metavar="DIR",
+      default=None,
+      help="Persist compiled XLA kernels in DIR and reuse them across runs. "
+      "Most of the suite's runtime is compilation, so this makes repeated "
+      "runs several times faster.",
+  )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+  cache_dir = config.getoption("--jax-compilation-cache")
+  if cache_dir is None:
+    return
+  jax.config.update("jax_compilation_cache_dir", str(cache_dir))
+  # the suite compiles thousands of small kernels, none of which reach the
+  # 1s default threshold below which JAX declines to persist an entry
+  jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.0)
+  jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -71,19 +95,28 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
       metafunc.parametrize(argnames, combinations, ids=ids)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def rng() -> jax.Array:
-  return jax.random.key(0)
+  """Root random key, from which every test derives its own.
+
+  Session-scoped: keys are immutable values, so sharing one is safe and lets
+  the data fixtures below be shared too.
+  """
+  return jr.key(0)
 
 
 @pytest.fixture()
-def enable_x64() -> bool:
-  ctx = (
-      jax.enable_x64(True)
-      if hasattr(jax, "enable_x64") else jax.experimental.enable_x64(True)
-  )
-  with ctx:
-    try:
-      yield
-    finally:
-      pass
+def enable_x64() -> Iterator[None]:
+  """Run the test in double precision."""
+  with jax.enable_x64(True):
+    yield
+
+
+@pytest.fixture(scope="session")
+def clouds(rng: jax.Array) -> _utils.PointClouds:
+  """Two weighted point clouds with strictly positive marginals.
+
+  Modules needing different data - marginals with exact zeros, other sizes -
+  override this fixture at module or class level.
+  """
+  return _utils.random_clouds(rng)

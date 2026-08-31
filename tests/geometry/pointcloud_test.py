@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, geometry, pointcloud
@@ -35,12 +36,12 @@ class TestPointCloudApply:
   def test_apply_cost_and_kernel(self, rng: jax.Array):
     """Test consistency of cost/kernel apply to vec."""
     n, m, p, b = 5, 8, 10, 7
-    rngs = jax.random.split(rng, 5)
-    x = jax.random.normal(rngs[0], (n, p))
-    y = jax.random.normal(rngs[1], (m, p)) + 1
+    rngs = jr.split(rng, 5)
+    x = jr.normal(rngs[0], (n, p))
+    y = jr.normal(rngs[1], (m, p)) + 1
     cost = jnp.sum((x[:, None, :] - y[None, :, :]) ** 2, axis=-1)
-    vec0 = jax.random.normal(rngs[2], (n, b))
-    vec1 = jax.random.normal(rngs[3], (m, b))
+    vec0 = jr.normal(rngs[2], (n, b))
+    vec1 = jr.normal(rngs[3], (m, b))
 
     geom = pointcloud.PointCloud(x, y, batch_size=3)
     prod0_online = geom.apply_cost(vec0, axis=0)
@@ -79,11 +80,11 @@ class TestPointCloudApply:
   def test_general_cost_fn(self, rng: jax.Array):
     """Test non-vec cost apply to vec."""
     n, m, p, b = 5, 8, 10, 7
-    rngs = jax.random.split(rng, 5)
-    x = jax.random.normal(rngs[0], (n, p))
-    y = jax.random.normal(rngs[1], (m, p)) + 1
-    vec0 = jax.random.normal(rngs[2], (n, b))
-    vec1 = jax.random.normal(rngs[3], (m, b))
+    rngs = jr.split(rng, 5)
+    x = jr.normal(rngs[0], (n, p))
+    y = jr.normal(rngs[1], (m, p)) + 1
+    vec0 = jr.normal(rngs[2], (n, b))
+    vec1 = jr.normal(rngs[3], (m, b))
 
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine(), batch_size=None)
     cost = geom.cost_matrix
@@ -106,9 +107,9 @@ class TestPointCloudApply:
 
   @pytest.mark.parametrize("axis", [0, 1])
   def test_apply_cost_without_norm(self, rng: jax.Array, axis: 1):
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, shape=(17, 3))
-    y = jax.random.normal(rng2, shape=(12, 3))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, shape=(17, 3))
+    y = jr.normal(rng2, shape=(12, 3))
     pc = pointcloud.PointCloud(x, y, cost_fn=costs.Cosine())
     arr = jnp.ones((pc.shape[0],)) if axis == 0 else jnp.ones((pc.shape[1],))
 
@@ -129,9 +130,9 @@ class TestPointCloudCosineConversion:
   def test_cosine_to_sqeucl_conversion(
       self, rng: jax.Array, scale_cost: Union[str, float]
   ):
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, shape=(101, 4))
-    y = jax.random.normal(rng2, shape=(123, 4))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, shape=(101, 4))
+    y = jr.normal(rng2, shape=(123, 4))
     cosine = pointcloud.PointCloud(
         x, y, cost_fn=costs.Cosine(), scale_cost=scale_cost
     )
@@ -160,9 +161,9 @@ class TestPointCloudCosineConversion:
   def test_apply_cost_cosine_to_sqeucl(
       self, rng: jax.Array, axis: int, scale_cost: Union[str, float]
   ):
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, shape=(17, 5))
-    y = jax.random.normal(rng2, shape=(12, 5))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, shape=(17, 5))
+    y = jr.normal(rng2, shape=(12, 5))
     cosine = pointcloud.PointCloud(
         x, y, cost_fn=costs.Cosine(), scale_cost=scale_cost
     )
@@ -178,16 +179,16 @@ class TestPointCloudCosineConversion:
   def test_nonsym_cost_batched(self, rng: jax.Array, n: int, m: int):
     d, eps = 5, 1e-1
     rtol, atol = 1e-5, 1e-5
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    x = jax.random.normal(rng1, shape=(n, d))
-    y = jax.random.normal(rng2, shape=(m, d))
+    rng1, rng2, rng3, rng4 = jr.split(rng, 4)
+    x = jr.normal(rng1, shape=(n, d))
+    y = jr.normal(rng2, shape=(m, d))
 
     pc = pointcloud.PointCloud(x, y, cost_fn=NonSymCost())
     pc_batched = pointcloud.PointCloud(x, y, cost_fn=NonSymCost(), batch_size=4)
 
     f, g = jnp.zeros(n), jnp.zeros(m)
     u, v = jnp.ones(n), jnp.ones(m)
-    arr0, arr1 = jax.random.normal(rng3, (n,)), jax.random.normal(rng4, (m,))
+    arr0, arr1 = jr.normal(rng3, (n,)), jr.normal(rng4, (m,))
 
     # transport
     np.testing.assert_allclose(

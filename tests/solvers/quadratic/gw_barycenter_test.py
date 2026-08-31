@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import pointcloud
@@ -38,9 +39,9 @@ class TestGWBarycenter:
       m: Optional[int] = None,
       **kwargs: Any
   ) -> pointcloud.PointCloud:
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, (n, d))
-    y = x if m is None else jax.random.normal(rng2, (m, d))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, (n, d))
+    y = x if m is None else jr.normal(rng2, (m, d))
     return pointcloud.PointCloud(x, y, **kwargs)
 
   @staticmethod
@@ -73,7 +74,7 @@ class TestGWBarycenter:
   ):
     tol = 1e-3 if gw_loss == "sqeucl" else 1e-1
     num_per_segment = (13, 15, 21)
-    rngs = jax.random.split(rng, len(num_per_segment))
+    rngs = jr.split(rng, len(num_per_segment))
     pcs = [
         self.random_pc(n, d=self.ndim, rng=rng)
         for n, rng in zip(num_per_segment, rngs)
@@ -163,7 +164,7 @@ class TestGWBarycenter:
           quadratic_solver, store_inner_errors=True
       )
 
-      x_init = jax.random.normal(rng, (bar_size, self.ndim_f))
+      x_init = jr.normal(rng, (bar_size, self.ndim_f))
       cost_init = pointcloud.PointCloud(x_init).cost_matrix
 
       return solver(prob, bar_size=bar_size, bar_init=(cost_init, x_init))
@@ -171,12 +172,12 @@ class TestGWBarycenter:
     bar_size, epsilon, = 10, 1e-1
     num_per_segment = (7, 12)
 
-    rng1, *rngs = jax.random.split(rng, len(num_per_segment) + 1)
+    rng1, *rngs = jr.split(rng, len(num_per_segment) + 1)
     y = jnp.concatenate([
         self.random_pc(n, d=self.ndim, rng=rng).x
         for n, rng in zip(num_per_segment, rngs)
     ])
-    rngs = jax.random.split(rng1, len(num_per_segment))
+    rngs = jr.split(rng1, len(num_per_segment))
     y_fused = jnp.concatenate([
         self.random_pc(n, d=self.ndim_f, rng=rng).x
         for n, rng in zip(num_per_segment, rngs)

@@ -17,11 +17,13 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, pointcloud
 from ott.solvers import linear
 from ott.tools import sliced
+from tests import _utils
 
 Projector = Callable[[jnp.ndarray, int, jax.Array], jnp.ndarray]
 
@@ -32,22 +34,16 @@ def custom_proj(
     n_proj: int = 27
 ) -> jnp.ndarray:
   dim = x.shape[1]
-  rng = jax.random.key(42) if rng is None else rng
-  proj_m = jax.random.uniform(rng, (n_proj, dim))
+  rng = jr.key(42) if rng is None else rng
+  proj_m = jr.uniform(rng, (n_proj, dim))
   return (x @ proj_m.T) ** 2
 
 
 def gen_data(
     rng: jax.Array, n: int, m: int, dim: int
 ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-  rngs = jax.random.split(rng, 4)
-  x = jax.random.uniform(rngs[0], (n, dim))
-  y = jax.random.uniform(rngs[1], (m, dim))
-  a = jax.random.uniform(rngs[2], (n,))
-  b = jax.random.uniform(rngs[3], (m,))
-  a /= jnp.sum(a)
-  b /= jnp.sum(b)
-  return a, x, b, y
+  c = _utils.random_clouds(rng, n=n, m=m, dim=dim, offset=0.0)
+  return c.a, c.x, c.b, c.y
 
 
 class TestSliced:
@@ -59,9 +55,9 @@ class TestSliced:
       proj_fn: Optional[Projector]
   ):
     n, m, dim, n_proj = 12, 17, 5, 13
-    rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2 = jr.split(rng, 2)
     a, x, b, y = gen_data(rng1, n, m, dim)
-    weights = jax.random.uniform(rng2, (n_proj,))
+    weights = jr.uniform(rng2, (n_proj,))
 
     # Test non-negative and returns output as needed.
     cost, out = sliced.sliced_wasserstein(
@@ -103,7 +99,7 @@ class TestSliced:
 
     # Test differentiability. We assume uniform samples because makes diff
     # more accurate (avoiding ties, making computations a lot more sensitive).
-    dx = jax.random.uniform(rng, (n, dim)) - 0.5
+    dx = jr.uniform(rng, (n, dim)) - 0.5
     cost_p, _ = sliced.sliced_wasserstein(x + eps * dx, y)
     cost_m, _ = sliced.sliced_wasserstein(x - eps * dx, y)
     g, _ = jax.jit(jax.grad(sliced.sliced_wasserstein, has_aux=True))(x, y)

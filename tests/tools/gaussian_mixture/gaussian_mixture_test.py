@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import jax.tree_util as jtu
 import numpy as np
 
@@ -28,15 +29,13 @@ class TestGaussianMixture:
       self, rng: jax.Array
   ):
     n = 50
-    rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    points0 = jax.random.normal(subrng0, shape=(n, 2))
-    points1 = (
-        2.0 * jax.random.normal(subrng1, shape=(n, 2)) + jnp.array([6.0, 8.0])
-    )
+    rng, subrng0, subrng1 = jr.split(rng, num=3)
+    points0 = jr.normal(subrng0, shape=(n, 2))
+    points1 = (2.0 * jr.normal(subrng1, shape=(n, 2)) + jnp.array([6.0, 8.0]))
     points = jnp.concatenate([points0, points1], axis=0)
-    rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    weights0 = jax.random.uniform(subrng0, shape=(n,))
-    weights1 = jax.random.uniform(subrng1, shape=(n,))
+    rng, subrng0, subrng1 = jr.split(rng, num=3)
+    weights0 = jr.uniform(subrng0, shape=(n,))
+    weights1 = jr.uniform(subrng1, shape=(n,))
     weights = jnp.concatenate([weights0, weights1], axis=0)
     aprobs0 = jnp.stack([jnp.ones((n,)), jnp.zeros((n,))], axis=-1)
     aprobs1 = jnp.stack([jnp.zeros((n,)), jnp.ones((n,))], axis=-1)
@@ -116,7 +115,7 @@ class TestGaussianMixture:
   def test_log_prob(self, rng: jax.Array):
     n_components = 3
     size = 100
-    subrng0, subrng1 = jax.random.split(rng, num=2)
+    subrng0, subrng1 = jr.split(rng, num=2)
     gmm = gaussian_mixture.GaussianMixture.from_random(
         rng=subrng0,
         n_components=3,

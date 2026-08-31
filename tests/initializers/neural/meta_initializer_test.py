@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 import pytest
 
@@ -20,10 +19,9 @@ import jax.numpy as jnp
 
 from flax import linen as nn
 
-from ott.geometry import pointcloud
 from ott.initializers.neural import meta_initializer as meta_init
-from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
+from tests.initializers import _problems
 
 
 class MetaMLP(nn.Module):
@@ -38,24 +36,6 @@ class MetaMLP(nn.Module):
     return nn.Dense(self.potential_size)(z)
 
 
-def create_ot_problem(
-    rng: jax.Array,
-    n: int,
-    m: int,
-    d: int,
-    epsilon: float = 1e-2,
-    batch_size: Optional[int] = None
-) -> linear_problem.LinearProblem:
-  # define ot problem
-  x_rng, y_rng = jax.random.split(rng)
-  mu_a = jnp.array([-1.0, 1.0]) * 5
-  mu_b = jnp.array([0.0, 0.0])
-  x = jax.random.normal(x_rng, (n, d)) + mu_a
-  y = jax.random.normal(y_rng, (m, d)) + mu_b
-  geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
-  return linear_problem.LinearProblem(geom=geom)
-
-
 @pytest.mark.fast()
 class TestMetaInitializer:
 
@@ -65,7 +45,9 @@ class TestMetaInitializer:
     n, m, d = 32, 30, 2
     epsilon = 1e-2
 
-    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
+    ot_problem = _problems.create_ot_problem(
+        rng, n, m, d, epsilon=epsilon, batch_size=3
+    )
 
     # run sinkhorn
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, max_iterations=3000)

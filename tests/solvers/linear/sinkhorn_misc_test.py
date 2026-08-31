@@ -18,6 +18,7 @@ import pytest
 import chex
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, geometry, pointcloud
@@ -26,6 +27,7 @@ from ott.solvers import linear
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
+from tests import _utils
 
 
 class TestSinkhornAnderson:
@@ -50,11 +52,11 @@ class TestSinkhornAnderson:
     refresh_anderson_frequency = 3
     n, m = (137, 153)
     dim = 4
-    rngs = jax.random.split(rng, 9)
-    x = jax.random.uniform(rngs[0], (n, dim)) / dim
-    y = jax.random.uniform(rngs[1], (m, dim)) / dim + 0.2
-    a = jax.random.uniform(rngs[2], (n,))
-    b = jax.random.uniform(rngs[3], (m,))
+    rngs = jr.split(rng, 9)
+    x = jr.uniform(rngs[0], (n, dim)) / dim
+    y = jr.uniform(rngs[1], (m, dim)) / dim + 0.2
+    a = jr.uniform(rngs[2], (n,))
+    b = jr.uniform(rngs[3], (m,))
     a = a.at[0].set(0)
     b = b.at[3].set(0)
 
@@ -91,73 +93,76 @@ class TestSinkhornAnderson:
       assert iterations_anderson[i] <= iterations_anderson[0]
 
 
+#: Dimensionality and regularization of the Bures point clouds.
+BURES_DIM = 7
+BURES_EPS = 1.0
+
+#: Regularization used by the jit-vs-non-jit comparisons.
+JIT_EPSILON = 0.05
+
+
 @pytest.mark.fast()
 class TestSinkhornBures:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self):
-    self.eps = 1.0
-    self.n = 11
-    self.m = 13
-    self.dim = 7
-    self.deg_freedom = self.dim + 4
-    self.rngs = jax.random.split(jax.random.key(0), 6)
+  @staticmethod
+  @pytest.fixture(scope="class")
+  def clouds() -> _utils.PointClouds:
+    """Gaussians flattened into (mean, covariance) coordinates."""
+    n, m, deg_freedom = 11, 13, BURES_DIM + 4
+    rngs = jr.split(jr.key(0), 6)
 
-    x = jax.random.normal(self.rngs[0], (self.n, self.dim, self.deg_freedom))
-    y = jax.random.normal(self.rngs[1], (self.m, self.dim, self.deg_freedom))
+    x = jr.normal(rngs[0], (n, BURES_DIM, deg_freedom))
+    y = jr.normal(rngs[1], (m, BURES_DIM, deg_freedom))
+    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1))) / deg_freedom
+    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1))) / deg_freedom
+    m_x = jr.uniform(rngs[2], (n, BURES_DIM))
+    m_y = jr.uniform(rngs[3], (m, BURES_DIM))
 
-    sig_x = jnp.matmul(x, jnp.transpose(x, (0, 2, 1))) / self.deg_freedom
-    sig_y = jnp.matmul(y, jnp.transpose(y, (0, 2, 1))) / self.deg_freedom
-
-    m_x = jax.random.uniform(self.rngs[2], (self.n, self.dim))
-    m_y = jax.random.uniform(self.rngs[3], (self.m, self.dim))
-
-    self.x = jnp.concatenate(
-        (m_x.reshape((self.n, -1)), sig_x.reshape((self.n, -1))), axis=1
+    return _utils.PointClouds(
+        x=jnp.concatenate((m_x.reshape((n, -1)), sig_x.reshape((n, -1))), 1),
+        y=jnp.concatenate((m_y.reshape((m, -1)), sig_y.reshape((m, -1))), 1),
+        a=_utils.random_probs(rngs[4], n),
+        b=_utils.random_probs(rngs[5], m),
     )
-    self.y = jnp.concatenate(
-        (m_y.reshape((self.m, -1)), sig_y.reshape((self.m, -1))), axis=1
-    )
-    a = jax.random.uniform(self.rngs[4], (self.n,)) + 0.1
-    b = jax.random.uniform(self.rngs[5], (self.m,)) + 0.1
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
 
   @pytest.mark.parametrize("lse_mode", [False, True])
   @pytest.mark.parametrize(("unbalanced", "thresh"), [(False, 1e-3),
                                                       (True, 1e-4)])
   def test_bures_point_cloud(
-      self, rng: jax.Array, lse_mode: bool, unbalanced: bool, thresh: float
+      self, clouds: _utils.PointClouds, rng: jax.Array, lse_mode: bool,
+      unbalanced: bool, thresh: float
   ):
     """Two point clouds of Gaussians, tested with various parameters."""
     if unbalanced:
-      rng1, rng2 = jax.random.split(rng, 2)
-      ws_x = jnp.abs(jax.random.uniform(rng1, (self.x.shape[0], 1))) + 1e-1
-      ws_y = jnp.abs(jax.random.uniform(rng2, (self.y.shape[0], 1))) + 1e-1
+      rng1, rng2 = jr.split(rng, 2)
+      ws_x = jnp.abs(jr.uniform(rng1, (clouds.x.shape[0], 1))) + 1e-1
+      ws_y = jnp.abs(jr.uniform(rng2, (clouds.y.shape[0], 1))) + 1e-1
       ws_x = ws_x.at[0].set(0.0)
-      x = jnp.concatenate([ws_x, self.x], axis=1)
-      y = jnp.concatenate([ws_y, self.y], axis=1)
-      cost_fn = costs.UnbalancedBures(dimension=self.dim, gamma=0.9, sigma=0.98)
+      x = jnp.concatenate([ws_x, clouds.x], axis=1)
+      y = jnp.concatenate([ws_y, clouds.y], axis=1)
+      cost_fn = costs.UnbalancedBures(
+          dimension=BURES_DIM, gamma=0.9, sigma=0.98
+      )
     else:
-      x, y = self.x, self.y
+      x, y = clouds.x, clouds.y
       cost_fn = costs.Bures(
-          dimension=self.dim, sqrtm_kw={"regularization": 1e-4}
+          dimension=BURES_DIM, sqrtm_kw={"regularization": 1e-4}
       )
 
-    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=self.eps)
-    prob = linear_problem.LinearProblem(geom, self.a, self.b)
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=BURES_EPS)
+    prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
     solver = sinkhorn.Sinkhorn(threshold=thresh, lse_mode=lse_mode)
     out = solver(prob)
 
     assert out.converged, out.errors
     assert thresh > out.errors[out.n_iters - 1]
 
-  def test_regularized_unbalanced_bures_cost(self):
+  def test_regularized_unbalanced_bures_cost(self, clouds: _utils.PointClouds):
     """Tests Regularized Unbalanced Bures."""
-    x = jnp.concatenate((jnp.array([0.9]), self.x[0, :]))
-    y = jnp.concatenate((jnp.array([1.1]), self.y[0, :]))
+    x = jnp.concatenate((jnp.array([0.9]), clouds.x[0, :]))
+    y = jnp.concatenate((jnp.array([1.1]), clouds.y[0, :]))
 
-    rub = costs.UnbalancedBures(self.dim, gamma=1.0, sigma=0.8)
+    rub = costs.UnbalancedBures(BURES_DIM, gamma=1.0, sigma=0.8)
     assert not jnp.any(jnp.isnan(rub(x, y)))
     assert not jnp.any(jnp.isnan(rub(y, x)))
     np.testing.assert_allclose(rub(x, y), rub(y, x), rtol=5e-3, atol=5e-3)
@@ -165,30 +170,28 @@ class TestSinkhornBures:
 
 class TestSinkhornOnline:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self.dim = 3
-    self.n = 100
-    self.m = 42
-    self.rng, *rngs = jax.random.split(rng, 5)
-    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
-    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,))
-    b = jax.random.uniform(rngs[3], (self.m,))
-    #  adding zero weights to test proper handling
-    a = a.at[0].set(0)
-    b = b.at[3].set(0)
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
+  @staticmethod
+  @pytest.fixture(scope="class")
+  def clouds(rng: jax.Array) -> _utils.PointClouds:
+    """A source cloud large enough to exercise batching, with zero weights."""
+    _, *rngs = jr.split(rng, 5)
+    return _utils.PointClouds(
+        x=jr.uniform(rngs[0], (100, 3)),
+        y=jr.uniform(rngs[1], (42, 3)),
+        a=_utils.random_probs(rngs[2], 100, offset=0.0, zero_at=(0,)),
+        b=_utils.random_probs(rngs[3], 42, offset=0.0, zero_at=(3,)),
+    )
 
   @pytest.mark.fast.with_args("batch_size", [1, 13, 42, 100], only_fast=-1)
-  def test_online_matches_offline_size(self, batch_size: int):
+  def test_online_matches_offline_size(
+      self, clouds: _utils.PointClouds, batch_size: int
+  ):
     threshold, rtol, atol = 1e-1, 1e-6, 1e-6
     geom_offline = pointcloud.PointCloud(
-        self.x, self.y, epsilon=1, batch_size=None
+        clouds.x, clouds.y, epsilon=1, batch_size=None
     )
     geom_online = pointcloud.PointCloud(
-        self.x, self.y, epsilon=1, batch_size=batch_size
+        clouds.x, clouds.y, epsilon=1, batch_size=batch_size
     )
 
     sol_online = linear.solve(geom_online)
@@ -209,13 +212,13 @@ class TestSinkhornOnline:
     )
 
   @pytest.mark.parametrize("jit", [False, True])
-  def test_online_sinkhorn_jit(self, jit: bool):
+  def test_online_sinkhorn_jit(self, clouds: _utils.PointClouds, jit: bool):
 
     def callback(epsilon: float, batch_size: int) -> sinkhorn.SinkhornOutput:
       geom = pointcloud.PointCloud(
-          self.x, self.y, epsilon=epsilon, batch_size=batch_size
+          clouds.x, clouds.y, epsilon=epsilon, batch_size=batch_size
       )
-      prob = linear_problem.LinearProblem(geom, self.a, self.b)
+      prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
       solver = sinkhorn.Sinkhorn(threshold=threshold)
       return solver(prob)
 
@@ -230,27 +233,28 @@ class TestSinkhornOnline:
 @pytest.mark.fast()
 class TestSinkhornUnbalanced:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self.dim = 4
-    self.n = 17
-    self.m = 23
-    self.rng, *rngs = jax.random.split(rng, 5)
-    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
-    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,))
-    b = jax.random.uniform(rngs[3], (self.m,))
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
+  @staticmethod
+  @pytest.fixture(scope="class")
+  def clouds(rng: jax.Array) -> _utils.PointClouds:
+    """Point clouds drawn exactly as this class always has."""
+    _, *rngs = jr.split(rng, 5)
+    return _utils.PointClouds(
+        x=jr.uniform(rngs[0], (17, 4)),
+        y=jr.uniform(rngs[1], (23, 4)),
+        a=_utils.random_probs(rngs[2], 17, offset=0.0),
+        b=_utils.random_probs(rngs[3], 23, offset=0.0),
+    )
 
   @pytest.mark.parametrize("momentum", [1.0, 1.5])
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_sinkhorn_unbalanced(self, lse_mode: bool, momentum: float):
+  def test_sinkhorn_unbalanced(
+      self, clouds: _utils.PointClouds, lse_mode: bool, momentum: float
+  ):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1)
     prob = linear_problem.LinearProblem(
-        geom, self.a, self.b, tau_a=0.8, tau_b=0.9
+        geom, clouds.a, clouds.b, tau_a=0.8, tau_b=0.9
     )
     solver = sinkhorn.Sinkhorn(
         threshold=threshold,
@@ -278,6 +282,7 @@ class TestSinkhornUnbalanced:
   )
   def test_sinkhorn_unbalanced_recenter_acceleration(
       self,
+      clouds: _utils.PointClouds,
       eps: float,
       tau_a: float,
       tau_b: float,
@@ -285,9 +290,9 @@ class TestSinkhornUnbalanced:
   ):
 
     def run_sink(*, recenter: bool) -> sinkhorn.SinkhornOutput:
-      geom = pointcloud.PointCloud(self.x, self.y, epsilon=eps)
+      geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=eps)
       prob = linear_problem.LinearProblem(
-          geom, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
+          geom, a=clouds.a, b=clouds.b, tau_a=tau_a, tau_b=tau_b
       )
       solver = sinkhorn.Sinkhorn(
           recenter_potentials=recenter,
@@ -312,32 +317,35 @@ class TestSinkhornUnbalanced:
 class TestSinkhornJIT:
   """Check jitted and non jit match for Sinkhorn, and that everything jits."""
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self.dim = 3
-    self.n = 10
-    self.m = 11
-    self.rng, *rngs = jax.random.split(rng, 10)
-    self.rngs = rngs
-    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
-    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,)) + 0.1
-    b = jax.random.uniform(rngs[3], (self.m,)) + 0.1
+  @staticmethod
+  @pytest.fixture(scope="class")
+  def clouds(rng: jax.Array) -> _utils.PointClouds:
+    """Point clouds drawn exactly as this class always has."""
+    _, *rngs = jr.split(rng, 10)
+    return _utils.PointClouds(
+        x=jr.uniform(rngs[0], (10, 3)),
+        y=jr.uniform(rngs[1], (11, 3)),
+        a=_utils.random_probs(rngs[2], 10),
+        b=_utils.random_probs(rngs[3], 11),
+    )
 
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
-    self.epsilon = 0.05
-    self.geometry = geometry.Geometry(
+  @staticmethod
+  @pytest.fixture(scope="class")
+  def geom(clouds: _utils.PointClouds) -> geometry.Geometry:
+    """Squared Euclidean geometry between :func:`clouds`' points."""
+    x, y = clouds.x, clouds.y
+    return geometry.Geometry(
         cost_matrix=(
-            jnp.sum(self.x ** 2, axis=1)[:, jnp.newaxis] +
-            jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
-            2 * jnp.dot(self.x, self.y.T)
+            jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
+            jnp.sum(y ** 2, axis=1)[jnp.newaxis, :] - 2 * jnp.dot(x, y.T)
         ),
-        epsilon=self.epsilon
+        epsilon=JIT_EPSILON
     )
 
   @pytest.mark.fast()
-  def test_jit_vs_non_jit_fwd(self):
+  def test_jit_vs_non_jit_fwd(
+      self, clouds: _utils.PointClouds, geom: geometry.Geometry
+  ):
 
     def assert_output_close(
         x: sinkhorn.SinkhornOutput, y: sinkhorn.SinkhornOutput
@@ -353,13 +361,15 @@ class TestSinkhornJIT:
       )
       return chex.assert_trees_all_close(x, y, atol=1e-6, rtol=0)
 
-    geom = self.geometry
-    jitted_result = jax.jit(linear.solve)(geom, a=self.a, b=self.b)
-    non_jitted_result = linear.solve(geom, a=self.a, b=self.b)
+    geom = geom
+    jitted_result = jax.jit(linear.solve)(geom, a=clouds.a, b=clouds.b)
+    non_jitted_result = linear.solve(geom, a=clouds.a, b=clouds.b)
     assert_output_close(non_jitted_result, jitted_result)
 
   @pytest.mark.parametrize("implicit", [False, True])
-  def test_jit_vs_non_jit_bwd(self, implicit: bool):
+  def test_jit_vs_non_jit_bwd(
+      self, clouds: _utils.PointClouds, geom: geometry.Geometry, implicit: bool
+  ):
 
     @jax.value_and_grad
     def val_grad(a: jnp.ndarray, x: jnp.ndarray) -> float:
@@ -367,19 +377,19 @@ class TestSinkhornJIT:
       geom = geometry.Geometry(
           cost_matrix=(
               jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
-              jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
-              2 * jnp.dot(x, self.y.T)
+              jnp.sum(clouds.y ** 2, axis=1)[jnp.newaxis, :] -
+              2 * jnp.dot(x, clouds.y.T)
           ),
-          epsilon=self.epsilon
+          epsilon=JIT_EPSILON
       )
       prob = linear_problem.LinearProblem(
-          geom, a=a, b=self.b, tau_a=0.94, tau_b=0.97
+          geom, a=a, b=clouds.b, tau_a=0.94, tau_b=0.97
       )
       solver = sinkhorn.Sinkhorn(threshold=1e-4, implicit_diff=implicit_diff)
       return solver(prob).reg_ot_cost
 
-    jitted_loss, jitted_grad = jax.jit(val_grad)(self.a, self.x)
-    non_jitted_loss, non_jitted_grad = val_grad(self.a, self.x)
+    jitted_loss, jitted_grad = jax.jit(val_grad)(clouds.a, clouds.x)
+    non_jitted_loss, non_jitted_grad = val_grad(clouds.a, clouds.x)
 
     chex.assert_trees_all_close(
         jitted_loss, non_jitted_loss, atol=1e-6, rtol=0.0

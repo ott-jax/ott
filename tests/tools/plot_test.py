@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import jax
+import jax.random as jr
 
 import matplotlib.pyplot as plt
 
@@ -25,12 +26,9 @@ class TestPlotting:
 
   def test_plot(self, rng: jax.Array):
     n, m, d = 12, 7, 3
-    rngs = jax.random.split(rng, 3)
-    xs = [
-        jax.random.normal(rngs[0], (n, d)) + 1,
-        jax.random.normal(rngs[1], (n, d)) + 1
-    ]
-    y = jax.random.uniform(rngs[2], (m, d))
+    rngs = jr.split(rng, 3)
+    xs = [jr.normal(rngs[0], (n, d)) + 1, jr.normal(rngs[1], (n, d)) + 1]
+    y = jr.uniform(rngs[2], (m, d))
 
     solver = sinkhorn.Sinkhorn()
     ots = [

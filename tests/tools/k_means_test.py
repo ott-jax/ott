@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 from sklearn import datasets
 from sklearn.cluster import KMeans, kmeans_plusplus
@@ -64,7 +65,7 @@ class TestKmeansPlusPlus:
   @pytest.mark.fast.with_args("n_local_trials", [None, 3], only_fast=-1)
   def test_n_local_trials(self, rng: jax.Array, n_local_trials):
     n, k = 100, 4
-    rng1, rng2 = rng, jax.random.clone(rng)
+    rng1, rng2 = rng, jr.clone(rng)
     geom, _, c = make_blobs(
         n_samples=n, centers=k, cost_fn="sqeucl", random_state=0
     )
@@ -177,7 +178,7 @@ class TestKmeans:
 
   def test_k_means_plus_plus_better_than_random(self, rng: jax.Array):
     k = 5
-    rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2 = jr.split(rng, 2)
     geom, _, _ = make_blobs(n_samples=50, centers=k, random_state=10)
 
     res_random = k_means.k_means(geom, k, init="random", rng=rng1)
@@ -265,9 +266,9 @@ class TestKmeans:
 
   def test_weight_scaling_effects_only_inertia(self, rng: jax.Array):
     k = 10
-    rng1, rng2 = jax.random.split(rng)
+    rng1, rng2 = jr.split(rng)
     geom, _, _ = make_blobs(n_samples=130, centers=k, random_state=3)
-    weights = jnp.abs(jax.random.normal(rng1, shape=(geom.shape[0],)))
+    weights = jnp.abs(jr.normal(rng1, shape=(geom.shape[0],)))
     weights_scaled = weights / jnp.sum(weights)
 
     res = k_means.k_means(geom, k=k - 1, weights=weights)
@@ -375,12 +376,12 @@ class TestKmeans:
 
     k, eps, tol = 4, 1e-3, 1e-3
     x, _, _ = make_blobs(n_samples=150, centers=k, random_state=41)
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    w = jnp.abs(jax.random.normal(rng2, (x.shape[0],)))
+    rng1, rng2, rng3, rng4 = jr.split(rng, 4)
+    w = jnp.abs(jr.normal(rng2, (x.shape[0],)))
 
-    v_x = jax.random.normal(rng3, shape=x.shape)
+    v_x = jr.normal(rng3, shape=x.shape)
     v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * eps
-    v_w = jax.random.normal(rng4, shape=w.shape) * eps
+    v_w = jr.normal(rng4, shape=w.shape) * eps
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
     grad_fn = jax.grad(inertia, (0, 1))

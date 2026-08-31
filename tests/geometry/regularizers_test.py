@@ -19,15 +19,11 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import regularizers
-
-
-def _proj(matrix: jnp.ndarray, nu: float = 1.0) -> jnp.ndarray:
-  assert nu > 0.0, nu
-  u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
-  return u.dot(v_h) * jnp.sqrt(nu)
+from tests import _utils
 
 
 class TestProximalOperator:
@@ -44,7 +40,7 @@ class TestProximalOperator:
       lam: Optional[float],
   ):
     tol = 1e-5
-    x = jax.random.normal(rng, (32, self.D))
+    x = jr.normal(rng, (32, self.D))
     if lam is not None:
       reg = regularizers.PostComposition(reg, alpha=lam)
 
@@ -58,9 +54,9 @@ class TestProximalOperator:
   def test_regularization(
       self, rng: jax.Array, rho: float, use_a: bool, tau: float
   ):
-    rng_x, rng_a, rng_moreau = jax.random.split(rng, 3)
-    x = jax.random.normal(rng_x, (self.D,))
-    a = jax.random.normal(rng_a, (self.D,)) if use_a else jnp.zeros(self.D)
+    rng_x, rng_a, rng_moreau = jr.split(rng, 3)
+    x = jr.normal(rng_x, (self.D,))
+    a = jr.normal(rng_a, (self.D,)) if use_a else jnp.zeros(self.D)
 
     l1 = regularizers.L1()
     reg = regularizers.Regularization(l1, a=a if use_a else None, rho=rho)
@@ -83,12 +79,12 @@ class TestProximalOperator:
       lam: float,
   ):
     k = 12
-    rng_x, rng_A, rng_b, rng_moreau = jax.random.split(rng, 4)
-    x = jax.random.normal(rng_x, (self.D,))
+    rng_x, rng_A, rng_b, rng_moreau = jr.split(rng, 4)
+    x = jr.normal(rng_x, (self.D,))
 
     reg = regularizers.PostComposition(reg, alpha=lam)
-    A = _proj(jax.random.normal(rng_A, (k, self.D)), nu=nu)
-    b = jax.random.normal(rng_b, (k,)) if use_b else jnp.zeros(k)
+    A = _utils.proj(jr.normal(rng_A, (k, self.D)), nu=nu)
+    b = jr.normal(rng_b, (k,)) if use_b else jnp.zeros(k)
     orth = regularizers.Orthogonal(reg, A=A, b=b if use_b else None, nu=nu)
 
     expected = orth(x)
@@ -131,11 +127,11 @@ class TestQuadratic:
 
     is_square = not is_factor and not is_complement
     k, d = (17, 17) if is_square else (5, 17)
-    rng_A, rng_x = jax.random.split(rng, 2)
-    A = jax.random.normal(rng_A, (k, d))
-    x = jax.random.normal(rng_x, (13, d))
+    rng_A, rng_x = jr.split(rng, 2)
+    A = jr.normal(rng_A, (k, d))
+    x = jr.normal(rng_x, (13, d))
     if is_orthogonal:
-      A = _proj(A)
+      A = _utils.proj(A)
 
     reg = regularizers.Quadratic(
         A,
@@ -156,10 +152,10 @@ class TestQuadratic:
 
   @pytest.mark.parametrize("d", [17, 64])
   def test_pythagorean_identity(self, rng: jax.Array, d: int):
-    rng_A, rng_x = jax.random.split(rng, 2)
+    rng_A, rng_x = jr.split(rng, 2)
 
-    A = _proj(jax.random.normal(rng_A, (d // 2, d)))
-    x = jax.random.normal(rng_x, (d,))
+    A = _utils.proj(jr.normal(rng_A, (d // 2, d)))
+    x = jr.normal(rng_x, (d,))
 
     reg = regularizers.Quadratic(A=A, is_factor=True)
     reg_c = regularizers.Quadratic(A=A, is_complement=True, is_factor=True)
@@ -184,13 +180,13 @@ class TestQuadratic:
   ):
     d = 31
     is_factor = not is_complement
-    rng_A, rng_b, rng_x = jax.random.split(rng, 3)
+    rng_A, rng_b, rng_x = jr.split(rng, 3)
 
-    A = jax.random.normal(rng_A, (d // 3, d))
+    A = jr.normal(rng_A, (d // 3, d))
     if is_orthogonal:
-      A = _proj(A)
-    x = jax.random.normal(rng_x, (d,))
-    b = jax.random.normal(rng_b, (d,)) * 10.0 + 100.0 if use_b else jnp.zeros(d)
+      A = _utils.proj(A)
+    x = jr.normal(rng_x, (d,))
+    b = jr.normal(rng_b, (d,)) * 10.0 + 100.0 if use_b else jnp.zeros(d)
 
     reg_orth = regularizers.Quadratic(
         A,
@@ -211,9 +207,9 @@ class TestQuadratic:
   @pytest.mark.parametrize("use_b", [False, True])
   def test_Q_is_identity(self, rng: jax.Array, use_b: bool, tau: float):
     d = 7
-    rng_b, rng_x = jax.random.split(rng)
-    x = jax.random.normal(rng_x, (d,))
-    b = jax.random.normal(rng_b, (d,)) if use_b else jnp.zeros(d)
+    rng_b, rng_x = jr.split(rng)
+    x = jr.normal(rng_x, (d,))
+    b = jr.normal(rng_b, (d,)) if use_b else jnp.zeros(d)
     reg = regularizers.Quadratic(b=b if use_b else None)
 
     expected_norm = 0.5 * (x ** 2).sum() + jnp.dot(x, b)
@@ -230,9 +226,9 @@ class TestQuadratic:
   @pytest.mark.parametrize("is_complement", [False, True])
   def test_l2(self, rng: jax.Array, lam: float, is_complement: bool):
     k, d = 7, 12
-    rng_A, rng_x = jax.random.split(rng, 2)
-    A = jax.random.normal(rng_A, (k, d))
-    x = jax.random.normal(rng_x, (d,))
+    rng_A, rng_x = jr.split(rng, 2)
+    A = jr.normal(rng_A, (k, d))
+    x = jr.normal(rng_x, (d,))
 
     l2 = regularizers.SqL2(A, is_complement=is_complement)
     l2 = regularizers.PostComposition(l2, alpha=lam)
@@ -261,11 +257,11 @@ class TestQuadratic:
       is_orthogonal: bool
   ):
     n, k, d = 21, 5, 15
-    rng_A, rng_x = jax.random.split(rng, 2)
-    A = jax.random.normal(rng_A, (k, d))
+    rng_A, rng_x = jr.split(rng, 2)
+    A = jr.normal(rng_A, (k, d))
     if is_orthogonal:
-      A = _proj(A)
-    x = jax.random.normal(rng_x, (n, d))
+      A = _utils.proj(A)
+    x = jr.normal(rng_x, (n, d))
 
     reg = regularizers.SqL2(
         A, is_complement=is_complement, is_orthogonal=is_orthogonal
@@ -285,12 +281,12 @@ class TestQuadratic:
       self, rng: jax.Array, is_complement: bool, is_orthogonal: bool, tau: float
   ):
     d = 33
-    rng_A, rng_b, rng_x = jax.random.split(rng, 3)
-    A = jax.random.normal(rng_A, (7, d))
+    rng_A, rng_b, rng_x = jr.split(rng, 3)
+    A = jr.normal(rng_A, (7, d))
     if is_orthogonal:
-      A = _proj(A)
-    b = jax.random.normal(rng_b, (d,))
-    x = jax.random.normal(rng_x, (d,))
+      A = _utils.proj(A)
+    b = jr.normal(rng_b, (d,))
+    x = jr.normal(rng_x, (d,))
 
     reg = regularizers.Quadratic(
         A,
@@ -311,7 +307,7 @@ class TestSqKOverlap:
 
   @pytest.mark.parametrize("d", [32, 64, 126])
   def test_matches_l1(self, rng: jax.Array, d: int):
-    x = jax.random.normal(rng, (d,))
+    x = jr.normal(rng, (d,))
     sq_kovp = regularizers.SqKOverlap(k=1)
 
     expected = 0.5 * jnp.linalg.norm(x, ord=1) ** 2
@@ -321,7 +317,7 @@ class TestSqKOverlap:
 
   @pytest.mark.parametrize("d", [4, 8, 16])
   def test_matches_l2(self, rng: jax.Array, d: int):
-    x = jax.random.normal(rng, (d,))
+    x = jr.normal(rng, (d,))
     l2 = regularizers.SqL2()
     sq_kovp = regularizers.SqKOverlap(k=d)
 

@@ -17,32 +17,35 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import low_rank, pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn_lr
+from tests import _utils
+
+
+@pytest.fixture(scope="module")
+def clouds(rng: jax.Array) -> _utils.PointClouds:
+  """Point clouds with zero weights, drawn exactly as this module always has.
+
+  ``test_lr_unbalanced_ti`` compares two dual-update schemes at ``rtol=5e-4``,
+  which only holds for this particular sample, so the draw is spelled out
+  rather than delegated to :func:`tests._utils.random_clouds`.
+  """
+  n, m, dim = 23, 27, 4
+  _, rng_x, rng_y, rng_a, rng_b = jr.split(rng, 5)
+  return _utils.PointClouds(
+      x=jr.uniform(rng_x, (n, dim)),
+      y=jr.uniform(rng_y, (m, dim)),
+      a=_utils.random_probs(rng_a, n, offset=0.0, zero_at=(0,)),
+      b=_utils.random_probs(rng_b, m, offset=0.0, zero_at=(3,)),
+  )
 
 
 class TestLRSinkhorn:
-
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self.dim = 4
-    self.n = 23
-    self.m = 27
-    self.rng, *rngs = jax.random.split(rng, 5)
-    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
-    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,))
-    b = jax.random.uniform(rngs[3], (self.m,))
-
-    # adding zero weights to test proper handling:
-    a = a.at[0].set(0)
-    b = b.at[3].set(0)
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
 
   @pytest.mark.fast.with_args(
       "use_lrcgeom,initializer_class,gamma_rescale,lse_mode", (
@@ -53,18 +56,18 @@ class TestLRSinkhorn:
       only_fast=0
   )
   def test_euclidean_point_cloud_lr(
-      self, use_lrcgeom: bool,
+      self, clouds: _utils.PointClouds, use_lrcgeom: bool,
       initializer_class: Type[initializers_lr.LRInitializer],
       gamma_rescale: bool, lse_mode: bool
   ):
     """Two point clouds, tested with 3 different initializations."""
     rank, threshold = 6, 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y)
     # This test to check LR can work both with LRCGeometries and regular ones
     if use_lrcgeom:
       geom = geom.to_LRCGeometry()
       assert isinstance(geom, low_rank.LRCGeometry)
-    ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
+    ot_prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
 
     # Start with a low rank parameter
     solver = sinkhorn_lr.LRSinkhorn(
@@ -111,7 +114,7 @@ class TestLRSinkhorn:
       np.testing.assert_allclose(cost_1, cost_2, rtol=1e-4, atol=1e-4)
 
     # Ensure cost can still be computed on different geometry.
-    other_geom = pointcloud.PointCloud(self.x, self.y + 0.3)
+    other_geom = pointcloud.PointCloud(clouds.x, clouds.y + 0.3)
     cost_other = out.transport_cost_at_geom(other_geom)
     cost_other_lr = out.transport_cost_at_geom(other_geom.to_LRCGeometry())
     assert cost_other > 0.0
@@ -138,12 +141,12 @@ class TestLRSinkhorn:
       np.testing.assert_allclose(cost_3, cost_2, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.parametrize("axis", [0, 1])
-  def test_output_apply_batch_size(self, axis: int):
+  def test_output_apply_batch_size(self, clouds: _utils.PointClouds, axis: int):
     n_stack, threshold = 3, 1e-3
-    data = self.a if axis == 0 else self.b
+    data = clouds.a if axis == 0 else clouds.b
 
-    geom = pointcloud.PointCloud(self.x, self.y)
-    ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y)
+    ot_prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
         rank=10,
@@ -161,7 +164,7 @@ class TestLRSinkhorn:
     )
 
   @pytest.mark.fast()
-  def test_progress_fn(self):
+  def test_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
     num_iterations = 37
 
@@ -188,8 +191,8 @@ class TestLRSinkhorn:
 
     traced_values = {"iters": [], "error": [], "total": []}
 
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-3)
-    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=1e-3)
+    lin_prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
 
     rank = 2
     inner_iterations = 10
@@ -208,12 +211,14 @@ class TestLRSinkhorn:
                                      ] * len(traced_values["total"])
 
   @pytest.mark.fast.with_args(eps=[0.0, 1e-1])
-  def test_lse_matches_kernel_mode(self, eps: float):
+  def test_lse_matches_kernel_mode(
+      self, clouds: _utils.PointClouds, eps: float
+  ):
     threshold = 1e-3
     tol = 1e-5
     rank = 5
-    geom = pointcloud.PointCloud(self.x, self.y)
-    ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y)
+    ot_prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
 
     out_lse = sinkhorn_lr.LRSinkhorn(
         lse_mode=True,
@@ -245,11 +250,13 @@ class TestLRSinkhorn:
   @pytest.mark.fast.with_args("ti", [False, True], only_fast=0)
   @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 0.95), (0.89, 1.0),
                                                 (1.0, 0.85)])
-  def test_lr_unbalanced_lse(self, tau_a: float, tau_b: float, ti: bool):
+  def test_lr_unbalanced_lse(
+      self, clouds: _utils.PointClouds, tau_a: float, tau_b: float, ti: bool
+  ):
     rank, epsilon, threshold = 10, 0.0, 1e-4
-    geom = pointcloud.PointCloud(self.x, self.y)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y)
     prob = linear_problem.LinearProblem(
-        geom, self.a, self.b, tau_a=tau_a, tau_b=tau_b
+        geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
     )
 
     out_lse = sinkhorn_lr.LRSinkhorn(
@@ -286,12 +293,13 @@ class TestLRSinkhorn:
                                (1.0, 0.5, 0.0)],
                               only_fast=1)
   def test_lr_unbalanced_ti(
-      self, tau_a: float, tau_b: float, epsilon: float, lse_mode: bool
+      self, clouds: _utils.PointClouds, tau_a: float, tau_b: float,
+      epsilon: float, lse_mode: bool
   ):
     rank, threshold = 8, 1e-4
-    geom = pointcloud.PointCloud(self.x, self.y)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y)
     prob = linear_problem.LinearProblem(
-        geom, self.a, self.b, tau_a=tau_a, tau_b=tau_b
+        geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
     )
 
     out = sinkhorn_lr.LRSinkhorn(

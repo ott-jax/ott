@@ -4,6 +4,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, low_rank, pointcloud
@@ -18,9 +19,9 @@ class TestLRCGeometry:
   def test_positive_features(
       self, rng: jax.Array, kernel: Literal["gaussian", "arccos"], std: float
   ):
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, (10, 2))
-    y = jax.random.normal(rng2, (12, 2))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, (10, 2))
+    y = jr.normal(rng2, (12, 2))
     rank = 5
 
     geom = low_rank.LRKGeometry.from_pointcloud(
@@ -48,7 +49,7 @@ class TestLRCGeometry:
         )
       raise NotImplementedError(n)
 
-    x = jnp.abs(jax.random.normal(rng, (32,)))
+    x = jnp.abs(jr.normal(rng, (32,)))
     cost_fn = costs.Arccos(n)
 
     gt = jax.vmap(j)(x)
@@ -61,9 +62,9 @@ class TestLRCGeometry:
   def test_kernel_approximation(
       self, rng: jax.Array, kernel: Literal["gaussian", "arccos"], std: float
   ):
-    rng, rng1, rng2 = jax.random.split(rng, 3)
-    x = jax.random.normal(rng1, (230, 5))
-    y = jax.random.normal(rng2, (260, 5))
+    rng, rng1, rng2 = jr.split(rng, 3)
+    x = jr.normal(rng1, (230, 5))
+    y = jr.normal(rng2, (260, 5))
     n = 1
 
     cost_fn = costs.SqEuclidean() if kernel == "gaussian" else costs.Arccos(n)
@@ -72,7 +73,7 @@ class TestLRCGeometry:
 
     max_abs_diff = []
     for rank in [50, 100, 400]:
-      rng, rng_approx = jax.random.split(rng, 2)
+      rng, rng_approx = jr.split(rng, 2)
       geom = low_rank.LRKGeometry.from_pointcloud(
           x, y, rank=rank, kernel=kernel, std=std, n=n, rng=rng_approx
       )
@@ -94,10 +95,10 @@ class TestLRCGeometry:
       std: float,
       n: Optional[int],
   ):
-    rng, rng1, rng2 = jax.random.split(rng, 3)
-    x = jax.random.normal(rng1, (83, 5))
+    rng, rng1, rng2 = jr.split(rng, 3)
+    x = jr.normal(rng1, (83, 5))
     x /= jnp.linalg.norm(x, keepdims=True)
-    y = jax.random.normal(rng2, (96, 5))
+    y = jr.normal(rng2, (96, 5))
     y /= jnp.linalg.norm(y, keepdims=True)
     solve_fn = jax.jit(lambda g: linear.solve(g, lse_mode=False))
 
@@ -107,7 +108,7 @@ class TestLRCGeometry:
 
     cs = []
     for rank in [5, 40, 80]:
-      rng, rng_approx = jax.random.split(rng, 2)
+      rng, rng_approx = jr.split(rng, 2)
       geom = low_rank.LRKGeometry.from_pointcloud(
           x, y, rank=rank, kernel=kernel, std=std, n=n, rng=rng_approx
       )

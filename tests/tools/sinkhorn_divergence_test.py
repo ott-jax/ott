@@ -18,6 +18,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, geometry, grid, pointcloud
@@ -25,31 +26,36 @@ from ott.solvers import linear
 from ott.solvers.linear import acceleration
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian_mixture
+from tests import _utils
+
+
+@pytest.fixture(scope="module")
+def clouds(rng: jax.Array) -> _utils.PointClouds:
+  """Point clouds drawn exactly as this module always has."""
+  n, m, dim = 13, 17, 4
+  rng_xy, rng_a, rng_b = jr.split(rng, 3)
+  rng_x, rng_y = jr.split(rng_xy, 2)
+  return _utils.PointClouds(
+      x=jr.uniform(rng_x, (n, dim)),
+      y=jr.uniform(rng_y, (m, dim)),
+      a=_utils.random_probs(rng_a, n, offset=0.0),
+      b=_utils.random_probs(rng_b, m, offset=0.0),
+  )
 
 
 class TestSinkhornDivergence:
-
-  @pytest.fixture(autouse=True)
-  def setUp(self, rng: jax.Array):
-    self._dim = 4
-    self._num_points = 13, 17
-    self.rng, *rngs = jax.random.split(rng, 3)
-    a = jax.random.uniform(rngs[0], (self._num_points[0],))
-    b = jax.random.uniform(rngs[1], (self._num_points[1],))
-    self._a = a / jnp.sum(a)
-    self._b = b / jnp.sum(b)
 
   @pytest.mark.fast(
       "cost_fn,rank", [(costs.SqEuclidean(), -1), (costs.Euclidean(), -1),
                        (costs.SqPNorm(2.1), -1), (costs.SqEuclidean(), 3)],
       only_fast=0
   )
-  def test_euclidean_point_cloud(self, cost_fn: costs.CostFn, rank: int):
+  def test_euclidean_point_cloud(
+      self, clouds: _utils.PointClouds, cost_fn: costs.CostFn, rank: int
+  ):
 
     is_low_rank = rank > 0
-    rngs = jax.random.split(self.rng, 2)
-    x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    x, y = clouds.x, clouds.y
 
     epsilon = 5e-2
     sd = functools.partial(
@@ -60,7 +66,7 @@ class TestSinkhornDivergence:
         }
     )
     div, out = jax.jit(sd)(
-        x, y, cost_fn=cost_fn, epsilon=epsilon, a=self._a, b=self._b
+        x, y, cost_fn=cost_fn, epsilon=epsilon, a=clouds.a, b=clouds.b
     )
 
     assert div >= 0.0
@@ -83,13 +89,13 @@ class TestSinkhornDivergence:
     geometry_yy = pointcloud.PointCloud(y, epsilon=epsilon, cost_fn=cost_fn)
 
     div2_xy = linear.solve(
-        geometry_xy, a=self._a, b=self._b, rank=rank
+        geometry_xy, a=clouds.a, b=clouds.b, rank=rank
     ).reg_ot_cost
     div2_xx = linear.solve(
-        geometry_xx, a=self._a, b=self._a, rank=rank
+        geometry_xx, a=clouds.a, b=clouds.a, rank=rank
     ).reg_ot_cost
     div2_yy = linear.solve(
-        geometry_yy, a=self._b, b=self._b, rank=rank
+        geometry_yy, a=clouds.b, b=clouds.b, rank=rank
     ).reg_ot_cost
 
     # Check passing offset when using static_b works
@@ -98,8 +104,8 @@ class TestSinkhornDivergence:
         y,
         cost_fn=cost_fn,
         epsilon=epsilon,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         static_b=True,
         offset_static_b=div2_yy
     )
@@ -144,16 +150,14 @@ class TestSinkhornDivergence:
       assert iters_xx_sym < iters_xx
 
   @pytest.mark.fast()
-  def test_euclidean_autoepsilon(self):
-    rngs = jax.random.split(self.rng, 2)
-    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+  def test_euclidean_autoepsilon(self, clouds: _utils.PointClouds):
+    cloud_a, cloud_b = clouds.x, clouds.y
     div, out = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
         cloud_b,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         solve_kwargs={"threshold": 1e-2},
     )
     assert div > 0.0
@@ -165,26 +169,24 @@ class TestSinkhornDivergence:
     assert geom0.epsilon_scheduler is not geom1.epsilon_scheduler
     assert geom0.epsilon == geom1.epsilon
 
-  def test_euclidean_autoepsilon_not_share_epsilon(self):
-    rngs = jax.random.split(self.rng, 2)
-    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+  def test_euclidean_autoepsilon_not_share_epsilon(
+      self, clouds: _utils.PointClouds
+  ):
+    cloud_a, cloud_b = clouds.x, clouds.y
     div, out = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
         cloud_b,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         solve_kwargs={"threshold": 1e-2},
         share_epsilon=False
     )
     assert jnp.abs(out.geoms[0].epsilon - out.geoms[1].epsilon) > 0
 
-  def test_euclidean_point_cloud_weights_unb(self):
-    rngs = jax.random.split(self.rng, 2)
-    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
-    kwargs = {"a": self._a, "b": self._b}
+  def test_euclidean_point_cloud_weights_unb(self, clouds: _utils.PointClouds):
+    cloud_a, cloud_b = clouds.x, clouds.y
+    kwargs = {"a": clouds.a, "b": clouds.b}
     div, out = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
@@ -201,10 +203,8 @@ class TestSinkhornDivergence:
     assert len(out.potentials) == 3
     assert len(out.geoms) == 3
 
-  def test_generic_point_cloud_wrapper(self):
-    rngs = jax.random.split(self.rng, 2)
-    x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+  def test_generic_point_cloud_wrapper(self, clouds: _utils.PointClouds):
+    x, y = clouds.x, clouds.y
 
     # Tests with 3 cost matrices passed as args
     cxy = jnp.sum(jnp.abs(x[:, jnp.newaxis] - y[jnp.newaxis, :]) ** 2, axis=2)
@@ -216,8 +216,8 @@ class TestSinkhornDivergence:
         cxx,
         cyy,
         epsilon=0.1,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         solve_kwargs={"threshold": 1e-2},
     )
     assert div > 0.0
@@ -230,8 +230,8 @@ class TestSinkhornDivergence:
         cxy,
         cxx,
         epsilon=0.1,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         solve_kwargs={"threshold": 1e-2},
     )
     assert div > 0.0
@@ -243,8 +243,8 @@ class TestSinkhornDivergence:
         geometry.Geometry,
         cost_matrix=(cxy, cxx, cyy),
         epsilon=0.1,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         solve_kwargs={"threshold": 1e-2},
     )
     assert div > 0.0
@@ -252,19 +252,20 @@ class TestSinkhornDivergence:
     assert len(out.geoms) == 3
 
   @pytest.mark.parametrize("shuffle", [False, True])
-  def test_segment_sinkdiv_result(self, shuffle: bool):
+  def test_segment_sinkdiv_result(
+      self, clouds: _utils.PointClouds, rng: jax.Array, shuffle: bool
+  ):
     # Test that segmented sinkhorn gives the same results:
-    rngs = jax.random.split(self.rng, 4)
-    x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    rngs = jr.split(rng, 2)
+    x, y = clouds.x, clouds.y
     geom_kwargs = {"epsilon": 0.01}
     solve_kwargs = {"threshold": 1e-2}
     true_divergence, _ = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         x,
         y,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         solve_kwargs=solve_kwargs,
         **geom_kwargs
     )
@@ -272,11 +273,11 @@ class TestSinkhornDivergence:
     if shuffle:
       # Now, shuffle the order of both arrays, but
       # still maintain the segment assignments:
-      idx_x = jax.random.permutation(
-          rngs[2], jnp.arange(x.shape[0] * 2), independent=True
+      idx_x = jr.permutation(
+          rngs[0], jnp.arange(x.shape[0] * 2), independent=True
       )
-      idx_y = jax.random.permutation(
-          rngs[3], jnp.arange(y.shape[0] * 2), independent=True
+      idx_y = jr.permutation(
+          rngs[1], jnp.arange(y.shape[0] * 2), independent=True
       )
     else:
       idx_x = jnp.arange(x.shape[0] * 2)
@@ -284,11 +285,11 @@ class TestSinkhornDivergence:
 
     # Duplicate arrays:
     x_copied = jnp.concatenate((x, x))[idx_x]
-    a_copied = jnp.concatenate((self._a, self._a))[idx_x]
+    a_copied = jnp.concatenate((clouds.a, clouds.a))[idx_x]
     segment_ids_x = jnp.arange(2).repeat(x.shape[0])[idx_x]
 
     y_copied = jnp.concatenate((y, y))[idx_y]
-    b_copied = jnp.concatenate((self._b, self._b))[idx_y]
+    b_copied = jnp.concatenate((clouds.b, clouds.b))[idx_y]
     segment_ids_y = jnp.arange(2).repeat(y.shape[0])[idx_y]
 
     segmented_divergences = sinkhorn_divergence.segment_sinkhorn_divergence(
@@ -347,7 +348,7 @@ class TestSinkhornDivergence:
     )
 
   def test_segment_sinkdiv_custom_padding(self, rng: jax.Array):
-    rngs = jax.random.split(rng, 4)
+    rngs = jr.split(rng, 4)
     dim = 3
     b_cost = costs.Bures(dim)
     epsilon = 0.2
@@ -405,15 +406,16 @@ class TestSinkhornDivergence:
   )
   # yapf: enable
   def test_euclidean_momentum_params(
-      self, solve_kwargs: Dict[str, Any], epsilon: Optional[float]
+      self, clouds: _utils.PointClouds, rng: jax.Array,
+      solve_kwargs: Dict[str, Any], epsilon: Optional[float]
   ):
     # check if sinkhorn divergence solve_kwargs parameters used for
     # momentum/Anderson are properly overridden for the symmetric (x,x) and
     # (y,y) parts.
-    rngs = jax.random.split(self.rng, 2)
+    rngs = jr.split(rng, 2)
     threshold = 3.2e-3
-    cloud_a = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    cloud_b = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    cloud_a = jr.uniform(rngs[0], (clouds.n, clouds.dim))
+    cloud_b = jr.uniform(rngs[1], (clouds.m, clouds.dim))
     solve_kwargs["threshold"] = threshold
 
     div, out = sinkhorn_divergence.sinkhorn_divergence(
@@ -421,8 +423,8 @@ class TestSinkhornDivergence:
         cloud_a,
         cloud_b,
         epsilon=epsilon,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         solve_kwargs=solve_kwargs,
     )
     assert div > 0.0
@@ -433,32 +435,36 @@ class TestSinkhornDivergence:
 
 class TestSinkhornDivergenceGrad:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self._dim = 3
-    self._num_points = 13, 12
-    self.rng, *rngs = jax.random.split(rng, 3)
-    a = jax.random.uniform(rngs[0], (self._num_points[0],))
-    b = jax.random.uniform(rngs[1], (self._num_points[1],))
-    self._a = a / jnp.sum(a)
-    self._b = b / jnp.sum(b)
+  @staticmethod
+  @pytest.fixture(scope="class")
+  def clouds(rng: jax.Array) -> _utils.PointClouds:
+    """Smaller, lower-dimensional clouds, as this class has always used."""
+    n, m, dim = 13, 12, 3
+    rng_xy, rng_a, rng_b = jr.split(rng, 3)
+    rng_x, rng_y, _ = jr.split(rng_xy, 3)
+    return _utils.PointClouds(
+        x=jr.uniform(rng_x, (n, dim)),
+        y=jr.uniform(rng_y, (m, dim)),
+        a=_utils.random_probs(rng_a, n, offset=0.0),
+        b=_utils.random_probs(rng_b, m, offset=0.0),
+    )
 
-  def test_gradient_generic_point_cloud_wrapper(self):
-    rngs = jax.random.split(self.rng, 3)
-    x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+  def test_gradient_generic_point_cloud_wrapper(
+      self, clouds: _utils.PointClouds, rng: jax.Array
+  ):
+    x, y = clouds.x, clouds.y
 
     loss_fn = lambda x, y: sinkhorn_divergence.sinkhorn_divergence(
         geom=pointcloud.PointCloud,
         x=x,
         y=y,
         epsilon=1.0,
-        a=self._a,
-        b=self._b,
+        a=clouds.a,
+        b=clouds.b,
         solve_kwargs={"threshold": 0.05}
     )
 
-    delta = jax.random.normal(rngs[2], x.shape)
+    delta = jr.normal(rng, x.shape)
     eps = 1e-3  # perturbation magnitude
 
     # automatic differentiation gradient
@@ -483,12 +489,12 @@ class TestSinkhornDivergenceGrad:
 
   @pytest.mark.parametrize("grid_size", [(5,), (2, 3), (3, 4, 5)])
   def test_grid_geometry(self, rng: jax.Array, grid_size: Tuple[int, ...]):
-    rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2 = jr.split(rng, 2)
     gs = (5,)
 
-    a = jax.random.uniform(rng1, shape=gs)
+    a = jr.uniform(rng1, shape=gs)
     a = a / jnp.sum(a)
-    b = jax.random.uniform(rng2, shape=gs)
+    b = jr.uniform(rng2, shape=gs)
     b = b / jnp.sum(b)
 
     div, _ = sinkhorn_divergence.sinkhorn_divergence(

@@ -18,6 +18,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, segment
@@ -55,11 +56,11 @@ class TestBarycenter:
       self, rng: jax.Array, rank: int, epsilon: float, init_random: bool,
       jit: bool
   ):
-    rngs = jax.random.split(rng, 20)
+    rngs = jr.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
     # Second around [2,3]^4.
-    y1 = jax.random.uniform(rngs[0], (self.N_POINTS, self.DIM))
-    y2 = jax.random.uniform(rngs[1], (self.N_POINTS, self.DIM)) + 2
+    y1 = jr.uniform(rngs[0], (self.N_POINTS, self.DIM))
+    y2 = jr.uniform(rngs[1], (self.N_POINTS, self.DIM)) + 2
     # Merge them
     y = jnp.concatenate((y1, y2))
 
@@ -68,7 +69,7 @@ class TestBarycenter:
     # Set weights for each segment that sum to 1.
     b = []
     for i in range(num_per_segment.shape[0]):
-      c = jax.random.uniform(rngs[i], (num_per_segment[i],))
+      c = jr.uniform(rngs[i], (num_per_segment[i],))
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
     # Set a barycenter problem with 8 measures, of irregular sizes.
@@ -103,7 +104,7 @@ class TestBarycenter:
     # initialization consists in selecting randomly points in the y's.
     if init_random:
       # choose points randomly in area relevant to the problem.
-      x_init = 3 * jax.random.uniform(rngs[-1], (bar_size, self.DIM))
+      x_init = 3 * jr.uniform(rngs[-1], (bar_size, self.DIM))
       out = solver(bar_prob, bar_size=bar_size, x_init=x_init)
     else:
       out = solver(bar_prob, bar_size=bar_size)
@@ -148,11 +149,11 @@ class TestBarycenter:
       solver = cb.FreeWassersteinBarycenter(linear_solver)
       return solver(bar_prob, bar_size=bar_size)
 
-    rngs = jax.random.split(rng, 20)
+    rngs = jr.split(rng, 20)
     # Sample 2 point clouds, each of size 113, the first around [0,1]^4,
     # Second around [2,3]^4.
-    y1 = jax.random.uniform(rngs[0], (self.N_POINTS, self.DIM))
-    y2 = jax.random.uniform(rngs[1], (self.N_POINTS, self.DIM)) + 2
+    y1 = jr.uniform(rngs[0], (self.N_POINTS, self.DIM))
+    y2 = jr.uniform(rngs[1], (self.N_POINTS, self.DIM)) + 2
     # Merge them
     y = jnp.concatenate((y1, y2))
 
@@ -162,7 +163,7 @@ class TestBarycenter:
     # Set weights for each segment that sum to 1.
     b = []
     for rng, n in zip(rngs, num_per_segment):
-      c = jax.random.uniform(rng, (n,))
+      c = jr.uniform(rng, (n,))
       b.append(c / jnp.sum(c))
     b = jnp.concatenate(b, axis=0)
 
@@ -306,26 +307,24 @@ class TestBarycenter:
     b_cost = costs.Bures(dimension=dim)
 
     # keys for random number generation
-    rngs = jax.random.split(rng, num=4)
+    rngs = jr.split(rng, num=4)
 
     # test for non-uniform barycentric weights
-    barycentric_weights = jax.random.dirichlet(
+    barycentric_weights = jr.dirichlet(
         rngs[0], alpha=jnp.ones(num_measures) * alpha
     )
 
     ridges = jnp.array([jnp.ones(dim), 5 * jnp.ones(dim)])
     stdev_means = 0.1 * jnp.mean(ridges, axis=1)
-    stdev_covs = jax.random.uniform(
+    stdev_covs = jr.uniform(
         rngs[1], shape=(num_measures,), minval=0.0, maxval=10.0
     )
 
-    seeds = jax.random.randint(
-        rngs[2], shape=(num_measures,), minval=0, maxval=100
-    )
+    seeds = jr.randint(rngs[2], shape=(num_measures,), minval=0, maxval=100)
 
     gmm_generators = [
         gaussian_mixture.GaussianMixture.from_random(
-            jax.random.key(seeds[i]),
+            jr.key(seeds[i]),
             n_components=n_components[i],
             n_dimensions=dim,
             stdev_cov=stdev_covs[i],

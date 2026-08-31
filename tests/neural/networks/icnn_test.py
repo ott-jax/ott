@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from flax import nnx
@@ -32,9 +33,9 @@ class TestICNN:
 
     model = icnn.ICNN(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
 
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, (n_samples, n_features)) * 0.1
-    y = jax.random.normal(rng2, (n_samples, n_features))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, (n_samples, n_features)) * 0.1
+    y = jr.normal(rng2, (n_samples, n_features))
 
     out_x = model(x)
     out_y = model(y)
@@ -52,9 +53,9 @@ class TestICNN:
     dim_hidden = (64, 64)
     model = icnn.ICNN(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
 
-    rng1, rng2 = jax.random.split(rng)
+    rng1, rng2 = jr.split(rng)
 
-    data = jax.random.normal(rng2, (n_features,))
+    data = jr.normal(rng2, (n_features,))
 
     # Compute Hessian of scalar output
     hessian = jax.hessian(lambda x: model(x[None]).squeeze())(data)
@@ -74,7 +75,7 @@ class TestICNN:
         rngs=nnx.Rngs(0)
     )
 
-    x = jax.random.normal(rng, (n_samples, n_features))
+    x = jr.normal(rng, (n_samples, n_features))
     out = model(x)
     assert out.shape == (n_samples, output_dim)
 
@@ -86,7 +87,7 @@ class TestICNN:
     model = icnn.ICNN(
         dim_hidden, input_dim=n_features, wx_inject=2, rngs=nnx.Rngs(0)
     )
-    x = jax.random.normal(rng, (5, n_features))
+    x = jr.normal(rng, (5, n_features))
     out = model(x)
     assert out.shape == (5,)
 
@@ -98,7 +99,7 @@ class TestICNN:
     model = icnn.ICNN(
         dim_hidden, input_dim=n_features, pos_def_rank=2, rngs=nnx.Rngs(0)
     )
-    x = jax.random.normal(rng, (5, n_features))
+    x = jr.normal(rng, (5, n_features))
     out = model(x)
     assert out.shape == (5,)
 
@@ -114,9 +115,9 @@ class TestICNN:
         rngs=nnx.Rngs(0),
     )
 
-    rng1, rng2 = jax.random.split(rng)
-    x = jax.random.normal(rng1, (n_samples, n_features)) * 0.1
-    y = jax.random.normal(rng2, (n_samples, n_features))
+    rng1, rng2 = jr.split(rng)
+    x = jr.normal(rng1, (n_samples, n_features)) * 0.1
+    y = jr.normal(rng2, (n_samples, n_features))
 
     out_x = model(x)
     out_y = model(y)
@@ -142,9 +143,9 @@ class TestICNN:
         dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0), **kwargs
     )
 
-    rng1, rng2 = jax.random.split(rng)
-    x = jax.random.normal(rng1, (n_samples, n_features)) * 0.1
-    y = jax.random.normal(rng2, (n_samples, n_features))
+    rng1, rng2 = jr.split(rng)
+    x = jr.normal(rng1, (n_samples, n_features)) * 0.1
+    y = jr.normal(rng2, (n_samples, n_features))
 
     out_x = model(x)
     out_y = model(y)
@@ -164,7 +165,7 @@ class TestICNN:
     dim_hidden = (32, 32)
 
     scalar_model = icnn.ICNN(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
-    x = jax.random.normal(rng, (n_samples, n_features))
+    x = jr.normal(rng, (n_samples, n_features))
     grad = scalar_model.gradient(x)
     assert grad.shape == (n_samples, n_features)
 
@@ -188,7 +189,7 @@ class TestKeyNet:
     dim_hidden = (32, 32)
 
     model = icnn.KeyNet(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
-    x = jax.random.normal(rng, (n_samples, n_features))
+    x = jr.normal(rng, (n_samples, n_features))
 
     # gradient returns vectors
     grad_out = model.gradient(x)
@@ -206,7 +207,7 @@ class TestKeyNet:
     model = icnn.KeyNet(
         dim_hidden, input_dim=n_features, resnet=True, rngs=nnx.Rngs(0)
     )
-    x = jax.random.normal(rng, (5, n_features))
+    x = jr.normal(rng, (5, n_features))
 
     grad_out = model.gradient(x)
     assert grad_out.shape == (5, n_features)
@@ -222,7 +223,7 @@ class TestKeyNet:
         output_dim=output_dim,
         rngs=nnx.Rngs(0)
     )
-    x = jax.random.normal(rng, (batch_size, n_features))
+    x = jr.normal(rng, (batch_size, n_features))
 
     grad_out = model.gradient(x)
     assert grad_out.shape == (batch_size, output_dim)
@@ -240,7 +241,7 @@ class TestKeyNet:
         num_outputs=num_outputs,
         rngs=nnx.Rngs(0),
     )
-    x = jax.random.normal(rng, (batch_size, n_features))
+    x = jr.normal(rng, (batch_size, n_features))
 
     grad_out = model.gradient(x)
     assert grad_out.shape == (batch_size, num_outputs, output_dim)

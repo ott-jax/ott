@@ -11,77 +11,32 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Literal, Optional, Tuple, Union
+from typing import Literal, Optional, Tuple
 
 import networkx as nx
-from networkx.algorithms import shortest_paths
-from networkx.generators import balanced_tree, random_graphs
+from networkx.generators import balanced_tree
 
 import pytest
 
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import geometry, graph
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
-
-
-def random_graph(
-    n: int,
-    p: float = 0.3,
-    seed: Optional[int] = 0,
-    *,
-    return_laplacian: bool = False,
-    directed: bool = False,
-) -> jnp.ndarray:
-  G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
-  if not directed:
-    assert nx.is_connected(G), "Generated graph is not connected."
-
-  rng = np.random.RandomState(seed)
-  for _, _, w in G.edges(data=True):
-    w["weight"] = rng.uniform(0, 10)
-
-  G = nx.linalg.laplacian_matrix(
-      G
-  ) if return_laplacian else nx.linalg.adjacency_matrix(G)
-
-  return jnp.asarray(G.toarray())
-
-
-def gt_geometry(
-    G: Union[jnp.ndarray, nx.Graph],
-    *,
-    epsilon: float = 1e-2
-) -> geometry.Geometry:
-  if not isinstance(G, nx.Graph):
-    G = nx.from_numpy_array(np.asarray(G))
-
-  n = len(G)
-  cost = np.zeros((n, n))
-
-  path = dict(
-      shortest_paths.all_pairs_bellman_ford_path_length(G, weight="weight")
-  )
-  for i, src in enumerate(G.nodes):
-    for j, tgt in enumerate(G.nodes):
-      cost[i, j] = path[src][tgt] ** 2
-
-  cost = jnp.asarray(cost)
-  kernel = jnp.asarray(np.exp(-cost / epsilon))
-  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.0)
+from tests.geometry import _graphs
 
 
 class TestGraph:
 
   def test_kernel_is_symmetric_positive_definite(self, rng: jax.Array):
     n, tol = 65, 0.02
-    x = jax.random.normal(rng, (n,))
-    geom = graph.Graph.from_graph(random_graph(n), t=1e-3)
+    x = jr.normal(rng, (n,))
+    geom = graph.Graph.from_graph(_graphs.random_graph(n), t=1e-3)
 
     kernel = geom.kernel_matrix
 
@@ -102,7 +57,7 @@ class TestGraph:
     np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
 
   def test_automatic_t(self):
-    G = random_graph(38, return_laplacian=False)
+    G = _graphs.random_graph(38, return_laplacian=False)
     geom = graph.Graph.from_graph(G, t=None)
 
     expected = (jnp.sum(G) / jnp.sum(G > 0.0)) ** 2
@@ -119,10 +74,10 @@ class TestGraph:
       numerical_scheme: Literal["backward_euler", "crank_nicolson"],
   ):
     eps, n_steps = 1e-5, 20
-    G = random_graph(37, p=0.5)
-    x = jax.random.normal(rng, (G.shape[0],))
+    G = _graphs.random_graph(37, p=0.5)
+    x = jr.normal(rng, (G.shape[0],))
 
-    gt_geom = gt_geometry(G, epsilon=eps)
+    gt_geom = _graphs.gt_geometry(G, epsilon=eps)
     graph_geom = graph.Graph.from_graph(
         G, t=eps, n_steps=n_steps, numerical_scheme=numerical_scheme
     )
@@ -169,7 +124,7 @@ class TestGraph:
     def create_graph(G: jnp.ndarray) -> graph.Graph:
       return graph.Graph.from_graph(G, directed=True, normalize=normalize)
 
-    G = random_graph(16, p=0.25, directed=True)
+    G = _graphs.random_graph(16, p=0.25, directed=True)
     create_fn = jax.jit(create_graph) if jit else create_graph
     geom = create_fn(G)
 
@@ -200,7 +155,7 @@ class TestGraph:
         return inv_sqrt_deg @ lap @ inv_sqrt_deg
       return lap
 
-    G = random_graph(51, p=0.35, directed=directed)
+    G = _graphs.random_graph(51, p=0.35, directed=directed)
     geom = graph.Graph.from_graph(G, directed=directed, normalize=normalize)
 
     expected = laplacian(G)
@@ -217,10 +172,10 @@ class TestGraph:
       return solver(problem)
 
     n, eps, tol = 11, 1e-5, 1e-3
-    G = random_graph(n, p=0.35)
-    x = jax.random.normal(rng, (n,))
+    G = _graphs.random_graph(n, p=0.35)
+    x = jr.normal(rng, (n,))
 
-    gt_geom = gt_geometry(G, epsilon=eps)
+    gt_geom = _graphs.gt_geometry(G, epsilon=eps)
     graph_geom = graph.Graph.from_graph(G, t=eps)
 
     fn = jax.jit(callback) if jit else callback
@@ -273,11 +228,11 @@ class TestGraph:
       kwargs = {"implicit_diff": None}
 
     eps = 1e-3
-    G = random_graph(20, p=0.5)
+    G = _graphs.random_graph(20, p=0.5)
     G = jesp.BCOO.fromdense(G)
 
     w, rows, cols = G.data, G.indices[:, 0], G.indices[:, 1]
-    v_w = jax.random.normal(rng, shape=w.shape)
+    v_w = jr.normal(rng, shape=w.shape)
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
     grad_w = jax.grad(callback)(w, rows, cols, shape=G.shape)
@@ -289,8 +244,8 @@ class TestGraph:
 
   def test_tolerance_hilbert_metric(self, rng: jax.Array):
     n, n_steps, t, tol = 256, 1000, 1e-4, 3e-4
-    G = random_graph(n, p=0.15)
-    x = jnp.abs(jax.random.normal(rng, (n,)))
+    G = _graphs.random_graph(n, p=0.15)
+    x = jnp.abs(jr.normal(rng, (n,)))
 
     graph_no_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=-1)
     graph_low_tol = graph.Graph.from_graph(G, t=t, n_steps=n_steps, tol=1e-4)

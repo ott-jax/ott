@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott import utils
@@ -25,6 +26,7 @@ from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
+from tests import _utils
 
 
 @pytest.mark.fast()
@@ -33,14 +35,15 @@ class TestQuadraticProblem:
   @pytest.mark.parametrize("as_pc", [False, True])
   @pytest.mark.parametrize("rank", [-1, 5, (1, 2, 3), (2, 3, 5)])
   def test_quad_to_low_rank(
-      self, rng: jax.Array, as_pc: bool, rank: Union[int, Tuple[int, ...]]
+      self, clouds: _utils.QuadClouds, rng: jax.Array, as_pc: bool,
+      rank: Union[int, Tuple[int, ...]]
   ):
     n, m, d1, d2, d = 100, 120, 4, 6, 10
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    x = jax.random.normal(rng1, (n, d1))
-    y = jax.random.normal(rng2, (m, d2))
-    xx = jax.random.normal(rng3, (n, d))
-    yy = jax.random.normal(rng4, (m, d))
+    rng1, rng2, rng3, rng4 = jr.split(rng, 4)
+    x = jr.normal(rng1, (n, d1))
+    y = jr.normal(rng2, (m, d2))
+    xx = jr.normal(rng3, (n, d))
+    yy = jr.normal(rng4, (m, d))
 
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y)
@@ -91,9 +94,9 @@ class TestQuadraticProblem:
 
   def test_gw_implicit_conversion_mixed_input(self, rng: jax.Array):
     n, m, d1, d2 = 13, 77, 3, 4
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, (n, d1))
-    y = jax.random.normal(rng2, (m, d2))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, (n, d1))
+    y = jr.normal(rng2, (m, d2))
 
     geom_xx = pointcloud.PointCloud(x)
     geom_yy = pointcloud.PointCloud(y).to_LRCGeometry()
@@ -106,32 +109,34 @@ class TestQuadraticProblem:
     assert prob.geom_yy is lr_prob.geom_yy
 
 
+#: Unbalancedness of the quadratic problems below.
+TAU_A, TAU_B = 0.8, 0.9
+
+
+@pytest.fixture(scope="module")
+def clouds(rng: jax.Array) -> _utils.QuadClouds:
+  """Clouds in different ambient dimensions, as this module always has."""
+  n, m, d_x, d_y = 6, 7, 2, 3
+  rngs = jr.split(rng, 6)
+  return _utils.QuadClouds(
+      x=jr.uniform(rngs[0], (n, d_x)),
+      y=jr.uniform(rngs[1], (m, d_y)),
+      a=_utils.random_probs(rngs[2], n),
+      b=_utils.random_probs(rngs[3], m),
+      cx=jr.uniform(rngs[4], (n, n)),
+      cy=jr.uniform(rngs[5], (m, m)),
+  )
+
+
 class TestGromovWasserstein:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    d_x = 2
-    d_y = 3
-    self.n, self.m = 6, 7
-    rngs = jax.random.split(rng, 6)
-    self.x = jax.random.uniform(rngs[0], (self.n, d_x))
-    self.y = jax.random.uniform(rngs[1], (self.m, d_y))
-    a = jax.random.uniform(rngs[2], (self.n,)) + 1e-1
-    b = jax.random.uniform(rngs[3], (self.m,)) + 1e-1
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
-    self.cx = jax.random.uniform(rngs[4], (self.n, self.n))
-    self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
-    self.tau_a = 0.8
-    self.tau_b = 0.9
-
-  def test_flag_store_errors(self):
+  def test_flag_store_errors(self, clouds: _utils.QuadClouds):
     """Tests whether errors are properly stored if requested."""
     threshold_sinkhorn = 1e-2
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
+    geom_x = pointcloud.PointCloud(clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y)
     prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, a=self.a, b=self.b
+        geom_x, geom_y, a=clouds.a, b=clouds.b
     )
 
     linear_solver = sinkhorn.Sinkhorn()
@@ -155,7 +160,7 @@ class TestGromovWasserstein:
     )
 
   @pytest.mark.parametrize("jit", [False, True])
-  def test_gradient_marginals_gw(self, jit: bool):
+  def test_gradient_marginals_gw(self, clouds: _utils.QuadClouds, jit: bool):
     """Test gradient w.r.t. probability weights."""
 
     def reg_gw(a: jnp.ndarray, b: jnp.ndarray,
@@ -173,8 +178,8 @@ class TestGromovWasserstein:
       out = solver(prob)
       return out.reg_gw_cost, (out.linear_state.f, out.linear_state.g)
 
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
+    geom_x = pointcloud.PointCloud(clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y)
 
     grad_matrices = [None, None]
     for i, implicit in enumerate([True, False]):
@@ -182,10 +187,10 @@ class TestGromovWasserstein:
       if jit:
         reg_gw_grad = jax.jit(reg_gw_grad, static_argnames="implicit")
 
-      grad_reg_gw, aux = reg_gw_grad(self.a, self.b, implicit)
+      grad_reg_gw, aux = reg_gw_grad(clouds.a, clouds.b, implicit)
       grad_matrices[i] = grad_reg_gw
-      grad_manual_a = aux[0] - jnp.log(self.a)
-      grad_manual_b = aux[1] - jnp.log(self.b)
+      grad_manual_a = aux[0] - jnp.log(clouds.a)
+      grad_manual_b = aux[1] - jnp.log(clouds.b)
       assert not jnp.any(jnp.isnan(grad_reg_gw[0]))
       assert not jnp.any(jnp.isnan(grad_reg_gw[1]))
       np.testing.assert_allclose(
@@ -205,13 +210,15 @@ class TestGromovWasserstein:
   @pytest.mark.fast()
   @pytest.mark.parametrize(("balanced", "rank"), [(True, -1), (False, -1),
                                                   (True, 3)])
-  def test_gw_pointcloud(self, balanced: bool, rank: int):
+  def test_gw_pointcloud(
+      self, clouds: _utils.QuadClouds, balanced: bool, rank: int
+  ):
     """Test basic computations point clouds."""
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
-    tau_a, tau_b = (1.0, 1.0) if balanced else (self.tau_a, self.tau_b)
+    geom_x = pointcloud.PointCloud(clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y)
+    tau_a, tau_b = (1.0, 1.0) if balanced else (TAU_A, TAU_B)
     prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
+        geom_x, geom_y, a=clouds.a, b=clouds.b, tau_a=tau_a, tau_b=tau_b
     )
     if rank > 0:
       solver = gromov_wasserstein_lr.LRGromovWasserstein(
@@ -246,8 +253,8 @@ class TestGromovWasserstein:
                                                      (False, True)],
                            ids=["lse-pc", "kernel-cost-mat"])
   def test_gradient_gw_geometry(
-      self, lse_mode: bool, is_cost: bool, unbalanced: bool,
-      unbalanced_correction: bool
+      self, clouds: _utils.QuadClouds, lse_mode: bool, is_cost: bool,
+      unbalanced: bool, unbalanced_correction: bool
   ):
     """Test gradient w.r.t. the geometries."""
 
@@ -261,7 +268,7 @@ class TestGromovWasserstein:
       else:
         geom_x = pointcloud.PointCloud(x)
         geom_y = pointcloud.PointCloud(y)
-      tau_a, tau_b = (self.tau_a, self.tau_b) if unbalanced else (1.0, 1.0)
+      tau_a, tau_b = (TAU_A, TAU_B) if unbalanced else (1.0, 1.0)
       prob = quadratic_problem.QuadraticProblem(
           geom_x,
           geom_y,
@@ -285,11 +292,11 @@ class TestGromovWasserstein:
       return solver(prob).reg_gw_cost
 
     grad_matrices = [None, None]
-    x, y = (self.cx, self.cy) if is_cost else (self.x, self.y)
+    x, y = (clouds.cx, clouds.cy) if is_cost else (clouds.x, clouds.y)
     reg_gw_grad = jax.grad(reg_gw, argnums=(0, 1))
 
     for i, implicit in enumerate([True, False]):
-      grad_matrices[i] = reg_gw_grad(x, y, self.a, self.b, implicit)
+      grad_matrices[i] = reg_gw_grad(x, y, clouds.a, clouds.b, implicit)
       assert not jnp.any(jnp.isnan(grad_matrices[i][0]))
       assert not jnp.any(jnp.isnan(grad_matrices[i][1]))
 
@@ -300,14 +307,14 @@ class TestGromovWasserstein:
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-2, atol=1e-2
     )
 
-  def test_gw_adaptive_threshold(self):
+  def test_gw_adaptive_threshold(self, clouds: _utils.QuadClouds):
     """Checking solution is improved with smaller threshold for convergence."""
-    geom_x = pointcloud.PointCloud(self.x, self.x)
-    geom_y = pointcloud.PointCloud(self.y, self.y)
+    geom_x = pointcloud.PointCloud(clouds.x, clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y, clouds.y)
 
     def loss_thre(threshold: float) -> float:
       prob = quadratic_problem.QuadraticProblem(
-          geom_x, geom_y, a=self.a, b=self.b
+          geom_x, geom_y, a=clouds.a, b=clouds.b
       )
       linear_solver = sinkhorn.Sinkhorn()
       solver = gromov_wasserstein.GromovWasserstein(
@@ -322,12 +329,12 @@ class TestGromovWasserstein:
   @pytest.mark.fast()
   def test_gw_lr(self, rng: jax.Array):
     """Checking LR and Entropic have similar outputs on same problem."""
-    rngs = jax.random.split(rng, 4)
+    rngs = jr.split(rng, 4)
     n, m, d1, d2 = 24, 17, 2, 3
-    x = jax.random.uniform(rngs[0], (n, d1))
-    y = jax.random.uniform(rngs[1], (m, d2))
-    a = jax.random.uniform(rngs[2], (n,))
-    b = jax.random.uniform(rngs[3], (m,))
+    x = jr.uniform(rngs[0], (n, d1))
+    y = jr.uniform(rngs[1], (m, d2))
+    a = jr.uniform(rngs[2], (n,))
+    b = jr.uniform(rngs[3], (m,))
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
 
@@ -353,13 +360,13 @@ class TestGromovWasserstein:
 
   def test_gw_lr_matches_fused(self, rng: jax.Array):
     """Checking LR and Entropic have similar outputs on same fused problem."""
-    rngs = jax.random.split(rng, 5)
+    rngs = jr.split(rng, 5)
     n, m, d1, d2 = 24, 17, 2, 3
-    x = jax.random.uniform(rngs[0], (n, d1))
-    y = jax.random.uniform(rngs[1], (m, d2))
-    a = jax.random.uniform(rngs[2], (n,))
-    b = jax.random.uniform(rngs[3], (m,))
-    z = jax.random.uniform(rngs[4], (m, d1))
+    x = jr.uniform(rngs[0], (n, d1))
+    y = jr.uniform(rngs[1], (m, d2))
+    a = jr.uniform(rngs[2], (n,))
+    b = jr.uniform(rngs[3], (m,))
+    z = jr.uniform(rngs[4], (m, d1))
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
 
@@ -393,11 +400,11 @@ class TestGromovWasserstein:
     assert jnp.linalg.norm(ot_gwlr.matrix - ot_gwlreps.matrix) > 1e-3
 
   @pytest.mark.parametrize("axis", [0, 1])
-  def test_gw_lr_apply(self, axis: int):
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
+  def test_gw_lr_apply(self, clouds: _utils.QuadClouds, axis: int):
+    geom_x = pointcloud.PointCloud(clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y)
     prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, a=self.a, b=self.b
+        geom_x, geom_y, a=clouds.a, b=clouds.b
     )
     solver = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=2,
@@ -408,7 +415,8 @@ class TestGromovWasserstein:
     )
     out = solver(prob)
 
-    arr, matrix = (self.x, out.matrix) if axis == 0 else (self.y, out.matrix.T)
+    arr, matrix = (clouds.x,
+                   out.matrix) if axis == 0 else (clouds.y, out.matrix.T)
     res_apply = out.apply(arr.T, axis=axis)
     res_matrix = arr.T @ matrix
 
@@ -421,12 +429,12 @@ class TestGromovWasserstein:
       scale_cost: Union[float, str],
   ):
     eps = 1e-2
-    rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2 = jr.split(rng, 2)
     geom_x = pointcloud.PointCloud(
-        jax.random.normal(rng1, (49, 5)), scale_cost=scale_cost
+        jr.normal(rng1, (49, 5)), scale_cost=scale_cost
     )
     geom_y = pointcloud.PointCloud(
-        jax.random.normal(rng2, (78, 6)), scale_cost=scale_cost
+        jr.normal(rng2, (78, 6)), scale_cost=scale_cost
     )
     prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
 
@@ -450,12 +458,13 @@ class TestGromovWasserstein:
                            [(0.99, 0.95, 0.0, True), (0.9, 0.8, 1e-3, False),
                             (1.0, 0.999, 0.0, True), (0.5, 1.0, 1e-2, False)])
   def test_gwlr_unbalanced(
-      self, tau_a: float, tau_b: float, eps: float, ti: bool
+      self, clouds: _utils.QuadClouds, tau_a: float, tau_b: float, eps: float,
+      ti: bool
   ):
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
-    a = self.a.at[:2].set(0.0)
-    b = self.b.at[15:20].set(0.0)
+    geom_x = pointcloud.PointCloud(clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y)
+    a = clouds.a.at[:2].set(0.0)
+    b = clouds.b.at[15:20].set(0.0)
     prob = quadratic_problem.QuadraticProblem(
         geom_x,
         geom_y,
@@ -481,26 +490,26 @@ class TestGromovWasserstein:
     np.testing.assert_array_equal(jnp.isfinite(res.costs), True)
 
   @pytest.mark.parametrize(("rank", "eps"), [(5, 0.0), (10, 1e-3), (15, 1e-2)])
+  @pytest.mark.usefixtures("enable_x64")
   def test_gwlr_unbalanced_matches_balanced(
-      self, rank: int, eps: float, enable_x64: bool
+      self, clouds: _utils.QuadClouds, rank: int, eps: float
   ):
-    del enable_x64
 
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
+    geom_x = pointcloud.PointCloud(clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y)
     prob = quadratic_problem.QuadraticProblem(
         geom_x,
         geom_y,
-        a=self.a,
-        b=self.b,
+        a=clouds.a,
+        b=clouds.b,
         tau_a=1.0,
         tau_b=1.0,
     )
     prob_unbal = quadratic_problem.QuadraticProblem(
         geom_x,
         geom_y,
-        a=self.a,
-        b=self.b,
+        a=clouds.a,
+        b=clouds.b,
         tau_a=0.9999,
         tau_b=0.9999,
     )
@@ -524,7 +533,7 @@ class TestGromovWasserstein:
     )
 
   @pytest.mark.parametrize("grad", [False, True])
-  def test_gw_progress_fn(self, grad: bool):
+  def test_gw_progress_fn(self, clouds: _utils.QuadClouds, grad: bool):
 
     def callback(x: jnp.ndarray, y: jnp.ndarray):
       geom_xx = pointcloud.PointCloud(x)
@@ -548,6 +557,6 @@ class TestGromovWasserstein:
 
     fn = jax.grad(callback) if grad else callback
     fn = jax.jit(fn)
-    res = fn(self.x, self.y)
+    res = fn(clouds.x, clouds.y)
 
     np.testing.assert_array_equal(jnp.isfinite(res), True)

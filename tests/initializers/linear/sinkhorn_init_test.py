@@ -17,12 +17,14 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers as linear_init
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
+from tests.initializers import _problems
 
 
 def create_sorting_problem(
@@ -34,10 +36,10 @@ def create_sorting_problem(
   # define ot problem
   x_init = jnp.array([-1.0, 0.0, 0.22])
   y_init = jnp.array([0.0, 0.0, 1.1])
-  x_rng, y_rng = jax.random.split(rng)
+  x_rng, y_rng = jr.split(rng)
 
-  x = jnp.concatenate([x_init, 10 + jnp.abs(jax.random.normal(x_rng, (n,)))])
-  y = jnp.concatenate([y_init, 10 + jnp.abs(jax.random.normal(y_rng, (n,)))])
+  x = jnp.concatenate([x_init, 10 + jnp.abs(jr.normal(x_rng, (n,)))])
+  y = jnp.concatenate([y_init, 10 + jnp.abs(jr.normal(y_rng, (n,)))])
 
   x = jnp.sort(x)
   y = jnp.sort(y)
@@ -52,31 +54,6 @@ def create_sorting_problem(
       epsilon=epsilon,
       batch_size=batch_size
   )
-  return linear_problem.LinearProblem(geom=geom, a=a, b=b)
-
-
-def create_ot_problem(
-    rng: jax.Array,
-    n: int,
-    m: int,
-    d: int,
-    epsilon: float = 1e-2,
-    batch_size: Optional[int] = None
-) -> linear_problem.LinearProblem:
-  # define ot problem
-  x_rng, y_rng = jax.random.split(rng)
-
-  mu_a = jnp.array([-1, 1]) * 5
-  mu_b = jnp.array([0, 0])
-
-  x = jax.random.normal(x_rng, (n, d)) + mu_a
-  y = jax.random.normal(y_rng, (m, d)) + mu_b
-
-  a = jnp.ones(n) / n
-  b = jnp.ones(m) / m
-
-  geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
-
   return linear_problem.LinearProblem(geom=geom, a=a, b=b)
 
 
@@ -124,7 +101,7 @@ class TestSinkhornInitializers:
     n, m, d = 10, 15, 1
     epsilon = 1e-2
 
-    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon)
+    ot_problem = _problems.create_ot_problem(rng, n, m, d, epsilon=epsilon)
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"square"):
       sort_init.init_fu(ot_problem, lse_mode=True)
@@ -134,7 +111,9 @@ class TestSinkhornInitializers:
     n, m, d = 20, 20, 2
     epsilon = 1e-2
 
-    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
+    ot_problem = _problems.create_ot_problem(
+        rng, n, m, d, epsilon=epsilon, batch_size=3
+    )
 
     f = linear_init.DefaultInitializer().init_fu(ot_problem, lse_mode=True)
     g = linear_init.DefaultInitializer().init_gv(ot_problem, lse_mode=True)
@@ -147,7 +126,9 @@ class TestSinkhornInitializers:
     n, m, d = 20, 20, 2
     epsilon = 1e-2
 
-    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
+    ot_problem = _problems.create_ot_problem(
+        rng, n, m, d, epsilon=epsilon, batch_size=3
+    )
 
     gaus_init = linear_init.GaussianInitializer()
     new_geom = geometry.Geometry(
@@ -182,7 +163,7 @@ class TestSinkhornInitializers:
     if isinstance(initializer, linear_init.SortingInitializer):
       ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
     else:
-      ot_problem = create_ot_problem(
+      ot_problem = _problems.create_ot_problem(
           rng, n, m, d, epsilon=epsilon, batch_size=3
       )
 

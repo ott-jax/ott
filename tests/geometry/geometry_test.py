@@ -16,6 +16,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import epsilon_scheduler, geometry, pointcloud
@@ -29,9 +30,9 @@ class TestCostMeanStd:
     """Test consistency of std evaluation."""
     n, m, d = 5, 18, 10
     default_scale = epsilon_scheduler.DEFAULT_EPSILON_SCALE
-    rngs = jax.random.split(rng, 5)
-    x = jax.random.normal(rngs[0], (n, d))
-    y = jax.random.normal(rngs[1], (m, d)) + 1
+    rngs = jr.split(rng, 5)
+    x = jr.normal(rngs[0], (n, d))
+    y = jr.normal(rngs[1], (m, d)) + 1
 
     geom = pointcloud.PointCloud(x, y)
     if geom_type == "geometry":
