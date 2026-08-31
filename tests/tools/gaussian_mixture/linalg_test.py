@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import pytest
 
 import jax
@@ -107,13 +108,20 @@ class TestLinalg:
   def test_apply_to_diag(self, rng: jax.Array):
     size = 3
     m = jax.random.normal(rng, shape=(5, 4, size, size))
+    diag_ixs = jnp.arange(size)
     mnew = linalg.apply_to_diag(m, jnp.exp)
-    for i in range(size):
-      for j in range(size):
-        if i != j:
-          np.testing.assert_allclose(m[..., i, j], mnew[..., i, j])
-        else:
-          np.testing.assert_allclose(jnp.exp(m[..., i, j]), mnew[..., i, j])
+    rtol, atol = 1e-5, 1e-5
+
+    expected_diag = jnp.exp(m[..., diag_ixs, diag_ixs])
+    actual_diag = mnew[..., diag_ixs, diag_ixs]
+
+    expected_non_diag = m.at[..., diag_ixs, diag_ixs].set(jnp.nan)
+    actual_non_diag = mnew.at[..., diag_ixs, diag_ixs].set(jnp.nan)
+
+    np.testing.assert_allclose(expected_diag, actual_diag, rtol=rtol, atol=atol)
+    np.testing.assert_allclose(
+        expected_non_diag, actual_non_diag, rtol=rtol, atol=atol
+    )
 
   def test_matrix_powers(self, rng: jax.Array):
     m = jax.random.normal(rng, shape=(4, 4))

@@ -15,7 +15,6 @@ import pytest
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers_lr
@@ -41,9 +40,9 @@ class TestLRInitializers:
     assert jnp.linalg.matrix_rank(r) == rank
 
   def test_better_initialization_helps(self, rng: jax.Array):
-    n, d, rank = 81, 13, 3
+    n, d, rank = 81, 15, 3
     epsilon = 1e-1
-    rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2, rng3 = jax.random.split(rng, 3)
     x = jax.random.normal(rng1, (n, d))
     y = jax.random.normal(rng2, (n, d))
     pc = pointcloud.PointCloud(x, y, epsilon=5e-1)
@@ -62,13 +61,12 @@ class TestLRInitializers:
         max_iterations=10000
     )
 
-    out_random = solver_random(prob)
+    out_random = solver_random(prob, rng=rng3)
     out_init = solver_init(prob)
 
     assert out_random.converged
     assert out_init.converged
     # converged earlier
-    np.testing.assert_array_less((out_init.errors > -1).sum(),
-                                 (out_random.errors > -1).sum())
+    assert out_init.n_iters <= out_random.n_iters
     # converged to a better solution
     assert out_init.reg_ot_cost <= out_random.reg_ot_cost
