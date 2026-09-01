@@ -26,14 +26,6 @@ from tests import _utils
 
 def pytest_addoption(parser: pytest.Parser) -> None:
   parser.addoption(
-      "--jax-compilation-cache",
-      metavar="DIR",
-      default=None,
-      help="Persist compiled XLA kernels in DIR and reuse them across runs. "
-      "Most of the suite's runtime is compilation, so this makes repeated "
-      "runs several times faster.",
-  )
-  parser.addoption(
       "--strict-rng",
       action="store_true",
       help="Fail if a PRNG key is consumed twice. Reusing a key silently "
@@ -44,14 +36,6 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def pytest_configure(config: pytest.Config) -> None:
   if config.getoption("--strict-rng"):
     jax.config.update("jax_debug_key_reuse", True)
-
-  cache_dir = config.getoption("--jax-compilation-cache")
-  if cache_dir is None:
-    return
-  jax.config.update("jax_compilation_cache_dir", str(cache_dir))
-  # none of these kernels reach JAX's 1s default persist threshold
-  jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.0)
-  jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
