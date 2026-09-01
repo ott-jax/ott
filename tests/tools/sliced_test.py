@@ -57,7 +57,6 @@ class TestSliced:
     a, x, b, y = gen_data(rng_data, n, m, dim)
     weights = jr.uniform(rng_w, (n_proj,))
 
-    # `proj_fn` takes only `(rng, x)`, so bind the number of projections here
     if proj_fn is None:
       proj_fn = sliced.random_proj_sphere
     proj_fn = functools.partial(proj_fn, n_proj=n_proj)

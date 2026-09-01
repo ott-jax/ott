@@ -422,7 +422,6 @@ class TestSinkhorn:
         )
         np.testing.assert_array_equal(jnp.isnan(applied_a[-1]), False)
 
-    # all (lse_mode, batch_size) combinations must agree
     for i in range(1, len(applied_a)):
       np.testing.assert_allclose(
           applied_b[i], applied_b[0], rtol=1e-3, atol=1e-3

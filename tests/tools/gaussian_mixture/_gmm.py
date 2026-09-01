@@ -16,17 +16,11 @@ import jax.numpy as jnp
 
 from ott.tools.gaussian_mixture import gaussian_mixture
 
-#: Parameters of the reference 3-component mixture in 2D.
 MEAN = jnp.array([[2.0, -1.0], [-2.0, 0.0], [4.0, 3.0]])
 COV = jnp.array([[[0.2, 0.0], [0.0, 0.1]], [[0.6, 0.0], [0.0, 0.3]],
                  [[0.5, 0.4], [0.4, 0.5]]])
 WEIGHTS = jnp.array([0.3, 0.3, 0.4])
 
-#: How the second mixture of a pair differs from the reference one.
-MEAN_SHIFT = jnp.array([[1.0, -0.5], [-1.0, -1.0], [-1.0, 0.0]])
-WEIGHTS_SHIFT = jnp.array([0.0, 0.1, -0.1])
-
-#: Number of points sampled from a mixture.
 NUM_SAMPLES = 2000
 
 
@@ -39,8 +33,8 @@ def reference() -> gaussian_mixture.GaussianMixture:
 
 def shifted() -> gaussian_mixture.GaussianMixture:
   """:func:`reference` with its means and component weights shifted."""
+  mean = MEAN + jnp.array([[1.0, -0.5], [-1.0, -1.0], [-1.0, 0.0]])
+  weights = WEIGHTS + jnp.array([0.0, 0.1, -0.1])
   return gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
-      mean=MEAN + MEAN_SHIFT,
-      cov=COV,
-      component_weights=WEIGHTS + WEIGHTS_SHIFT
+      mean=mean, cov=COV, component_weights=weights
   )

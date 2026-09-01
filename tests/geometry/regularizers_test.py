@@ -93,7 +93,6 @@ class TestProximalOperator:
     np.testing.assert_allclose(expected, actual, rtol=1e-5, atol=1e-5)
     assert orth.is_fully_orthogonal == (nu == 1.0)
     for tau in [0.1, 0.5, 1.0]:
-      # same draw for every tau
       self.test_moreau_envelope(
           jr.clone(rng_moreau), tau=tau, reg=orth, lam=None
       )

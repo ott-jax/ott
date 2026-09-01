@@ -109,7 +109,6 @@ class TestQuadraticProblem:
     assert prob.geom_yy is lr_prob.geom_yy
 
 
-#: Unbalancedness of the quadratic problems below.
 TAU_A, TAU_B = 0.8, 0.9
 
 

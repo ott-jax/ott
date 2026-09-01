@@ -90,7 +90,6 @@ class SemidiscreteDataloader:
 
   def __iter__(self) -> "SemidiscreteDataloader":
     """Return self."""
-    # cloned so that re-iterating replays the same batches
     self._rng_it = jr.clone(self.rng)
     return self
 

@@ -72,9 +72,7 @@ def _sqrt_plus_inv_sqrt(x: jnp.ndarray) -> jnp.ndarray:
   return sqrtm[0] + sqrtm[1]
 
 
-#: Size and batch of the random p.s.d. matrices exercised below.
 DIM = 13
-BATCH = 3
 
 
 @dataclasses.dataclass(frozen=True)
@@ -102,7 +100,7 @@ class TestMatrixSquareRoot:
   def test_sqrtm(self, rng: jax.Array):
     """Sample a random p.s.d. (Wishart) matrix, check its sqrt matches."""
 
-    matrices = jr.normal(rng, (BATCH, DIM, 2 * DIM))
+    matrices = jr.normal(rng, (3, DIM, 2 * DIM))
 
     for x in (matrices, matrices[0, :, :]):  # try with many and only one.
       x = jnp.matmul(x, jnp.swapaxes(x, -1, -2))

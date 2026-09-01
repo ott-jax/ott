@@ -151,8 +151,6 @@ class TestLRGeometry:
 
     draw = iter(jr.split(rngs[4], 4))
     for dim, axis in ((m, 1), (n, 0)):
-      # the dense and low-rank forms are algebraically equal, so the gap here
-      # is float32 accumulation only
       mat = jr.normal(next(draw), (dim, 2))
       np.testing.assert_allclose(
           geom.apply_cost(mat, axis=axis),

@@ -26,7 +26,6 @@ from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from tests import _utils
 
-#: Regularization strength shared by the tests below.
 EPS = 5e-2
 
 

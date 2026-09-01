@@ -27,9 +27,7 @@ from tests import _utils
 GMMPair_t = Tuple[gaussian_mixture.GaussianMixture,
                   gaussian_mixture.GaussianMixture]
 
-#: Shape of the mixtures and the regularization of the pair.
 N_COMPONENTS = 3
-N_DIMENSIONS = 2
 EPSILON = 1e-3
 
 
@@ -38,9 +36,9 @@ def gmms() -> GMMPair_t:
   """Two random mixtures, drawn exactly as this module always has."""
   _, subrng0, subrng1 = jr.split(_utils.root_key(), num=3)
   return tuple(
-      gaussian_mixture.GaussianMixture.from_random(
-          rng=subrng, n_components=N_COMPONENTS, n_dimensions=N_DIMENSIONS
-      ) for subrng in (subrng0, subrng1)
+      gaussian_mixture.GaussianMixture
+      .from_random(rng=subrng, n_components=N_COMPONENTS, n_dimensions=2)
+      for subrng in (subrng0, subrng1)
   )
 
 

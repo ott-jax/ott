@@ -93,11 +93,8 @@ class TestSinkhornAnderson:
       assert iterations_anderson[i] <= iterations_anderson[0]
 
 
-#: Dimensionality and regularization of the Bures point clouds.
 BURES_DIM = 7
-BURES_EPS = 1.0
 
-#: Regularization used by the jit-vs-non-jit comparisons.
 JIT_EPSILON = 0.05
 
 
@@ -149,7 +146,7 @@ class TestSinkhornBures:
           dimension=BURES_DIM, sqrtm_kw={"regularization": 1e-4}
       )
 
-    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=BURES_EPS)
+    geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=1.0)
     prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
     solver = sinkhorn.Sinkhorn(threshold=thresh, lse_mode=lse_mode)
     out = solver(prob)

@@ -212,7 +212,6 @@ class TestSemidiscreteSolver:
         optimizer=optax.adam(5e-2, b1=0.5, b2=0.9),
     )
 
-    # same solver randomness either side, so only the warm start differs
     out = jax.jit(solver)(rng_solver, prob)
     out_init = jax.jit(solver)(jr.clone(rng_solver), prob, out.g)
 

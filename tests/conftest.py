@@ -49,13 +49,9 @@ def pytest_configure(config: pytest.Config) -> None:
   if cache_dir is None:
     return
   jax.config.update("jax_compilation_cache_dir", str(cache_dir))
-  # the suite compiles thousands of small kernels, none of which reach the
-  # 1s default threshold below which JAX declines to persist an entry
+  # none of these kernels reach JAX's 1s default persist threshold
   jax.config.update("jax_persistent_cache_min_compile_time_secs", 0.0)
   jax.config.update("jax_persistent_cache_min_entry_size_bytes", 0)
-  # NOTE: deliberately not setting `jax_compilation_cache_max_size`; enforcing
-  # it costs ~1.8x on a warm cache. Growth is bounded by keying the CI cache
-  # on the jaxlib version instead, since entries never outlive an upgrade.
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:

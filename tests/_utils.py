@@ -16,9 +16,10 @@
 Kept free of :mod:`pytest` so that both the fixtures in ``conftest.py`` and
 tests that need bespoke sizes can use them.
 
-Prefer the canonical sizes below over ad-hoc ones: reusing shapes lets XLA
-serve a compiled kernel from its cache instead of recompiling it per module,
-which is where most of the suite's runtime goes.
+Prefer the default sizes of :func:`random_clouds` over ad-hoc ones:
+reusing shapes lets XLA
+serve a compiled kernel from its cache instead of recompiling it per
+module, which is where most of the suite's runtime goes.
 """
 import dataclasses
 from typing import Sequence
@@ -30,15 +31,9 @@ import jax.random as jr
 from ott.geometry import pointcloud
 
 __all__ = [
-    "N", "M", "DIM", "SEED", "root_key", "PointClouds", "QuadClouds",
-    "random_probs", "random_clouds", "proj"
+    "root_key", "PointClouds", "QuadClouds", "random_probs", "random_clouds",
+    "proj"
 ]
-
-#: Canonical number of source points, target points and dimensions.
-N, M, DIM = 13, 17, 4
-
-#: Seed every fixture and test derives its randomness from.
-SEED = 0
 
 
 def root_key() -> jax.Array:
@@ -48,7 +43,7 @@ def root_key() -> jax.Array:
   seed themselves without consuming a key another fixture also uses -- which
   ``jax_debug_key_reuse`` would (rightly) reject.
   """
-  return jr.key(SEED)
+  return jr.key(0)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -113,9 +108,9 @@ def random_probs(
 def random_clouds(
     rng: jax.Array,
     *,
-    n: int = N,
-    m: int = M,
-    dim: int = DIM,
+    n: int = 13,
+    m: int = 17,
+    dim: int = 4,
     offset: float = 0.1,
     zero_a: Sequence[int] = (),
     zero_b: Sequence[int] = (),

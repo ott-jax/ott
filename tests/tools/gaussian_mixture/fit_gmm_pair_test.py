@@ -27,10 +27,7 @@ from ott.tools.gaussian_mixture import (
 from tests import _utils
 from tests.tools.gaussian_mixture import _gmm
 
-#: Regularization strength and unbalancedness of the pair.
 EPSILON = 1e-2
-RHO = 0.1
-TAU = RHO / (RHO + EPSILON)
 
 
 @pytest.fixture(scope="module")
@@ -56,7 +53,8 @@ class TestFitGmmPair:
   ):
     # dumb integration test that makes sure nothing crashes
     samples0, samples1 = samples
-    tau = 1.0 if balanced else TAU
+    rho = 0.1
+    tau = 1.0 if balanced else rho / (rho + EPSILON)
 
     if weighted:
       weights0 = jnp.ones(samples0.shape[0])

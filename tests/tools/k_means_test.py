@@ -106,7 +106,6 @@ class TestKmeansPlusPlus:
 
     def callback(x: jnp.ndarray) -> float:
       geom = pointcloud.PointCloud(x)
-      # cloned: both evaluations must start from the same initialization
       centers = k_means._k_means_plus_plus(geom, k=3, rng=jr.clone(rng))
       _, inertia = compute_assignment(x, centers)
       return inertia
@@ -194,7 +193,6 @@ class TestKmeans:
     k = 10
     geom, _, _ = make_blobs(n_samples=150, centers=k, random_state=0)
 
-    # same seed either side, so only `n_init` differs
     res = k_means.k_means(geom, k, n_init=3, rng=rng)
     res_larger_n_init = k_means.k_means(geom, k, n_init=20, rng=jr.clone(rng))
 
@@ -221,7 +219,6 @@ class TestKmeans:
     k = 11
     geom, _, _ = make_blobs(n_samples=200, centers=k, random_state=39)
 
-    # same seed either side, so only `tol` differs
     res = k_means.k_means(geom, k=k, tol=1.0, rng=rng)
     res_strict = k_means.k_means(geom, k=k, tol=0.0, rng=jr.clone(rng))
 
@@ -340,7 +337,6 @@ class TestKmeans:
   ):
 
     def callback(x: jnp.ndarray) -> k_means.KMeansOutput:
-      # cloned so the two jitted calls replay the same draw
       return k_means.k_means(
           x, k=k, init=init, store_inner_errors=True, rng=jr.clone(rng)
       )
@@ -375,7 +371,6 @@ class TestKmeans:
           weights=w,
           min_iterations=20 if force_scan else 1,
           max_iterations=20,
-          # cloned: every finite-difference evaluation must use the same draw
           rng=jr.clone(rng1),
       ).error
 

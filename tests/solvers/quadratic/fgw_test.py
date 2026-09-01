@@ -29,9 +29,7 @@ from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 from tests import _utils
 
-#: Weights of the fused (linear) term relative to the quadratic one.
 FUSED_PENALTY = 2.0
-FUSED_PENALTY_2 = 0.05
 
 
 @dataclasses.dataclass(frozen=True)
@@ -174,12 +172,7 @@ class TestFusedGromovWasserstein:
     # without warm start for calls to sinkhorn
     def loss_thre(threshold: float) -> float:
       prob = quadratic_problem.QuadraticProblem(
-          geom_x,
-          geom_y,
-          geom_xy,
-          a=clouds.a,
-          b=clouds.b,
-          fused_penalty=FUSED_PENALTY_2
+          geom_x, geom_y, geom_xy, a=clouds.a, b=clouds.b, fused_penalty=0.05
       )
       linear_solver = sinkhorn.Sinkhorn()
       solver = gromov_wasserstein.GromovWasserstein(

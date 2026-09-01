@@ -25,7 +25,6 @@ from ott.tools import segment_sinkhorn
 from ott.tools.gaussian_mixture import gaussian_mixture
 from tests import _utils
 
-#: Padding size used when segmenting the measures below.
 MAX_MEASURE_SIZE = 20
 
 
