@@ -30,20 +30,7 @@ import jax.random as jr
 
 from ott.geometry import pointcloud
 
-__all__ = [
-    "root_key", "PointClouds", "QuadClouds", "random_probs", "random_clouds",
-    "proj"
-]
-
-
-def root_key() -> jax.Array:
-  """A fresh root key.
-
-  Each call returns a distinct array with the same value, so fixtures can
-  seed themselves without consuming a key another fixture also uses -- which
-  ``jax_debug_key_reuse`` would (rightly) reject.
-  """
-  return jr.key(0)
+__all__ = ["PointClouds", "QuadClouds", "random_probs", "random_clouds", "proj"]
 
 
 @dataclasses.dataclass(frozen=True)

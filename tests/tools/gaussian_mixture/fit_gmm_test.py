@@ -18,16 +18,13 @@ import jax.numpy as jnp
 import jax.random as jr
 import jax.test_util
 
-from ott.tools.gaussian_mixture import fit_gmm
-from tests import _utils
-from tests.tools.gaussian_mixture import _gmm
+from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 
 
 @pytest.fixture(scope="module")
-def samples() -> jnp.ndarray:
+def samples(gmm_reference: gaussian_mixture.GaussianMixture) -> jnp.ndarray:
   """Points drawn from the reference mixture."""
-  _, subrng = jr.split(_utils.root_key())
-  return _gmm.reference().sample(rng=subrng, size=_gmm.NUM_SAMPLES)
+  return gmm_reference.sample(rng=jr.key(0), size=2000)
 
 
 @pytest.mark.fast()

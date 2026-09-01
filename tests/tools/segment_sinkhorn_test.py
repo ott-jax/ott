@@ -30,16 +30,8 @@ MAX_MEASURE_SIZE = 20
 
 @pytest.fixture(scope="module")
 def clouds() -> _utils.PointClouds:
-  """Point clouds drawn exactly as this module always has."""
-  n, m, dim = 13, 17, 4
-  rng_xy, rng_a, rng_b = jr.split(_utils.root_key(), 3)
-  rng_x, rng_y, _, _ = jr.split(rng_xy, 4)
-  return _utils.PointClouds(
-      x=jr.uniform(rng_x, (n, dim)),
-      y=jr.uniform(rng_y, (m, dim)),
-      a=_utils.random_probs(rng_a, n, offset=0.0),
-      b=_utils.random_probs(rng_b, m, offset=0.0),
-  )
+  """Override with uniformly drawn marginals."""
+  return _utils.random_clouds(jr.key(0), offset=0.0)
 
 
 class TestSegmentSinkhorn:

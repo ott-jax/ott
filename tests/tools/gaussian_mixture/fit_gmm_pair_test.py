@@ -22,21 +22,23 @@ import jax.random as jr
 from ott.tools.gaussian_mixture import (
     fit_gmm,
     fit_gmm_pair,
+    gaussian_mixture,
     gaussian_mixture_pair,
 )
-from tests import _utils
-from tests.tools.gaussian_mixture import _gmm
 
 EPSILON = 1e-2
 
 
 @pytest.fixture(scope="module")
-def samples() -> Tuple[jnp.ndarray, jnp.ndarray]:
+def samples(
+    gmm_reference: gaussian_mixture.GaussianMixture,
+    gmm_shifted: gaussian_mixture.GaussianMixture
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
   """Points drawn from the reference mixture and from its shifted variant."""
-  _, subrng0, subrng1 = jr.split(_utils.root_key(), num=3)
+  rng0, rng1 = jr.split(jr.key(0), 2)
   return (
-      _gmm.reference().sample(rng=subrng0, size=_gmm.NUM_SAMPLES),
-      _gmm.shifted().sample(rng=subrng1, size=_gmm.NUM_SAMPLES),
+      gmm_reference.sample(rng=rng0, size=2000),
+      gmm_shifted.sample(rng=rng1, size=2000),
   )
 
 

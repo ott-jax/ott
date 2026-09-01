@@ -65,7 +65,7 @@ class TestKmeansPlusPlus:
   @pytest.mark.fast.with_args("n_local_trials", [None, 3], only_fast=-1)
   def test_n_local_trials(self, rng: jax.Array, n_local_trials):
     n, k = 100, 4
-    rng1, rng2 = rng, jr.clone(rng)
+    rng1, rng2 = rng, jr.key(0)
     geom, _, c = make_blobs(
         n_samples=n, centers=k, cost_fn="sqeucl", random_state=0
     )
@@ -106,7 +106,7 @@ class TestKmeansPlusPlus:
 
     def callback(x: jnp.ndarray) -> float:
       geom = pointcloud.PointCloud(x)
-      centers = k_means._k_means_plus_plus(geom, k=3, rng=jr.clone(rng))
+      centers = k_means._k_means_plus_plus(geom, k=3, rng=jr.key(0))
       _, inertia = compute_assignment(x, centers)
       return inertia
 
@@ -194,7 +194,7 @@ class TestKmeans:
     geom, _, _ = make_blobs(n_samples=150, centers=k, random_state=0)
 
     res = k_means.k_means(geom, k, n_init=3, rng=rng)
-    res_larger_n_init = k_means.k_means(geom, k, n_init=20, rng=jr.clone(rng))
+    res_larger_n_init = k_means.k_means(geom, k, n_init=20, rng=jr.key(0))
 
     assert res_larger_n_init.error < res.error
 
@@ -220,7 +220,7 @@ class TestKmeans:
     geom, _, _ = make_blobs(n_samples=200, centers=k, random_state=39)
 
     res = k_means.k_means(geom, k=k, tol=1.0, rng=rng)
-    res_strict = k_means.k_means(geom, k=k, tol=0.0, rng=jr.clone(rng))
+    res_strict = k_means.k_means(geom, k=k, tol=0.0, rng=jr.key(0))
 
     assert res.converged
     assert res_strict.converged
@@ -338,7 +338,7 @@ class TestKmeans:
 
     def callback(x: jnp.ndarray) -> k_means.KMeansOutput:
       return k_means.k_means(
-          x, k=k, init=init, store_inner_errors=True, rng=jr.clone(rng)
+          x, k=k, init=init, store_inner_errors=True, rng=jr.key(0)
       )
 
     k = 7

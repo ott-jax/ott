@@ -44,7 +44,7 @@ class FusedClouds(_utils.QuadClouds):
 def clouds() -> FusedClouds:
   """Clouds drawn exactly as this module always has."""
   n, m, d_x, d_y, d_xy = 5, 6, 2, 3, 4
-  rngs = jr.split(_utils.root_key(), 9)
+  rngs = jr.split(jr.key(0), 9)
   return FusedClouds(
       x=jr.uniform(rngs[0], (n, d_x)),
       y=jr.uniform(rngs[1], (m, d_y)),

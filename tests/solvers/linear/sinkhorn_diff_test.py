@@ -30,19 +30,8 @@ from tests import _utils
 
 @pytest.fixture(scope="module")
 def clouds() -> _utils.PointClouds:
-  """Point clouds drawn exactly as this module always has.
-
-  The implicit-vs-autodiff comparisons below use finite differences with
-  tolerances tuned to this particular sample.
-  """
-  n, m, dim = 38, 73, 3
-  _, rng_x, rng_y, rng_a, rng_b, *_ = jr.split(_utils.root_key(), 10)
-  return _utils.PointClouds(
-      x=jr.uniform(rng_x, (n, dim)),
-      y=jr.uniform(rng_y, (m, dim)),
-      a=_utils.random_probs(rng_a, n),
-      b=_utils.random_probs(rng_b, m),
-  )
+  """Larger clouds in a lower dimension than the suite default."""
+  return _utils.random_clouds(jr.key(0), n=38, m=73, dim=3)
 
 
 class TestSinkhornImplicit:
@@ -127,7 +116,7 @@ class TestSinkhornImplicit:
     delta = jr.uniform(rng2, (clouds.n, clouds.dim))
     reg_ot_delta_plus = loss(clouds.a, clouds.x + eps * delta)
     reg_ot_delta_minus = loss(clouds.a, clouds.x - eps * delta)
-    delta_dot_grad = jnp.sum(delta * grad_loss_imp[1])
+    delta_dot_grad = jnp.sum(delta * grad_loss_auto[1])
     np.testing.assert_allclose(
         delta_dot_grad,
         (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),

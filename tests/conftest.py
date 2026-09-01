@@ -18,6 +18,7 @@ from typing import Any, Iterator, Mapping, Optional, Sequence
 import pytest
 
 import jax
+import jax.random as jr
 
 import matplotlib as mpl
 
@@ -88,14 +89,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 @pytest.fixture()
 def rng() -> jax.Array:
-  """A root random key, fresh for every test.
-
-  Deliberately not shared across tests: ``--strict-rng`` rejects consuming
-  one key twice, and a shared key would trip on the second test to use it.
-  Fixtures that outlive a single test seed themselves via
-  :func:`tests._utils.root_key` instead of depending on this.
-  """
-  return _utils.root_key()
+  """A root random key, fresh for every test."""
+  return jr.key(0)
 
 
 @pytest.fixture()
@@ -112,4 +107,4 @@ def clouds() -> _utils.PointClouds:
   Modules needing different data - marginals with exact zeros, other sizes -
   override this fixture at module or class level.
   """
-  return _utils.random_clouds(_utils.root_key())
+  return _utils.random_clouds(jr.key(0))

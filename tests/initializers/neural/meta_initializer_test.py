@@ -42,11 +42,11 @@ class TestMetaInitializer:
   @pytest.mark.parametrize("lse_mode", [True, False])
   def test_meta_initializer(self, rng: jax.Array, lse_mode: bool):
     """Tests Meta initializer"""
-    n, m, d = 32, 30, 2
+    n, m = 32, 30
     epsilon = 1e-2
 
     ot_problem = _problems.create_ot_problem(
-        rng, n, m, d, epsilon=epsilon, batch_size=3
+        rng, n, m, epsilon=epsilon, batch_size=3
     )
 
     # run sinkhorn

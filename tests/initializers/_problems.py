@@ -28,20 +28,14 @@ def create_ot_problem(
     rng: jax.Array,
     n: int,
     m: int,
-    d: int,
     epsilon: float = 1e-2,
     batch_size: Optional[int] = None,
 ) -> linear_problem.LinearProblem:
-  """Two well-separated Gaussian clouds with uniform marginals."""
-  x_rng, y_rng = jr.split(rng)
-
-  mu_a = jnp.array([-1.0, 1.0]) * 5
-  mu_b = jnp.array([0.0, 0.0])
-
-  x = jr.normal(x_rng, (n, d)) + mu_a
-  y = jr.normal(y_rng, (m, d)) + mu_b
-
+  """Two well-separated Gaussian clouds in 2D, with uniform marginals."""
+  rng_x, rng_y = jr.split(rng)
+  x = jr.normal(rng_x, (n, 2)) + jnp.array([-1.0, 1.0]) * 5
+  y = jr.normal(rng_y, (m, 2))
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
   return linear_problem.LinearProblem(
-      geom=geom, a=jnp.ones(n) / n, b=jnp.ones(m) / m
+      geom, a=jnp.ones(n) / n, b=jnp.ones(m) / m
   )

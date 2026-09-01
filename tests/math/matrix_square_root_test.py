@@ -22,20 +22,19 @@ import jax.random as jr
 import numpy as np
 
 from ott.math import matrix_square_root
-from tests import _utils
 
 
 def _get_random_spd_matrix(dim: int, rng: jax.Array):
   # Get a random symmetric, positive definite matrix of a specified size.
 
-  rng, subrng0, subrng1 = jr.split(rng, 3)
+  rng, rng0, rng1 = jr.split(rng, 3)
   # Step 1: generate a random orthogonal matrix
-  m = jr.normal(subrng0, shape=[dim, dim])
+  m = jr.normal(rng0, shape=[dim, dim])
   q, _ = jnp.linalg.qr(m)
 
   # Step 2: generate random eigenvalues in [1/2. , 2.] to ensure the condition
   # number is reasonable.
-  eigs = 2.0 ** (2.0 * jr.uniform(subrng1, shape=(dim,)) - 1.0)
+  eigs = 2.0 ** (2.0 * jr.uniform(rng1, shape=(dim,)) - 1.0)
 
   return jnp.matmul(eigs[None, :] * q, jnp.transpose(q))
 
@@ -51,11 +50,11 @@ def _get_test_fn(
   # (2) maps the real to a positive definite matrix,
   # (3) applies fn, then
   # (4) maps the matrix-valued output of fn to a scalar.
-  rng, subrng0, subrng1, subrng2, subrng3 = jr.split(rng, num=5)
-  m0 = _get_random_spd_matrix(dim=dim, rng=subrng0)
-  m1 = _get_random_spd_matrix(dim=dim, rng=subrng1)
-  dx = _get_random_spd_matrix(dim=dim, rng=subrng2)
-  unit = jr.normal(subrng3, shape=(dim, dim))
+  rng, rng0, rng1, rng2, rng3 = jr.split(rng, num=5)
+  m0 = _get_random_spd_matrix(dim=dim, rng=rng0)
+  m1 = _get_random_spd_matrix(dim=dim, rng=rng1)
+  dx = _get_random_spd_matrix(dim=dim, rng=rng2)
+  unit = jr.normal(rng3, shape=(dim, dim))
   unit /= jnp.sqrt(jnp.sum(unit ** 2))
 
   def _test_fn(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
@@ -86,12 +85,12 @@ class Sylvester:
 
 @pytest.fixture(scope="module")
 def sylvester() -> Sylvester:
-  """A solvable Sylvester system, drawn as this module always has."""
+  """A solvable Sylvester system."""
   m, n = 3, 2
-  _, subrng0, subrng1, subrng2 = jr.split(_utils.root_key(), 4)
-  a = jr.normal(subrng0, shape=(2, m, m))
-  b = jr.normal(subrng1, shape=(2, n, n))
-  x = jr.normal(subrng2, shape=(2, m, n))
+  rng0, rng1, rng2 = jr.split(jr.key(0), 3)
+  a = jr.normal(rng0, shape=(2, m, m))
+  b = jr.normal(rng1, shape=(2, n, n))
+  x = jr.normal(rng2, shape=(2, m, n))
   return Sylvester(a=a, b=b, x=x, c=jnp.matmul(a, x) - jnp.matmul(x, b))
 
 
@@ -203,8 +202,8 @@ class TestMatrixSquareRoot:
       epsilon: float, atol: float, rtol: float
   ):
     for _ in range(n_tests):
-      rng, subrng = jr.split(rng)
-      test_fn = _get_test_fn(fn, dim=dim, rng=subrng, threshold=1e-5)
+      rng, rng0 = jr.split(rng)
+      test_fn = _get_test_fn(fn, dim=dim, rng=rng0, threshold=1e-5)
       expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2.0 * epsilon)
       actual = jax.grad(test_fn)(0.0)
       np.testing.assert_allclose(actual, expected, atol=atol, rtol=rtol)

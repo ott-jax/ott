@@ -29,13 +29,13 @@ class TestGaussianMixture:
       self, rng: jax.Array
   ):
     n = 50
-    rng, subrng0, subrng1 = jr.split(rng, num=3)
-    points0 = jr.normal(subrng0, shape=(n, 2))
-    points1 = (2.0 * jr.normal(subrng1, shape=(n, 2)) + jnp.array([6.0, 8.0]))
+    rng, rng0, rng1 = jr.split(rng, num=3)
+    points0 = jr.normal(rng0, shape=(n, 2))
+    points1 = (2.0 * jr.normal(rng1, shape=(n, 2)) + jnp.array([6.0, 8.0]))
     points = jnp.concatenate([points0, points1], axis=0)
-    rng, subrng0, subrng1 = jr.split(rng, num=3)
-    weights0 = jr.uniform(subrng0, shape=(n,))
-    weights1 = jr.uniform(subrng1, shape=(n,))
+    rng, rng0, rng1 = jr.split(rng, num=3)
+    weights0 = jr.uniform(rng0, shape=(n,))
+    weights1 = jr.uniform(rng1, shape=(n,))
     weights = jnp.concatenate([weights0, weights1], axis=0)
     aprobs0 = jnp.stack([jnp.ones((n,)), jnp.zeros((n,))], axis=-1)
     aprobs1 = jnp.stack([jnp.zeros((n,)), jnp.ones((n,))], axis=-1)
@@ -115,16 +115,16 @@ class TestGaussianMixture:
   def test_log_prob(self, rng: jax.Array):
     n_components = 3
     size = 100
-    subrng0, subrng1 = jr.split(rng, num=2)
+    rng0, rng1 = jr.split(rng, num=2)
     gmm = gaussian_mixture.GaussianMixture.from_random(
-        rng=subrng0,
+        rng=rng0,
         n_components=3,
         n_dimensions=2,
         stdev_mean=1.0,
         stdev_cov=1.0,
         stdev_weights=1
     )
-    x = gmm.sample(rng=subrng1, size=size)
+    x = gmm.sample(rng=rng1, size=size)
     actual = gmm.log_prob(x)
 
     prob = jnp.zeros(size)

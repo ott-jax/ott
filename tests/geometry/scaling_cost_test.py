@@ -24,7 +24,6 @@ import numpy as np
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
-from tests import _utils
 
 EPS = 5e-2
 
@@ -48,9 +47,9 @@ class ScaleCostData:
 
 @pytest.fixture(scope="module")
 def data() -> ScaleCostData:
-  """Inputs drawn exactly as this module always has."""
+  """Inputs shared by every scale-cost test."""
   n, m, dim = 7, 9, 4
-  _, *rngs = jr.split(_utils.root_key(), 8)
+  rngs = jr.split(jr.key(0), 7)
   return ScaleCostData(
       x=jr.uniform(rngs[0], (n, dim)),
       y=jr.uniform(rngs[1], (m, dim)),
@@ -217,9 +216,9 @@ class TestScaleCost:
   def test_max_scale_cost_low_rank_large_array(self, rng: jax.Array):
     """Test max_cost options for large matrices."""
 
-    _, *rngs = jr.split(rng, 3)
-    cost1 = jr.uniform(rngs[0], (10000, 2))
-    cost2 = jr.uniform(rngs[1], (11000, 2))
+    rng1, rng2 = jr.split(rng, 2)
+    cost1 = jr.uniform(rng1, (10000, 2))
+    cost2 = jr.uniform(rng2, (11000, 2))
     max_cost_lr = jnp.max(jnp.dot(cost1, cost2.T))
 
     geom0 = low_rank.LRCGeometry(cost1, cost2, scale_cost="max_cost")

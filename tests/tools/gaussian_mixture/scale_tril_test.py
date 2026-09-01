@@ -69,8 +69,8 @@ class TestScaleTriL:
 
   def test_w2_dist(self, rng: jax.Array):
     # make sure distance between a random normal and itself is 0
-    rng, subrng = jr.split(rng)
-    s = scale_tril.ScaleTriL.from_random(rng=subrng, n_dimensions=3)
+    rng, rng0 = jr.split(rng)
+    s = scale_tril.ScaleTriL.from_random(rng=rng0, n_dimensions=3)
     w2 = s.w2_dist(s)
     expected = 0.0
     np.testing.assert_allclose(expected, w2, atol=1e-4, rtol=1e-4)
@@ -79,9 +79,9 @@ class TestScaleTriL:
     # distance between covariances = Frobenius norm^2 of (delta sqrt(cov)), see
     # see https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # noqa: E501
     size = 4
-    rng, subrng0, subrng1 = jr.split(rng, num=3)
-    diag0 = jnp.exp(jr.normal(subrng0, shape=(size,)))
-    diag1 = jnp.exp(jr.normal(subrng1, shape=(size,)))
+    rng, rng0, rng1 = jr.split(rng, num=3)
+    diag0 = jnp.exp(jr.normal(rng0, shape=(size,)))
+    diag1 = jnp.exp(jr.normal(rng1, shape=(size,)))
     s0 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
     s1 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     w2 = s0.w2_dist(s1)
@@ -90,14 +90,14 @@ class TestScaleTriL:
 
   def test_transport(self, rng: jax.Array):
     size = 4
-    rng, subrng0, subrng1 = jr.split(rng, num=3)
-    diag0 = jnp.exp(jr.normal(subrng0, shape=(size,)))
+    rng, rng0, rng1 = jr.split(rng, num=3)
+    diag0 = jnp.exp(jr.normal(rng0, shape=(size,)))
     s0 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
-    diag1 = jnp.exp(jr.normal(subrng1, shape=(size,)))
+    diag1 = jnp.exp(jr.normal(rng1, shape=(size,)))
     s1 = scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
 
-    rng, subrng = jr.split(rng)
-    x = jr.normal(subrng, shape=(100, size))
+    rng, rng0 = jr.split(rng)
+    x = jr.normal(rng0, shape=(100, size))
     transported = s0.transport(s1, points=x)
     expected = x * jnp.sqrt(diag1)[None] / jnp.sqrt(diag0)[None]
     np.testing.assert_allclose(expected, transported, atol=1e-4, rtol=1e-4)

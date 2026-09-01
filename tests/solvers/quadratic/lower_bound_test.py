@@ -29,7 +29,7 @@ from tests import _utils
 def clouds() -> _utils.QuadClouds:
   """Clouds with uniform marginals, drawn as this module always has."""
   n, m, d_x, d_y = 13, 15, 2, 3
-  rngs = jr.split(_utils.root_key(), 4)
+  rngs = jr.split(jr.key(0), 4)
   return _utils.QuadClouds(
       x=jr.uniform(rngs[0], (n, d_x)),
       y=jr.uniform(rngs[1], (m, d_y)),

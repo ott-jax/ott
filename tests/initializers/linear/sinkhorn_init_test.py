@@ -98,21 +98,21 @@ class TestSinkhornInitializers:
       sort_init.init_fu(ot_problem, lse_mode=True)
 
   def test_sorting_init_square_cost(self, rng: jax.Array):
-    n, m, d = 10, 15, 1
+    n, m = 10, 15
     epsilon = 1e-2
 
-    ot_problem = _problems.create_ot_problem(rng, n, m, d, epsilon=epsilon)
+    ot_problem = _problems.create_ot_problem(rng, n, m, epsilon=epsilon)
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"square"):
       sort_init.init_fu(ot_problem, lse_mode=True)
 
   def test_default_initializer(self, rng: jax.Array):
     """Tests default initializer"""
-    n, m, d = 20, 20, 2
+    n, m = 20, 20
     epsilon = 1e-2
 
     ot_problem = _problems.create_ot_problem(
-        rng, n, m, d, epsilon=epsilon, batch_size=3
+        rng, n, m, epsilon=epsilon, batch_size=3
     )
 
     f = linear_init.DefaultInitializer().init_fu(ot_problem, lse_mode=True)
@@ -123,11 +123,11 @@ class TestSinkhornInitializers:
     np.testing.assert_array_equal(g, 0.0)
 
   def test_gauss_pointcloud_geom(self, rng: jax.Array):
-    n, m, d = 20, 20, 2
+    n, m = 20, 20
     epsilon = 1e-2
 
     ot_problem = _problems.create_ot_problem(
-        rng, n, m, d, epsilon=epsilon, batch_size=3
+        rng, n, m, epsilon=epsilon, batch_size=3
     )
 
     gaus_init = linear_init.GaussianInitializer()
@@ -156,7 +156,7 @@ class TestSinkhornInitializers:
       initializer: linear_init.SinkhornInitializer,
   ):
     """Tests Gaussian initializer"""
-    n, m, d = 40, 40, 2
+    n, m = 40, 40
     epsilon = 5e-2
 
     # ot problem
@@ -164,7 +164,7 @@ class TestSinkhornInitializers:
       ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
     else:
       ot_problem = _problems.create_ot_problem(
-          rng, n, m, d, epsilon=epsilon, batch_size=3
+          rng, n, m, epsilon=epsilon, batch_size=3
       )
 
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)

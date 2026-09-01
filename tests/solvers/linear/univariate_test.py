@@ -31,30 +31,21 @@ from tests import _utils
 
 @pytest.fixture(scope="module")
 def clouds() -> _utils.PointClouds:
-  """Point clouds drawn exactly as this module always has.
-
-  Marginals contain zeros, to test their handling.
-  """
-  n, m, dim = 7, 5, 3
-  rngs = jr.split(_utils.root_key(), 6)
-  return _utils.PointClouds(
-      x=jr.uniform(rngs[0], (n, dim)),
-      y=jr.uniform(rngs[1], (m, dim)),
-      a=_utils.random_probs(rngs[2], n, offset=0.0, zero_at=(0,)),
-      b=_utils.random_probs(rngs[3], m, offset=0.0, zero_at=(3,)),
+  """Override with marginals containing zeros, to test their handling."""
+  return _utils.random_clouds(
+      jr.key(0), n=7, m=5, dim=3, offset=0.0, zero_a=(0,), zero_b=(3,)
   )
 
 
 @pytest.fixture(scope="module")
-def clouds_xz() -> _utils.PointClouds:
+def clouds_xz(clouds: _utils.PointClouds) -> _utils.PointClouds:
   """:func:`clouds`' source paired with a second cloud of the same size."""
-  n, dim = 7, 3
-  rngs = jr.split(_utils.root_key(), 6)
+  rng_y, rng_b = jr.split(jr.fold_in(jr.key(0), 1), 2)
   return _utils.PointClouds(
-      x=jr.uniform(rngs[0], (n, dim)),
-      y=jr.uniform(rngs[4], (n, dim)),
-      a=_utils.random_probs(rngs[2], n, offset=0.0, zero_at=(0,)),
-      b=_utils.random_probs(rngs[5], n, offset=0.0, zero_at=(1,)),
+      x=clouds.x,
+      y=jr.uniform(rng_y, (clouds.n, clouds.dim)),
+      a=clouds.a,
+      b=_utils.random_probs(rng_b, clouds.n, offset=0.0, zero_at=(1,)),
   )
 
 

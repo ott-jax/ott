@@ -135,13 +135,13 @@ class TestLinalg:
     np.testing.assert_allclose(inv_m, actual[1], rtol=1e-4)
 
   def test_invmatvectril(self, rng: jax.Array):
-    rng, subrng = jr.split(rng)
-    m = jr.normal(subrng, shape=(2, 2))
+    rng, rng0 = jr.split(rng)
+    m = jr.normal(rng0, shape=(2, 2))
     m += jnp.swapaxes(m, axis1=-2, axis2=-1)  # symmetric
     m = jnp.matmul(m, m)  # symmetric, pos def
     cholesky = jnp.linalg.cholesky(m)  # lower triangular
-    _, subrng = jr.split(rng)
-    x = jr.normal(subrng, shape=(10, 2))
+    _, rng0 = jr.split(rng)
+    x = jr.normal(rng0, shape=(10, 2))
     inv_cholesky = jnp.linalg.inv(cholesky)
     expected = jnp.transpose(jnp.matmul(inv_cholesky, jnp.transpose(x)))
     actual = linalg.invmatvectril(m=cholesky, x=x, lower=True)

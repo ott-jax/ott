@@ -171,12 +171,8 @@ class TestSinkhornOnline:
   @pytest.fixture(scope="class")
   def clouds() -> _utils.PointClouds:
     """A source cloud large enough to exercise batching, with zero weights."""
-    _, *rngs = jr.split(_utils.root_key(), 5)
-    return _utils.PointClouds(
-        x=jr.uniform(rngs[0], (100, 3)),
-        y=jr.uniform(rngs[1], (42, 3)),
-        a=_utils.random_probs(rngs[2], 100, offset=0.0, zero_at=(0,)),
-        b=_utils.random_probs(rngs[3], 42, offset=0.0, zero_at=(3,)),
+    return _utils.random_clouds(
+        jr.key(0), n=100, m=42, dim=3, offset=0.0, zero_a=(0,), zero_b=(3,)
     )
 
   @pytest.mark.fast.with_args("batch_size", [1, 13, 42, 100], only_fast=-1)
@@ -233,14 +229,8 @@ class TestSinkhornUnbalanced:
   @staticmethod
   @pytest.fixture(scope="class")
   def clouds() -> _utils.PointClouds:
-    """Point clouds drawn exactly as this class always has."""
-    _, *rngs = jr.split(_utils.root_key(), 5)
-    return _utils.PointClouds(
-        x=jr.uniform(rngs[0], (17, 4)),
-        y=jr.uniform(rngs[1], (23, 4)),
-        a=_utils.random_probs(rngs[2], 17, offset=0.0),
-        b=_utils.random_probs(rngs[3], 23, offset=0.0),
-    )
+    """Uniformly drawn marginals."""
+    return _utils.random_clouds(jr.key(0), n=17, m=23, dim=4, offset=0.0)
 
   @pytest.mark.parametrize("momentum", [1.0, 1.5])
   @pytest.mark.parametrize("lse_mode", [False, True])
@@ -297,7 +287,7 @@ class TestSinkhornUnbalanced:
           parallel_dual_updates=False,
           lse_mode=True,
           inner_iterations=1,
-          max_iterations=2000,
+          max_iterations=10_000,
           threshold=1e-3
       )
       return solver(prob)
@@ -317,14 +307,8 @@ class TestSinkhornJIT:
   @staticmethod
   @pytest.fixture(scope="class")
   def clouds() -> _utils.PointClouds:
-    """Point clouds drawn exactly as this class always has."""
-    _, *rngs = jr.split(_utils.root_key(), 10)
-    return _utils.PointClouds(
-        x=jr.uniform(rngs[0], (10, 3)),
-        y=jr.uniform(rngs[1], (11, 3)),
-        a=_utils.random_probs(rngs[2], 10),
-        b=_utils.random_probs(rngs[3], 11),
-    )
+    """Small clouds, to keep the jit-vs-non-jit comparisons cheap."""
+    return _utils.random_clouds(jr.key(0), n=10, m=11, dim=3)
 
   @staticmethod
   @pytest.fixture(scope="class")
