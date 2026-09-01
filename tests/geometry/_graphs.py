@@ -38,22 +38,7 @@ def random_graph(
     return_laplacian: bool = False,
     directed: bool = False,
 ) -> jnp.ndarray:
-  """Sample a connected random graph with uniformly weighted edges.
-
-  Cached: the result only depends on the arguments, and the tests reuse the
-  same graphs many times.
-
-  Args:
-    n: Number of nodes.
-    p: Edge probability.
-    seed: Seed of both the graph and the edge weights.
-    is_sparse: Whether to return a sparse matrix.
-    return_laplacian: Return the Laplacian instead of the adjacency matrix.
-    directed: Whether to sample a directed graph.
-
-  Returns:
-    The ``(n, n)`` adjacency or Laplacian matrix.
-  """
+  """Sample a connected random graph with uniformly weighted edges."""
   G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
   if not directed:
     assert nx.is_connected(G), "Generated graph is not connected."

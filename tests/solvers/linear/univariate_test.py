@@ -45,7 +45,7 @@ def clouds_xz(clouds: _utils.PointClouds) -> _utils.PointClouds:
       x=clouds.x,
       y=jr.uniform(rng_y, (clouds.n, clouds.dim)),
       a=clouds.a,
-      b=_utils.random_probs(rng_b, clouds.n, offset=0.0, zero_at=(1,)),
+      b=_utils.random_weights(rng_b, clouds.n, offset=0.0, zero_at=(1,)),
   )
 
 
@@ -91,8 +91,7 @@ class TestUnivariate:
       out = linear.solve(geom, a=a, b=b, max_iterations=50_000)
       return out.primal_cost, out.matrix, out.converged
 
-    geom = pointcloud.PointCloud(clouds.x, clouds.y, cost_fn=cost_fn)
-    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+    prob = clouds.problem(cost_fn=cost_fn)
     out = univariate.quantile_solver(prob, return_transport=True)
     costs_1d, matrices_1d = out.ot_costs, out.transport_matrices.todense()
     mean_matrices_1d = out.mean_transport_matrix.todense()

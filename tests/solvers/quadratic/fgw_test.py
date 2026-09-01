@@ -42,14 +42,14 @@ class FusedClouds(_utils.QuadClouds):
 
 @pytest.fixture(scope="module")
 def clouds() -> FusedClouds:
-  """Clouds drawn exactly as this module always has."""
+  """Clouds in different ambient dimensions, plus the fused term."""
   n, m, d_x, d_y, d_xy = 5, 6, 2, 3, 4
   rngs = jr.split(jr.key(0), 9)
   return FusedClouds(
       x=jr.uniform(rngs[0], (n, d_x)),
       y=jr.uniform(rngs[1], (m, d_y)),
-      a=_utils.random_probs(rngs[2], n),
-      b=_utils.random_probs(rngs[3], m),
+      a=_utils.random_weights(rngs[2], n),
+      b=_utils.random_weights(rngs[3], m),
       cx=jr.uniform(rngs[4], (n, n)),
       cy=jr.uniform(rngs[5], (m, m)),
       x_2=jr.uniform(rngs[7], (n, d_xy)),

@@ -27,7 +27,7 @@ from tests import _utils
 
 @pytest.fixture(scope="module")
 def clouds() -> _utils.QuadClouds:
-  """Clouds with uniform marginals, drawn as this module always has."""
+  """Clouds with uniform marginals."""
   n, m, d_x, d_y = 13, 15, 2, 3
   rngs = jr.split(jr.key(0), 4)
   return _utils.QuadClouds(

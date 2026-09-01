@@ -25,7 +25,7 @@ WEIGHTS = jnp.array([0.3, 0.3, 0.4])
 
 @pytest.fixture(scope="session")
 def gmm_reference() -> gaussian_mixture.GaussianMixture:
-  """Reference 3-component mixture in 2D that the fitting tests sample from."""
+  """Reference 3-component mixture in 2D."""
   return gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
       mean=MEAN, cov=COV, component_weights=WEIGHTS
   )

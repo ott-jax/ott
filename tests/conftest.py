@@ -102,9 +102,5 @@ def enable_x64() -> Iterator[None]:
 
 @pytest.fixture(scope="session")
 def clouds() -> _utils.PointClouds:
-  """Two weighted point clouds with strictly positive marginals.
-
-  Modules needing different data - marginals with exact zeros, other sizes -
-  override this fixture at module or class level.
-  """
+  """Two weighted point clouds with strictly positive marginals."""
   return _utils.random_clouds(jr.key(0))

@@ -47,7 +47,7 @@ class ScaleCostData:
 
 @pytest.fixture(scope="module")
 def data() -> ScaleCostData:
-  """Inputs shared by every scale-cost test."""
+  """Inputs drawn once for the whole module."""
   n, m, dim = 7, 9, 4
   rngs = jr.split(jr.key(0), 7)
   return ScaleCostData(

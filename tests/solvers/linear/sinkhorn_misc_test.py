@@ -118,8 +118,8 @@ class TestSinkhornBures:
     return _utils.PointClouds(
         x=jnp.concatenate((m_x.reshape((n, -1)), sig_x.reshape((n, -1))), 1),
         y=jnp.concatenate((m_y.reshape((m, -1)), sig_y.reshape((m, -1))), 1),
-        a=_utils.random_probs(rngs[4], n),
-        b=_utils.random_probs(rngs[5], m),
+        a=_utils.random_weights(rngs[4], n),
+        b=_utils.random_weights(rngs[5], m),
     )
 
   @pytest.mark.parametrize("lse_mode", [False, True])
@@ -239,10 +239,7 @@ class TestSinkhornUnbalanced:
   ):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1)
-    prob = linear_problem.LinearProblem(
-        geom, clouds.a, clouds.b, tau_a=0.8, tau_b=0.9
-    )
+    prob = clouds.problem(epsilon=0.1, tau_a=0.8, tau_b=0.9)
     solver = sinkhorn.Sinkhorn(
         threshold=threshold,
         lse_mode=lse_mode,
@@ -277,10 +274,7 @@ class TestSinkhornUnbalanced:
   ):
 
     def run_sink(*, recenter: bool) -> sinkhorn.SinkhornOutput:
-      geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=eps)
-      prob = linear_problem.LinearProblem(
-          geom, a=clouds.a, b=clouds.b, tau_a=tau_a, tau_b=tau_b
-      )
+      prob = clouds.problem(epsilon=eps, tau_a=tau_a, tau_b=tau_b)
       solver = sinkhorn.Sinkhorn(
           recenter_potentials=recenter,
           anderson=anderson,

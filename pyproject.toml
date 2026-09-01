@@ -310,7 +310,6 @@ select = [
 unfixable = ["B", "UP", "C4", "BLE", "T20", "RET"]
 
 [tool.ruff.lint.per-file-ignores]
-# TODO(michalk8): PO004 - remove `self.initialize`
 "tests/*" = ["D", "PT004", "E402"]
 "*/__init__.py" = ["F401"]
 "docs/*" = ["D"]

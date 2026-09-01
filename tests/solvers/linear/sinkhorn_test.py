@@ -590,8 +590,7 @@ class TestSinkhorn:
   def test_f_potential_is_zero_centered(
       self, clouds: _utils.PointClouds, lse_mode: bool
   ):
-    geom = pointcloud.PointCloud(clouds.x, clouds.y)
-    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+    prob = clouds.problem()
     assert prob.is_balanced
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, recenter_potentials=True)
 
@@ -667,8 +666,7 @@ class TestSinkhorn:
 
     traced_values = {"iters": [], "error": [], "total": []}
 
-    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=1e-3)
-    lin_prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+    lin_prob = clouds.problem(epsilon=1e-3)
 
     inner_iterations = 10
 

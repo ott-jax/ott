@@ -114,14 +114,14 @@ TAU_A, TAU_B = 0.8, 0.9
 
 @pytest.fixture(scope="module")
 def clouds() -> _utils.QuadClouds:
-  """Clouds in different ambient dimensions, as this module always has."""
+  """Clouds in different ambient dimensions."""
   n, m, d_x, d_y = 6, 7, 2, 3
   rngs = jr.split(jr.key(0), 6)
   return _utils.QuadClouds(
       x=jr.uniform(rngs[0], (n, d_x)),
       y=jr.uniform(rngs[1], (m, d_y)),
-      a=_utils.random_probs(rngs[2], n),
-      b=_utils.random_probs(rngs[3], m),
+      a=_utils.random_weights(rngs[2], n),
+      b=_utils.random_weights(rngs[3], m),
       cx=jr.uniform(rngs[4], (n, n)),
       cy=jr.uniform(rngs[5], (m, m)),
   )
@@ -132,11 +132,7 @@ class TestGromovWasserstein:
   def test_flag_store_errors(self, clouds: _utils.QuadClouds):
     """Tests whether errors are properly stored if requested."""
     threshold_sinkhorn = 1e-2
-    geom_x = pointcloud.PointCloud(clouds.x)
-    geom_y = pointcloud.PointCloud(clouds.y)
-    prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, a=clouds.a, b=clouds.b
-    )
+    prob = clouds.quad_problem()
 
     linear_solver = sinkhorn.Sinkhorn()
     solver = gromov_wasserstein.GromovWasserstein(
@@ -213,12 +209,8 @@ class TestGromovWasserstein:
       self, clouds: _utils.QuadClouds, balanced: bool, rank: int
   ):
     """Test basic computations point clouds."""
-    geom_x = pointcloud.PointCloud(clouds.x)
-    geom_y = pointcloud.PointCloud(clouds.y)
     tau_a, tau_b = (1.0, 1.0) if balanced else (TAU_A, TAU_B)
-    prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, a=clouds.a, b=clouds.b, tau_a=tau_a, tau_b=tau_b
-    )
+    prob = clouds.quad_problem(tau_a=tau_a, tau_b=tau_b)
     if rank > 0:
       solver = gromov_wasserstein_lr.LRGromovWasserstein(
           rank=rank,
@@ -234,6 +226,7 @@ class TestGromovWasserstein:
     out = solver(prob)
     # TODO(cuturi): test primal cost for un-balanced case as well.
     if balanced:
+      geom_x, geom_y = prob.geom_xx, prob.geom_yy
       u = geom_x.apply_square_cost(out.matrix.sum(axis=-1)).squeeze()
       v = geom_y.apply_square_cost(out.matrix.sum(axis=0)).squeeze()
       c = (geom_x.cost_matrix @ out.matrix) @ geom_y.cost_matrix
@@ -400,11 +393,7 @@ class TestGromovWasserstein:
 
   @pytest.mark.parametrize("axis", [0, 1])
   def test_gw_lr_apply(self, clouds: _utils.QuadClouds, axis: int):
-    geom_x = pointcloud.PointCloud(clouds.x)
-    geom_y = pointcloud.PointCloud(clouds.y)
-    prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, a=clouds.a, b=clouds.b
-    )
+    prob = clouds.quad_problem()
     solver = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=2,
         epsilon=1e-1,

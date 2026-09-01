@@ -134,8 +134,7 @@ class TestLRSinkhorn:
     n_stack, threshold = 3, 1e-3
     data = clouds.a if axis == 0 else clouds.b
 
-    geom = pointcloud.PointCloud(clouds.x, clouds.y)
-    ot_prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
+    ot_prob = clouds.problem()
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
         rank=10,
@@ -146,8 +145,9 @@ class TestLRSinkhorn:
     gt = out.apply(data, axis=axis)
     pred = out.apply(jnp.stack([data] * n_stack), axis=axis)
 
-    np.testing.assert_array_equal(gt.shape, (geom.shape[1 - axis],))
-    np.testing.assert_array_equal(pred.shape, (n_stack, geom.shape[1 - axis]))
+    shape = ot_prob.geom.shape[1 - axis]
+    np.testing.assert_array_equal(gt.shape, (shape,))
+    np.testing.assert_array_equal(pred.shape, (n_stack, shape))
     np.testing.assert_allclose(
         pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6
     )
@@ -180,8 +180,7 @@ class TestLRSinkhorn:
 
     traced_values = {"iters": [], "error": [], "total": []}
 
-    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=1e-3)
-    lin_prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+    lin_prob = clouds.problem(epsilon=1e-3)
 
     rank = 2
     inner_iterations = 10
@@ -207,8 +206,7 @@ class TestLRSinkhorn:
     threshold = 1e-3
     tol = 1e-5
     rank = 5
-    geom = pointcloud.PointCloud(clouds.x, clouds.y)
-    ot_prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
+    ot_prob = clouds.problem()
 
     out_lse = sinkhorn_lr.LRSinkhorn(
         lse_mode=True,
@@ -244,10 +242,7 @@ class TestLRSinkhorn:
       self, clouds: _utils.PointClouds, tau_a: float, tau_b: float, ti: bool
   ):
     rank, epsilon, threshold = 10, 0.0, 1e-4
-    geom = pointcloud.PointCloud(clouds.x, clouds.y)
-    prob = linear_problem.LinearProblem(
-        geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
-    )
+    prob = clouds.problem(tau_a=tau_a, tau_b=tau_b)
 
     out_lse = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
@@ -287,10 +282,7 @@ class TestLRSinkhorn:
       epsilon: float, lse_mode: bool
   ):
     rank, threshold = 8, 1e-4
-    geom = pointcloud.PointCloud(clouds.x, clouds.y)
-    prob = linear_problem.LinearProblem(
-        geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
-    )
+    prob = clouds.problem(tau_a=tau_a, tau_b=tau_b)
 
     out = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
