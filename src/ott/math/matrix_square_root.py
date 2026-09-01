@@ -17,6 +17,7 @@ from typing import Tuple
 
 import jax
 import jax.numpy as jnp
+import jax.scipy as jsp
 
 from ott.math import fixed_point_loop
 
@@ -147,7 +148,8 @@ def solve_sylvester_bartels_stewart(
   for j in range(n):
     lhs = r.at[..., idx, idx].add(-s[..., j:j + 1, j])
     rhs = d[..., j] + jnp.matmul(y[..., :j], s[..., :j, j:j + 1])[..., 0]
-    y = y.at[..., j].set(jax.scipy.linalg.solve_triangular(lhs, rhs))
+    y_j = jsp.linalg.solve_triangular(lhs, rhs[..., None])
+    y = y.at[..., j].set(y_j.squeeze(-1))
 
   x = jnp.matmul(
       u, jnp.matmul(y, jnp.conjugate(jnp.swapaxes(v, axis1=-2, axis2=-1)))
