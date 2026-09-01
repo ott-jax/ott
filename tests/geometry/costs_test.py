@@ -76,7 +76,7 @@ class TestCostFn:
 @pytest.mark.fast()
 class TestBuresBarycenter:
 
-  def test_bures(self, rng: jax.Array):
+  def test_bures(self):
     d = 3
     r = jnp.array([1.2036, 0.2825, 0.013])
     Sigma1 = r * jnp.eye(d)

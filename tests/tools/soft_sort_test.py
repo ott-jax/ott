@@ -271,7 +271,7 @@ class TestSoftSort:
 
     delta = jnp.abs(q - jnp.array([0.12, 0.34, 0.64, 0.86]))
     min_distances = jnp.min(delta, axis=1)
-    np.testing.assert_allclose(min_distances, min_distances, atol=0.05)
+    np.testing.assert_allclose(min_distances, 0.0, atol=0.05)
 
   @pytest.mark.parametrize("implicit", [False, True])
   def test_soft_sort_jacobian(self, rng: jax.Array, implicit: bool):

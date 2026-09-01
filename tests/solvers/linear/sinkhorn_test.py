@@ -578,7 +578,7 @@ class TestSinkhorn:
   )
   def test_normalized_entropy(self, clouds: _utils.PointClouds, cost_fn):
     """Test computation of normalized entropy of solution."""
-    geom = pointcloud.PointCloud(clouds.x, clouds.x)
+    geom = pointcloud.PointCloud(clouds.x, clouds.x, cost_fn=cost_fn)
     out = linear.solve(geom)
     ent_transport = jnp.sum(jsp.special.entr(out.matrix))
     norm_ent = ent_transport / jnp.log(geom.shape[0]) - 1.0

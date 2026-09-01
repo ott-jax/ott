@@ -160,7 +160,7 @@ class TestKmeans:
       ["k-means++", "random", "callable", "wrong-callable"],
       only_fast=1,
   )
-  def test_init_method(self, rng: jax.Array, init: str):
+  def test_init_method(self, init: str):
     if init == "callable":
       init_fn = lambda geom, k, _: geom.x[:k]
     elif init == "wrong-callable":

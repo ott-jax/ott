@@ -292,7 +292,9 @@ class TestSinkhornUnbalanced:
     assert out.converged
     assert out_center.converged
     assert out_center.n_iters <= out.n_iters
-    np.testing.assert_allclose(out.reg_ot_cost, out.reg_ot_cost)
+    np.testing.assert_allclose(
+        out.reg_ot_cost, out_center.reg_ot_cost, rtol=1e-3, atol=1e-3
+    )
 
 
 class TestSinkhornJIT:
