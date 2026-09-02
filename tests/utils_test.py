@@ -42,7 +42,7 @@ class TestBatchedVmap:
       return x["foo"]["bar"].std() + x["baz"].mean(
       ) + x["quux"][0] * x["quux"][1]
 
-    rng1, rng2, rng3 = jr.split(rng, 3)
+    rng1, rng2 = jr.split(rng, 2)
     x = {
         "foo": {
             "bar": jr.normal(rng1, (5, 3, 3))

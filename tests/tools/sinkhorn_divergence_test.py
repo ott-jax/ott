@@ -165,7 +165,7 @@ class TestSinkhornDivergence:
       self, clouds: _utils.PointClouds
   ):
     cloud_a, cloud_b = clouds.x, clouds.y
-    div, out = sinkhorn_divergence.sinkhorn_divergence(
+    _, out = sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud,
         cloud_a,
         cloud_b,

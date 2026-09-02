@@ -266,9 +266,8 @@ class TestKmeans:
 
   def test_weight_scaling_effects_only_inertia(self, rng: jax.Array):
     k = 10
-    rng1, rng2 = jr.split(rng)
     geom, _, _ = make_blobs(n_samples=130, centers=k, random_state=3)
-    weights = jnp.abs(jr.normal(rng1, shape=(geom.shape[0],)))
+    weights = jnp.abs(jr.normal(rng, shape=(geom.shape[0],)))
     weights_scaled = weights / jnp.sum(weights)
 
     res = k_means.k_means(geom, k=k - 1, weights=weights)

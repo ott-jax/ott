@@ -82,7 +82,7 @@ class TestSliced:
       self, rng: jax.Array, cost_fn: Optional[costs.CostFn]
   ):
     n, m, dim = 11, 12, 4
-    a, x, b, y = gen_data(rng, n, m, dim)
+    _, x, _, y = gen_data(rng, n, m, dim)
 
     # Test matches standard implementation when using identity.
     cost, _ = sliced.sliced_wasserstein(
@@ -97,7 +97,7 @@ class TestSliced:
     eps = 1e-4
     n, m, dim = 13, 16, 7
     rng_data, rng_dx = jr.split(rng, 2)
-    a, x, b, y = gen_data(rng_data, n, m, dim)
+    _, x, _, y = gen_data(rng_data, n, m, dim)
 
     # Test differentiability. We assume uniform samples because makes diff
     # more accurate (avoiding ties, making computations a lot more sensitive).

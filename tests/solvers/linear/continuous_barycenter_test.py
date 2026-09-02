@@ -284,7 +284,7 @@ class TestBarycenter:
 
     np.testing.assert_allclose(
         covs_bary,
-        jnp.array([sigma * jnp.eye(dimension) for i in range(bar_size)]),
+        jnp.array([sigma * jnp.eye(dimension) for _ in range(bar_size)]),
         rtol=1e-5,
         atol=1e-5
     )

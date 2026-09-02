@@ -53,9 +53,7 @@ class TestICNN:
     dim_hidden = (64, 64)
     model = icnn.ICNN(dim_hidden, input_dim=n_features, rngs=nnx.Rngs(0))
 
-    rng1, rng2 = jr.split(rng)
-
-    data = jr.normal(rng2, (n_features,))
+    data = jr.normal(rng, (n_features,))
 
     # Compute Hessian of scalar output
     hessian = jax.hessian(lambda x: model(x[None]).squeeze())(data)

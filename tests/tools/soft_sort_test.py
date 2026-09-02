@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-import sys
 from typing import Tuple
 
 import pytest
@@ -275,10 +274,6 @@ class TestSoftSort:
 
   @pytest.mark.parametrize("implicit", [False, True])
   def test_soft_sort_jacobian(self, rng: jax.Array, implicit: bool):
-    # FIXME(michalk8)
-    if implicit and sys.version_info >= (3, 9):
-      pytest.skip(reason="Implicit doesn't work on Python>=3.9 and Linux.")
-
     # Add a ridge when using JAX solvers.
     try:
       from ott.solvers.linear import lineax_implicit  # noqa: F401

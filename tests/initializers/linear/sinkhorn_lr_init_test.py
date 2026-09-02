@@ -35,7 +35,7 @@ class TestLRInitializers:
     prob = linear_problem.LinearProblem(pc)
 
     initializer = initializers_lr.GeneralizedKMeansInitializer(rank)
-    q, r, g = initializer(prob)
+    q, r, _ = initializer(prob)
 
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank

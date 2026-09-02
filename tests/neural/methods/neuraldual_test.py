@@ -104,7 +104,7 @@ class TestNeuralDual:
         amortization_loss=amortization_loss,
         conjugate_solver=conjugate_solver,
     )
-    neural_dual, logs = neural_dual_solver(*train_dataset, *valid_dataset)
+    _, logs = neural_dual_solver(*train_dataset, *valid_dataset)
 
     # check if training loss of f is increasing and g is decreasing
     assert increasing(logs["train_logs"]["loss_f"])

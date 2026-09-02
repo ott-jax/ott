@@ -486,7 +486,7 @@ class TestConditionalMongeGapEstimator:
       return div, None
 
     def regularizer(source, mapped, labels):
-      gap, per_cond = conditional_monge_gap.cmonge_gap_from_samples(
+      gap, _ = conditional_monge_gap.cmonge_gap_from_samples(
           source,
           mapped,
           labels,

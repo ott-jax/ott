@@ -17,7 +17,6 @@ import pytest
 
 import jax
 import jax.numpy as jnp
-import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, pointcloud
@@ -31,8 +30,7 @@ class TestHungarian:
   @pytest.mark.parametrize("cost_fn", [costs.PNormP(1.3), None])
   def test_matches_sink(self, rng: jax.Array, cost_fn: Optional[costs.CostFn]):
     n, m, dim = 12, 12, 5
-    rng1, rng2 = jr.split(rng, 2)
-    x, y = gen_data(rng1, n, m, dim)
+    x, y = gen_data(rng, n, m, dim)
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=.0005)
     cost_hung, out_hung = jax.jit(unreg.hungarian)(geom)
     out_sink = jax.jit(linear.solve)(geom)
@@ -46,8 +44,7 @@ class TestHungarian:
   @pytest.mark.parametrize("p", [1.3, 2.3])
   def test_wass(self, rng: jax.Array, p: float):
     n, m, dim = 12, 12, 5
-    rng1, rng2 = jr.split(rng, 2)
-    x, y = gen_data(rng1, n, m, dim)
+    x, y = gen_data(rng, n, m, dim)
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p=p))
     cost_hung, _ = jax.jit(unreg.hungarian)(geom)
     w_p = jax.jit(unreg.wassdis_p)(x, y, p=p)
