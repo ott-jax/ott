@@ -114,7 +114,7 @@ class TestBarycenter:
 
     # Check convergence by looking at cost evolution.
     c = out.costs[out.costs > -1]
-    assert jnp.isclose(c[-2], c[-1], rtol=threshold)
+    np.testing.assert_allclose(c[-2], c[-1], rtol=threshold, atol=1e-8)
 
     # Check barycenter has all points roughly in [1,2]^4.
     # (this is because sampled points were equally set in either [0,1]^4
@@ -173,7 +173,7 @@ class TestBarycenter:
     )
     # Check convergence by looking at cost evolution.
     c = out.costs[out.costs > -1]
-    assert jnp.isclose(c[-2], c[-1], rtol=threshold)
+    np.testing.assert_allclose(c[-2], c[-1], rtol=threshold, atol=1e-8)
 
     # Check barycenter has all points roughly in [1,2]^4.
     # (this is because sampled points were equally set in either [0,1]^4

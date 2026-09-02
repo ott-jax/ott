@@ -258,7 +258,7 @@ class TestSemidiscreteSolver:
 
         assert isinstance(out_sampled, sinkhorn.SinkhornOutput)
         assert jnp.all(jnp.isfinite(out_sampled.reg_ot_cost))
-        assert jnp.isclose(
+        np.testing.assert_allclose(
             out_sampled.transport_mass, 1.0, rtol=1e-4, atol=1e-4
         )
         assert jnp.all(jnp.isfinite(out_sampled.matrix))
