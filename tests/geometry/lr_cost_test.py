@@ -262,7 +262,7 @@ class TestCostMatrixFactorization:
     assert geom_lr.cost_rank == rank
 
     if rank == 2 and tol == 1e-2:
-      pytest.mark.xfail("assert 171666.83 <= 154635.98")
+      pytest.xfail("assert 171666.83 <= 154635.98")
     else:
       self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
