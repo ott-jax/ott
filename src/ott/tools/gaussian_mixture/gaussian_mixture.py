@@ -103,7 +103,7 @@ class GaussianMixture:
     loc = jnp.stack(loc, axis=0)
     scale_params = jnp.stack(scale_params, axis=0)
     weight_ob = probabilities.Probabilities.from_random(
-        subrng,
+        rng,
         n_dimensions=n_components,
         stdev=stdev_weights,
     )

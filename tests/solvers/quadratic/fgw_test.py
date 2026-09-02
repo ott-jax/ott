@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import dataclasses
 from typing import Literal, Tuple, Union
 
 import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import geometry, low_rank, pointcloud
@@ -25,42 +27,49 @@ from ott.solvers import quadratic
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
+from tests import _utils
+
+FUSED_PENALTY = 2.0
+
+
+@dataclasses.dataclass(frozen=True)
+class FusedClouds(_utils.QuadClouds):
+  """:class:`~tests._utils.QuadClouds` plus the fused, inter-domain data."""
+  x_2: jnp.ndarray  # (n, d_xy), source of the fused term
+  y_2: jnp.ndarray  # (m, d_xy), target of the fused term
+  cxy: jnp.ndarray  # (n, m), inter-domain cost
+
+
+@pytest.fixture(scope="module")
+def clouds() -> FusedClouds:
+  """Clouds in different ambient dimensions, plus the fused term."""
+  n, m, d_x, d_y, d_xy = 5, 6, 2, 3, 4
+  rngs = jr.split(jr.key(0), 9)
+  return FusedClouds(
+      x=jr.uniform(rngs[0], (n, d_x)),
+      y=jr.uniform(rngs[1], (m, d_y)),
+      a=_utils.random_weights(rngs[2], n),
+      b=_utils.random_weights(rngs[3], m),
+      cx=jr.uniform(rngs[4], (n, n)),
+      cy=jr.uniform(rngs[5], (m, m)),
+      x_2=jr.uniform(rngs[7], (n, d_xy)),
+      y_2=jr.uniform(rngs[8], (m, d_xy)),
+      cxy=jr.uniform(rngs[6], (n, m)),
+  )
 
 
 class TestFusedGromovWasserstein:
 
-  # TODO(michalk8): refactor me in the future
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    d_x = 2
-    d_y = 3
-    d_xy = 4
-    self.n, self.m = 5, 6
-    rngs = jax.random.split(rng, 7)
-    self.x = jax.random.uniform(rngs[0], (self.n, d_x))
-    self.y = jax.random.uniform(rngs[1], (self.m, d_y))
-    self.x_2 = jax.random.uniform(rngs[0], (self.n, d_xy))
-    self.y_2 = jax.random.uniform(rngs[1], (self.m, d_xy))
-    self.fused_penalty = 2.0
-    self.fused_penalty_2 = 0.05
-    a = jax.random.uniform(rngs[2], (self.n,)) + 0.1
-    b = jax.random.uniform(rngs[3], (self.m,)) + 0.1
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
-    self.cx = jax.random.uniform(rngs[4], (self.n, self.n))
-    self.cy = jax.random.uniform(rngs[5], (self.m, self.m))
-    self.cxy = jax.random.uniform(rngs[6], (self.n, self.m))
-
   @pytest.mark.fast.with_args("jit", [False, True], only_fast=0)
-  def test_gradient_marginals_fgw_solver(self, jit: bool):
+  def test_gradient_marginals_fgw_solver(self, clouds: FusedClouds, jit: bool):
     """Test gradient w.r.t. probability weights."""
-    geom_x = pointcloud.PointCloud(self.x)
-    geom_y = pointcloud.PointCloud(self.y)
-    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
+    geom_x = pointcloud.PointCloud(clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y)
+    geom_xy = pointcloud.PointCloud(clouds.x_2, clouds.y_2)
 
     def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
       prob = quadratic_problem.QuadraticProblem(
-          geom_x, geom_y, geom_xy, fused_penalty=self.fused_penalty, a=a, b=b
+          geom_x, geom_y, geom_xy, fused_penalty=FUSED_PENALTY, a=a, b=b
       )
 
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
@@ -79,10 +88,10 @@ class TestFusedGromovWasserstein:
       reg_fgw_grad = jax.jit(reg_fgw_grad, static_argnames="implicit")
 
     for i, implicit in enumerate([True, False]):
-      (g_a, g_b), aux = reg_fgw_grad(self.a, self.b, implicit)
+      (g_a, g_b), aux = reg_fgw_grad(clouds.a, clouds.b, implicit)
       grad_matrices[i] = (g_a, g_b)
-      grad_manual_a = aux[0] - jnp.log(self.a)
-      grad_manual_b = aux[1] - jnp.log(self.b)
+      grad_manual_a = aux[0] - jnp.log(clouds.a)
+      grad_manual_b = aux[1] - jnp.log(clouds.b)
       assert not jnp.any(jnp.isnan(g_a))
       assert not jnp.any(jnp.isnan(g_b))
       np.testing.assert_allclose(grad_manual_a, g_a, rtol=1e-2, atol=1e-2)
@@ -97,7 +106,9 @@ class TestFusedGromovWasserstein:
   @pytest.mark.parametrize(("lse_mode", "is_cost"), [(True, False),
                                                      (False, True)],
                            ids=["lse-pc", "kernel-cost-mat"])
-  def test_gradient_fgw_solver_geometry(self, lse_mode: bool, is_cost: bool):
+  def test_gradient_fgw_solver_geometry(
+      self, clouds: FusedClouds, lse_mode: bool, is_cost: bool
+  ):
     """Test gradient w.r.t. the geometries."""
 
     def reg_gw(
@@ -128,15 +139,15 @@ class TestFusedGromovWasserstein:
       return solver(prob).reg_gw_cost
 
     if is_cost:
-      x, y, xy = self.cx, self.cy, self.cxy
+      x, y, xy = clouds.cx, clouds.cy, clouds.cxy
     else:
-      x, y, xy = self.x, self.y, (self.x_2, self.y_2)
+      x, y, xy = clouds.x, clouds.y, (clouds.x_2, clouds.y_2)
     grad_matrices = [None, None]
     reg_fgw_grad = jax.grad(reg_gw, argnums=(0, 1, 2))
 
     for i, implicit in enumerate([True, False]):
       grad_matrices[i] = reg_fgw_grad(
-          x, y, xy, self.fused_penalty, self.a, self.b, implicit
+          x, y, xy, FUSED_PENALTY, clouds.a, clouds.b, implicit
       )
       assert not jnp.any(jnp.isnan(grad_matrices[i][0]))
       assert not jnp.any(jnp.isnan(grad_matrices[i][1]))
@@ -152,21 +163,16 @@ class TestFusedGromovWasserstein:
       np.testing.assert_allclose(g_xy[0], gi_xy[0], rtol=1e-2, atol=1e-2)
       np.testing.assert_allclose(g_xy[1], gi_xy[1], rtol=1e-2, atol=1e-2)
 
-  def test_fgw_adaptive_threshold(self):
+  def test_fgw_adaptive_threshold(self, clouds: FusedClouds):
     """Checking solution is improved with smaller threshold for convergence."""
-    geom_x = pointcloud.PointCloud(self.x, self.x)
-    geom_y = pointcloud.PointCloud(self.y, self.y)
-    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2)
+    geom_x = pointcloud.PointCloud(clouds.x, clouds.x)
+    geom_y = pointcloud.PointCloud(clouds.y, clouds.y)
+    geom_xy = pointcloud.PointCloud(clouds.x_2, clouds.y_2)
 
     # without warm start for calls to sinkhorn
     def loss_thre(threshold: float) -> float:
       prob = quadratic_problem.QuadraticProblem(
-          geom_x,
-          geom_y,
-          geom_xy,
-          a=self.a,
-          b=self.b,
-          fused_penalty=self.fused_penalty_2
+          geom_x, geom_y, geom_xy, a=clouds.a, b=clouds.b, fused_penalty=0.05
       )
       linear_solver = sinkhorn.Sinkhorn()
       solver = gromov_wasserstein.GromovWasserstein(
@@ -177,7 +183,7 @@ class TestFusedGromovWasserstein:
 
     assert loss_thre(1e-3) > loss_thre(1e-5)
 
-  def test_gradient_fgw_solver_penalty(self):
+  def test_gradient_fgw_solver_penalty(self, clouds: FusedClouds):
     """Test gradient w.r.t. penalty."""
 
     lse_mode = True
@@ -208,7 +214,7 @@ class TestFusedGromovWasserstein:
     for i, implicit in enumerate([True, False]):
       reg_fgw_grad = jax.grad(reg_gw, argnums=(3,))
       grad_matrices[i] = reg_fgw_grad(
-          self.cx, self.cy, self.cxy, self.fused_penalty, self.a, self.b,
+          clouds.cx, clouds.cy, clouds.cxy, FUSED_PENALTY, clouds.a, clouds.b,
           implicit
       )
       assert not jnp.any(jnp.isnan(grad_matrices[i][0]))
@@ -220,12 +226,12 @@ class TestFusedGromovWasserstein:
   @pytest.mark.limit_memory("250 MB")
   @pytest.mark.parametrize("jit", [False, True])
   def test_fgw_lr_memory(self, rng: jax.Array, jit: bool):
-    rngs = jax.random.split(rng, 4)
+    rngs = jr.split(rng, 4)
     n, m, d1, d2 = 5_000, 2_500, 1, 2
-    x = jax.random.uniform(rngs[0], (n, d1))
-    y = jax.random.uniform(rngs[1], (m, d2))
-    xx = jax.random.uniform(rngs[2], (n, d2))
-    yy = jax.random.uniform(rngs[3], (m, d2))
+    x = jr.uniform(rngs[0], (n, d1))
+    y = jr.uniform(rngs[1], (m, d2))
+    xx = jr.uniform(rngs[2], (n, d2))
+    yy = jr.uniform(rngs[3], (m, d2))
     geom_x = pointcloud.PointCloud(x)
     geom_y = pointcloud.PointCloud(y)
     geom_xy = pointcloud.PointCloud(xx, yy)
@@ -251,11 +257,11 @@ class TestFusedGromovWasserstein:
       self, rng: jax.Array, cost_rank: Union[int, Tuple[int, int, int]]
   ):
     n, m = 20, 30
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    x = jax.random.normal(rng1, shape=(n, 7))
-    y = jax.random.normal(rng2, shape=(m, 6))
-    xx = jax.random.normal(rng3, shape=(n, 5))
-    yy = jax.random.normal(rng4, shape=(m, 5))
+    rng1, rng2, rng3, rng4 = jr.split(rng, 4)
+    x = jr.normal(rng1, shape=(n, 7))
+    y = jr.normal(rng2, shape=(m, 6))
+    xx = jr.normal(rng3, shape=(n, 5))
+    yy = jr.normal(rng4, shape=(m, 5))
 
     geom_x = geometry.Geometry(cost_matrix=x @ x.T)
     geom_y = geometry.Geometry(cost_matrix=y @ y.T)
@@ -291,16 +297,18 @@ class TestFusedGromovWasserstein:
     np.testing.assert_array_equal(jnp.isfinite(out.costs), True)
 
   @pytest.mark.parametrize("scale_cost", ["mean", "max_cost"])
-  def test_fgw_scale_cost(self, scale_cost: Literal["mean", "max_cost"]):
+  def test_fgw_scale_cost(
+      self, clouds: FusedClouds, scale_cost: Literal["mean", "max_cost"]
+  ):
     epsilon = 0.1
     fused_penalty = 1
-    geom_x = pointcloud.PointCloud(self.x, scale_cost=1.0)
-    geom_y = pointcloud.PointCloud(self.y, scale_cost=1.0)
-    geom_xy = pointcloud.PointCloud(self.x_2, self.y_2, scale_cost=1.0)
-    geom_x_scaled = pointcloud.PointCloud(self.x, scale_cost=scale_cost)
-    geom_y_scaled = pointcloud.PointCloud(self.y, scale_cost=scale_cost)
+    geom_x = pointcloud.PointCloud(clouds.x, scale_cost=1.0)
+    geom_y = pointcloud.PointCloud(clouds.y, scale_cost=1.0)
+    geom_xy = pointcloud.PointCloud(clouds.x_2, clouds.y_2, scale_cost=1.0)
+    geom_x_scaled = pointcloud.PointCloud(clouds.x, scale_cost=scale_cost)
+    geom_y_scaled = pointcloud.PointCloud(clouds.y, scale_cost=scale_cost)
     geom_xy_scaled = pointcloud.PointCloud(
-        self.x_2, self.y_2, scale_cost=scale_cost
+        clouds.x_2, clouds.y_2, scale_cost=scale_cost
     )
 
     prob_no_scale = quadratic_problem.QuadraticProblem(
@@ -332,11 +340,11 @@ class TestFusedGromovWasserstein:
   def test_fgw_fused_penalty(self, rng: jax.Array, fused_penalty: float):
     rtol = atol = 1e-5
     n, m, d = 21, 32, 2
-    rngs = jax.random.split(rng, 4)
-    xx = jax.random.normal(rngs[0], (n, d))
-    yy = jax.random.normal(rngs[1], (m, d))
-    x = jax.random.normal(rngs[2], (n, d))
-    y = jax.random.normal(rngs[3], (m, d))
+    rngs = jr.split(rng, 4)
+    xx = jr.normal(rngs[0], (n, d))
+    yy = jr.normal(rngs[1], (m, d))
+    x = jr.normal(rngs[2], (n, d))
+    y = jr.normal(rngs[3], (m, d))
 
     geom_xy = pointcloud.PointCloud(x, y, scale_cost=1.0)
     geom_xy_fp = pointcloud.PointCloud(x, y, scale_cost=1.0 / fused_penalty)

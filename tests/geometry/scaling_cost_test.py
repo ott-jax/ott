@@ -11,37 +11,57 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import dataclasses
 from typing import Optional, Union
 
 import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
+EPS = 5e-2
+
+
+@dataclasses.dataclass(frozen=True)
+class ScaleCostData:
+  """Inputs shared by every scale-cost test."""
+  x: jnp.ndarray  # (n, dim)
+  y: jnp.ndarray  # (m, dim)
+  a: jnp.ndarray  # (n,), deliberately not normalized
+  b: jnp.ndarray  # (m,), deliberately not normalized
+  vec: jnp.ndarray  # (m,)
+  cost1: jnp.ndarray  # (n, 2), low-rank cost factor
+  cost2: jnp.ndarray  # (m, 2), low-rank cost factor
+
+  @property
+  def cost(self) -> jnp.ndarray:
+    """Squared Euclidean cost matrix between :attr:`x` and :attr:`y`."""
+    return ((self.x[:, None, :] - self.y[None, :, :]) ** 2).sum(-1)
+
+
+@pytest.fixture(scope="module")
+def data() -> ScaleCostData:
+  """Inputs drawn once for the whole module."""
+  n, m, dim = 7, 9, 4
+  rngs = jr.split(jr.key(0), 7)
+  return ScaleCostData(
+      x=jr.uniform(rngs[0], (n, dim)),
+      y=jr.uniform(rngs[1], (m, dim)),
+      a=jr.uniform(rngs[2], (n,)),
+      b=jr.uniform(rngs[3], (m,)),
+      vec=jr.uniform(rngs[4], (m,)),
+      cost1=jr.uniform(rngs[5], (n, 2)),
+      cost2=jr.uniform(rngs[6], (m, 2)),
+  )
+
 
 class TestScaleCost:
-
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self.dim = 4
-    self.n = 7
-    self.m = 9
-    self.rng, *rngs = jax.random.split(rng, 8)
-    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
-    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    self.a = jax.random.uniform(rngs[2], (self.n,))
-    self.b = jax.random.uniform(rngs[3], (self.m,))
-    self.cost = ((self.x[:, None, :] - self.y[None, :, :]) ** 2).sum(-1)
-    self.vec = jax.random.uniform(rngs[4], (self.m,))
-    self.cost1 = jax.random.uniform(rngs[5], (self.n, 2))
-    self.cost2 = jax.random.uniform(rngs[6], (self.m, 2))
-    self.cost_lr = jnp.max(jnp.dot(self.cost1, self.cost2.T))
-    self.eps = 5e-2
 
   @pytest.mark.fast.with_args(
       scale=["median", "mean", "max_cost", "max_norm", "max_bound", 100.0],
@@ -49,7 +69,8 @@ class TestScaleCost:
       only_fast=[0, -3],
   )
   def test_scale_cost_pointcloud(
-      self, scale: Union[str, float], batch_size: Optional[int]
+      self, data: ScaleCostData, scale: Union[str, float],
+      batch_size: Optional[int]
   ):
     """Test various scale cost options for pointcloud."""
 
@@ -57,9 +78,7 @@ class TestScaleCost:
         x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
         scale_cost: Union[str, float]
     ):
-      geom = pointcloud.PointCloud(
-          x, y, epsilon=self.eps, scale_cost=scale_cost
-      )
+      geom = pointcloud.PointCloud(x, y, epsilon=EPS, scale_cost=scale_cost)
       prob = linear_problem.LinearProblem(geom, a, b)
       solver = sinkhorn.Sinkhorn()
       out = solver(prob)
@@ -69,22 +88,22 @@ class TestScaleCost:
     if scale == "median" and batch_size is not None:
       pytest.skip("Median scaling for online is not implemented")
 
-    geom0, _, _ = apply_sinkhorn(self.x, self.y, self.a, self.b, scale_cost=1.0)
+    geom0, _, _ = apply_sinkhorn(data.x, data.y, data.a, data.b, scale_cost=1.0)
 
     geom, out, transport = apply_sinkhorn(
-        self.x, self.y, self.a, self.b, scale_cost=scale
+        data.x, data.y, data.a, data.b, scale_cost=scale
     )
 
-    apply_cost_vec = geom.apply_cost(self.vec, axis=1)
+    apply_cost_vec = geom.apply_cost(data.vec, axis=1)
     apply_transport_vec = geom.apply_transport_from_potentials(
-        out.f, out.g, self.vec, axis=1
+        out.f, out.g, data.vec, axis=1
     )
 
     np.testing.assert_allclose(
-        jnp.matmul(transport, self.vec), apply_transport_vec, rtol=1e-4
+        jnp.matmul(transport, data.vec), apply_transport_vec, rtol=1e-4
     )
     np.testing.assert_allclose(
-        geom0.apply_cost(self.vec, axis=1) * geom.inv_scale_cost,
+        geom0.apply_cost(data.vec, axis=1) * geom.inv_scale_cost,
         apply_cost_vec,
         rtol=1e-4
     )
@@ -92,16 +111,18 @@ class TestScaleCost:
   @pytest.mark.parametrize(
       "scale", ["mean", "max_cost", "max_norm", "max_bound", 100.0]
   )
-  def test_online_matches_offline_pointcloud(self, scale: Union[str, float]):
+  def test_online_matches_offline_pointcloud(
+      self, data: ScaleCostData, scale: Union[str, float]
+  ):
     """Tests that the scale factors for online matches the ones without."""
     geom0 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=4
+        data.x, data.y, epsilon=EPS, scale_cost=scale, batch_size=4
     )
     geom1 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=None
+        data.x, data.y, epsilon=EPS, scale_cost=scale, batch_size=None
     )
     geom2 = pointcloud.PointCloud(
-        self.x, self.y, epsilon=self.eps, scale_cost=scale, batch_size=1024
+        data.x, data.y, epsilon=EPS, scale_cost=scale, batch_size=1024
     )
     np.testing.assert_allclose(
         geom0.inv_scale_cost, geom1.inv_scale_cost, rtol=1e-4
@@ -117,36 +138,38 @@ class TestScaleCost:
   @pytest.mark.fast.with_args(
       "scale", ["median", "mean", "max_cost", 100.0], only_fast=1
   )
-  def test_scale_cost_geometry(self, scale: Union[str, float]):
+  def test_scale_cost_geometry(
+      self, data: ScaleCostData, scale: Union[str, float]
+  ):
     """Test various scale cost options for geometry."""
 
     def apply_sinkhorn(
         cost: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
         scale_cost: Union[str, float]
     ):
-      geom = geometry.Geometry(cost, epsilon=self.eps, scale_cost=scale_cost)
+      geom = geometry.Geometry(cost, epsilon=EPS, scale_cost=scale_cost)
       prob = linear_problem.LinearProblem(geom, a, b)
       solver = sinkhorn.Sinkhorn()
       out = solver(prob)
       transport = geom.transport_from_potentials(out.f, out.g)
       return geom, out, transport
 
-    geom0 = geometry.Geometry(self.cost, epsilon=1e-2, scale_cost=1.0)
+    geom0 = geometry.Geometry(data.cost, epsilon=1e-2, scale_cost=1.0)
 
     geom, out, transport = apply_sinkhorn(
-        self.cost, self.a, self.b, scale_cost=scale
+        data.cost, data.a, data.b, scale_cost=scale
     )
 
-    apply_cost_vec = geom.apply_cost(self.vec, axis=1)
+    apply_cost_vec = geom.apply_cost(data.vec, axis=1)
     apply_transport_vec = geom.apply_transport_from_potentials(
-        out.f, out.g, self.vec, axis=1
+        out.f, out.g, data.vec, axis=1
     )
 
     np.testing.assert_allclose(
-        jnp.matmul(transport, self.vec), apply_transport_vec, rtol=1e-4
+        jnp.matmul(transport, data.vec), apply_transport_vec, rtol=1e-4
     )
     np.testing.assert_allclose(
-        geom0.apply_cost(self.vec, axis=1) * geom.inv_scale_cost,
+        geom0.apply_cost(data.vec, axis=1) * geom.inv_scale_cost,
         apply_cost_vec,
         rtol=1e-4
     )
@@ -154,31 +177,33 @@ class TestScaleCost:
   @pytest.mark.fast.with_args(
       "scale", ["mean", "max_bound", "max_cost", 100.0], only_fast=2
   )
-  def test_scale_cost_low_rank(self, scale: Union[str, float]):
+  def test_scale_cost_low_rank(
+      self, data: ScaleCostData, scale: Union[str, float]
+  ):
     """Test various scale cost options for low rank."""
 
     def apply_sinkhorn(cost1, cost2, scale_cost):
       geom = low_rank.LRCGeometry(cost1, cost2, scale_cost=scale_cost)
-      ot_prob = linear_problem.LinearProblem(geom, self.a, self.b)
+      prob = linear_problem.LinearProblem(geom, data.a, data.b)
       solver = sinkhorn_lr.LRSinkhorn(rank=5, threshold=1e-3)
-      out = solver(ot_prob)
+      out = solver(prob)
       return geom, out
 
-    geom0 = low_rank.LRCGeometry(self.cost1, self.cost2, scale_cost=1.0)
+    geom0 = low_rank.LRCGeometry(data.cost1, data.cost2, scale_cost=1.0)
 
     geom, out = jax.jit(
         apply_sinkhorn, static_argnums=2
-    )(self.cost1, self.cost2, scale_cost=scale)
+    )(data.cost1, data.cost2, scale_cost=scale)
 
-    apply_cost_vec = geom._apply_cost_to_vec(self.vec, axis=1)
-    apply_transport_vec = out.apply(self.vec, axis=1)
+    apply_cost_vec = geom._apply_cost_to_vec(data.vec, axis=1)
+    apply_transport_vec = out.apply(data.vec, axis=1)
     transport = out.matrix
 
     np.testing.assert_allclose(
-        jnp.matmul(transport, self.vec), apply_transport_vec, rtol=1e-4
+        jnp.matmul(transport, data.vec), apply_transport_vec, rtol=1e-4
     )
     np.testing.assert_allclose(
-        geom0._apply_cost_to_vec(self.vec, axis=1) * geom.inv_scale_cost,
+        geom0._apply_cost_to_vec(data.vec, axis=1) * geom.inv_scale_cost,
         apply_cost_vec,
         rtol=1e-4
     )
@@ -188,12 +213,12 @@ class TestScaleCost:
     if scale == "max_cost":
       np.testing.assert_allclose(1.0, geom.cost_matrix.max(), rtol=1e-4)
 
-  def test_max_scale_cost_low_rank_large_array(self):
+  def test_max_scale_cost_low_rank_large_array(self, rng: jax.Array):
     """Test max_cost options for large matrices."""
 
-    _, *rngs = jax.random.split(self.rng, 3)
-    cost1 = jax.random.uniform(rngs[0], (10000, 2))
-    cost2 = jax.random.uniform(rngs[1], (11000, 2))
+    rng1, rng2 = jr.split(rng, 2)
+    cost1 = jr.uniform(rng1, (10000, 2))
+    cost2 = jr.uniform(rng2, (11000, 2))
     max_cost_lr = jnp.max(jnp.dot(cost1, cost2.T))
 
     geom0 = low_rank.LRCGeometry(cost1, cost2, scale_cost="max_cost")

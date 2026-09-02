@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import grid, pointcloud
@@ -29,9 +30,9 @@ class TestSinkhornGrid:
   def test_separable_grid(self, rng: jax.Array, lse_mode: bool):
     """Two histograms in a grid of size 5 x 6 x 7  in the hypercube^3."""
     grid_size = (5, 6, 7)
-    rngs = jax.random.split(rng, 2)
-    a = jax.random.uniform(rngs[0], grid_size)
-    b = jax.random.uniform(rngs[1], grid_size)
+    rngs = jr.split(rng, 2)
+    a = jr.uniform(rngs[0], grid_size)
+    b = jr.uniform(rngs[1], grid_size)
     #  adding zero weights  to test proper handling, then ravel.
     a = a.at[0].set(0).ravel()
     a = a / jnp.sum(a)
@@ -49,9 +50,9 @@ class TestSinkhornGrid:
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=0)
   def test_grid_vs_euclidean(self, rng: jax.Array, lse_mode: bool):
     grid_size = (5, 6, 7)
-    rngs = jax.random.split(rng, 2)
-    a = jax.random.uniform(rngs[0], grid_size)
-    b = jax.random.uniform(rngs[1], grid_size)
+    rngs = jr.split(rng, 2)
+    a = jr.uniform(rngs[0], grid_size)
+    b = jr.uniform(rngs[1], grid_size)
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
     epsilon = 0.1
@@ -63,8 +64,8 @@ class TestSinkhornGrid:
         jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
-    out_mat = linear.solve(geometry_mat, a=a, b=b)
-    out_grid = linear.solve(geometry_grid, a=a, b=b)
+    out_mat = linear.solve(geometry_mat, a=a, b=b, lse_mode=lse_mode)
+    out_grid = linear.solve(geometry_grid, a=a, b=b, lse_mode=lse_mode)
     np.testing.assert_allclose(
         out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1e-5, atol=1e-5
     )
@@ -72,9 +73,9 @@ class TestSinkhornGrid:
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=1)
   def test_apply_transport_grid(self, rng: jax.Array, lse_mode: bool):
     grid_size = (5, 6, 7)
-    rngs = jax.random.split(rng, 4)
-    a = jax.random.uniform(rngs[0], grid_size)
-    b = jax.random.uniform(rngs[1], grid_size)
+    rngs = jr.split(rng, 4)
+    a = jr.uniform(rngs[0], grid_size)
+    b = jr.uniform(rngs[1], grid_size)
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
     geom_grid = grid.Grid(grid_size=grid_size, epsilon=0.1)
@@ -85,13 +86,13 @@ class TestSinkhornGrid:
         jnp.array(z.ravel()) / jnp.maximum(1, grid_size[2] - 1),
     ]).transpose()
     geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
-    sink_mat = linear.solve(geom_mat, a=a, b=b)
-    sink_grid = linear.solve(geom_grid, a=a, b=b)
+    sink_mat = linear.solve(geom_mat, a=a, b=b, lse_mode=lse_mode)
+    sink_grid = linear.solve(geom_grid, a=a, b=b, lse_mode=lse_mode)
 
     batch_a = 3
     batch_b = 4
-    vec_a = jax.random.normal(rngs[2], [batch_a, np.prod(np.array(grid_size))])
-    vec_b = jax.random.normal(rngs[3], [batch_b, np.prod(grid_size)])
+    vec_a = jr.normal(rngs[2], [batch_a, np.prod(np.array(grid_size))])
+    vec_b = jr.normal(rngs[3], [batch_b, np.prod(grid_size)])
 
     vec_a = vec_a / jnp.sum(vec_a, axis=1)[:, jnp.newaxis]
     vec_b = vec_b / jnp.sum(vec_b, axis=1)[:, jnp.newaxis]
@@ -131,7 +132,7 @@ class TestSinkhornGrid:
     ]).transpose()
     geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
 
-    vec = jax.random.uniform(rng, grid_size).ravel()
+    vec = jr.uniform(rng, grid_size).ravel()
     np.testing.assert_allclose(
         geom_mat.apply_cost(vec),
         geom_grid.apply_cost(vec),

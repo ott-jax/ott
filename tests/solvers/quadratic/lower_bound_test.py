@@ -15,43 +15,47 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, distrib_costs, pointcloud
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import univariate
 from ott.solvers.quadratic import lower_bound
+from tests import _utils
+
+
+@pytest.fixture(scope="module")
+def clouds() -> _utils.QuadClouds:
+  """Clouds with uniform marginals."""
+  n, m, d_x, d_y = 13, 15, 2, 3
+  rngs = jr.split(jr.key(0), 4)
+  return _utils.QuadClouds(
+      x=jr.uniform(rngs[0], (n, d_x)),
+      y=jr.uniform(rngs[1], (m, d_y)),
+      a=jnp.ones(n) / n,
+      b=jnp.ones(m) / m,
+      cx=jr.uniform(rngs[2], (n, n)),
+      cy=jr.uniform(rngs[3], (m, m)),
+  )
 
 
 @pytest.mark.fast()
 class TestLowerBound:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    d_x = 2
-    d_y = 3
-    self.n, self.m = 13, 15
-    rngs = jax.random.split(rng, 4)
-    self.x = jax.random.uniform(rngs[0], (self.n, d_x))
-    self.y = jax.random.uniform(rngs[1], (self.m, d_y))
-    a = jnp.ones(self.n)
-    b = jnp.ones(self.m)
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
-    self.cx = jax.random.uniform(rngs[2], (self.n, self.n))
-    self.cy = jax.random.uniform(rngs[3], (self.m, self.m))
-
   @pytest.mark.parametrize(
       "ground_cost",
       [costs.SqEuclidean(), costs.PNormP(1.3)]
   )
-  def test_lb_pointcloud(self, ground_cost: costs.TICost):
-    x, y = self.x, self.y
+  def test_lb_pointcloud(
+      self, clouds: _utils.QuadClouds, ground_cost: costs.TICost
+  ):
+    x, y = clouds.x, clouds.y
 
     geom_x = pointcloud.PointCloud(x)
     geom_y = pointcloud.PointCloud(y)
     prob = quadratic_problem.QuadraticProblem(
-        geom_x, geom_y, a=self.a, b=self.b
+        geom_x, geom_y, a=clouds.a, b=clouds.b
     )
     solve_fn = univariate.quantile_solver
     distrib_cost = distrib_costs.UnivariateWasserstein(
@@ -67,11 +71,12 @@ class TestLowerBound:
                            [(costs.SqEuclidean(), True, 1e-2),
                             (costs.PNormP(1.3), False, 1e-1)])
   def test_lb_different_solvers(
-      self, ground_cost: costs.TICost, uniform: bool, eps: float
+      self, clouds: _utils.QuadClouds, ground_cost: costs.TICost, uniform: bool,
+      eps: float
   ):
-    x, y, a, b = self.x, self.y, self.a, self.b
+    x, y, a, b = clouds.x, clouds.y, clouds.a, clouds.b
     if uniform:
-      k = min(self.n, self.m)
+      k = min(clouds.n, clouds.m)
       x, y, a, b = x[:k], y[:k], a[:k], b[:k]
 
     geom_x = pointcloud.PointCloud(x)

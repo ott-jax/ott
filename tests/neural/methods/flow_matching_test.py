@@ -158,7 +158,9 @@ class TestFlowMatching:
     )
     model.eval()
 
-    curv, sol = nnx.jit(fm.curvature, static_argnames=["ts"])(model, x, ts=ts)
+    curv, sol = nnx.jit(
+        fm.curvature, static_argnames=["ts", "drop_last_velocity"]
+    )(model, x, ts=ts, drop_last_velocity=drop_last_velocity)
 
     assert jnp.isscalar(curv), curv.shape
     assert jnp.isfinite(curv)

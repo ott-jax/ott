@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.math import utils as mu
@@ -26,20 +27,20 @@ class TestGeometryLse:
   def test_lse(self, rng: jax.Array):
     """Test consistency of custom lse's jvp."""
     n, m = 12, 8
-    rngs = jax.random.split(rng, 5)
-    mat = jax.random.normal(rngs[0], (n, m))
+    rngs = jr.split(rng, 5)
+    mat = jr.normal(rngs[0], (n, m))
     # picking potentially negative weights on purpose
-    b_0 = jax.random.normal(rngs[1], (m,))
-    b_1 = jax.random.normal(rngs[2], (n, 1))
+    b_0 = jr.normal(rngs[1], (m,))
+    b_1 = jr.normal(rngs[2], (n, 1))
 
     def lse_(x, axis, b, return_sign):
       out = mu.logsumexp(x, axis, False, b, return_sign)
       return jnp.sum(out[0] if return_sign else out)
 
     lse = jax.value_and_grad(lse_, argnums=(0, 2))
+    delta_mat = jr.normal(rngs[3], (n, m))
     for axis in (0, 1):
       _, g = lse(mat, axis, None, False)
-      delta_mat = jax.random.normal(rngs[3], (n, m))
       eps = 1e-3
       val_peps = lse(mat + eps * delta_mat, axis, None, False)[0]
       val_meps = lse(mat - eps * delta_mat, axis, None, False)[0]
@@ -47,8 +48,9 @@ class TestGeometryLse:
                                  jnp.sum(delta_mat * g[0]),
                                  rtol=1e-3,
                                  atol=1e-2)
-    for b, dim, axis in zip((b_0, b_1), (m, n), (1, 0)):
-      delta_b = jax.random.normal(rngs[4], (dim,)).reshape(b.shape)
+    b_rngs = jr.split(rngs[4], 2)
+    for b_rng, b, dim, axis in zip(b_rngs, (b_0, b_1), (m, n), (1, 0)):
+      delta_b = jr.normal(b_rng, (dim,)).reshape(b.shape)
       _, g = lse(mat, axis, b, True)
       eps = 1e-3
       val_peps = lse(mat + eps * delta_mat, axis, b + eps * delta_b, True)[0]

@@ -14,13 +14,14 @@
 import functools
 import io
 import sys
-from typing import Optional, Tuple
+from typing import Optional
 
 import pytest
 
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
+import jax.random as jr
 import jax.scipy as jsp
 import numpy as np
 import scipy as sp
@@ -30,31 +31,20 @@ from ott.geometry import costs, epsilon_scheduler, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers import linear
 from ott.solvers.linear import acceleration, sinkhorn
+from tests import _utils
+
+
+@pytest.fixture(scope="module")
+def clouds() -> _utils.PointClouds:
+  """Override with marginals containing zeros, to test their handling."""
+  return _utils.random_clouds(jr.key(0), zero_a=(0,), zero_b=(3,))
 
 
 class TestSinkhorn:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self.rng = rng
-    self.dim = 4
-    self.n = 17
-    self.m = 29
-    self.rng, *rngs = jax.random.split(self.rng, 5)
-    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
-    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,))
-    b = jax.random.uniform(rngs[3], (self.m,))
-
-    #  adding zero weights to test proper handling
-    a = a.at[0].set(0)
-    b = b.at[3].set(0)
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
-
-  def test_diag_sum(self):
+  def test_diag_sum(self, clouds: _utils.PointClouds):
     """Test Diag sum high when comparing PC (to LRC) with itself for low eps."""
-    x = self.x
+    x = clouds.x
     epsilon = .01
     geom = pointcloud.PointCloud(x, epsilon=epsilon)
     geom_lr = geom.to_LRCGeometry()
@@ -64,23 +54,25 @@ class TestSinkhorn:
       np.testing.assert_array_less(.99, jnp.sum(out.diag))
       np.testing.assert_array_less(jnp.sum(out.diag), 1.0)
 
-  def test_SqEucl_matches_hungarian(self):
+  def test_SqEucl_matches_hungarian(
+      self, clouds: _utils.PointClouds, rng: jax.Array
+  ):
     """Test that Sinkhorn matches Hungarian for low regularization."""
-    x = self.x
-    y = jax.random.uniform(self.rng, x.shape)
+    x = clouds.x
+    y = jr.uniform(rng, x.shape)
     epsilon = .01
     geom = pointcloud.PointCloud(
-        self.x, y, cost_fn=costs.SqEuclidean(), epsilon=epsilon
+        clouds.x, y, cost_fn=costs.SqEuclidean(), epsilon=epsilon
     )
     geom2 = pointcloud.PointCloud(
-        self.x, y, cost_fn=costs.NegDotProduct(), epsilon=epsilon
+        clouds.x, y, cost_fn=costs.NegDotProduct(), epsilon=epsilon
     )
     cost_matrix = geom.cost_matrix
     row_ixs, col_ixs = sp.optimize.linear_sum_assignment(cost_matrix)
     paired_ids = jnp.stack((row_ixs, col_ixs)).swapaxes(0, 1)
-    unit_mass = jnp.ones((self.n,)) / self.n
+    unit_mass = jnp.ones((clouds.n,)) / clouds.n
     out_h = jesp.BCOO((unit_mass, paired_ids),
-                      shape=(self.n, self.n)).todense().ravel()
+                      shape=(clouds.n, clouds.n)).todense().ravel()
 
     out1_m = linear.solve(geom).matrix.ravel()
     out2_m = linear.solve(geom2).matrix.ravel()
@@ -89,12 +81,19 @@ class TestSinkhorn:
     np.testing.assert_array_less(cos_cost(out1_m, out_h), 0.2)
 
   @pytest.mark.fast.with_args(tau_a=[1.0, 0.93], tau_b=[1.0, 0.91], only_fast=0)
-  def test_lse_matches(self, tau_a, tau_b):
+  def test_lse_matches(
+      self, clouds: _utils.PointClouds, tau_a: float, tau_b: float
+  ):
     """Test that regardless of lse_mode, Sinkhorn returns same value."""
-    geom = pointcloud.PointCloud(self.x, self.y)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y)
 
     solve_fn = functools.partial(
-        linear.solve, geom=geom, a=self.a, b=self.b, tau_a=tau_a, tau_b=tau_b
+        linear.solve,
+        geom=geom,
+        a=clouds.a,
+        b=clouds.b,
+        tau_a=tau_a,
+        tau_b=tau_b
     )
     solve_fn = jax.jit(solve_fn, static_argnames=["lse_mode"])
     lse_out = solve_fn(lse_mode=True)
@@ -126,6 +125,7 @@ class TestSinkhorn:
   )
   def test_euclidean_point_cloud(
       self,
+      clouds: _utils.PointClouds,
       lse_mode: bool,
       mom_value: float,
       mom_start: int,
@@ -137,11 +137,13 @@ class TestSinkhorn:
     threshold = 1e-3
     momentum = acceleration.Momentum(start=mom_start, value=mom_value)
 
-    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn, epsilon=0.1)
+    geom = pointcloud.PointCloud(
+        clouds.x, clouds.y, cost_fn=cost_fn, epsilon=0.1
+    )
     out = linear.solve(
         geom,
-        a=self.a,
-        b=self.b,
+        a=clouds.a,
+        b=clouds.b,
         lse_mode=lse_mode,
         norm_error=norm_error,
         inner_iterations=inner_iterations,
@@ -152,31 +154,31 @@ class TestSinkhorn:
     np.testing.assert_array_less(err, threshold)
     np.testing.assert_allclose(out.transport_mass, 1.0, rtol=1e-4, atol=1e-4)
 
-    other_geom = pointcloud.PointCloud(self.x, self.y + 0.3, epsilon=0.1)
+    other_geom = pointcloud.PointCloud(clouds.x, clouds.y + 0.3, epsilon=0.1)
     cost_other = out.transport_cost_at_geom(other_geom)
     np.testing.assert_array_equal(jnp.isnan(cost_other), False)
 
-  def test_autoepsilon(self):
+  def test_autoepsilon(self, clouds: _utils.PointClouds):
     """Check that with mean rescaling, dual potentials scale."""
     scale = 2.77
     tau_a = 0.99
     tau_b = 0.97
-    geom_1 = pointcloud.PointCloud(self.x, self.y, relative_epsilon="mean")
+    geom_1 = pointcloud.PointCloud(clouds.x, clouds.y, relative_epsilon="mean")
     # not jitting
     f_1 = linear.solve(
         geom_1,
-        a=self.a,
-        b=self.b,
+        a=clouds.a,
+        b=clouds.b,
         tau_a=tau_a,
         tau_b=tau_b,
     ).f
 
     geom_2 = pointcloud.PointCloud(
-        scale * self.x, scale * self.y, relative_epsilon="mean"
+        scale * clouds.x, scale * clouds.y, relative_epsilon="mean"
     )
     # jitting
     compute_f = jax.jit(linear.solve, static_argnames=["tau_a", "tau_b"])
-    f_2 = compute_f(geom_2, self.a, self.b, tau_a=tau_a, tau_b=tau_b).f
+    f_2 = compute_f(geom_2, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b).f
 
     # Ensure epsilon and optimal f's are a scale^2 apart (^2 comes from ^2 cost)
     np.testing.assert_allclose(
@@ -201,14 +203,14 @@ class TestSinkhorn:
       only_fast=0
   )
   def test_autoepsilon_with_decay(
-      self, lse_mode: bool, init: float, decay: float, tau_a: float,
-      tau_b: float
+      self, clouds: _utils.PointClouds, lse_mode: bool, init: float,
+      decay: float, tau_a: float, tau_b: float
   ):
     """Check that variations in init/decay work, and result in same solution."""
-    geom = pointcloud.PointCloud(self.x, self.y)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y)
     target = epsilon_scheduler.DEFAULT_EPSILON_SCALE * geom.std_cost_matrix
     epsilon = epsilon_scheduler.Epsilon(target, init=init, decay=decay)
-    geom_eps = pointcloud.PointCloud(self.x, self.y, epsilon=epsilon)
+    geom_eps = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=epsilon)
     run_fn = jax.jit(
         linear.solve,
         static_argnames=[
@@ -218,8 +220,8 @@ class TestSinkhorn:
 
     out_1 = run_fn(
         geom_eps,
-        self.a,
-        self.b,
+        clouds.a,
+        clouds.b,
         tau_a=tau_a,
         tau_b=tau_b,
         lse_mode=lse_mode,
@@ -228,8 +230,8 @@ class TestSinkhorn:
     )
     out_2 = run_fn(
         geom,
-        self.a,
-        self.b,
+        clouds.a,
+        clouds.b,
         tau_a=tau_a,
         tau_b=tau_b,
         lse_mode=lse_mode,
@@ -245,14 +247,14 @@ class TestSinkhorn:
     np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.fast()
-  def test_euclidean_point_cloud_min_iter(self):
+  def test_euclidean_point_cloud_min_iter(self, clouds: _utils.PointClouds):
     """Testing the min_iterations parameter."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1)
     errors = linear.solve(
         geom,
-        a=self.a,
-        b=self.b,
+        a=clouds.a,
+        b=clouds.b,
         threshold=threshold,
         min_iterations=34,
     ).errors
@@ -264,14 +266,14 @@ class TestSinkhorn:
     assert errors[3] > 0
 
   @pytest.mark.fast()
-  def test_euclidean_point_cloud_scan_loop(self):
+  def test_euclidean_point_cloud_scan_loop(self, clouds: _utils.PointClouds):
     """Testing the scan loop behavior."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1)
     out = linear.solve(
         geom,
-        a=self.a,
-        b=self.b,
+        a=clouds.a,
+        b=clouds.b,
         threshold=threshold,
         min_iterations=50,
         max_iterations=50
@@ -282,13 +284,13 @@ class TestSinkhorn:
     assert out.errors[-1] > 0
     assert out.errors[-1] < threshold
 
-  def test_geom_vs_point_cloud(self):
+  def test_geom_vs_point_cloud(self, clouds: _utils.PointClouds):
     """Two point clouds vs. simple cost_matrix execution of Sinkhorn."""
-    geom_1 = pointcloud.PointCloud(self.x, self.y)
+    geom_1 = pointcloud.PointCloud(clouds.x, clouds.y)
     geom_2 = geometry.Geometry(geom_1.cost_matrix)
 
-    f_1 = linear.solve(geom_1, a=self.a, b=self.b).f
-    f_2 = linear.solve(geom_2, a=self.a, b=self.b).f
+    f_1 = linear.solve(geom_1, a=clouds.a, b=clouds.b).f
+    f_2 = linear.solve(geom_2, a=clouds.a, b=clouds.b).f
     # re-centering to remove ambiguity on equality up to additive constant.
     f_1 -= jnp.mean(f_1[jnp.isfinite(f_1)])
     f_2 -= jnp.mean(f_2[jnp.isfinite(f_2)])
@@ -296,41 +298,51 @@ class TestSinkhorn:
     np.testing.assert_allclose(f_1, f_2, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_online_euclidean_point_cloud(self, lse_mode: bool):
+  def test_online_euclidean_point_cloud(
+      self, clouds: _utils.PointClouds, lse_mode: bool
+  ):
     """Testing the online way to handle geometry."""
     threshold = 1e-3
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.1, batch_size=5)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1, batch_size=5)
     errors = linear.solve(
-        geom, a=self.a, b=self.b, threshold=threshold, lse_mode=lse_mode
+        geom, a=clouds.a, b=clouds.b, threshold=threshold, lse_mode=lse_mode
     ).errors
     err = errors[errors > -1][-1]
     assert threshold > err
 
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=0)
-  def test_online_vs_batch_euclidean_point_cloud(self, lse_mode: bool):
+  def test_online_vs_batch_euclidean_point_cloud(
+      self, clouds: _utils.PointClouds, lse_mode: bool
+  ):
     """Comparing online vs batch geometry."""
     eps = 0.1
     online_geom = pointcloud.PointCloud(
-        self.x, self.y, epsilon=eps, batch_size=7
+        clouds.x, clouds.y, epsilon=eps, batch_size=7
     )
     online_geom_euc = pointcloud.PointCloud(
-        self.x, self.y, cost_fn=costs.SqEuclidean(), epsilon=eps, batch_size=10
+        clouds.x,
+        clouds.y,
+        cost_fn=costs.SqEuclidean(),
+        epsilon=eps,
+        batch_size=10
     )
 
-    batch_geom = pointcloud.PointCloud(self.x, self.y, epsilon=eps)
+    batch_geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=eps)
     batch_geom_euc = pointcloud.PointCloud(
-        self.x, self.y, cost_fn=costs.SqEuclidean(), epsilon=eps
+        clouds.x, clouds.y, cost_fn=costs.SqEuclidean(), epsilon=eps
     )
 
     out_online = linear.solve(
-        online_geom, a=self.a, b=self.b, lse_mode=lse_mode
+        online_geom, a=clouds.a, b=clouds.b, lse_mode=lse_mode
     )
-    out_batch = linear.solve(batch_geom, a=self.a, b=self.b, lse_mode=lse_mode)
+    out_batch = linear.solve(
+        batch_geom, a=clouds.a, b=clouds.b, lse_mode=lse_mode
+    )
     out_online_euc = linear.solve(
-        online_geom_euc, a=self.a, b=self.b, lse_mode=lse_mode
+        online_geom_euc, a=clouds.a, b=clouds.b, lse_mode=lse_mode
     )
     out_batch_euc = linear.solve(
-        batch_geom_euc, a=self.a, b=self.b, lse_mode=lse_mode
+        batch_geom_euc, a=clouds.a, b=clouds.b, lse_mode=lse_mode
     )
 
     # Checks regularized transport costs match.
@@ -373,129 +385,62 @@ class TestSinkhorn:
         atol=1e-5
     )
 
-  def test_apply_transport_geometry_from_potentials(self):
+  @pytest.mark.parametrize(
+      "from_scalings", [False, True], ids=["potentials", "scalings"]
+  )
+  def test_apply_transport_geometry(self, rng: jax.Array, from_scalings: bool):
     """Applying transport matrix P on vector without instantiating P."""
-    n, m, d = 20, 23, 3
-    rngs = jax.random.split(self.rng, 6)
-    x = jax.random.uniform(rngs[0], (n, d))
-    y = jax.random.uniform(rngs[1], (m, d))
-    a = jax.random.uniform(rngs[2], (n,))
-    b = jax.random.uniform(rngs[3], (m,))
-    a = a / jnp.sum(a)
-    b = b / jnp.sum(b)
-    transport_t_vec_a = [None, None, None, None]
-    transport_vec_b = [None, None, None, None]
+    rng_data, rng_a, rng_b = jr.split(rng, 3)
+    data = _utils.random_clouds(rng_data, n=20, m=23, dim=3)
+    vec_a = jr.normal(rng_a, (data.n,))
+    vec_b = jr.normal(rng_b, (7, data.m))
 
-    batch_b = 7
-
-    vec_a = jax.random.normal(rngs[4], (n,))
-    vec_b = jax.random.normal(rngs[5], (batch_b, m))
-
+    applied_a, applied_b = [], []
     # test with lse_mode and online = True / False
-    for j, lse_mode in enumerate([True, False]):
-      for i, batch_size in enumerate([2, None]):
-        geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=0.2)
-        out = linear.solve(geom, a, b, lse_mode=lse_mode)
+    for lse_mode in [True, False]:
+      for batch_size in [2, None]:
+        geom = data.geom(batch_size=batch_size, epsilon=0.2)
+        out = linear.solve(geom, data.a, data.b, lse_mode=lse_mode)
 
-        transport_t_vec_a[i + 2 * j] = geom.apply_transport_from_potentials(
-            out.f, out.g, vec_a, axis=0
-        )
-        transport_vec_b[i + 2 * j] = geom.apply_transport_from_potentials(
-            out.f, out.g, vec_b, axis=1
-        )
+        if from_scalings:
+          u = geom.scaling_from_potential(out.f)
+          v = geom.scaling_from_potential(out.g)
+          apply_fn = functools.partial(geom.apply_transport_from_scalings, u, v)
+          transport = geom.transport_from_scalings(u, v)
+        else:
+          apply_fn = functools.partial(
+              geom.apply_transport_from_potentials, out.f, out.g
+          )
+          transport = geom.transport_from_potentials(out.f, out.g)
 
-        transport = geom.transport_from_potentials(out.f, out.g)
+        applied_a.append(apply_fn(vec_a, axis=0))
+        applied_b.append(apply_fn(vec_b, axis=1))
 
         np.testing.assert_allclose(
-            transport_t_vec_a[i + 2 * j],
-            jnp.dot(transport.T, vec_a).T,
-            rtol=1e-3,
-            atol=1e-3
+            applied_a[-1], jnp.dot(transport.T, vec_a).T, rtol=1e-3, atol=1e-3
         )
         np.testing.assert_allclose(
-            transport_vec_b[i + 2 * j],
-            jnp.dot(transport, vec_b.T).T,
-            rtol=1e-3,
-            atol=1e-3
+            applied_b[-1], jnp.dot(transport, vec_b.T).T, rtol=1e-3, atol=1e-3
         )
+        np.testing.assert_array_equal(jnp.isnan(applied_a[-1]), False)
 
-    for i in range(4):
+    for i in range(1, len(applied_a)):
       np.testing.assert_allclose(
-          transport_vec_b[i], transport_vec_b[0], rtol=1e-3, atol=1e-3
+          applied_b[i], applied_b[0], rtol=1e-3, atol=1e-3
       )
       np.testing.assert_allclose(
-          transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3
-      )
-
-  def test_apply_transport_geometry_from_scalings(self):
-    """Applying transport matrix P on vector without instantiating P."""
-    n, m, d = 20, 23, 5
-    rngs = jax.random.split(self.rng, 6)
-    x = jax.random.uniform(rngs[0], (n, d))
-    y = jax.random.uniform(rngs[1], (m, d))
-    a = jax.random.uniform(rngs[2], (n,))
-    b = jax.random.uniform(rngs[3], (m,))
-    a = a / jnp.sum(a)
-    b = b / jnp.sum(b)
-    transport_t_vec_a = [None, None, None, None]
-    transport_vec_b = [None, None, None, None]
-
-    batch_b = 7
-
-    vec_a = jax.random.normal(rngs[4], (n,))
-    vec_b = jax.random.normal(rngs[5], (batch_b, m))
-
-    # test with lse_mode and online = True / False
-    for j, lse_mode in enumerate([True, False]):
-      for i, batch_size in enumerate([13, None]):
-        geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=0.2)
-        out = linear.solve(geom, a, b, lse_mode=lse_mode)
-
-        u = geom.scaling_from_potential(out.f)
-        v = geom.scaling_from_potential(out.g)
-
-        transport_t_vec_a[i + 2 * j] = geom.apply_transport_from_scalings(
-            u, v, vec_a, axis=0
-        )
-        transport_vec_b[i + 2 * j] = geom.apply_transport_from_scalings(
-            u, v, vec_b, axis=1
-        )
-
-        transport = geom.transport_from_scalings(u, v)
-
-        np.testing.assert_allclose(
-            transport_t_vec_a[i + 2 * j],
-            jnp.dot(transport.T, vec_a).T,
-            rtol=1e-3,
-            atol=1e-3
-        )
-        np.testing.assert_allclose(
-            transport_vec_b[i + 2 * j],
-            jnp.dot(transport, vec_b.T).T,
-            rtol=1e-3,
-            atol=1e-3
-        )
-        np.testing.assert_array_equal(
-            jnp.isnan(transport_t_vec_a[i + 2 * j]), False
-        )
-
-    for i in range(4):
-      np.testing.assert_allclose(
-          transport_vec_b[i], transport_vec_b[0], rtol=1e-3, atol=1e-3
-      )
-      np.testing.assert_allclose(
-          transport_t_vec_a[i], transport_t_vec_a[0], rtol=1e-3, atol=1e-3
+          applied_a[i], applied_a[0], rtol=1e-3, atol=1e-3
       )
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_restart(self, lse_mode: bool):
+  def test_restart(self, clouds: _utils.PointClouds, lse_mode: bool):
     """Two point clouds, tested with various parameters."""
     threshold = 1e-2
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=0.05)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.05)
     out = linear.solve(
         geom,
-        a=self.a,
-        b=self.b,
+        a=clouds.a,
+        b=clouds.b,
         threshold=threshold,
         lse_mode=lse_mode,
         inner_iterations=1
@@ -526,7 +471,7 @@ class TestSinkhorn:
     with pytest.raises(AssertionError):
       np.testing.assert_allclose(default_b, init_dual_b)
 
-    prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
     solver = sinkhorn.Sinkhorn(
         threshold=threshold, lse_mode=lse_mode, inner_iterations=1
     )
@@ -552,33 +497,33 @@ class TestSinkhorn:
     # Only storing it would result in 250 * 8000 = 2e6 entries = 16Mb,
     # which would overflow due to other overheads
     batch_size = 10
-    rngs = jax.random.split(rng, 4)
+    rngs = jr.split(rng, 4)
     n, m = 250, 8000
-    x = jax.random.uniform(rngs[0], (n, 2))
-    y = jax.random.uniform(rngs[1], (m, 2))
+    x = jr.uniform(rngs[0], (n, 2))
+    y = jr.uniform(rngs[1], (m, 2))
     geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=1)
-    problem = linear_problem.LinearProblem(geom)
+    prob = linear_problem.LinearProblem(geom)
     solver = jax.jit(sinkhorn.Sinkhorn())
 
-    out = solver(problem)
+    out = solver(prob)
     assert out.converged
     assert out.primal_cost > 0.0
 
-  @pytest.mark.fast.with_args(cost_fn=[None, costs.SqPNorm(1.6)])
+  @pytest.mark.fast.with_args(cost_fn=[None, costs.SqPNorm(1.6)], only_fast=0)
   def test_primal_cost_grid(
       self, rng: jax.Array, cost_fn: Optional[costs.CostFn]
   ):
     """Test computation of primal / costs for Grids."""
-    rng_a, rng_b = jax.random.split(rng)
+    rng_a, rng_b = jr.split(rng)
     ns = [6, 7, 11]
-    xs = [jax.random.normal(jax.random.key(i), (n,)) for i, n in enumerate(ns)]
+    xs = [jr.normal(jr.key(i), (n,)) for i, n in enumerate(ns)]
     geom = grid.Grid(xs, cost_fns=[cost_fn], epsilon=0.1)
-    a = jax.random.uniform(rng_a, (geom.shape[0],))
-    b = jax.random.uniform(rng_b, (geom.shape[0],))
+    a = jr.uniform(rng_a, (geom.shape[0],))
+    b = jr.uniform(rng_b, (geom.shape[0],))
     a, b = a / jnp.sum(a), b / jnp.sum(b)
-    lin_prob = linear_problem.LinearProblem(geom, a=a, b=b)
+    prob = linear_problem.LinearProblem(geom, a=a, b=b)
     solver = sinkhorn.Sinkhorn()
-    out = solver(lin_prob)
+    out = solver(prob)
 
     # Recover full cost matrix by applying it to columns of identity matrix.
     cost_matrix = geom.apply_cost(jnp.eye(geom.shape[0]))
@@ -593,14 +538,19 @@ class TestSinkhorn:
 
   @pytest.mark.fast.with_args(
       cost_fn=[costs.SqEuclidean(), costs.SqPNorm(1.6)],
+      only_fast=0,
   )
-  def test_primal_cost_pointcloud(self, cost_fn):
+  def test_primal_cost_pointcloud(
+      self, clouds: _utils.PointClouds, cost_fn: costs.CostFn
+  ):
     """Test computation of primal and dual costs for PointCouds."""
-    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn, epsilon=1e-3)
+    geom = pointcloud.PointCloud(
+        clouds.x, clouds.y, cost_fn=cost_fn, epsilon=1e-3
+    )
 
-    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
     solver = sinkhorn.Sinkhorn()
-    out = solver(lin_prob)
+    out = solver(prob)
     assert out.primal_cost > 0.0
     assert jnp.isfinite(out.dual_cost)
     # Check duality gap
@@ -614,24 +564,28 @@ class TestSinkhorn:
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.fast.with_args(
-      cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()]
+      cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()], only_fast=0
   )
-  def test_entropy(self, cost_fn):
+  def test_entropy(self, clouds: _utils.PointClouds, cost_fn: costs.CostFn):
     """Test computation of entropy of solution."""
-    geom = pointcloud.PointCloud(self.x, self.y, cost_fn=cost_fn, epsilon=1e-3)
+    geom = pointcloud.PointCloud(
+        clouds.x, clouds.y, cost_fn=cost_fn, epsilon=1e-3
+    )
 
-    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
     solver = sinkhorn.Sinkhorn(threshold=1e-4)
-    out = solver(lin_prob)
+    out = solver(prob)
     ent_transport = jnp.sum(jsp.special.entr(out.matrix))
     np.testing.assert_allclose(ent_transport, out.entropy, atol=1e-2, rtol=1e-2)
 
   @pytest.mark.fast.with_args(
-      cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()]
+      cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()], only_fast=0
   )
-  def test_normalized_entropy(self, cost_fn):
+  def test_normalized_entropy(
+      self, clouds: _utils.PointClouds, cost_fn: costs.CostFn
+  ):
     """Test computation of normalized entropy of solution."""
-    geom = pointcloud.PointCloud(self.x, self.x)
+    geom = pointcloud.PointCloud(clouds.x, clouds.x, cost_fn=cost_fn)
     out = linear.solve(geom)
     ent_transport = jnp.sum(jsp.special.entr(out.matrix))
     norm_ent = ent_transport / jnp.log(geom.shape[0]) - 1.0
@@ -640,9 +594,10 @@ class TestSinkhorn:
     )
 
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_f_potential_is_zero_centered(self, lse_mode: bool):
-    geom = pointcloud.PointCloud(self.x, self.y)
-    prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+  def test_f_potential_is_zero_centered(
+      self, clouds: _utils.PointClouds, lse_mode: bool
+  ):
+    prob = clouds.problem()
     assert prob.is_balanced
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, recenter_potentials=True)
 
@@ -654,8 +609,11 @@ class TestSinkhorn:
   @pytest.mark.parametrize(("use_tqdm", "custom_buffer"), [(False, False),
                                                            (False, True),
                                                            (True, False)])
-  def test_progress_fn(self, capsys, use_tqdm: bool, custom_buffer: bool):
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-1)
+  def test_progress_fn(
+      self, clouds: _utils.PointClouds, capsys: pytest.CaptureFixture[str],
+      use_tqdm: bool, custom_buffer: bool
+  ):
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=1e-1)
 
     if use_tqdm:
       tqdm = pytest.importorskip("tqdm")
@@ -688,35 +646,13 @@ class TestSinkhorn:
       assert captured.out.startswith("foo 7/14"), captured
 
   @pytest.mark.fast()
-  def test_custom_progress_fn(self):
+  def test_custom_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
     num_iterations = 30
 
-    def progress_fn(
-        status: Tuple[np.ndarray, np.ndarray, np.ndarray,
-                      sinkhorn.SinkhornState],
-    ) -> None:
-      # Convert arguments.
-      iteration, inner_iterations, total_iter, state = status
-      iteration = int(iteration)
-      inner_iterations = int(inner_iterations)
-      total_iter = int(total_iter)
-      errors = np.array(state.errors).ravel()
+    traced_values, progress_fn = _utils.tracing_progress_fn()
 
-      # Avoid reporting error on each iteration,
-      # because errors are only computed every `inner_iterations`.
-      if (iteration + 1) % inner_iterations == 0:
-        error_idx = max((iteration + 1) // inner_iterations - 1, 0)
-        error = errors[error_idx]
-
-        traced_values["iters"].append(iteration)
-        traced_values["error"].append(error)
-        traced_values["total"].append(total_iter)
-
-    traced_values = {"iters": [], "error": [], "total": []}
-
-    geom = pointcloud.PointCloud(self.x, self.y, epsilon=1e-3)
-    lin_prob = linear_problem.LinearProblem(geom, a=self.a, b=self.b)
+    prob = clouds.problem(epsilon=1e-3)
 
     inner_iterations = 10
 
@@ -725,7 +661,7 @@ class TestSinkhorn:
         max_iterations=num_iterations,
         inner_iterations=inner_iterations
     )(
-        lin_prob
+        prob
     )
 
     # check that the function is called on the 10th iteration (iter #9), the
@@ -744,9 +680,9 @@ class TestSinkhorn:
     ]
 
   @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16])
-  def test_sinkhorn_dtype(self, dtype: jnp.ndarray):
-    x = self.x.astype(dtype)
-    y = self.y.astype(dtype)
+  def test_sinkhorn_dtype(self, clouds: _utils.PointClouds, dtype: jnp.ndarray):
+    x = clouds.x.astype(dtype)
+    y = clouds.y.astype(dtype)
     geom = pointcloud.PointCloud(x, y, epsilon=jnp.array(1e-1, dtype=dtype))
 
     out = linear.solve(geom, threshold=1e-2)

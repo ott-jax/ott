@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import jax.tree_util as jtu
 import numpy as np
 
@@ -93,8 +94,8 @@ class TestGaussian:
 
   def test_w2_dist(self, rng: jax.Array):
     # make sure distance between a random normal and itself is 0
-    rng, subrng = jax.random.split(rng)
-    n = gaussian.Gaussian.from_random(rng=subrng, n_dimensions=3)
+    rng, rng0 = jr.split(rng)
+    n = gaussian.Gaussian.from_random(rng=rng0, n_dimensions=3)
     w2 = n.w2_dist(n)
     np.testing.assert_almost_equal(w2, 0.0, decimal=5)
 
@@ -102,12 +103,12 @@ class TestGaussian:
     # distance between covariances = frobenius norm^2 of (delta cholesky), see
     # https://djalil.chafai.net/blog/2010/04/30/wasserstein-distance-between-two-gaussians/  # noqa: E501
     size = 4
-    rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    loc0 = jax.random.normal(subrng0, shape=(size,))
-    loc1 = jax.random.normal(subrng1, shape=(size,))
-    rng, subrng0, subrng1 = jax.random.split(rng, num=3)
-    diag0 = jnp.exp(jax.random.normal(subrng0, shape=(size,)))
-    diag1 = jnp.exp(jax.random.normal(subrng1, shape=(size,)))
+    rng, rng0, rng1 = jr.split(rng, num=3)
+    loc0 = jr.normal(rng0, shape=(size,))
+    loc1 = jr.normal(rng1, shape=(size,))
+    rng, rng0, rng1 = jr.split(rng, num=3)
+    diag0 = jnp.exp(jr.normal(rng0, shape=(size,)))
+    diag1 = jnp.exp(jr.normal(rng1, shape=(size,)))
     g0 = gaussian.Gaussian(
         loc=loc0, scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag0))
     )
@@ -131,7 +132,7 @@ class TestGaussian:
         loc=jnp.array([1.0]),
         scale=scale_tril.ScaleTriL.from_covariance(jnp.diag(diag1))
     )
-    points = jax.random.normal(rng, shape=(10, 1))
+    points = jr.normal(rng, shape=(10, 1))
     actual = g0.transport(dest=g1, points=points)
     expected = 2.0 * points + 1.0
     np.testing.assert_allclose(expected, actual, atol=1e-5, rtol=1e-5)

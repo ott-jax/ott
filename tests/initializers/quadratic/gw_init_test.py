@@ -14,6 +14,7 @@
 import pytest
 
 import jax
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import pointcloud
@@ -41,19 +42,19 @@ class TestQuadraticInitializers:
   @pytest.mark.parametrize("eps", [0.0, 1e-1])
   def test_gw_better_initialization_helps(self, rng: jax.Array, eps: float):
     n, m, d1, d2, rank = 83, 84, 12, 8, 5
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    rng1, rng2, rng3, rng4 = jr.split(rng, 4)
 
     geom_x = pointcloud.PointCloud(
-        jax.random.normal(rng1, (n, d1)),
-        jax.random.normal(rng2, (n, d1)),
+        jr.normal(rng1, (n, d1)),
+        jr.normal(rng2, (n, d1)),
         epsilon=eps,
     )
     geom_y = pointcloud.PointCloud(
-        jax.random.normal(rng3, (m, d2)),
-        jax.random.normal(rng4, (m, d2)),
+        jr.normal(rng3, (m, d2)),
+        jr.normal(rng4, (m, d2)),
         epsilon=eps,
     )
-    problem = quadratic_problem.QuadraticProblem(geom_x, geom_y)
+    prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
     solver_random = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=rank,
         initializer=initializers_lr.RandomInitializer(rank),
@@ -71,8 +72,8 @@ class TestQuadraticInitializers:
         max_iterations=2000
     )
 
-    out_random = solver_random(problem)
-    out_kmeans = solver_kmeans(problem)
+    out_random = solver_random(prob)
+    out_kmeans = solver_kmeans(prob)
 
     random_cost = out_random.reg_gw_cost
     random_errors = out_random.errors[out_random.errors > -1]

@@ -109,7 +109,7 @@ class TestSemidiscreteSolver:
     assert sampled_out.ot_prob.geom.dtype == dtype
     assert sampled_out.ot_prob.geom.cost_matrix.dtype == dtype
 
-  def test_callback(self, capsys, rng: jax.Array):
+  def test_callback(self, capsys: pytest.CaptureFixture[str], rng: jax.Array):
 
     def print_state(state: semidiscrete.SemidiscreteState) -> None:
       print(state.it)  # noqa: T201
@@ -213,7 +213,7 @@ class TestSemidiscreteSolver:
     )
 
     out = jax.jit(solver)(rng_solver, prob)
-    out_init = jax.jit(solver)(rng_solver, prob, out.g)
+    out_init = jax.jit(solver)(jr.clone(rng_solver), prob, out.g)
 
     np.testing.assert_array_less(out_init.losses, out.losses)
 
@@ -222,7 +222,11 @@ class TestSemidiscreteSolver:
     rng_prob, rng_solver = jr.split(rng, 2)
     geom = _random_problem(rng_prob, m=32, d=3, epsilon=0.0).geom
     out = linear.solve_semidiscrete(
-        geom, num_iterations=5, batch_size=7, optimizer=optax.sgd(1.0), rng=rng
+        geom,
+        num_iterations=5,
+        batch_size=7,
+        optimizer=optax.sgd(1.0),
+        rng=rng_solver
     )
     np.testing.assert_array_equal(jnp.isfinite(out.losses), True)
 
@@ -254,7 +258,7 @@ class TestSemidiscreteSolver:
 
         assert isinstance(out_sampled, sinkhorn.SinkhornOutput)
         assert jnp.all(jnp.isfinite(out_sampled.reg_ot_cost))
-        assert jnp.isclose(
+        np.testing.assert_allclose(
             out_sampled.transport_mass, 1.0, rtol=1e-4, atol=1e-4
         )
         assert jnp.all(jnp.isfinite(out_sampled.matrix))

@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import dataclasses
 from typing import Any, Callable
 
 import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.math import matrix_square_root
@@ -25,14 +27,14 @@ from ott.math import matrix_square_root
 def _get_random_spd_matrix(dim: int, rng: jax.Array):
   # Get a random symmetric, positive definite matrix of a specified size.
 
-  rng, subrng0, subrng1 = jax.random.split(rng, 3)
+  rng, rng0, rng1 = jr.split(rng, 3)
   # Step 1: generate a random orthogonal matrix
-  m = jax.random.normal(subrng0, shape=[dim, dim])
+  m = jr.normal(rng0, shape=[dim, dim])
   q, _ = jnp.linalg.qr(m)
 
   # Step 2: generate random eigenvalues in [1/2. , 2.] to ensure the condition
   # number is reasonable.
-  eigs = 2.0 ** (2.0 * jax.random.uniform(subrng1, shape=(dim,)) - 1.0)
+  eigs = 2.0 ** (2.0 * jr.uniform(rng1, shape=(dim,)) - 1.0)
 
   return jnp.matmul(eigs[None, :] * q, jnp.transpose(q))
 
@@ -48,11 +50,11 @@ def _get_test_fn(
   # (2) maps the real to a positive definite matrix,
   # (3) applies fn, then
   # (4) maps the matrix-valued output of fn to a scalar.
-  rng, subrng0, subrng1, subrng2, subrng3 = jax.random.split(rng, num=5)
-  m0 = _get_random_spd_matrix(dim=dim, rng=subrng0)
-  m1 = _get_random_spd_matrix(dim=dim, rng=subrng1)
-  dx = _get_random_spd_matrix(dim=dim, rng=subrng2)
-  unit = jax.random.normal(subrng3, shape=(dim, dim))
+  rng, rng0, rng1, rng2, rng3 = jr.split(rng, num=5)
+  m0 = _get_random_spd_matrix(dim=dim, rng=rng0)
+  m1 = _get_random_spd_matrix(dim=dim, rng=rng1)
+  dx = _get_random_spd_matrix(dim=dim, rng=rng2)
+  unit = jr.normal(rng3, shape=(dim, dim))
   unit /= jnp.sqrt(jnp.sum(unit ** 2))
 
   def _test_fn(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
@@ -69,44 +71,49 @@ def _sqrt_plus_inv_sqrt(x: jnp.ndarray) -> jnp.ndarray:
   return sqrtm[0] + sqrtm[1]
 
 
+DIM = 13
+
+
+@dataclasses.dataclass(frozen=True)
+class Sylvester:
+  """A Sylvester system ``a @ x - x @ b == c``, with a known solution."""
+  a: jnp.ndarray  # (2, m, m)
+  b: jnp.ndarray  # (2, n, n)
+  x: jnp.ndarray  # (2, m, n), the solution
+  c: jnp.ndarray  # (2, m, n)
+
+
+@pytest.fixture(scope="module")
+def sylvester() -> Sylvester:
+  """A solvable Sylvester system."""
+  m, n = 3, 2
+  rng0, rng1, rng2 = jr.split(jr.key(0), 3)
+  a = jr.normal(rng0, shape=(2, m, m))
+  b = jr.normal(rng1, shape=(2, n, n))
+  x = jr.normal(rng2, shape=(2, m, n))
+  return Sylvester(a=a, b=b, x=x, c=jnp.matmul(a, x) - jnp.matmul(x, b))
+
+
 class TestMatrixSquareRoot:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self.dim = 13
-    self.batch = 3
-    # Values for testing the Sylvester solver
-    # Sylvester equations have the form AX - XB = C
-    # Shapes: A = (m, m), B = (n, n), C = (m, n), X = (m, n)
-    m = 3
-    n = 2
-    rng, subrng0, subrng1, subrng2 = jax.random.split(rng, 4)
-    self.a = jax.random.normal(subrng0, shape=(2, m, m))
-    self.b = jax.random.normal(subrng1, shape=(2, n, n))
-    self.x = jax.random.normal(subrng2, shape=(2, m, n))
-    # make sure the system has a solution
-    self.c = jnp.matmul(self.a, self.x) - jnp.matmul(self.x, self.b)
-
-    self.rng = rng
-
-  def test_sqrtm(self):
+  def test_sqrtm(self, rng: jax.Array):
     """Sample a random p.s.d. (Wishart) matrix, check its sqrt matches."""
 
-    matrices = jax.random.normal(self.rng, (self.batch, self.dim, 2 * self.dim))
+    matrices = jr.normal(rng, (3, DIM, 2 * DIM))
 
     for x in (matrices, matrices[0, :, :]):  # try with many and only one.
       x = jnp.matmul(x, jnp.swapaxes(x, -1, -2))
       threshold = 1e-4
 
       sqrt_x, inv_sqrt_x, errors = matrix_square_root.sqrtm(
-          x, min_iterations=self.dim, threshold=threshold
+          x, min_iterations=DIM, threshold=threshold
       )
       err = errors[errors > -1][-1]
       assert threshold > err
       np.testing.assert_allclose(
           x, jnp.matmul(sqrt_x, sqrt_x), rtol=1e-3, atol=1e-3
       )
-      ids = jnp.eye(self.dim)
+      ids = jnp.eye(DIM)
       if jnp.ndim(x) == 3:
         ids = ids[jnp.newaxis, :, :]
       np.testing.assert_allclose(
@@ -116,26 +123,24 @@ class TestMatrixSquareRoot:
       )
 
   @pytest.mark.fast()
-  def test_sqrtm_batch(self):
+  def test_sqrtm_batch(self, rng: jax.Array):
     """Check sqrtm on larger of matrices."""
     batch_dim0 = 2
     batch_dim1 = 2
     threshold = 1e-4
 
-    m = jax.random.normal(
-        self.rng, (batch_dim0, batch_dim1, self.dim, 2 * self.dim)
-    )
+    m = jr.normal(rng, (batch_dim0, batch_dim1, DIM, 2 * DIM))
     x = jnp.matmul(m, jnp.swapaxes(m, axis1=-2, axis2=-1))
     sqrt_x, inv_sqrt_x, errors = matrix_square_root.sqrtm(
         x,
         threshold=threshold,
-        min_iterations=self.dim,
+        min_iterations=DIM,
     )
 
     err = errors[errors > -1][-1]
     assert threshold > err
 
-    eye = jnp.eye(self.dim)
+    eye = jnp.eye(DIM)
     for i in range(batch_dim0):
       for j in range(batch_dim1):
         np.testing.assert_allclose(
@@ -152,27 +157,29 @@ class TestMatrixSquareRoot:
 
   # requires Schur decomposition, which jax does not implement on GPU
   @pytest.mark.cpu()
-  def test_solve_bartels_stewart(self):
+  def test_solve_bartels_stewart(self, sylvester: Sylvester):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
-        a=self.a[0], b=self.b[0], c=self.c[0]
+        a=sylvester.a[0], b=sylvester.b[0], c=sylvester.c[0]
     )
-    np.testing.assert_allclose(self.x[0], x, atol=1e-5)
+    np.testing.assert_allclose(sylvester.x[0], x, atol=1e-5)
 
   # requires Schur decomposition, which jax does not implement on GPU
   @pytest.mark.cpu()
-  def test_solve_bartels_stewart_batch(self):
+  def test_solve_bartels_stewart_batch(self, sylvester: Sylvester):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
-        a=self.a, b=self.b, c=self.c
+        a=sylvester.a, b=sylvester.b, c=sylvester.c
     )
-    np.testing.assert_allclose(self.x, x, atol=1e-4)
+    np.testing.assert_allclose(sylvester.x, x, atol=1e-4)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
-        a=self.a[None], b=self.b[None], c=self.c[None]
+        a=sylvester.a[None], b=sylvester.b[None], c=sylvester.c[None]
     )
-    np.testing.assert_allclose(self.x, x[0], atol=1e-4)
+    np.testing.assert_allclose(sylvester.x, x[0], atol=1e-4)
     x = matrix_square_root.solve_sylvester_bartels_stewart(
-        a=self.a[None, None], b=self.b[None, None], c=self.c[None, None]
+        a=sylvester.a[None, None],
+        b=sylvester.b[None, None],
+        c=sylvester.c[None, None]
     )
-    np.testing.assert_allclose(self.x, x[0, 0], atol=1e-4)
+    np.testing.assert_allclose(sylvester.x, x[0, 0], atol=1e-4)
 
   # requires Schur decomposition, which jax does not implement on GPU
   @pytest.mark.cpu()
@@ -191,13 +198,12 @@ class TestMatrixSquareRoot:
   )
   @pytest.mark.usefixtures("enable_x64")
   def test_grad(
-      self, fn: Callable, n_tests: int, dim: int, epsilon: float, atol: float,
-      rtol: float
+      self, rng: jax.Array, fn: Callable, n_tests: int, dim: int,
+      epsilon: float, atol: float, rtol: float
   ):
-    rng = self.rng
     for _ in range(n_tests):
-      rng, subrng = jax.random.split(rng)
-      test_fn = _get_test_fn(fn, dim=dim, rng=subrng, threshold=1e-5)
+      rng, rng0 = jr.split(rng)
+      test_fn = _get_test_fn(fn, dim=dim, rng=rng0, threshold=1e-5)
       expected = (test_fn(epsilon) - test_fn(-epsilon)) / (2.0 * epsilon)
       actual = jax.grad(test_fn)(0.0)
       np.testing.assert_allclose(actual, expected, atol=atol, rtol=rtol)

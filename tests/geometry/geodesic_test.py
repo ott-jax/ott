@@ -11,71 +11,23 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Union
+from typing import Optional
 
 import networkx as nx
-from networkx.algorithms import shortest_paths
-from networkx.generators import balanced_tree, random_graphs
+from networkx.generators import balanced_tree
 
 import pytest
 
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import geodesic, geometry, graph
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
-
-
-def random_graph(
-    n: int,
-    p: float = 0.3,
-    seed: Optional[int] = 0,
-    is_sparse: bool = False,
-    *,
-    return_laplacian: bool = False,
-    directed: bool = False,
-) -> jnp.ndarray:
-  G = random_graphs.fast_gnp_random_graph(n, p, seed=seed, directed=directed)
-  if not directed:
-    assert nx.is_connected(G), "Generated graph is not connected."
-
-  rng = np.random.RandomState(seed)
-  for _, _, w in G.edges(data=True):
-    w["weight"] = rng.uniform(0, 10)
-
-  G = nx.linalg.laplacian_matrix(
-      G
-  ) if return_laplacian else nx.linalg.adjacency_matrix(G)
-
-  if is_sparse:
-    return jesp.BCOO.from_scipy_sparse(G)
-  return jnp.asarray(G.toarray())
-
-
-def gt_geometry(
-    G: Union[jnp.ndarray, nx.Graph],
-    *,
-    epsilon: float = 1e-2
-) -> geometry.Geometry:
-  if not isinstance(G, nx.Graph):
-    G = nx.from_numpy_array(np.asarray(G))
-
-  n = len(G)
-  cost = np.zeros((n, n))
-
-  path = dict(
-      shortest_paths.all_pairs_bellman_ford_path_length(G, weight="weight")
-  )
-  for i, src in enumerate(G.nodes):
-    for j, tgt in enumerate(G.nodes):
-      cost[i, j] = path[src][tgt] ** 2
-
-  cost = jnp.asarray(cost)
-  kernel = jnp.asarray(np.exp(-cost / epsilon))
-  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.0)
+from tests.geometry import _graphs
 
 
 def exact_heat_kernel(G: jnp.ndarray, normalize: bool = False, t: float = 10):
@@ -102,8 +54,8 @@ class TestGeodesic:
     n, tol = 100, 0.02
     t = 1
     order = 50
-    x = jax.random.normal(rng, (n,))
-    G = random_graph(n)
+    x = jr.normal(rng, (n,))
+    G = _graphs.random_graph(n)
     geom = geodesic.Geodesic.from_graph(G, t=t, order=order)
 
     kernel = geom.kernel_matrix
@@ -134,6 +86,7 @@ class TestGeodesic:
   @pytest.mark.fast.with_args(
       order=[50, 100, 200],
       t=[1e-4, 1e-5],
+      only_fast=-1,
   )
   def test_approximates_ground_truth(self, t: Optional[float], order: int):
     tol = 1e-2
@@ -142,7 +95,7 @@ class TestGeodesic:
     eye = jnp.eye(G.shape[0])
     eps = jnp.finfo(eye.dtype).tiny
 
-    gt_geom = gt_geometry(G, epsilon=eps)
+    gt_geom = _graphs.gt_geometry(G, epsilon=eps)
 
     geo = geodesic.Geodesic.from_graph(G, t=t, order=order)
 
@@ -156,7 +109,7 @@ class TestGeodesic:
     def create_graph(G: jnp.ndarray) -> graph.Graph:
       return geodesic.Geodesic.from_graph(G, directed=True, normalize=normalize)
 
-    G = random_graph(16, p=0.25, directed=True)
+    G = _graphs.random_graph(16, p=0.25, directed=True)
     create_fn = jax.jit(create_graph) if jit else create_graph
     geom = create_fn(G)
 
@@ -187,7 +140,7 @@ class TestGeodesic:
         return inv_sqrt_deg @ lap @ inv_sqrt_deg
       return lap
 
-    G = random_graph(51, p=0.35, directed=directed)
+    G = _graphs.random_graph(51, p=0.35, directed=directed)
     geom = geodesic.Geodesic.from_graph(
         G, directed=directed, normalize=normalize
     )
@@ -208,14 +161,14 @@ class TestGeodesic:
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
-      problem = linear_problem.LinearProblem(geom)
-      return solver(problem)
+      prob = linear_problem.LinearProblem(geom)
+      return solver(prob)
 
     n, eps, tol = 11, 1e-5, 1e-3
-    G = random_graph(n, p=0.35)
-    x = jax.random.normal(rng, (n,))
+    G = _graphs.random_graph(n, p=0.35)
+    x = jr.normal(rng, (n,))
 
-    gt_geom = gt_geometry(G, epsilon=eps)
+    gt_geom = _graphs.gt_geometry(G, epsilon=eps)
     if is_sparse:
       G = jesp.BCOO.fromdense(G)
     graph_geom = geodesic.Geodesic.from_graph(G, t=eps / 4.0)
@@ -246,14 +199,14 @@ class TestGeodesic:
 
     def callback(geom: geodesic.Geodesic) -> float:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
-      problem = linear_problem.LinearProblem(geom)
-      return solver(problem).reg_ot_cost
+      prob = linear_problem.LinearProblem(geom)
+      return solver(prob).reg_ot_cost
 
     eps = 1e-3
-    G = random_graph(20, p=0.5)
+    G = _graphs.random_graph(20, p=0.5)
     geom = geodesic.Geodesic.from_graph(G, t=1.0)
 
-    v_w = jax.random.normal(rng, shape=G.shape)
+    v_w = jr.normal(rng, shape=G.shape)
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
     grad_sl = jax.grad(callback)(geom).scaled_laplacian
@@ -271,7 +224,7 @@ class TestGeodesic:
   def test_heat_approx(
       self, normalize: bool, t: float, order: int, is_sparse: bool
   ):
-    G = random_graph(20, p=0.5)
+    G = _graphs.random_graph(20, p=0.5)
     exact = exact_heat_kernel(G, normalize=normalize, t=t)
     if is_sparse:
       G = jesp.BCOO.fromdense(G)
@@ -285,8 +238,8 @@ class TestGeodesic:
   @pytest.mark.limit_memory("150 MB")
   def test_sparse_geo_memory(self, rng: jax.Array):
     n = 10_000
-    G = random_graph(n, p=0.001, is_sparse=True)
-    x = jax.random.normal(rng, (n,))
+    G = _graphs.random_graph(n, p=0.001, is_sparse=True)
+    x = jr.normal(rng, (n,))
 
     graph_geom = geodesic.Geodesic.from_graph(G, t=1.0, order=10)
 

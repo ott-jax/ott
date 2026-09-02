@@ -90,7 +90,7 @@ class SemidiscreteDataloader:
 
   def __iter__(self) -> "SemidiscreteDataloader":
     """Return self."""
-    self._rng_it = self.rng
+    self._rng_it = jr.clone(self.rng)
     return self
 
   def __next__(

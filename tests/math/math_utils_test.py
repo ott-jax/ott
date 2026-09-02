@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.math import utils as mu
@@ -28,18 +29,19 @@ class TestNorm:
   def test_norm(
       self,
       rng: jax.Array,
-      ord,
+      ord: float,
   ):
     d = 5
+    rng_x, rng_z = jr.split(rng, 2)
     # Test that mu.norm returns properly 0 gradients at 0, when comparing point
     # against itself.
     f = lambda x: mu.norm(x - x, ord=ord)
-    x = jax.random.uniform(rng, (d,))
+    x = jr.uniform(rng_x, (d,))
     np.testing.assert_array_equal(jax.grad(f)(x), 0.0)
 
     # Test same property when using an axis, on jacobians.
     ds = (4, 7, 3)
-    z = jax.random.uniform(rng, ds)
+    z = jr.uniform(rng_z, ds)
     h = lambda x: mu.norm(x - x, ord=ord, axis=1)
     jac = jax.jacobian(h)(z)
     np.testing.assert_array_equal(jac, 0.0)

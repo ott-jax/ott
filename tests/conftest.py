@@ -13,14 +13,30 @@
 # limitations under the License.
 import itertools
 from collections import abc
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Iterator, Mapping, Optional, Sequence
 
 import pytest
 
 import jax
-import jax.experimental
+import jax.random as jr
 
 import matplotlib as mpl
+
+from tests import _utils
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+  parser.addoption(
+      "--strict-rng",
+      action="store_true",
+      help="Fail if a PRNG key is consumed twice. Reusing a key silently "
+      "correlates draws that are meant to be independent.",
+  )
+
+
+def pytest_configure(config: pytest.Config) -> None:
+  if config.getoption("--strict-rng"):
+    jax.config.update("jax_debug_key_reuse", True)
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -73,17 +89,18 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
 @pytest.fixture()
 def rng() -> jax.Array:
-  return jax.random.key(0)
+  """A root random key, fresh for every test."""
+  return jr.key(0)
 
 
 @pytest.fixture()
-def enable_x64() -> bool:
-  ctx = (
-      jax.enable_x64(True)
-      if hasattr(jax, "enable_x64") else jax.experimental.enable_x64(True)
-  )
-  with ctx:
-    try:
-      yield
-    finally:
-      pass
+def enable_x64() -> Iterator[None]:
+  """Run the test in double precision."""
+  with jax.enable_x64(True):
+    yield
+
+
+@pytest.fixture(scope="session")
+def clouds() -> _utils.PointClouds:
+  """Two weighted point clouds with strictly positive marginals."""
+  return _utils.random_clouds(jr.key(0))

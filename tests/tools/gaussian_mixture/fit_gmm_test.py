@@ -15,44 +15,32 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import jax.test_util
 
 from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 
 
+@pytest.fixture(scope="module")
+def samples(gmm_reference: gaussian_mixture.GaussianMixture) -> jnp.ndarray:
+  """Points drawn from the reference mixture."""
+  return gmm_reference.sample(rng=jr.key(0), size=2000)
+
+
 @pytest.mark.fast()
 class TestFitGmm:
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    mean_generator = jnp.array([[2.0, -1.0], [-2.0, 0.0], [4.0, 3.0]])
-    cov_generator = jnp.array([[[0.2, 0.0], [0.0, 0.1]], [[0.6, 0.0],
-                                                          [0.0, 0.3]],
-                               [[0.5, 0.4], [0.4, 0.5]]])
-    weights_generator = jnp.array([0.3, 0.3, 0.4])
-
-    gmm_generator = (
-        gaussian_mixture.GaussianMixture.from_mean_cov_component_weights(
-            mean=mean_generator,
-            cov=cov_generator,
-            component_weights=weights_generator
-        )
-    )
-
-    self.rng, subrng = jax.random.split(rng)
-    self.samples = gmm_generator.sample(rng=subrng, size=2000)
-
-  def test_integration(self):
+  def test_integration(self, rng: jax.Array, samples: jnp.ndarray):
     # dumb integration test that makes sure nothing crashes
 
     # Fit a GMM to the samples
     gmm_init = fit_gmm.initialize(
-        rng=self.rng,
-        points=self.samples,
+        rng=rng,
+        points=samples,
         point_weights=None,
         n_components=3,
         verbose=False
     )
     _ = fit_gmm.fit_model_em(
-        gmm=gmm_init, points=self.samples, point_weights=None, steps=20
+        gmm=gmm_init, points=samples, point_weights=None, steps=20
     )

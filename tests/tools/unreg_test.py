@@ -22,6 +22,7 @@ import numpy as np
 from ott.geometry import costs, pointcloud
 from ott.solvers import linear
 from ott.tools import unreg
+from tests import _utils
 
 
 class TestHungarian:
@@ -29,8 +30,7 @@ class TestHungarian:
   @pytest.mark.parametrize("cost_fn", [costs.PNormP(1.3), None])
   def test_matches_sink(self, rng: jax.Array, cost_fn: Optional[costs.CostFn]):
     n, m, dim = 12, 12, 5
-    rng1, rng2 = jax.random.split(rng, 2)
-    x, y = gen_data(rng1, n, m, dim)
+    x, y = gen_data(rng, n, m, dim)
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=.0005)
     cost_hung, out_hung = jax.jit(unreg.hungarian)(geom)
     out_sink = jax.jit(linear.solve)(geom)
@@ -44,8 +44,7 @@ class TestHungarian:
   @pytest.mark.parametrize("p", [1.3, 2.3])
   def test_wass(self, rng: jax.Array, p: float):
     n, m, dim = 12, 12, 5
-    rng1, rng2 = jax.random.split(rng, 2)
-    x, y = gen_data(rng1, n, m, dim)
+    x, y = gen_data(rng, n, m, dim)
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.EuclideanP(p=p))
     cost_hung, _ = jax.jit(unreg.hungarian)(geom)
     w_p = jax.jit(unreg.wassdis_p)(x, y, p=p)
@@ -54,7 +53,5 @@ class TestHungarian:
 
 def gen_data(rng: jax.Array, n: int, m: int,
              dim: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
-  rngs = jax.random.split(rng, 4)
-  x = jax.random.uniform(rngs[0], (n, dim))
-  y = jax.random.uniform(rngs[1], (m, dim))
-  return x, y
+  c = _utils.random_clouds(rng, n=n, m=m, dim=dim, offset=0.0)
+  return c.x, c.y

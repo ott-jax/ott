@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -23,20 +23,21 @@ from ott.solvers.linear import univariate
 
 __all__ = ["random_proj_sphere", "sliced_wasserstein"]
 
-Projector = Callable[[jnp.ndarray, int, jax.Array], jnp.ndarray]
+Projector = Callable[[jax.Array, jnp.ndarray], jnp.ndarray]
 
 
 def random_proj_sphere(
+    rng: jax.Array,
     x: jnp.ndarray,
+    *,
     n_proj: int = 1000,
-    rng: Optional[jax.Array] = None
 ) -> jnp.ndarray:
   """Project data on directions sampled randomly from sphere.
 
   Args:
+    rng: Key used to sample feature extractors.
     x: Array of size ``[n, dim]``.
     n_proj: Number of randomly generated projections.
-    rng: Key used to sample feature extractors.
 
   Returns:
     Array of size ``[n, n_proj]`` features.
@@ -58,7 +59,7 @@ def sliced_wasserstein(
     weights: Optional[jnp.ndarray] = None,
     return_transport: bool = False,
     return_dual_variables: bool = False,
-    **kwargs: Any,
+    rng: Optional[jax.Array] = None,
 ) -> Tuple[jnp.ndarray, univariate.UnivariateOutput]:
   r"""Compute the Sliced Wasserstein distance between two weighted point clouds.
 
@@ -86,9 +87,7 @@ def sliced_wasserstein(
     return_transport: Whether to store ``n_proj`` transport plans in the output.
     return_dual_variables: Whether to store ``n_proj`` pairs of dual vectors
       in the output.
-    kwargs: Keyword arguments to ``proj_fn``. Could for instance
-      include, as done with default projector, number of ``n_proj`` projections,
-      as well as a ``rng`` key to sample as many directions.
+    rng: Random number generator.
 
   Returns:
     The sliced Wasserstein distance with the corresponding output object.
@@ -96,7 +95,10 @@ def sliced_wasserstein(
   if proj_fn is None:
     proj_fn = random_proj_sphere
 
-  x_proj, y_proj = proj_fn(x, **kwargs), proj_fn(y, **kwargs),
+  rng_x = utils.default_prng_key(rng)
+  rng_y = jax.random.clone(rng_x)
+
+  x_proj, y_proj = proj_fn(rng_x, x), proj_fn(rng_y, y)
   geom = pointcloud.PointCloud(x_proj, y_proj, cost_fn=cost_fn)
 
   out = linear.solve_univariate(

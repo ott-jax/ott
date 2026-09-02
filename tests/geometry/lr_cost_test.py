@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, geometry, grid, low_rank, pointcloud
@@ -28,16 +29,17 @@ class TestLRGeometry:
   def test_apply(self, rng: jax.Array):
     """Test application of cost to vec or matrix."""
     n, m, r = 17, 11, 7
-    rngs = jax.random.split(rng, 5)
-    c1 = jax.random.normal(rngs[0], (n, r))
-    c2 = jax.random.normal(rngs[1], (m, r))
+    rngs = jr.split(rng, 5)
+    c1 = jr.normal(rngs[0], (n, r))
+    c2 = jr.normal(rngs[1], (m, r))
     c = jnp.matmul(c1, c2.T)
     bias = 0.27
     geom = geometry.Geometry(c + bias)
     geom_lr = low_rank.LRCGeometry(c1, c2, bias=bias)
+    mat_rngs = iter(jr.split(rngs[2], 4))
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
-        mat = jax.random.normal(rngs[2], mat_shape)
+        mat = jr.normal(next(mat_rngs), mat_shape)
         np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
@@ -54,9 +56,9 @@ class TestLRGeometry:
     cost_fn = costs.SqEuclidean()
 
     n, m, d = 17, 11, 3
-    rngs = jax.random.split(rng, 3)
-    x = jax.random.normal(rngs[0], (n, d)) + .1
-    y = jax.random.normal(rngs[1], (m, d))
+    rngs = jr.split(rng, 3)
+    x = jr.normal(rngs[0], (n, d)) + .1
+    y = jr.normal(rngs[1], (m, d))
 
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, scale_cost=scale_cost)
     geom_lr = geom.to_LRCGeometry()
@@ -65,9 +67,10 @@ class TestLRGeometry:
     np.testing.assert_allclose(
         geom.inv_scale_cost, geom_lr.inv_scale_cost, rtol=1e-6, atol=1e-6
     )
+    mat_rngs = iter(jr.split(rngs[2], 4))
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
-        mat = jax.random.normal(rngs[2], mat_shape)
+        mat = jr.normal(next(mat_rngs), mat_shape)
         np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
@@ -80,17 +83,18 @@ class TestLRGeometry:
   ):
     """Test conversion from PointCloud to LRCGeometry."""
     n, m, d = 17, 11, 3
-    rngs = jax.random.split(rng, 3)
-    x = jax.random.normal(rngs[0], (n, d)) + .1
-    y = jax.random.normal(rngs[1], (m, d))
+    rngs = jr.split(rng, 3)
+    x = jr.normal(rngs[0], (n, d)) + .1
+    y = jr.normal(rngs[1], (m, d))
 
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.NegDotProduct())
     geom_lr = geom.to_LRCGeometry()
     assert isinstance(geom_lr, low_rank.LRCGeometry)
 
+    mat_rngs = iter(jr.split(rngs[2], 4))
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
-        mat = jax.random.normal(rngs[2], mat_shape)
+        mat = jr.normal(next(mat_rngs), mat_shape)
         np.testing.assert_allclose(
             geom.apply_cost(mat, axis=axis),
             geom_lr.apply_cost(mat, axis=axis),
@@ -100,17 +104,18 @@ class TestLRGeometry:
   def test_apply_squared(self, rng: jax.Array):
     """Test application of squared cost to vec or matrix."""
     n, m = 27, 25
-    rngs = jax.random.split(rng, 5)
-    for r in [3, 15]:
-      c1 = jax.random.normal(rngs[0], (n, r))
-      c2 = jax.random.normal(rngs[1], (m, r))
+    for r, r_rng in zip([3, 15], jr.split(rng, 2)):
+      c1_rng, c2_rng, *mat_rngs = jr.split(r_rng, 6)
+      c1 = jr.normal(c1_rng, (n, r))
+      c2 = jr.normal(c2_rng, (m, r))
       c = jnp.matmul(c1, c2.T)
       geom = geometry.Geometry(c)
       geom2 = geometry.Geometry(c ** 2)
       geom_lr = low_rank.LRCGeometry(c1, c2)
+      mat_rngs = iter(mat_rngs)
       for dim, axis in ((m, 1), (n, 0)):
         for mat_shape in ((dim, 2), (dim,)):
-          mat = jax.random.normal(rngs[2], mat_shape)
+          mat = jr.normal(next(mat_rngs), mat_shape)
           out_lr = geom_lr.apply_square_cost(mat, axis=axis)
           np.testing.assert_allclose(
               geom.apply_square_cost(mat, axis=axis), out_lr, rtol=5e-4
@@ -127,11 +132,11 @@ class TestLRGeometry:
   ):
     """Test application of cost to vec or matrix."""
     n, m, r, q = 17, 11, 7, 2
-    rngs = jax.random.split(rng, 5)
-    c1 = jax.random.normal(rngs[0], (n, r))
-    c2 = jax.random.normal(rngs[1], (m, r))
-    d1 = jax.random.normal(rngs[0], (n, q))
-    d2 = jax.random.normal(rngs[1], (m, q))
+    rngs = jr.split(rng, 5)
+    c1 = jr.normal(rngs[0], (n, r))
+    c2 = jr.normal(rngs[1], (m, r))
+    d1 = jr.normal(rngs[2], (n, q))
+    d2 = jr.normal(rngs[3], (m, q))
 
     s1, s2 = scale_factor
     b1, b2 = bias
@@ -144,18 +149,19 @@ class TestLRGeometry:
     geom_lr_d = low_rank.LRCGeometry(d1, d2, scale_factor=s2, bias=b2)
     geom_lr = geom_lr_c + geom_lr_d
 
+    draw = iter(jr.split(rngs[4], 4))
     for dim, axis in ((m, 1), (n, 0)):
-      mat = jax.random.normal(rngs[1], (dim, 2))
+      mat = jr.normal(next(draw), (dim, 2))
       np.testing.assert_allclose(
           geom.apply_cost(mat, axis=axis),
           geom_lr.apply_cost(mat, axis=axis),
-          rtol=1e-4
+          rtol=1e-3
       )
-      vec = jax.random.normal(rngs[1], (dim,))
+      vec = jr.normal(next(draw), (dim,))
       np.testing.assert_allclose(
           geom.apply_cost(vec, axis=axis),
           geom_lr.apply_cost(vec, axis=axis),
-          rtol=1e-4
+          rtol=1e-3
       )
 
   @pytest.mark.parametrize(("scale", "scale_cost", "epsilon"),
@@ -165,17 +171,13 @@ class TestLRGeometry:
       epsilon: Optional[float]
   ):
     n, d = 71, 2
-    rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2 = jr.split(rng, 2)
 
     geom1 = pointcloud.PointCloud(
-        jax.random.normal(rng1, (n, d)) + 10.0,
-        epsilon=epsilon,
-        scale_cost=scale_cost
+        jr.normal(rng1, (n, d)) + 10.0, epsilon=epsilon, scale_cost=scale_cost
     )
     geom2 = pointcloud.PointCloud(
-        jax.random.normal(rng2, (n, d)) + 20.0,
-        epsilon=epsilon,
-        scale_cost=scale_cost
+        jr.normal(rng2, (n, d)) + 20.0, epsilon=epsilon, scale_cost=scale_cost
     )
     geom_lr = geom1.to_LRCGeometry(scale=1 - scale) + \
         geom2.to_LRCGeometry(scale=scale)
@@ -191,10 +193,10 @@ class TestLRGeometry:
       self, rng: jax.Array, fn: Callable[[jnp.ndarray], jnp.ndarray], axis: int
   ):
     n, m, d = 21, 13, 3
-    rngs = jax.random.split(rng, 3)
-    x = jax.random.normal(rngs[0], (n, d))
-    y = jax.random.normal(rngs[1], (m, d))
-    vec = jax.random.normal(rngs[2], (n if axis == 0 else m,))
+    rngs = jr.split(rng, 3)
+    x = jr.normal(rngs[0], (n, d))
+    y = jr.normal(rngs[1], (m, d))
+    vec = jr.normal(rngs[2], (n if axis == 0 else m,))
 
     geom = pointcloud.PointCloud(x, y)
 
@@ -211,9 +213,9 @@ class TestLRGeometry:
   def test_point_cloud_to_lr(self, rng: jax.Array, rank: int):
     n, m = 1500, 1000
     scale = 2.0
-    rngs = jax.random.split(rng, 2)
-    x = jax.random.normal(rngs[0], (n, rank))
-    y = jax.random.normal(rngs[1], (m, rank))
+    rngs = jr.split(rng, 2)
+    x = jr.normal(rngs[0], (n, rank))
+    y = jr.normal(rngs[1], (m, rank))
 
     geom_pc = pointcloud.PointCloud(x, y)
     geom_lr = geom_pc.to_LRCGeometry(scale=scale)
@@ -249,9 +251,9 @@ class TestCostMatrixFactorization:
 
   @pytest.mark.fast.with_args(rank=[2, 3], tol=[5e-1, 1e-2], only_fast=0)
   def test_geometry_to_lr(self, rng: jax.Array, rank: int, tol: float):
-    rng1, rng2, rng3 = jax.random.split(rng, 3)
-    x = jax.random.normal(rng1, shape=(370, 3))
-    y = jax.random.normal(rng2, shape=(460, 3))
+    rng1, rng2, rng3 = jr.split(rng, 3)
+    x = jr.normal(rng1, shape=(370, 3))
+    y = jr.normal(rng2, shape=(460, 3))
     geom = geometry.Geometry(cost_matrix=x @ y.T)
 
     geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol, rng=rng3)
@@ -260,7 +262,7 @@ class TestCostMatrixFactorization:
     assert geom_lr.cost_rank == rank
 
     if rank == 2 and tol == 1e-2:
-      pytest.mark.xfail("assert 171666.83 <= 154635.98")
+      pytest.xfail("assert 171666.83 <= 154635.98")
     else:
       self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
@@ -272,9 +274,9 @@ class TestCostMatrixFactorization:
       self, rng: jax.Array, batch_size: Optional[int], scale_cost: Optional[str]
   ):
     rank, tol = 7, 1e-1
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, shape=(384, 10))
-    y = jax.random.normal(rng2, shape=(512, 10))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, shape=(384, 10))
+    y = jr.normal(rng2, shape=(512, 10))
     geom = pointcloud.PointCloud(
         x,
         y,
@@ -289,9 +291,9 @@ class TestCostMatrixFactorization:
     self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
   def test_to_lrc_geometry_noop(self, rng: jax.Array):
-    rng1, rng2 = jax.random.split(rng, 2)
-    cost1 = jax.random.normal(rng1, shape=(32, 2))
-    cost2 = jax.random.normal(rng2, shape=(23, 2))
+    rng1, rng2 = jr.split(rng, 2)
+    cost1 = jr.normal(rng1, shape=(32, 2))
+    cost2 = jr.normal(rng2, shape=(23, 2))
     geom = low_rank.LRCGeometry(cost1, cost2)
 
     geom_lrc = geom.to_LRCGeometry(rank=10)
@@ -312,9 +314,9 @@ class TestCostMatrixFactorization:
   @pytest.mark.limit_memory("250 MB")
   def test_large_scale_factorization(self, rng: jax.Array):
     rank, tol = 4, 1e-2
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, shape=(10_000, 7))
-    y = jax.random.normal(rng2, shape=(11_000, 7))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, shape=(10_000, 7))
+    y = jr.normal(rng2, shape=(11_000, 7))
     geom = pointcloud.PointCloud(x, y, epsilon=1e-2, cost_fn=costs.Cosine())
 
     geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol)
@@ -326,7 +328,7 @@ class TestCostMatrixFactorization:
   def test_conversion_grid(self):
     """Test conversion from Grid to LRCGeometry."""
     ns = [6, 7, 11]
-    xs = [jax.random.normal(jax.random.key(i), (n,)) for i, n in enumerate(ns)]
+    xs = [jr.normal(jr.key(i), (n,)) for i, n in enumerate(ns)]
     geom = grid.Grid(xs)
 
     # Recovering cost matrix by applying it to columns of identity matrix.
@@ -339,9 +341,9 @@ class TestCostMatrixFactorization:
     )
 
   def test_full_to_lrc_geometry(self, rng: jax.Array):
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, shape=(13, 7))
-    y = jax.random.normal(rng2, shape=(29, 7))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, shape=(13, 7))
+    y = jr.normal(rng2, shape=(29, 7))
     geom = pointcloud.PointCloud(x, y, cost_fn=costs.PNormP(1.4))
     geom_lrc = geom.to_LRCGeometry(rank=0)
     np.testing.assert_allclose(

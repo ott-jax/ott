@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott import math
@@ -26,11 +27,11 @@ class TestLegendre:
   def test_legendre(self, rng: jax.Array):
     """Test Legendre by evaluating it on a quadratic function."""
     d = 5
-    rngs = jax.random.split(rng, 5)
-    mat = jax.random.normal(rngs[0], (d, d))
+    rngs = jr.split(rng, 5)
+    mat = jr.normal(rngs[0], (d, d))
     mat = mat @ mat.T
 
-    x = jax.random.normal(rngs[1], (d,))
+    x = jr.normal(rngs[1], (d,))
 
     def fun(x):
       return .5 * jnp.dot(x, mat @ x)

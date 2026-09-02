@@ -18,6 +18,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott import datasets
@@ -44,12 +45,12 @@ class TestConditionalMongeGap:
       n_features: int,
       num_conditions: int,
   ):
-    rng1, rng2 = jax.random.split(rng)
+    rng1, rng2 = jr.split(rng)
     per_cond = n_samples // num_conditions
     n = per_cond * num_conditions
 
-    source = jax.random.normal(rng1, (n, n_features))
-    target = source + 0.5 * jax.random.normal(rng2, (n, n_features))
+    source = jr.normal(rng1, (n, n_features))
+    target = source + 0.5 * jr.normal(rng2, (n, n_features))
     condition = jnp.repeat(jnp.arange(num_conditions), per_cond)
 
     gap = conditional_monge_gap.cmonge_gap_from_samples(
@@ -64,9 +65,9 @@ class TestConditionalMongeGap:
   def test_jit_consistency(self, rng: jax.Array):
     n, d, k = 60, 4, 3
     per_cond = n // k
-    rng1, rng2 = jax.random.split(rng)
-    source = jax.random.normal(rng1, (n, d))
-    target = source + 0.1 * jax.random.normal(rng2, (n, d))
+    rng1, rng2 = jr.split(rng)
+    source = jr.normal(rng1, (n, d))
+    target = source + 0.1 * jr.normal(rng2, (n, d))
     condition = jnp.repeat(jnp.arange(k), per_cond)
 
     eager_gap = conditional_monge_gap.cmonge_gap_from_samples(
@@ -92,9 +93,9 @@ class TestConditionalMongeGap:
     """Segment-based result matches manual per-condition loop."""
     n, d, k = 60, 4, 3
     per_cond = n // k
-    rng1, rng2 = jax.random.split(rng)
-    source = jax.random.normal(rng1, (n, d))
-    target = source + 0.1 * jax.random.normal(rng2, (n, d))
+    rng1, rng2 = jr.split(rng)
+    source = jr.normal(rng1, (n, d))
+    target = source + 0.1 * jr.normal(rng2, (n, d))
     condition = jnp.repeat(jnp.arange(k), per_cond)
 
     new_gap = conditional_monge_gap.cmonge_gap_from_samples(
@@ -119,8 +120,8 @@ class TestConditionalMongeGap:
     """Identity map should have smaller Monge gap than a random map."""
     n, d, k = 60, 4, 3
     per_cond = n // k
-    rng1, rng2 = jax.random.split(rng)
-    source = jax.random.normal(rng1, (n, d))
+    rng1, rng2 = jr.split(rng)
+    source = jr.normal(rng1, (n, d))
     condition = jnp.repeat(jnp.arange(k), per_cond)
 
     identity_gap = conditional_monge_gap.cmonge_gap_from_samples(
@@ -130,7 +131,7 @@ class TestConditionalMongeGap:
         num_segments=k,
         max_measure_size=per_cond,
     )
-    random_target = jax.random.normal(rng2, (n, d)) * 3.0
+    random_target = jr.normal(rng2, (n, d)) * 3.0
     random_gap = conditional_monge_gap.cmonge_gap_from_samples(
         source,
         random_target,
@@ -151,9 +152,9 @@ class TestConditionalMongeGap:
   def test_different_costs(self, rng: jax.Array, cost_fn: costs.CostFn):
     n, d, k = 30, 4, 3
     per_cond = n // k
-    rng1, rng2 = jax.random.split(rng)
-    source = jax.random.normal(rng1, (n, d))
-    target = source + jax.random.normal(rng2, (n, d)) * 0.5
+    rng1, rng2 = jr.split(rng)
+    source = jr.normal(rng1, (n, d))
+    target = source + jr.normal(rng2, (n, d)) * 0.5
     condition = jnp.repeat(jnp.arange(k), per_cond)
 
     gap = conditional_monge_gap.cmonge_gap_from_samples(
@@ -170,9 +171,9 @@ class TestConditionalMongeGap:
   def test_return_output_shape(self, rng: jax.Array):
     n, d, k = 60, 4, 3
     per_cond = n // k
-    rng1, rng2 = jax.random.split(rng)
-    source = jax.random.normal(rng1, (n, d))
-    target = source + 0.1 * jax.random.normal(rng2, (n, d))
+    rng1, rng2 = jr.split(rng)
+    source = jr.normal(rng1, (n, d))
+    target = source + 0.1 * jr.normal(rng2, (n, d))
     condition = jnp.repeat(jnp.arange(k), per_cond)
 
     result = conditional_monge_gap.cmonge_gap_from_samples(
@@ -204,9 +205,9 @@ class TestConditionalMongeGap:
     k = 2
     per_cond = n_samples // k
     n = per_cond * k
-    rng1, rng2 = jax.random.split(rng)
+    rng1, rng2 = jr.split(rng)
 
-    source = jax.random.normal(rng1, (n, n_features))
+    source = jr.normal(rng1, (n, n_features))
     model = potentials.LinenPotentialMLP(dim_hidden=[8, 8], is_potential=False)
     params = model.init(rng2, x=source[0])
     target = model.apply(params, source)
@@ -239,9 +240,9 @@ class TestConditionalMongeGap:
     """Non-Euclidean costs produce different cmonge_gap than Euclidean."""
     n, d, k = 30, 5, 3
     per_cond = n // k
-    rng1, rng2 = jax.random.split(rng)
-    source = jax.random.normal(rng1, (n, d))
-    target = jax.random.normal(rng2, (n, d)) * 0.1 + 3.0
+    rng1, rng2 = jr.split(rng)
+    source = jr.normal(rng1, (n, d))
+    target = jr.normal(rng2, (n, d)) * 0.1 + 3.0
     condition = jnp.repeat(jnp.arange(k), per_cond)
 
     gap_eucl = conditional_monge_gap.cmonge_gap_from_samples(
@@ -282,14 +283,11 @@ class TestConditionalMongeGap:
 
     # Different offsets per condition so gaps are distinct
     offsets = jnp.array([0.1, 1.0, 3.0])
-    rngs = jax.random.split(rng, 2 * k)
+    rngs = jr.split(rng, 2 * k)
     sources, targets = [], []
     for c in range(k):
-      s = jax.random.normal(rngs[2 * c], (per_cond, d))
-      t = (
-          s + offsets[c] +
-          0.05 * jax.random.normal(rngs[2 * c + 1], (per_cond, d))
-      )
+      s = jr.normal(rngs[2 * c], (per_cond, d))
+      t = (s + offsets[c] + 0.05 * jr.normal(rngs[2 * c + 1], (per_cond, d)))
       sources.append(s)
       targets.append(t)
 
@@ -366,11 +364,11 @@ class TestConditionalMongeGap:
         average = mean(per_cond_gaps), and the average shifts when n_k changes.
         """
     d = 5
-    rng_easy, rng_hard, rng_noise = jax.random.split(rng, 3)
+    rng_easy, rng_hard, rng_noise = jr.split(rng, 3)
 
-    base_easy = jax.random.normal(rng_easy, (60, d))
-    base_hard = jax.random.normal(rng_hard, (60, d))
-    noise = 0.01 * jax.random.normal(rng_noise, (60, d))
+    base_easy = jr.normal(rng_easy, (60, d))
+    base_hard = jr.normal(rng_hard, (60, d))
+    noise = 0.01 * jr.normal(rng_noise, (60, d))
 
     target_easy = base_easy + noise
     target_hard = base_hard + 5.0
@@ -440,10 +438,10 @@ class TestConditionalMongeGap:
     d = 4
     offsets = jnp.array([0.0, 1.5, 5.0])
 
-    rngs = jax.random.split(rng, 2 * k)
+    rngs = jr.split(rng, 2 * k)
     sources, targets = [], []
     for c in range(k):
-      s = jax.random.normal(rngs[2 * c], (per_cond, d))
+      s = jr.normal(rngs[2 * c], (per_cond, d))
       t = s + offsets[c]
       sources.append(s)
       targets.append(t)
@@ -488,7 +486,7 @@ class TestConditionalMongeGapEstimator:
       return div, None
 
     def regularizer(source, mapped, labels):
-      gap, per_cond = conditional_monge_gap.cmonge_gap_from_samples(
+      gap, _ = conditional_monge_gap.cmonge_gap_from_samples(
           source,
           mapped,
           labels,

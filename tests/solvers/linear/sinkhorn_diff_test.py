@@ -18,35 +18,30 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn
+from tests import _utils
+
+
+@pytest.fixture(scope="module")
+def clouds() -> _utils.PointClouds:
+  """Larger clouds in a lower dimension than the suite default."""
+  return _utils.random_clouds(jr.key(0), n=38, m=73, dim=3)
 
 
 class TestSinkhornImplicit:
   """Check implicit and autodiff match for Sinkhorn."""
 
-  @pytest.fixture(autouse=True)
-  def initialize(self, rng: jax.Array):
-    self.dim = 3
-    self.n = 38
-    self.m = 73
-    self.rng, *rngs = jax.random.split(rng, 10)
-    self.rngs = rngs
-    self.x = jax.random.uniform(rngs[0], (self.n, self.dim))
-    self.y = jax.random.uniform(rngs[1], (self.m, self.dim))
-    a = jax.random.uniform(rngs[2], (self.n,)) + 0.1
-    b = jax.random.uniform(rngs[3], (self.m,)) + 0.1
-    self.a = a / jnp.sum(a)
-    self.b = b / jnp.sum(b)
-
   @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
                            [(True, 1e-4, True), (False, 1e-6, False)])
   def test_implicit_differentiation_versus_autodiff(
-      self, rng: jax.Array, lse_mode: bool, threshold: float, pcg: bool
+      self, clouds: _utils.PointClouds, rng: jax.Array, lse_mode: bool,
+      threshold: float, pcg: bool
   ):
     epsilon = 5e-2
 
@@ -54,12 +49,12 @@ class TestSinkhornImplicit:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = geometry.Geometry(
           cost_matrix=jnp.sum(x ** 2, axis=1)[:, jnp.newaxis] +
-          jnp.sum(self.y ** 2, axis=1)[jnp.newaxis, :] -
-          2 * jnp.dot(x, self.y.T),
+          jnp.sum(clouds.y ** 2, axis=1)[jnp.newaxis, :] -
+          2 * jnp.dot(x, clouds.y.T),
           epsilon=epsilon
       )
       prob = linear_problem.LinearProblem(
-          geom, a=a, b=self.b, tau_a=0.9, tau_b=0.87
+          geom, a=a, b=clouds.b, tau_a=0.9, tau_b=0.87
       )
       solver = sinkhorn.Sinkhorn(
           threshold=threshold, lse_mode=lse_mode, implicit_diff=implicit_diff
@@ -70,16 +65,16 @@ class TestSinkhornImplicit:
         a: jnp.ndarray, x: jnp.ndarray, implicit: bool = True
     ) -> float:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
-      geom = pointcloud.PointCloud(x, self.y, epsilon=epsilon)
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=epsilon)
       prob = linear_problem.LinearProblem(
-          geom, a=a, b=self.b, tau_a=1.0, tau_b=0.95
+          geom, a=a, b=clouds.b, tau_a=1.0, tau_b=0.95
       )
       solver = sinkhorn.Sinkhorn(
           threshold=threshold, lse_mode=lse_mode, implicit_diff=implicit_diff
       )
       return solver(prob).reg_ot_cost
 
-    rng1, rng2 = jax.random.split(rng)
+    rng1, rng2 = jr.split(rng)
     loss = loss_pcg if pcg else loss_g
 
     loss_and_grad_imp = jax.jit(
@@ -89,17 +84,17 @@ class TestSinkhornImplicit:
         jax.value_and_grad(lambda a, x: loss(a, x, False), argnums=(0, 1))
     )
 
-    loss_value_imp, grad_loss_imp = loss_and_grad_imp(self.a, self.x)
-    loss_value_auto, grad_loss_auto = loss_and_grad_auto(self.a, self.x)
+    loss_value_imp, grad_loss_imp = loss_and_grad_imp(clouds.a, clouds.x)
+    loss_value_auto, grad_loss_auto = loss_and_grad_auto(clouds.a, clouds.x)
 
     np.testing.assert_allclose(loss_value_imp, loss_value_auto)
     eps = 1e-3
 
     # test gradient w.r.t. a works and gradient implicit ~= gradient autodiff
-    delta = jax.random.uniform(rng1, (self.n,)) / 10
+    delta = jr.uniform(rng1, (clouds.n,)) / 10
     delta = delta - jnp.mean(delta)  # center perturbation
-    reg_ot_delta_plus = loss(self.a + eps * delta, self.x)
-    reg_ot_delta_minus = loss(self.a - eps * delta, self.x)
+    reg_ot_delta_plus = loss(clouds.a + eps * delta, clouds.x)
+    reg_ot_delta_minus = loss(clouds.a - eps * delta, clouds.x)
     delta_dot_grad = jnp.sum(delta * grad_loss_imp[0])
     np.testing.assert_allclose(
         delta_dot_grad,
@@ -118,10 +113,10 @@ class TestSinkhornImplicit:
     )
 
     # test gradient w.r.t. x works and gradient implicit ~= gradient autodiff
-    delta = jax.random.uniform(rng2, (self.n, self.dim))
-    reg_ot_delta_plus = loss(self.a, self.x + eps * delta)
-    reg_ot_delta_minus = loss(self.a, self.x - eps * delta)
-    delta_dot_grad = jnp.sum(delta * grad_loss_imp[1])
+    delta = jr.uniform(rng2, (clouds.n, clouds.dim))
+    reg_ot_delta_plus = loss(clouds.a, clouds.x + eps * delta)
+    reg_ot_delta_minus = loss(clouds.a, clouds.x - eps * delta)
+    delta_dot_grad = jnp.sum(delta * grad_loss_auto[1])
     np.testing.assert_allclose(
         delta_dot_grad,
         (reg_ot_delta_plus - reg_ot_delta_minus) / (2.0 * eps),
@@ -147,11 +142,11 @@ class TestSinkhornJacobian:
     n, m = shape_data
     d = 3
     eps = 1e-3  # perturbation magnitude
-    rngs = jax.random.split(rng, 5)
-    x = jax.random.uniform(rngs[0], (n, d))
-    y = jax.random.uniform(rngs[1], (m, d))
-    a = jax.random.uniform(rngs[2], (n,)) + eps
-    b = jax.random.uniform(rngs[3], (m,)) + eps
+    rngs = jr.split(rng, 5)
+    x = jr.uniform(rngs[0], (n, d))
+    y = jr.uniform(rngs[1], (m, d))
+    a = jr.uniform(rngs[2], (n,)) + eps
+    b = jr.uniform(rngs[3], (m,)) + eps
     # Adding zero weights to test proper handling
     a = a.at[0].set(0)
     b = b.at[3].set(0)
@@ -166,7 +161,7 @@ class TestSinkhornJacobian:
 
     reg_ot_and_grad = jax.jit(jax.grad(reg_ot))
     grad_reg_ot = reg_ot_and_grad(a, b)
-    delta = jax.random.uniform(rngs[4], (n,))
+    delta = jr.uniform(rngs[4], (n,))
     delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
     delta = delta - jnp.sum(delta) / jnp.sum(a > 0)  # center perturbation
     delta = delta * (a > 0)  # ensures only perturbing non-zero coords.
@@ -189,9 +184,9 @@ class TestSinkhornJacobian:
   ):
     """Test gradient w.r.t. cost matrix."""
     n, m = shape_data
-    rngs = jax.random.split(rng, 2)
-    cost_matrix = jnp.abs(jax.random.normal(rngs[0], (n, m)))
-    delta = jax.random.normal(rngs[1], (n, m))
+    rngs = jr.split(rng, 2)
+    cost_matrix = jnp.abs(jr.normal(rngs[0], (n, m)))
+    delta = jr.normal(rngs[1], (n, m))
     delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
     eps = 1e-3  # perturbation magnitude
 
@@ -253,12 +248,12 @@ class TestSinkhornJacobian:
     # TODO(cuturi): ensure scaling mode works with backprop.
     d = 3
     n, m = 11, 13
-    rngs = jax.random.split(rng, 4)
-    x = jax.random.normal(rngs[0], (n, d)) / 10
-    y = jax.random.normal(rngs[1], (m, d)) / 10
+    rngs = jr.split(rng, 5)
+    x = jr.normal(rngs[0], (n, d)) / 10
+    y = jr.normal(rngs[1], (m, d)) / 10
 
-    a = jax.random.uniform(rngs[2], (n,))
-    b = jax.random.uniform(rngs[3], (m,))
+    a = jr.uniform(rngs[2], (n,))
+    b = jr.uniform(rngs[3], (m,))
     # Adding zero weights to test proper handling
     a = a.at[0].set(0)
     b = b.at[3].set(0)
@@ -281,7 +276,7 @@ class TestSinkhornJacobian:
       out = solver(prob)
       return out.reg_ot_cost, out
 
-    delta = jax.random.normal(rngs[0], (n, d))
+    delta = jr.normal(rngs[4], (n, d))
     delta = delta / jnp.sqrt(jnp.vdot(delta, delta))
     eps = 1e-5  # perturbation magnitude
 
@@ -321,7 +316,7 @@ class TestSinkhornJacobian:
     np.testing.assert_array_equal(jnp.isnan(custom_grad), False)
 
   def test_autoepsilon_differentiability(self, rng: jax.Array):
-    cost = jax.random.uniform(rng, (15, 17))
+    cost = jr.uniform(rng, (15, 17))
 
     def reg_ot_cost(c: jnp.ndarray) -> float:
       geom = geometry.Geometry(c, epsilon=None)  # auto epsilon
@@ -339,7 +334,7 @@ class TestSinkhornJacobian:
       prob = linear_problem.LinearProblem(geom)
       return sinkhorn.Sinkhorn()(prob).reg_ot_cost
 
-    cost = jax.random.uniform(rng, (15, 17))
+    cost = jr.uniform(rng, (15, 17))
     gradient = jax.jit(jax.grad(reg_ot_cost))(cost)
     np.testing.assert_array_equal(jnp.isnan(gradient), False)
 
@@ -368,19 +363,19 @@ class TestSinkhornJacobian:
     """
     n, m = 27, 13
     dim = 4
-    rngs = jax.random.split(rng, 7)
-    x = jax.random.uniform(rngs[0], (n, dim)) / dim
-    y = jax.random.uniform(rngs[1], (m, dim)) / dim
-    a = jax.random.uniform(rngs[2], (n,)) + 0.2
-    b = jax.random.uniform(rngs[3], (m,)) + 0.2
+    rngs = jr.split(rng, 7)
+    x = jr.uniform(rngs[0], (n, dim)) / dim
+    y = jr.uniform(rngs[1], (m, dim)) / dim
+    a = jr.uniform(rngs[2], (n,)) + 0.2
+    b = jr.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
-    vec = jax.random.uniform(rngs[4], (m if axis else n,)) - 0.5
+    vec = jr.uniform(rngs[4], (m if axis else n,)) - 0.5
 
-    delta_a = jax.random.uniform(rngs[5], (n,))
+    delta_a = jr.uniform(rngs[5], (n,))
     if tau_a == 1.0:
       delta_a = delta_a - jnp.mean(delta_a)
-    delta_x = jax.random.uniform(rngs[6], (n, dim))
+    delta_x = jr.uniform(rngs[6], (n, dim))
 
     # lse_mode=False is unstable for small epsilon when differentiating as a
     # general rule, even more so when using backprop.
@@ -467,21 +462,21 @@ class TestSinkhornJacobian:
     rtol = 1e-2 if lse_mode else 1.5e-1  # lower tolerance for lse mode.
     n, m = shape
     dim = 3
-    rngs = jax.random.split(rng, 7)
-    x = jax.random.uniform(rngs[0], (n, dim))
-    y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) + 0.2
-    b = jax.random.uniform(rngs[3], (m,)) + 0.2
+    rngs = jr.split(rng, 7)
+    x = jr.uniform(rngs[0], (n, dim))
+    y = jr.uniform(rngs[1], (m, dim))
+    a = jr.uniform(rngs[2], (n,)) + 0.2
+    b = jr.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
-    random_dir = jax.random.uniform(rngs[4], (n,)) / n
+    random_dir = jr.uniform(rngs[4], (n,)) / n
     # center projection direction so that < potential , random_dir>
     # is invariant w.r.t additive shifts.
     random_dir = random_dir - jnp.mean(random_dir)
-    delta_a = jax.random.uniform(rngs[5], (n,))
+    delta_a = jr.uniform(rngs[5], (n,))
     if tau_a == 1.0:
       delta_a = delta_a - jnp.mean(delta_a)
-    delta_x = jax.random.uniform(rngs[6], (n, dim))
+    delta_x = jr.uniform(rngs[6], (n, dim))
 
     # As expected, when not using lse_mode, the algorithm has a harder time
     # with small epsilon when differentiating.
@@ -545,14 +540,14 @@ class TestSinkhornGradGrid:
   ):
     """Test gradient w.r.t. probability weights."""
     eps = 1e-3  # perturbation magnitude
-    rngs = jax.random.split(rng, 6)
+    rngs = jr.split(rng, 6)
     x = (
         jnp.array([0.0, 1.0]), jnp.array([0.3, 0.4,
                                           0.7]), jnp.array([1.0, 1.3, 2.4, 3.7])
     )
     grid_size = tuple(xs.shape[0] for xs in x)
-    a = jax.random.uniform(rngs[0], grid_size) + 1.0
-    b = jax.random.uniform(rngs[1], grid_size) + 1.0
+    a = jr.uniform(rngs[0], grid_size) + 1.0
+    b = jr.uniform(rngs[1], grid_size) + 1.0
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
 
@@ -564,7 +559,7 @@ class TestSinkhornGradGrid:
 
     reg_ot_and_grad = jax.grad(reg_ot)
     grad_reg_ot = reg_ot_and_grad(x)
-    delta = [jax.random.uniform(rngs[i], (g,)) for i, g in enumerate(grid_size)]
+    delta = [jr.uniform(rngs[2 + i], (g,)) for i, g in enumerate(grid_size)]
 
     x_p_delta = [(xs + eps * delt) for xs, delt in zip(x, delta)]
     x_m_delta = [(xs - eps * delt) for xs, delt in zip(x, delta)]
@@ -591,7 +586,7 @@ class TestSinkhornGradGrid:
   ):
     """Test gradient w.r.t. probability weights."""
     eps = 1e-4  # perturbation magnitude
-    rngs = jax.random.split(rng, 3)
+    rngs = jr.split(rng, 3)
     # yapf: disable
     x = (
         jnp.asarray([0.0, 1.0]),
@@ -600,8 +595,8 @@ class TestSinkhornGradGrid:
     )
     # yapf: enable
     grid_size = tuple(xs.shape[0] for xs in x)
-    a = jax.random.uniform(rngs[0], grid_size) + 1
-    b = jax.random.uniform(rngs[1], grid_size) + 1
+    a = jr.uniform(rngs[0], grid_size) + 1
+    b = jr.uniform(rngs[1], grid_size) + 1
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
     geom = grid.Grid(x=x, epsilon=1)
@@ -613,7 +608,7 @@ class TestSinkhornGradGrid:
 
     reg_ot_and_grad = jax.grad(reg_ot)
     grad_reg_ot = reg_ot_and_grad(a, b)
-    delta = jax.random.uniform(rngs[2], grid_size).ravel()
+    delta = jr.uniform(rngs[2], grid_size).ravel()
     delta = delta - jnp.mean(delta)
 
     # center perturbation
@@ -647,21 +642,21 @@ class TestSinkhornJacobianPreconditioning:
     rtol = 1e-2 if lse_mode else 1.5e-1  # lower tolerance for lse mode.
     n, m = shape
     dim = 3
-    rngs = jax.random.split(rng, 7)
-    x = jax.random.uniform(rngs[0], (n, dim))
-    y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) + 0.2
-    b = jax.random.uniform(rngs[3], (m,)) + 0.2
+    rngs = jr.split(rng, 7)
+    x = jr.uniform(rngs[0], (n, dim))
+    y = jr.uniform(rngs[1], (m, dim))
+    a = jr.uniform(rngs[2], (n,)) + 0.2
+    b = jr.uniform(rngs[3], (m,)) + 0.2
     a = a / (0.5 * n) if tau_a < 1.0 else a / jnp.sum(a)
     b = b / (0.5 * m) if tau_b < 1.0 else b / jnp.sum(b)
-    random_dir = jax.random.uniform(rngs[4], (n,)) / n
+    random_dir = jr.uniform(rngs[4], (n,)) / n
     # center projection direction so that < potential , random_dir>
     # is invariant w.r.t additive shifts.
     random_dir = random_dir - jnp.mean(random_dir)
-    delta_a = jax.random.uniform(rngs[5], (n,))
+    delta_a = jr.uniform(rngs[5], (n,))
     if tau_a == 1.0:
       delta_a = delta_a - jnp.mean(delta_a)
-    delta_x = jax.random.uniform(rngs[6], (n, dim))
+    delta_x = jr.uniform(rngs[6], (n, dim))
 
     # As expected, lse_mode False has a harder time with small epsilon when
     # differentiating.
@@ -745,12 +740,12 @@ class TestSinkhornHessian:
       arg: int, ridge: float
   ):
     """Test hessian w.r.t. weights and locations."""
-    rngs = jax.random.split(rng, 6)
+    rngs = jr.split(rng, 6)
     n, m, dim = 12, 15, 3
-    x = jax.random.uniform(rngs[0], (n, dim))
-    y = jax.random.uniform(rngs[1], (m, dim))
-    a = jax.random.uniform(rngs[2], (n,)) + 0.1
-    b = jax.random.uniform(rngs[3], (m,)) + 0.1
+    x = jr.uniform(rngs[0], (n, dim))
+    y = jr.uniform(rngs[1], (m, dim))
+    a = jr.uniform(rngs[2], (n,)) + 0.1
+    b = jr.uniform(rngs[3], (m,)) + 0.1
     a = a / jnp.sum(a)
     b = b / jnp.sum(b)
     epsilon = 0.15
@@ -774,9 +769,9 @@ class TestSinkhornHessian:
       )
       return solver(prob).reg_ot_cost
 
-    delta_a = jax.random.uniform(rngs[4], (n,))
+    delta_a = jr.uniform(rngs[4], (n,))
     delta_a = delta_a - jnp.mean(delta_a)
-    delta_x = jax.random.uniform(rngs[5], (n, dim))
+    delta_x = jr.uniform(rngs[5], (n, dim))
 
     hess_loss_imp = jax.jit(
         jax.hessian(lambda a, x: loss(a, x, True), argnums=arg)

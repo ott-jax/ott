@@ -41,7 +41,7 @@ jobs:
     - name: Run tests
       continue-on-error: ${{ matrix.jax-version == 'jax-latest' }}
       run: |
-        tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --skip-pkg-install -- -m fast --memray -n auto -vv
+        tox -e py${{ matrix.python-version }}-${{ matrix.jax-version }} --skip-pkg-install -- -m fast --memray -vv
 
   tests:
     name: Python ${{ matrix.python-version }} on ${{ matrix.os }}

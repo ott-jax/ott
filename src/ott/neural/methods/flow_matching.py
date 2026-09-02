@@ -87,7 +87,7 @@ def flow_matching_step(
   else:
     # for flax version < 0.11.0
     optimizer.update(grads)
-  grad_norm = optax.global_norm(grads)
+  grad_norm = optax.tree.norm(grads)
 
   if model_callback_fn is not None:
     model_callback_fn(model)

@@ -18,6 +18,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, pointcloud, regularizers
@@ -32,7 +33,7 @@ class TestDualPotentials:
   @pytest.mark.fast.with_args(eps=[5e-2, 1e-1], only_fast=0)
   def test_entropic_potentials_dist(self, rng: jax.Array, eps: float):
     n1, n2, d = 64, 96, 2
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    rng1, rng2 = jr.split(rng, 2)
 
     mean1, mean2 = jnp.zeros(d), jnp.ones(d) * 2
     cov1, cov2 = jnp.eye(d), jnp.array([[2, 0], [0, 0.5]])
@@ -40,9 +41,6 @@ class TestDualPotentials:
     g2 = gaussian.Gaussian.from_mean_and_cov(mean2, cov2)
     x = g1.sample(rng1, n1)
     y = g2.sample(rng2, n2)
-
-    g1.sample(rng3, n1)
-    g2.sample(rng4, n2)
 
     geom = pointcloud.PointCloud(x, y, epsilon=eps, cost_fn=costs.SqEuclidean())
     prob = linear_problem.LinearProblem(geom)
@@ -62,7 +60,7 @@ class TestDualPotentials:
     """Tests entropic displacements, as well as their plots."""
     n1, n2, d = 96, 128, 2
     eps = 1e-2
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
+    rng1, rng2, rng3, rng4 = jr.split(rng, 4)
 
     mean1, mean2 = jnp.zeros(d), jnp.ones(d) * 2
     cov1, cov2 = jnp.eye(d), jnp.array([[1.5, 0], [0, 0.8]])
@@ -104,10 +102,10 @@ class TestDualPotentials:
     cost_fn = costs.SqPNorm(p=p)
     n1, n2, d = 93, 127, 2
     eps = 1e-2
-    rngs = jax.random.split(rng, 4)
+    rngs = jr.split(rng, 4)
 
-    x = jax.random.uniform(rngs[0], (n1, d))
-    y = jax.random.normal(rngs[1], (n2, d)) + 2
+    x = jr.uniform(rngs[0], (n1, d))
+    y = jr.normal(rngs[1], (n2, d)) + 2
 
     geom = pointcloud.PointCloud(x, y, epsilon=eps, cost_fn=cost_fn)
     prob = linear_problem.LinearProblem(geom)
@@ -115,8 +113,8 @@ class TestDualPotentials:
     assert out.converged
     dp = out.to_dual_potentials()
 
-    x_test = jax.random.uniform(rngs[2], (n1 + 3, d))
-    y_test = jax.random.normal(rngs[3], (n2 + 5, d)) + 2
+    x_test = jr.uniform(rngs[2], (n1 + 3, d))
+    y_test = jr.normal(rngs[3], (n2 + 5, d)) + 2
 
     sdiv = lambda x, y: sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud, x, y, cost_fn=cost_fn, epsilon=epsilon
@@ -144,10 +142,10 @@ class TestDualPotentials:
     cost_fn = costs.PNormP(p=p)
     n1, n2, d = 43, 77, 2
     eps = 1e-2
-    rngs = jax.random.split(rng, 4)
+    rngs = jr.split(rng, 4)
 
-    x = jax.random.uniform(rngs[0], (n1, d))
-    y = jax.random.normal(rngs[1], (n2, d)) + 2
+    x = jr.uniform(rngs[0], (n1, d))
+    y = jr.normal(rngs[1], (n2, d)) + 2
 
     geom = pointcloud.PointCloud(x, y, epsilon=eps, cost_fn=cost_fn)
     prob = linear_problem.LinearProblem(geom)
@@ -155,8 +153,8 @@ class TestDualPotentials:
     assert out.converged
     dp = out.to_dual_potentials()
 
-    x_test = jax.random.uniform(rngs[2], (n1 + 3, d))
-    y_test = jax.random.normal(rngs[3], (n2 + 5, d)) + 2
+    x_test = jr.uniform(rngs[2], (n1 + 3, d))
+    y_test = jr.normal(rngs[3], (n2 + 5, d)) + 2
 
     sdiv = lambda x, y: sinkhorn_divergence.sinkhorn_divergence(
         pointcloud.PointCloud, x, y, cost_fn=cost_fn, epsilon=epsilon
@@ -181,13 +179,13 @@ class TestDualPotentials:
 
   @pytest.mark.parametrize("jit", [False, True])
   def test_distance_differentiability(self, rng: jax.Array, jit: bool):
-    rng1, rng2, rng3 = jax.random.split(rng, 3)
+    rng1, rng2, rng3 = jr.split(rng, 3)
     n, m, d = 18, 36, 5
 
-    x = jax.random.normal(rng1, (n, d))
-    y = jax.random.normal(rng2, (m, d))
+    x = jr.normal(rng1, (n, d))
+    y = jr.normal(rng2, (m, d))
     prob = linear_problem.LinearProblem(pointcloud.PointCloud(x, y))
-    v_x = jax.random.normal(rng3, shape=x.shape)
+    v_x = jr.normal(rng3, shape=x.shape)
     v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * 1e-3
 
     dp = sinkhorn.Sinkhorn()(prob).to_dual_potentials()
@@ -203,14 +201,14 @@ class TestDualPotentials:
 
   @pytest.mark.parametrize("eps", [None, 1e-1, 1e1, 1e2, 1e3])
   def test_potentials_sinkhorn_divergence(self, rng: jax.Array, eps: float):
-    rng1, rng2, rng3 = jax.random.split(rng, 3)
+    rng1, rng2, rng3 = jr.split(rng, 3)
     n, m, d = 32, 36, 4
     fwd = True
     mu0, mu1 = -5.0, 5.0
 
-    x = jax.random.normal(rng1, (n, d)) + mu0
-    y = jax.random.normal(rng2, (m, d)) + mu1
-    x_test = jax.random.normal(rng3, (n, d)) + mu0
+    x = jr.normal(rng1, (n, d)) + mu0
+    y = jr.normal(rng2, (m, d)) + mu1
+    x_test = jr.normal(rng3, (n, d)) + mu0
     geom = pointcloud.PointCloud(x, y, epsilon=eps)
     prob = linear_problem.LinearProblem(geom)
 
@@ -265,18 +263,18 @@ class TestDualPotentials:
     n, m, d, d_proj = 25, 21, 6, 4
     eps = 1e-4
 
-    rngs = jax.random.split(rng, 6)
+    rngs = jr.split(rng, 6)
 
-    x = jax.random.normal(rngs[0], (n, d))
-    y = jax.random.normal(rngs[1], (m, d))
-    x_te = jax.random.normal(rngs[2], (n, d))
-    y_te = jax.random.normal(rngs[3], (n, d))
+    x = jr.normal(rngs[0], (n, d))
+    y = jr.normal(rngs[1], (m, d))
+    x_te = jr.normal(rngs[2], (n, d))
+    y_te = jr.normal(rngs[3], (n, d))
 
-    mat = proj(jax.random.normal(rngs[4], (d_proj, d)))
+    mat = proj(jr.normal(rngs[4], (d_proj, d)))
 
     cost_fn = create_cost(mat)
 
-    delta = jax.random.uniform(rngs[5], shape=mat.shape)
+    delta = jr.uniform(rngs[5], shape=mat.shape)
 
     cost_fn_p_delta = create_cost(mat + eps * delta)
     cost_fn_m_delta = create_cost(mat - eps * delta)

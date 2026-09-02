@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, pointcloud
@@ -22,43 +23,42 @@ from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
 from ott.tools import segment_sinkhorn
 from ott.tools.gaussian_mixture import gaussian_mixture
+from tests import _utils
+
+MAX_MEASURE_SIZE = 20
+
+
+@pytest.fixture(scope="module")
+def clouds() -> _utils.PointClouds:
+  """Override with uniformly drawn marginals."""
+  return _utils.random_clouds(jr.key(0), offset=0.0)
 
 
 class TestSegmentSinkhorn:
 
-  @pytest.fixture(autouse=True)
-  def setUp(self, rng: jax.Array):
-    self._dim = 4
-    self._num_points = 13, 17
-    self._max_measure_size = 20
-    self.rng, *rngs = jax.random.split(rng, 3)
-    a = jax.random.uniform(rngs[0], (self._num_points[0],))
-    b = jax.random.uniform(rngs[1], (self._num_points[1],))
-    self._a = a / jnp.sum(a)
-    self._b = b / jnp.sum(b)
-
   @pytest.mark.parametrize("shuffle", [False, True])
-  def test_segment_sinkhorn_result(self, shuffle: bool):
+  def test_segment_sinkhorn_result(
+      self, clouds: _utils.PointClouds, rng: jax.Array, shuffle: bool
+  ):
     # Test that segmented sinkhorn gives the same results as run separately:
-    rngs = jax.random.split(self.rng, 4)
-    x = jax.random.uniform(rngs[0], (self._num_points[0], self._dim))
-    y = jax.random.uniform(rngs[1], (self._num_points[1], self._dim))
+    rngs = jr.split(rng, 2)
+    x, y = clouds.x, clouds.y
     geom_kwargs = {"epsilon": 0.014}
     sinkhorn_kwargs = {"threshold": 2e-3}
 
     geom = pointcloud.PointCloud(x, y, **geom_kwargs)
-    prob = linear_problem.LinearProblem(geom, a=self._a, b=self._b)
+    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
     solver = sinkhorn.Sinkhorn(**sinkhorn_kwargs)
     true_cost = solver(prob).reg_ot_cost
 
     if shuffle:
       # Now, shuffle the order of both arrays, but
       # still maintain the segment assignments:
-      idx_x = jax.random.permutation(
-          rngs[2], jnp.arange(x.shape[0] * 2), independent=True
+      idx_x = jr.permutation(
+          rngs[0], jnp.arange(x.shape[0] * 2), independent=True
       )
-      idx_y = jax.random.permutation(
-          rngs[3], jnp.arange(y.shape[0] * 2), independent=True
+      idx_y = jr.permutation(
+          rngs[1], jnp.arange(y.shape[0] * 2), independent=True
       )
     else:
       idx_x = jnp.arange(x.shape[0] * 2)
@@ -66,18 +66,18 @@ class TestSegmentSinkhorn:
 
     # Duplicate arrays:
     x_copied = jnp.concatenate((x, x))[idx_x]
-    a_copied = jnp.concatenate((self._a, self._a))[idx_x]
+    a_copied = jnp.concatenate((clouds.a, clouds.a))[idx_x]
     segment_ids_x = jnp.arange(2).repeat(x.shape[0])[idx_x]
 
     y_copied = jnp.concatenate((y, y))[idx_y]
-    b_copied = jnp.concatenate((self._b, self._b))[idx_y]
+    b_copied = jnp.concatenate((clouds.b, clouds.b))[idx_y]
     segment_ids_y = jnp.arange(2).repeat(y.shape[0])[idx_y]
 
     seg_cost = segment_sinkhorn.segment_sinkhorn(
         x_copied,
         y_copied,
         num_segments=2,
-        max_measure_size=self._max_measure_size,
+        max_measure_size=MAX_MEASURE_SIZE,
         segment_ids_x=segment_ids_x,
         segment_ids_y=segment_ids_y,
         indices_are_sorted=False,
@@ -126,8 +126,8 @@ class TestSegmentSinkhorn:
 
     np.testing.assert_allclose(seg_cost, true_cost, atol=1e-4, rtol=1e-4)
 
-  def test_sinkhorn_divergence_segment_custom_padding(self, rng):
-    rngs = jax.random.split(rng, 4)
+  def test_sinkhorn_divergence_segment_custom_padding(self, rng: jax.Array):
+    rngs = jr.split(rng, 4)
     dim = 3
     b_cost = costs.Bures(dim)
 

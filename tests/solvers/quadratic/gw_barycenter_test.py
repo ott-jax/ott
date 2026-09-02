@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import pointcloud
@@ -38,9 +39,9 @@ class TestGWBarycenter:
       m: Optional[int] = None,
       **kwargs: Any
   ) -> pointcloud.PointCloud:
-    rng1, rng2 = jax.random.split(rng, 2)
-    x = jax.random.normal(rng1, (n, d))
-    y = x if m is None else jax.random.normal(rng2, (m, d))
+    rng1, rng2 = jr.split(rng, 2)
+    x = jr.normal(rng1, (n, d))
+    y = x if m is None else jr.normal(rng2, (m, d))
     return pointcloud.PointCloud(x, y, **kwargs)
 
   @staticmethod
@@ -73,7 +74,7 @@ class TestGWBarycenter:
   ):
     tol = 1e-3 if gw_loss == "sqeucl" else 1e-1
     num_per_segment = (13, 15, 21)
-    rngs = jax.random.split(rng, len(num_per_segment))
+    rngs = jr.split(rng, len(num_per_segment))
     pcs = [
         self.random_pc(n, d=self.ndim, rng=rng)
         for n, rng in zip(num_per_segment, rngs)
@@ -88,28 +89,28 @@ class TestGWBarycenter:
         "epsilon": epsilon
     }
 
-    problem_pc = gwb.GWBarycenterProblem(y=ys, b=bs, **kwargs)
-    problem_cost = gwb.GWBarycenterProblem(
+    bar_prob_pc = gwb.GWBarycenterProblem(y=ys, b=bs, **kwargs)
+    bar_prob_cost = gwb.GWBarycenterProblem(
         costs=costs,
         b=cbs,
         **kwargs,
     )
-    for prob in [problem_pc, problem_cost]:
-      assert not prob.is_fused
-      assert prob.ndim_fused is None
-      assert prob.num_measures == len(num_per_segment)
-      assert prob.max_measure_size == max(num_per_segment)
-      assert prob._loss_name == gw_loss
-    assert problem_pc.ndim == self.ndim
-    assert problem_cost.ndim is None
+    for bar_prob in [bar_prob_pc, bar_prob_cost]:
+      assert not bar_prob.is_fused
+      assert bar_prob.ndim_fused is None
+      assert bar_prob.num_measures == len(num_per_segment)
+      assert bar_prob.max_measure_size == max(num_per_segment)
+      assert bar_prob._loss_name == gw_loss
+    assert bar_prob_pc.ndim == self.ndim
+    assert bar_prob_cost.ndim is None
 
     linear_solver = sinkhorn.Sinkhorn()
     quadratic_solver = gromov_wasserstein.GromovWasserstein(linear_solver)
     solver = gwb_solver.GromovWassersteinBarycenter(quadratic_solver)
     solver = jax.jit(solver, static_argnames=["bar_size"])
 
-    out_pc = solver(problem_pc, bar_size=bar_size)
-    out_cost = solver(problem_cost, bar_size=bar_size)
+    out_pc = solver(bar_prob_pc, bar_size=bar_size)
+    out_cost = solver(bar_prob_cost, bar_size=bar_size)
 
     assert out_pc.x is None
     assert out_cost.x is None
@@ -119,7 +120,7 @@ class TestGWBarycenter:
 
     np.testing.assert_allclose(
         out_pc.costs,
-        jnp.sum(out_pc.costs_bary * problem_pc.weights, axis=-1),
+        jnp.sum(out_pc.costs_bary * bar_prob_pc.weights, axis=-1),
         rtol=tol,
         atol=tol
     )
@@ -140,20 +141,20 @@ class TestGWBarycenter:
     def barycenter(
         y: jnp.ndim, y_fused: jnp.ndarray, num_per_segment: Tuple[int, ...]
     ) -> gwb_solver.GWBarycenterState:
-      prob = gwb.GWBarycenterProblem(
+      bar_prob = gwb.GWBarycenterProblem(
           y=y,
           y_fused=y_fused,
           num_per_segment=num_per_segment,
           fused_penalty=fused_penalty,
           scale_cost=scale_cost,
       )
-      assert prob.is_fused
-      assert prob.fused_penalty == fused_penalty
-      assert not prob._y_as_costs
-      assert prob.max_measure_size == max(num_per_segment)
-      assert prob.num_measures == len(num_per_segment)
-      assert prob.ndim == self.ndim
-      assert prob.ndim_fused == self.ndim_f
+      assert bar_prob.is_fused
+      assert bar_prob.fused_penalty == fused_penalty
+      assert not bar_prob._y_as_costs
+      assert bar_prob.max_measure_size == max(num_per_segment)
+      assert bar_prob.num_measures == len(num_per_segment)
+      assert bar_prob.ndim == self.ndim
+      assert bar_prob.ndim_fused == self.ndim_f
 
       linear_solver = sinkhorn.Sinkhorn()
       quadratic_solver = gromov_wasserstein.GromovWasserstein(
@@ -163,20 +164,20 @@ class TestGWBarycenter:
           quadratic_solver, store_inner_errors=True
       )
 
-      x_init = jax.random.normal(rng, (bar_size, self.ndim_f))
+      x_init = jr.normal(rng_init, (bar_size, self.ndim_f))
       cost_init = pointcloud.PointCloud(x_init).cost_matrix
 
-      return solver(prob, bar_size=bar_size, bar_init=(cost_init, x_init))
+      return solver(bar_prob, bar_size=bar_size, bar_init=(cost_init, x_init))
 
     bar_size, epsilon, = 10, 1e-1
     num_per_segment = (7, 12)
 
-    rng1, *rngs = jax.random.split(rng, len(num_per_segment) + 1)
+    rng_init, rng1, *rngs = jr.split(rng, len(num_per_segment) + 2)
     y = jnp.concatenate([
         self.random_pc(n, d=self.ndim, rng=rng).x
         for n, rng in zip(num_per_segment, rngs)
     ])
-    rngs = jax.random.split(rng1, len(num_per_segment))
+    rngs = jr.split(rng1, len(num_per_segment))
     y_fused = jnp.concatenate([
         self.random_pc(n, d=self.ndim_f, rng=rng).x
         for n, rng in zip(num_per_segment, rngs)

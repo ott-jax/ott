@@ -11,33 +11,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import jax
-import jax.random as jr
+"""Problems shared by the initializer tests."""
+from typing import Optional
 
-import matplotlib.pyplot as plt
+import jax
+import jax.numpy as jnp
+import jax.random as jr
 
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn
-from ott.tools import plot
+
+__all__ = ["create_ot_problem"]
 
 
-class TestPlotting:
-
-  def test_plot(self, rng: jax.Array):
-    n, m, d = 12, 7, 3
-    rngs = jr.split(rng, 3)
-    xs = [jr.normal(rngs[0], (n, d)) + 1, jr.normal(rngs[1], (n, d)) + 1]
-    y = jr.uniform(rngs[2], (m, d))
-
-    solver = sinkhorn.Sinkhorn()
-    ots = [
-        solver(linear_problem.LinearProblem(pointcloud.PointCloud(x, y)))
-        for x in xs
-    ]
-
-    plott = plot.Plot()
-    _ = plott(ots[0])
-    fig = plt.figure(figsize=(8, 5))
-    plott = plot.Plot(fig=fig, title="test")
-    plott.animate(ots, frame_rate=2, titles=["test1", "test2"])
+def create_ot_problem(
+    rng: jax.Array,
+    n: int,
+    m: int,
+    epsilon: float = 1e-2,
+    batch_size: Optional[int] = None,
+) -> linear_problem.LinearProblem:
+  """Two well-separated Gaussian clouds in 2D, with uniform marginals."""
+  rng_x, rng_y = jr.split(rng)
+  x = jr.normal(rng_x, (n, 2)) + jnp.array([-1.0, 1.0]) * 5
+  y = jr.normal(rng_y, (m, 2))
+  geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
+  return linear_problem.LinearProblem(
+      geom, a=jnp.ones(n) / n, b=jnp.ones(m) / m
+  )

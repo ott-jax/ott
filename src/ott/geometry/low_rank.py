@@ -294,6 +294,8 @@ class LRKGeometry(geometry.Geometry):
     Returns:
       Low-rank kernel geometry.
     """
+    # `k1 @ k2.T` only approximates the kernel if both clouds are
+    # lifted by the same random features, hence the cloned keys below
     rng = utils.default_prng_key(rng)
     if kernel == "gaussian":
       r = jnp.maximum(
@@ -301,11 +303,11 @@ class LRKGeometry(geometry.Geometry):
           jnp.linalg.norm(y, axis=-1).max()
       )
       k1 = _gaussian_kernel(rng, x, rank, eps=std, R=r)
-      k2 = _gaussian_kernel(rng, y, rank, eps=std, R=r)
+      k2 = _gaussian_kernel(jax.random.clone(rng), y, rank, eps=std, R=r)
       eps = std
     elif kernel == "arccos":
       k1 = _arccos_kernel(rng, x, rank, n=n, std=std)
-      k2 = _arccos_kernel(rng, y, rank, n=n, std=std)
+      k2 = _arccos_kernel(jax.random.clone(rng), y, rank, n=n, std=std)
       eps = 1.0
     else:
       raise NotImplementedError(kernel)

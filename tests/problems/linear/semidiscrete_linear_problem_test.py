@@ -40,7 +40,7 @@ class TestSemidiscreteLinearProblem:
       _ = sdlp.SemidiscreteLinearProblem(geom, tau_b=tau_b)
 
   @pytest.mark.parametrize("num_samples", [12, 17])
-  def test_sample(self, rng: jax.Array, num_samples):
+  def test_sample(self, rng: jax.Array, num_samples: int):
     rng_data, rng_samples = jr.split(rng, 2)
     m, d = 15, 7
     y = jr.normal(rng_data, (m, d))

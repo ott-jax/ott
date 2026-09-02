@@ -31,7 +31,7 @@ class TestSemidiscretePointCloud:
   def test_sample(self, rng: jax.Array, num_samples: int):
     m, d = 16, 3
     rng_data, rng_sample = jr.split(rng, 2)
-    y = jr.normal(rng, (m, d))
+    y = jr.normal(rng_data, (m, d))
 
     geom = sdpc.SemidiscretePointCloud(sampler=jr.normal, y=y)
 

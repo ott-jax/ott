@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott import datasets
@@ -36,8 +37,8 @@ class TestMongeGap:
   ):
 
     # generate data
-    rng1, rng2 = jax.random.split(rng, 2)
-    reference_points = jax.random.normal(rng1, (n_samples, n_features))
+    rng1, rng2 = jr.split(rng, 2)
+    reference_points = jr.normal(rng1, (n_samples, n_features))
 
     model = potentials.LinenPotentialMLP(dim_hidden=[8, 8], is_potential=False)
     params = model.init(rng2, x=reference_points[0])
@@ -61,9 +62,9 @@ class TestMongeGap:
   def test_monge_gap_jit(self, rng: jax.Array):
     n_samples, n_features = 31, 17
     # generate data
-    rng1, rng2 = jax.random.split(rng, 2)
-    source = jax.random.normal(rng1, (n_samples, n_features))
-    target = jax.random.normal(rng2, (n_samples, n_features))
+    rng1, rng2 = jr.split(rng, 2)
+    source = jr.normal(rng1, (n_samples, n_features))
+    target = jr.normal(rng2, (n_samples, n_features))
     # define jitted monge gap
     jit_monge_gap = jax.jit(monge_gap.monge_gap_from_samples)
 
@@ -101,9 +102,9 @@ class TestMongeGap:
     """
 
     # generate data
-    rng1, rng2 = jax.random.split(rng, 2)
-    source = jax.random.normal(rng1, (n_samples, n_features))
-    target = jax.random.normal(rng2, (n_samples, n_features)) * 0.1 + 3.0
+    rng1, rng2 = jr.split(rng, 2)
+    source = jr.normal(rng1, (n_samples, n_features))
+    target = jr.normal(rng2, (n_samples, n_features)) * 0.1 + 3.0
 
     # compute the Monge gaps for the euclidean cost
     monge_gap_from_samples_value_eucl = monge_gap.monge_gap_from_samples(

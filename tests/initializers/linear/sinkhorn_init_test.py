@@ -17,12 +17,14 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import geometry, pointcloud
 from ott.initializers.linear import initializers as linear_init
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn
+from tests.initializers import _problems
 
 
 def create_sorting_problem(
@@ -34,10 +36,10 @@ def create_sorting_problem(
   # define ot problem
   x_init = jnp.array([-1.0, 0.0, 0.22])
   y_init = jnp.array([0.0, 0.0, 1.1])
-  x_rng, y_rng = jax.random.split(rng)
+  x_rng, y_rng = jr.split(rng)
 
-  x = jnp.concatenate([x_init, 10 + jnp.abs(jax.random.normal(x_rng, (n,)))])
-  y = jnp.concatenate([y_init, 10 + jnp.abs(jax.random.normal(y_rng, (n,)))])
+  x = jnp.concatenate([x_init, 10 + jnp.abs(jr.normal(x_rng, (n,)))])
+  y = jnp.concatenate([y_init, 10 + jnp.abs(jr.normal(y_rng, (n,)))])
 
   x = jnp.sort(x)
   y = jnp.sort(y)
@@ -55,31 +57,6 @@ def create_sorting_problem(
   return linear_problem.LinearProblem(geom=geom, a=a, b=b)
 
 
-def create_ot_problem(
-    rng: jax.Array,
-    n: int,
-    m: int,
-    d: int,
-    epsilon: float = 1e-2,
-    batch_size: Optional[int] = None
-) -> linear_problem.LinearProblem:
-  # define ot problem
-  x_rng, y_rng = jax.random.split(rng)
-
-  mu_a = jnp.array([-1, 1]) * 5
-  mu_b = jnp.array([0, 0])
-
-  x = jax.random.normal(x_rng, (n, d)) + mu_a
-  y = jax.random.normal(y_rng, (m, d)) + mu_b
-
-  a = jnp.ones(n) / n
-  b = jnp.ones(m) / m
-
-  geom = pointcloud.PointCloud(x, y, epsilon=epsilon, batch_size=batch_size)
-
-  return linear_problem.LinearProblem(geom=geom, a=a, b=b)
-
-
 @pytest.mark.fast()
 class TestSinkhornInitializers:
 
@@ -90,10 +67,10 @@ class TestSinkhornInitializers:
     """Tests sorting dual initializer."""
     n, epsilon = 50, 1e-2
 
-    ot_problem = create_sorting_problem(rng=rng, n=n, epsilon=epsilon)
+    prob = create_sorting_problem(rng=rng, n=n, epsilon=epsilon)
 
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
-    sink_out_base = jax.jit(solver)(ot_problem)
+    sink_out_base = jax.jit(solver)(prob)
 
     solver = sinkhorn.Sinkhorn(
         lse_mode=lse_mode,
@@ -101,7 +78,7 @@ class TestSinkhornInitializers:
             vectorized_update=vector_min
         )
     )
-    sink_out_init = jax.jit(solver)(ot_problem)
+    sink_out_init = jax.jit(solver)(prob)
 
     # check initializer is better or equal
     if lse_mode:
@@ -113,52 +90,48 @@ class TestSinkhornInitializers:
     n = 10
     epsilon = 1e-2
 
-    ot_problem = create_sorting_problem(
-        rng=rng, n=n, epsilon=epsilon, batch_size=5
-    )
+    prob = create_sorting_problem(rng=rng, n=n, epsilon=epsilon, batch_size=5)
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"online"):
-      sort_init.init_fu(ot_problem, lse_mode=True)
+      sort_init.init_fu(prob, lse_mode=True)
 
   def test_sorting_init_square_cost(self, rng: jax.Array):
-    n, m, d = 10, 15, 1
+    n, m = 10, 15
     epsilon = 1e-2
 
-    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon)
+    prob = _problems.create_ot_problem(rng, n, m, epsilon=epsilon)
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"square"):
-      sort_init.init_fu(ot_problem, lse_mode=True)
+      sort_init.init_fu(prob, lse_mode=True)
 
   def test_default_initializer(self, rng: jax.Array):
     """Tests default initializer"""
-    n, m, d = 20, 20, 2
+    n, m = 20, 20
     epsilon = 1e-2
 
-    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
+    prob = _problems.create_ot_problem(rng, n, m, epsilon=epsilon, batch_size=3)
 
-    f = linear_init.DefaultInitializer().init_fu(ot_problem, lse_mode=True)
-    g = linear_init.DefaultInitializer().init_gv(ot_problem, lse_mode=True)
+    f = linear_init.DefaultInitializer().init_fu(prob, lse_mode=True)
+    g = linear_init.DefaultInitializer().init_gv(prob, lse_mode=True)
 
     # check default is 0
     np.testing.assert_array_equal(f, 0.0)
     np.testing.assert_array_equal(g, 0.0)
 
   def test_gauss_pointcloud_geom(self, rng: jax.Array):
-    n, m, d = 20, 20, 2
+    n, m = 20, 20
     epsilon = 1e-2
 
-    ot_problem = create_ot_problem(rng, n, m, d, epsilon=epsilon, batch_size=3)
+    prob = _problems.create_ot_problem(rng, n, m, epsilon=epsilon, batch_size=3)
 
     gaus_init = linear_init.GaussianInitializer()
     new_geom = geometry.Geometry(
-        cost_matrix=ot_problem.geom.cost_matrix, epsilon=epsilon
+        cost_matrix=prob.geom.cost_matrix, epsilon=epsilon
     )
-    ot_problem = linear_problem.LinearProblem(
-        geom=new_geom, a=ot_problem.a, b=ot_problem.b
-    )
+    prob = linear_problem.LinearProblem(geom=new_geom, a=prob.a, b=prob.b)
 
     with pytest.raises(AssertionError, match=r"pointcloud"):
-      gaus_init.init_fu(ot_problem, lse_mode=True)
+      gaus_init.init_fu(prob, lse_mode=True)
 
   @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize(
@@ -175,22 +148,22 @@ class TestSinkhornInitializers:
       initializer: linear_init.SinkhornInitializer,
   ):
     """Tests Gaussian initializer"""
-    n, m, d = 40, 40, 2
+    n, m = 40, 40
     epsilon = 5e-2
 
     # ot problem
     if isinstance(initializer, linear_init.SortingInitializer):
-      ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
+      prob = create_sorting_problem(rng, n=n, epsilon=epsilon)
     else:
-      ot_problem = create_ot_problem(
-          rng, n, m, d, epsilon=epsilon, batch_size=3
+      prob = _problems.create_ot_problem(
+          rng, n, m, epsilon=epsilon, batch_size=3
       )
 
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
-    default_out = jax.jit(solver)(ot_problem)
+    default_out = jax.jit(solver)(prob)
 
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=initializer)
-    init_out = solver(ot_problem)
+    init_out = solver(prob)
 
     if lse_mode:
       assert default_out.converged

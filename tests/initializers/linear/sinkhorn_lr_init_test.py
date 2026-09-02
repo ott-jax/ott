@@ -15,6 +15,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers_lr
@@ -29,12 +30,12 @@ class TestLRInitializers:
       self, rng: jax.Array, rank: int
   ):
     n, d = 27, 5
-    x = jax.random.normal(rng, (n, d))
+    x = jr.normal(rng, (n, d))
     pc = pointcloud.PointCloud(x, epsilon=0.5)
     prob = linear_problem.LinearProblem(pc)
 
     initializer = initializers_lr.GeneralizedKMeansInitializer(rank)
-    q, r, g = initializer(prob)
+    q, r, _ = initializer(prob)
 
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
@@ -42,9 +43,9 @@ class TestLRInitializers:
   def test_better_initialization_helps(self, rng: jax.Array):
     n, d, rank = 81, 15, 3
     epsilon = 1e-1
-    rng1, rng2, rng3 = jax.random.split(rng, 3)
-    x = jax.random.normal(rng1, (n, d))
-    y = jax.random.normal(rng2, (n, d))
+    rng1, rng2, rng3 = jr.split(rng, 3)
+    x = jr.normal(rng1, (n, d))
+    y = jr.normal(rng2, (n, d))
     pc = pointcloud.PointCloud(x, y, epsilon=5e-1)
     prob = linear_problem.LinearProblem(pc)
 

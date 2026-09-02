@@ -17,6 +17,7 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 from sklearn import datasets
 from sklearn.cluster import KMeans, kmeans_plusplus
@@ -62,9 +63,9 @@ def compute_assignment(
 class TestKmeansPlusPlus:
 
   @pytest.mark.fast.with_args("n_local_trials", [None, 3], only_fast=-1)
-  def test_n_local_trials(self, rng: jax.Array, n_local_trials):
+  def test_n_local_trials(self, rng: jax.Array, n_local_trials: Optional[int]):
     n, k = 100, 4
-    rng1, rng2 = rng, jax.random.clone(rng)
+    rng1, rng2 = rng, jr.key(0)
     geom, _, c = make_blobs(
         n_samples=n, centers=k, cost_fn="sqeucl", random_state=0
     )
@@ -105,7 +106,7 @@ class TestKmeansPlusPlus:
 
     def callback(x: jnp.ndarray) -> float:
       geom = pointcloud.PointCloud(x)
-      centers = k_means._k_means_plus_plus(geom, k=3, rng=rng)
+      centers = k_means._k_means_plus_plus(geom, k=3, rng=jr.key(0))
       _, inertia = compute_assignment(x, centers)
       return inertia
 
@@ -159,7 +160,7 @@ class TestKmeans:
       ["k-means++", "random", "callable", "wrong-callable"],
       only_fast=1,
   )
-  def test_init_method(self, rng: jax.Array, init: str):
+  def test_init_method(self, init: str):
     if init == "callable":
       init_fn = lambda geom, k, _: geom.x[:k]
     elif init == "wrong-callable":
@@ -177,7 +178,7 @@ class TestKmeans:
 
   def test_k_means_plus_plus_better_than_random(self, rng: jax.Array):
     k = 5
-    rng1, rng2 = jax.random.split(rng, 2)
+    rng1, rng2 = jr.split(rng, 2)
     geom, _, _ = make_blobs(n_samples=50, centers=k, random_state=10)
 
     res_random = k_means.k_means(geom, k, init="random", rng=rng1)
@@ -193,7 +194,7 @@ class TestKmeans:
     geom, _, _ = make_blobs(n_samples=150, centers=k, random_state=0)
 
     res = k_means.k_means(geom, k, n_init=3, rng=rng)
-    res_larger_n_init = k_means.k_means(geom, k, n_init=20, rng=rng)
+    res_larger_n_init = k_means.k_means(geom, k, n_init=20, rng=jr.key(0))
 
     assert res_larger_n_init.error < res.error
 
@@ -219,7 +220,7 @@ class TestKmeans:
     geom, _, _ = make_blobs(n_samples=200, centers=k, random_state=39)
 
     res = k_means.k_means(geom, k=k, tol=1.0, rng=rng)
-    res_strict = k_means.k_means(geom, k=k, tol=0.0, rng=rng)
+    res_strict = k_means.k_means(geom, k=k, tol=0.0, rng=jr.key(0))
 
     assert res.converged
     assert res_strict.converged
@@ -265,9 +266,8 @@ class TestKmeans:
 
   def test_weight_scaling_effects_only_inertia(self, rng: jax.Array):
     k = 10
-    rng1, rng2 = jax.random.split(rng)
     geom, _, _ = make_blobs(n_samples=130, centers=k, random_state=3)
-    weights = jnp.abs(jax.random.normal(rng1, shape=(geom.shape[0],)))
+    weights = jnp.abs(jr.normal(rng, shape=(geom.shape[0],)))
     weights_scaled = weights / jnp.sum(weights)
 
     res = k_means.k_means(geom, k=k - 1, weights=weights)
@@ -337,7 +337,7 @@ class TestKmeans:
 
     def callback(x: jnp.ndarray) -> k_means.KMeansOutput:
       return k_means.k_means(
-          x, k=k, init=init, store_inner_errors=True, rng=rng
+          x, k=k, init=init, store_inner_errors=True, rng=jr.key(0)
       )
 
     k = 7
@@ -370,17 +370,17 @@ class TestKmeans:
           weights=w,
           min_iterations=20 if force_scan else 1,
           max_iterations=20,
-          rng=rng1,
+          rng=jr.clone(rng1),
       ).error
 
     k, eps, tol = 4, 1e-3, 1e-3
     x, _, _ = make_blobs(n_samples=150, centers=k, random_state=41)
-    rng1, rng2, rng3, rng4 = jax.random.split(rng, 4)
-    w = jnp.abs(jax.random.normal(rng2, (x.shape[0],)))
+    rng1, rng2, rng3, rng4 = jr.split(rng, 4)
+    w = jnp.abs(jr.normal(rng2, (x.shape[0],)))
 
-    v_x = jax.random.normal(rng3, shape=x.shape)
+    v_x = jr.normal(rng3, shape=x.shape)
     v_x = (v_x / jnp.linalg.norm(v_x, axis=-1, keepdims=True)) * eps
-    v_w = jax.random.normal(rng4, shape=w.shape) * eps
+    v_w = jr.normal(rng4, shape=w.shape) * eps
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
     grad_fn = jax.grad(inertia, (0, 1))
