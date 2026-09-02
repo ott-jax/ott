@@ -199,7 +199,7 @@ class TestLRSinkhorn:
     assert iters == [inner_iterations * (v + 1) - 1 for v in range(len(iters))]
     assert traced_values["total"] == [num_iterations] * len(iters)
 
-  @pytest.mark.fast.with_args(eps=[0.0, 1e-1])
+  @pytest.mark.fast.with_args(eps=[0.0, 1e-1], only_fast=0)
   def test_lse_matches_kernel_mode(
       self, clouds: _utils.PointClouds, eps: float
   ):

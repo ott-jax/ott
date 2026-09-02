@@ -509,7 +509,7 @@ class TestSinkhorn:
     assert out.converged
     assert out.primal_cost > 0.0
 
-  @pytest.mark.fast.with_args(cost_fn=[None, costs.SqPNorm(1.6)])
+  @pytest.mark.fast.with_args(cost_fn=[None, costs.SqPNorm(1.6)], only_fast=0)
   def test_primal_cost_grid(
       self, rng: jax.Array, cost_fn: Optional[costs.CostFn]
   ):
@@ -538,6 +538,7 @@ class TestSinkhorn:
 
   @pytest.mark.fast.with_args(
       cost_fn=[costs.SqEuclidean(), costs.SqPNorm(1.6)],
+      only_fast=0,
   )
   def test_primal_cost_pointcloud(
       self, clouds: _utils.PointClouds, cost_fn: costs.CostFn
@@ -563,7 +564,7 @@ class TestSinkhorn:
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.fast.with_args(
-      cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()]
+      cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()], only_fast=0
   )
   def test_entropy(self, clouds: _utils.PointClouds, cost_fn: costs.CostFn):
     """Test computation of entropy of solution."""
@@ -578,7 +579,7 @@ class TestSinkhorn:
     np.testing.assert_allclose(ent_transport, out.entropy, atol=1e-2, rtol=1e-2)
 
   @pytest.mark.fast.with_args(
-      cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()]
+      cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()], only_fast=0
   )
   def test_normalized_entropy(
       self, clouds: _utils.PointClouds, cost_fn: costs.CostFn

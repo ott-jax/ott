@@ -86,6 +86,7 @@ class TestGeodesic:
   @pytest.mark.fast.with_args(
       order=[50, 100, 200],
       t=[1e-4, 1e-5],
+      only_fast=-1,
   )
   def test_approximates_ground_truth(self, t: Optional[float], order: int):
     tol = 1e-2
