@@ -109,7 +109,7 @@ class TestSemidiscreteSolver:
     assert sampled_out.ot_prob.geom.dtype == dtype
     assert sampled_out.ot_prob.geom.cost_matrix.dtype == dtype
 
-  def test_callback(self, capsys, rng: jax.Array):
+  def test_callback(self, capsys: pytest.CaptureFixture[str], rng: jax.Array):
 
     def print_state(state: semidiscrete.SemidiscreteState) -> None:
       print(state.it)  # noqa: T201

@@ -126,7 +126,7 @@ class TestSegmentSinkhorn:
 
     np.testing.assert_allclose(seg_cost, true_cost, atol=1e-4, rtol=1e-4)
 
-  def test_sinkhorn_divergence_segment_custom_padding(self, rng):
+  def test_sinkhorn_divergence_segment_custom_padding(self, rng: jax.Array):
     rngs = jr.split(rng, 4)
     dim = 3
     b_cost = costs.Bures(dim)

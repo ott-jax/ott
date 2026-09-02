@@ -29,7 +29,7 @@ class TestNorm:
   def test_norm(
       self,
       rng: jax.Array,
-      ord,
+      ord: float,
   ):
     d = 5
     rng_x, rng_z = jr.split(rng, 2)

@@ -63,7 +63,7 @@ def compute_assignment(
 class TestKmeansPlusPlus:
 
   @pytest.mark.fast.with_args("n_local_trials", [None, 3], only_fast=-1)
-  def test_n_local_trials(self, rng: jax.Array, n_local_trials):
+  def test_n_local_trials(self, rng: jax.Array, n_local_trials: Optional[int]):
     n, k = 100, 4
     rng1, rng2 = rng, jr.key(0)
     geom, _, c = make_blobs(

@@ -81,7 +81,9 @@ class TestSinkhorn:
     np.testing.assert_array_less(cos_cost(out1_m, out_h), 0.2)
 
   @pytest.mark.fast.with_args(tau_a=[1.0, 0.93], tau_b=[1.0, 0.91], only_fast=0)
-  def test_lse_matches(self, clouds: _utils.PointClouds, tau_a, tau_b):
+  def test_lse_matches(
+      self, clouds: _utils.PointClouds, tau_a: float, tau_b: float
+  ):
     """Test that regardless of lse_mode, Sinkhorn returns same value."""
     geom = pointcloud.PointCloud(clouds.x, clouds.y)
 
@@ -537,7 +539,9 @@ class TestSinkhorn:
   @pytest.mark.fast.with_args(
       cost_fn=[costs.SqEuclidean(), costs.SqPNorm(1.6)],
   )
-  def test_primal_cost_pointcloud(self, clouds: _utils.PointClouds, cost_fn):
+  def test_primal_cost_pointcloud(
+      self, clouds: _utils.PointClouds, cost_fn: costs.CostFn
+  ):
     """Test computation of primal and dual costs for PointCouds."""
     geom = pointcloud.PointCloud(
         clouds.x, clouds.y, cost_fn=cost_fn, epsilon=1e-3
@@ -561,7 +565,7 @@ class TestSinkhorn:
   @pytest.mark.fast.with_args(
       cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()]
   )
-  def test_entropy(self, clouds: _utils.PointClouds, cost_fn):
+  def test_entropy(self, clouds: _utils.PointClouds, cost_fn: costs.CostFn):
     """Test computation of entropy of solution."""
     geom = pointcloud.PointCloud(
         clouds.x, clouds.y, cost_fn=cost_fn, epsilon=1e-3
@@ -576,7 +580,9 @@ class TestSinkhorn:
   @pytest.mark.fast.with_args(
       cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()]
   )
-  def test_normalized_entropy(self, clouds: _utils.PointClouds, cost_fn):
+  def test_normalized_entropy(
+      self, clouds: _utils.PointClouds, cost_fn: costs.CostFn
+  ):
     """Test computation of normalized entropy of solution."""
     geom = pointcloud.PointCloud(clouds.x, clouds.x, cost_fn=cost_fn)
     out = linear.solve(geom)
@@ -603,8 +609,8 @@ class TestSinkhorn:
                                                            (False, True),
                                                            (True, False)])
   def test_progress_fn(
-      self, clouds: _utils.PointClouds, capsys, use_tqdm: bool,
-      custom_buffer: bool
+      self, clouds: _utils.PointClouds, capsys: pytest.CaptureFixture[str],
+      use_tqdm: bool, custom_buffer: bool
   ):
     geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=1e-1)
 

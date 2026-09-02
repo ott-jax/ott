@@ -134,7 +134,7 @@ class TestSoftSort:
 
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
   @pytest.mark.usefixtures("enable_x64")
-  def test_ranks(self, axis, rng: jax.Array, jit: bool):
+  def test_ranks(self, axis: int, rng: jax.Array, jit: bool):
     num_targets = 13
     rng1, rng2 = jr.split(rng, 2)
     x = jr.uniform(rng1, (8, 5, 2))
@@ -167,7 +167,7 @@ class TestSoftSort:
     np.testing.assert_allclose(expected_ranks, ranks, atol=0.7, rtol=0.1)
 
   @pytest.mark.fast.with_args("axis,jit", [(0, False), (1, True)], only_fast=0)
-  def test_topk_mask(self, axis, rng: jax.Array, jit: bool):
+  def test_topk_mask(self, axis: int, rng: jax.Array, jit: bool):
 
     def boolean_topk_mask(u, k):
       return u >= jnp.flip(jax.numpy.sort(u))[k - 1]
