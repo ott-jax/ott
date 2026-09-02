@@ -161,8 +161,8 @@ class TestGeodesic:
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
-      problem = linear_problem.LinearProblem(geom)
-      return solver(problem)
+      prob = linear_problem.LinearProblem(geom)
+      return solver(prob)
 
     n, eps, tol = 11, 1e-5, 1e-3
     G = _graphs.random_graph(n, p=0.35)
@@ -199,8 +199,8 @@ class TestGeodesic:
 
     def callback(geom: geodesic.Geodesic) -> float:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
-      problem = linear_problem.LinearProblem(geom)
-      return solver(problem).reg_ot_cost
+      prob = linear_problem.LinearProblem(geom)
+      return solver(prob).reg_ot_cost
 
     eps = 1e-3
     G = _graphs.random_graph(20, p=0.5)

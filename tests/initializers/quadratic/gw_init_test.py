@@ -54,7 +54,7 @@ class TestQuadraticInitializers:
         jr.normal(rng4, (m, d2)),
         epsilon=eps,
     )
-    problem = quadratic_problem.QuadraticProblem(geom_x, geom_y)
+    prob = quadratic_problem.QuadraticProblem(geom_x, geom_y)
     solver_random = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=rank,
         initializer=initializers_lr.RandomInitializer(rank),
@@ -72,8 +72,8 @@ class TestQuadraticInitializers:
         max_iterations=2000
     )
 
-    out_random = solver_random(problem)
-    out_kmeans = solver_kmeans(problem)
+    out_random = solver_random(prob)
+    out_kmeans = solver_kmeans(prob)
 
     random_cost = out_random.reg_gw_cost
     random_errors = out_random.errors[out_random.errors > -1]

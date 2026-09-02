@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Tuple, Type
+from typing import Type
 
 import pytest
 
@@ -56,7 +56,7 @@ class TestLRSinkhorn:
     if use_lrcgeom:
       geom = geom.to_LRCGeometry()
       assert isinstance(geom, low_rank.LRCGeometry)
-    ot_prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
+    prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
 
     # Start with a low rank parameter
     solver = sinkhorn_lr.LRSinkhorn(
@@ -67,7 +67,7 @@ class TestLRSinkhorn:
         lse_mode=lse_mode,
         initializer=initializer_class(rank)
     )
-    out = solver(ot_prob)
+    out = solver(prob)
 
     criterions = out.errors
     criterions = criterions[criterions > -1]
@@ -90,7 +90,7 @@ class TestLRSinkhorn:
         lse_mode=lse_mode,
         initializer=initializer_class(rank)
     )
-    out = solver(ot_prob)
+    out = solver(prob)
 
     np.testing.assert_allclose(out.transport_mass, 1.0, rtol=5e-4, atol=5e-4)
 
@@ -121,7 +121,7 @@ class TestLRSinkhorn:
         lse_mode=lse_mode,
         initializer=initializer_class(rank),
     )
-    out = solver(ot_prob)
+    out = solver(prob)
 
     cost_3 = out.primal_cost
     try:
@@ -134,18 +134,18 @@ class TestLRSinkhorn:
     n_stack, threshold = 3, 1e-3
     data = clouds.a if axis == 0 else clouds.b
 
-    ot_prob = clouds.problem()
+    prob = clouds.problem()
     solver = sinkhorn_lr.LRSinkhorn(
         threshold=threshold,
         rank=10,
         epsilon=0.0,
     )
-    out = solver(ot_prob)
+    out = solver(prob)
 
     gt = out.apply(data, axis=axis)
     pred = out.apply(jnp.stack([data] * n_stack), axis=axis)
 
-    shape = ot_prob.geom.shape[1 - axis]
+    shape = prob.geom.shape[1 - axis]
     np.testing.assert_array_equal(gt.shape, (shape,))
     np.testing.assert_array_equal(pred.shape, (n_stack, shape))
     np.testing.assert_allclose(
@@ -157,30 +157,9 @@ class TestLRSinkhorn:
     """Check that the callback function is actually called."""
     num_iterations = 37
 
-    def progress_fn(
-        status: Tuple[np.ndarray, np.ndarray, np.ndarray,
-                      sinkhorn_lr.LRSinkhornState], *args: Any
-    ) -> None:
-      # Convert arguments.
-      iteration, inner_iterations, total_iter, state = status
-      iteration = int(iteration)
-      inner_iterations = int(inner_iterations)
-      total_iter = int(total_iter)
-      errors = np.array(state.errors).ravel()
+    traced_values, progress_fn = _utils.tracing_progress_fn()
 
-      # Avoid reporting error on each iteration,
-      # because errors are only computed every `inner_iterations`.
-      if (iteration + 1) % inner_iterations == 0:
-        error_idx = max((iteration + 1) // inner_iterations - 1, 0)
-        error = errors[error_idx]
-
-        traced_values["iters"].append(iteration)
-        traced_values["error"].append(error)
-        traced_values["total"].append(total_iter)
-
-    traced_values = {"iters": [], "error": [], "total": []}
-
-    lin_prob = clouds.problem(epsilon=1e-3)
+    prob = clouds.problem(epsilon=1e-3)
 
     rank = 2
     inner_iterations = 10
@@ -191,7 +170,7 @@ class TestLRSinkhorn:
         max_iterations=num_iterations,
         inner_iterations=inner_iterations
     )(
-        lin_prob
+        prob
     )
 
     iters = traced_values["iters"]
@@ -206,7 +185,7 @@ class TestLRSinkhorn:
     threshold = 1e-3
     tol = 1e-5
     rank = 5
-    ot_prob = clouds.problem()
+    prob = clouds.problem()
 
     out_lse = sinkhorn_lr.LRSinkhorn(
         lse_mode=True,
@@ -214,7 +193,7 @@ class TestLRSinkhorn:
         rank=rank,
         epsilon=eps,
     )(
-        ot_prob
+        prob
     )
 
     out_kernel = sinkhorn_lr.LRSinkhorn(
@@ -223,7 +202,7 @@ class TestLRSinkhorn:
         rank=rank,
         epsilon=eps,
     )(
-        ot_prob
+        prob
     )
 
     assert out_lse.converged

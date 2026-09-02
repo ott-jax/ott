@@ -14,7 +14,7 @@
 import functools
 import io
 import sys
-from typing import Optional, Tuple
+from typing import Optional
 
 import pytest
 
@@ -502,10 +502,10 @@ class TestSinkhorn:
     x = jr.uniform(rngs[0], (n, 2))
     y = jr.uniform(rngs[1], (m, 2))
     geom = pointcloud.PointCloud(x, y, batch_size=batch_size, epsilon=1)
-    problem = linear_problem.LinearProblem(geom)
+    prob = linear_problem.LinearProblem(geom)
     solver = jax.jit(sinkhorn.Sinkhorn())
 
-    out = solver(problem)
+    out = solver(prob)
     assert out.converged
     assert out.primal_cost > 0.0
 
@@ -521,9 +521,9 @@ class TestSinkhorn:
     a = jr.uniform(rng_a, (geom.shape[0],))
     b = jr.uniform(rng_b, (geom.shape[0],))
     a, b = a / jnp.sum(a), b / jnp.sum(b)
-    lin_prob = linear_problem.LinearProblem(geom, a=a, b=b)
+    prob = linear_problem.LinearProblem(geom, a=a, b=b)
     solver = sinkhorn.Sinkhorn()
-    out = solver(lin_prob)
+    out = solver(prob)
 
     # Recover full cost matrix by applying it to columns of identity matrix.
     cost_matrix = geom.apply_cost(jnp.eye(geom.shape[0]))
@@ -548,9 +548,9 @@ class TestSinkhorn:
         clouds.x, clouds.y, cost_fn=cost_fn, epsilon=1e-3
     )
 
-    lin_prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
     solver = sinkhorn.Sinkhorn()
-    out = solver(lin_prob)
+    out = solver(prob)
     assert out.primal_cost > 0.0
     assert jnp.isfinite(out.dual_cost)
     # Check duality gap
@@ -572,9 +572,9 @@ class TestSinkhorn:
         clouds.x, clouds.y, cost_fn=cost_fn, epsilon=1e-3
     )
 
-    lin_prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
     solver = sinkhorn.Sinkhorn(threshold=1e-4)
-    out = solver(lin_prob)
+    out = solver(prob)
     ent_transport = jnp.sum(jsp.special.entr(out.matrix))
     np.testing.assert_allclose(ent_transport, out.entropy, atol=1e-2, rtol=1e-2)
 
@@ -650,30 +650,9 @@ class TestSinkhorn:
     """Check that the callback function is actually called."""
     num_iterations = 30
 
-    def progress_fn(
-        status: Tuple[np.ndarray, np.ndarray, np.ndarray,
-                      sinkhorn.SinkhornState],
-    ) -> None:
-      # Convert arguments.
-      iteration, inner_iterations, total_iter, state = status
-      iteration = int(iteration)
-      inner_iterations = int(inner_iterations)
-      total_iter = int(total_iter)
-      errors = np.array(state.errors).ravel()
+    traced_values, progress_fn = _utils.tracing_progress_fn()
 
-      # Avoid reporting error on each iteration,
-      # because errors are only computed every `inner_iterations`.
-      if (iteration + 1) % inner_iterations == 0:
-        error_idx = max((iteration + 1) // inner_iterations - 1, 0)
-        error = errors[error_idx]
-
-        traced_values["iters"].append(iteration)
-        traced_values["error"].append(error)
-        traced_values["total"].append(total_iter)
-
-    traced_values = {"iters": [], "error": [], "total": []}
-
-    lin_prob = clouds.problem(epsilon=1e-3)
+    prob = clouds.problem(epsilon=1e-3)
 
     inner_iterations = 10
 
@@ -682,7 +661,7 @@ class TestSinkhorn:
         max_iterations=num_iterations,
         inner_iterations=inner_iterations
     )(
-        lin_prob
+        prob
     )
 
     # check that the function is called on the 10th iteration (iter #9), the

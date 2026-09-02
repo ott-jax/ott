@@ -184,9 +184,9 @@ class TestScaleCost:
 
     def apply_sinkhorn(cost1, cost2, scale_cost):
       geom = low_rank.LRCGeometry(cost1, cost2, scale_cost=scale_cost)
-      ot_prob = linear_problem.LinearProblem(geom, data.a, data.b)
+      prob = linear_problem.LinearProblem(geom, data.a, data.b)
       solver = sinkhorn_lr.LRSinkhorn(rank=5, threshold=1e-3)
-      out = solver(ot_prob)
+      out = solver(prob)
       return geom, out
 
     geom0 = low_rank.LRCGeometry(data.cost1, data.cost2, scale_cost=1.0)

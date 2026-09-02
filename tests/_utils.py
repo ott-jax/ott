@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Data generators shared across the test suite."""
+"""Helpers shared across the test suite."""
 import dataclasses
-from typing import Any, Sequence
+from typing import Any, Callable, Dict, List, Sequence, Tuple
 
 import jax
 import jax.numpy as jnp
 import jax.random as jr
+import numpy as np
 
 from ott.geometry import pointcloud
 from ott.problems.linear import linear_problem
@@ -127,3 +128,27 @@ def proj(matrix: jnp.ndarray, nu: float = 1.0) -> jnp.ndarray:
   assert nu > 0.0, nu
   u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
   return u.dot(v_h) * jnp.sqrt(nu)
+
+
+def tracing_progress_fn() -> Tuple[Dict[str, List[Any]], Callable[..., None]]:
+  """Progress callback recording the iterations at which it was called.
+
+  Returns:
+    The recorded values and the callback to pass as ``progress_fn``.
+  """
+  traced: Dict[str, List[Any]] = {"iters": [], "error": [], "total": []}
+
+  def progress_fn(status: Tuple[Any, ...], *args: Any) -> None:
+    iteration, inner_iterations, total_iter, state = status
+    iteration = int(iteration)
+    inner_iterations = int(inner_iterations)
+    errors = np.array(state.errors).ravel()
+
+    # errors are only computed every `inner_iterations`
+    if (iteration + 1) % inner_iterations == 0:
+      error_idx = max((iteration + 1) // inner_iterations - 1, 0)
+      traced["iters"].append(iteration)
+      traced["error"].append(errors[error_idx])
+      traced["total"].append(int(total_iter))
+
+  return traced, progress_fn

@@ -67,10 +67,10 @@ class TestSinkhornInitializers:
     """Tests sorting dual initializer."""
     n, epsilon = 50, 1e-2
 
-    ot_problem = create_sorting_problem(rng=rng, n=n, epsilon=epsilon)
+    prob = create_sorting_problem(rng=rng, n=n, epsilon=epsilon)
 
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
-    sink_out_base = jax.jit(solver)(ot_problem)
+    sink_out_base = jax.jit(solver)(prob)
 
     solver = sinkhorn.Sinkhorn(
         lse_mode=lse_mode,
@@ -78,7 +78,7 @@ class TestSinkhornInitializers:
             vectorized_update=vector_min
         )
     )
-    sink_out_init = jax.jit(solver)(ot_problem)
+    sink_out_init = jax.jit(solver)(prob)
 
     # check initializer is better or equal
     if lse_mode:
@@ -90,33 +90,29 @@ class TestSinkhornInitializers:
     n = 10
     epsilon = 1e-2
 
-    ot_problem = create_sorting_problem(
-        rng=rng, n=n, epsilon=epsilon, batch_size=5
-    )
+    prob = create_sorting_problem(rng=rng, n=n, epsilon=epsilon, batch_size=5)
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"online"):
-      sort_init.init_fu(ot_problem, lse_mode=True)
+      sort_init.init_fu(prob, lse_mode=True)
 
   def test_sorting_init_square_cost(self, rng: jax.Array):
     n, m = 10, 15
     epsilon = 1e-2
 
-    ot_problem = _problems.create_ot_problem(rng, n, m, epsilon=epsilon)
+    prob = _problems.create_ot_problem(rng, n, m, epsilon=epsilon)
     sort_init = linear_init.SortingInitializer(vectorized_update=True)
     with pytest.raises(AssertionError, match=r"square"):
-      sort_init.init_fu(ot_problem, lse_mode=True)
+      sort_init.init_fu(prob, lse_mode=True)
 
   def test_default_initializer(self, rng: jax.Array):
     """Tests default initializer"""
     n, m = 20, 20
     epsilon = 1e-2
 
-    ot_problem = _problems.create_ot_problem(
-        rng, n, m, epsilon=epsilon, batch_size=3
-    )
+    prob = _problems.create_ot_problem(rng, n, m, epsilon=epsilon, batch_size=3)
 
-    f = linear_init.DefaultInitializer().init_fu(ot_problem, lse_mode=True)
-    g = linear_init.DefaultInitializer().init_gv(ot_problem, lse_mode=True)
+    f = linear_init.DefaultInitializer().init_fu(prob, lse_mode=True)
+    g = linear_init.DefaultInitializer().init_gv(prob, lse_mode=True)
 
     # check default is 0
     np.testing.assert_array_equal(f, 0.0)
@@ -126,20 +122,16 @@ class TestSinkhornInitializers:
     n, m = 20, 20
     epsilon = 1e-2
 
-    ot_problem = _problems.create_ot_problem(
-        rng, n, m, epsilon=epsilon, batch_size=3
-    )
+    prob = _problems.create_ot_problem(rng, n, m, epsilon=epsilon, batch_size=3)
 
     gaus_init = linear_init.GaussianInitializer()
     new_geom = geometry.Geometry(
-        cost_matrix=ot_problem.geom.cost_matrix, epsilon=epsilon
+        cost_matrix=prob.geom.cost_matrix, epsilon=epsilon
     )
-    ot_problem = linear_problem.LinearProblem(
-        geom=new_geom, a=ot_problem.a, b=ot_problem.b
-    )
+    prob = linear_problem.LinearProblem(geom=new_geom, a=prob.a, b=prob.b)
 
     with pytest.raises(AssertionError, match=r"pointcloud"):
-      gaus_init.init_fu(ot_problem, lse_mode=True)
+      gaus_init.init_fu(prob, lse_mode=True)
 
   @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize(
@@ -161,17 +153,17 @@ class TestSinkhornInitializers:
 
     # ot problem
     if isinstance(initializer, linear_init.SortingInitializer):
-      ot_problem = create_sorting_problem(rng, n=n, epsilon=epsilon)
+      prob = create_sorting_problem(rng, n=n, epsilon=epsilon)
     else:
-      ot_problem = _problems.create_ot_problem(
+      prob = _problems.create_ot_problem(
           rng, n, m, epsilon=epsilon, batch_size=3
       )
 
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
-    default_out = jax.jit(solver)(ot_problem)
+    default_out = jax.jit(solver)(prob)
 
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, initializer=initializer)
-    init_out = solver(ot_problem)
+    init_out = solver(prob)
 
     if lse_mode:
       assert default_out.converged

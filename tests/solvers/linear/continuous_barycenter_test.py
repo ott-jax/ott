@@ -246,23 +246,23 @@ class TestBarycenter:
         num_per_segment=(num_components, num_components),
         padding_vector=bures_cost._padder(y.shape[1]),
     )
-    bar_p = barycenter_problem.FreeBarycenterProblem(
+    bar_prob = barycenter_problem.FreeBarycenterProblem(
         seg_y,
         seg_b,
         weights=barycentric_weights,
         cost_fn=bures_cost,
         epsilon=epsilon
     )
-    assert bar_p.num_measures == seg_y.shape[0]
-    assert bar_p.max_measure_size == seg_y.shape[1]
-    assert bar_p.ndim == seg_y.shape[2]
+    assert bar_prob.num_measures == seg_y.shape[0]
+    assert bar_prob.max_measure_size == seg_y.shape[1]
+    assert bar_prob.ndim == seg_y.shape[2]
 
     linear_solver = sinkhorn.Sinkhorn(lse_mode=lse_mode)
     solver = cb.FreeWassersteinBarycenter(linear_solver)
     if jit:
       solver = jax.jit(solver, static_argnames="bar_size")
 
-    out = solver(bar_p, bar_size=bar_size, x_init=x_init)
+    out = solver(bar_prob, bar_size=bar_size, x_init=x_init)
     barycenter = out.x
 
     means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dimension)
@@ -359,7 +359,7 @@ class TestBarycenter:
 
     # test second interface for segmentation
     seg_ids = jnp.repeat(jnp.arange(num_measures), n_components)
-    bar_p = barycenter_problem.FreeBarycenterProblem(
+    bar_prob = barycenter_problem.FreeBarycenterProblem(
         y=ys,
         b=bs,
         weights=barycentric_weights,
@@ -369,9 +369,9 @@ class TestBarycenter:
         max_measure_size=max_measure_size,
         segment_ids=seg_ids,
     )
-    assert bar_p.max_measure_size == 4
-    assert bar_p.num_measures == num_measures
-    assert bar_p.ndim == ys.shape[-1]
+    assert bar_prob.max_measure_size == 4
+    assert bar_prob.num_measures == num_measures
+    assert bar_prob.ndim == ys.shape[-1]
 
     linear_solver = sinkhorn.Sinkhorn(lse_mode=True)
     solver = cb.FreeWassersteinBarycenter(linear_solver)
@@ -379,7 +379,7 @@ class TestBarycenter:
       solver = jax.jit(solver, static_argnames="bar_size")
 
     # Compute the barycenter.
-    out = solver(bar_p, bar_size=bar_size, x_init=x_init)
+    out = solver(bar_prob, bar_size=bar_size, x_init=x_init)
     barycenter = out.x
 
     means_bary, covs_bary = costs.x_to_means_and_covs(barycenter, dim)

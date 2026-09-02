@@ -45,26 +45,24 @@ class TestMetaInitializer:
     n, m = 32, 30
     epsilon = 1e-2
 
-    ot_problem = _problems.create_ot_problem(
-        rng, n, m, epsilon=epsilon, batch_size=3
-    )
+    prob = _problems.create_ot_problem(rng, n, m, epsilon=epsilon, batch_size=3)
 
     # run sinkhorn
     solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, max_iterations=3000)
-    sink_out = jax.jit(solver)(ot_problem)
+    sink_out = jax.jit(solver)(prob)
 
     # overfit the initializer to the problem.
     meta_model = MetaMLP(n)
-    meta_initializer = meta_init.MetaInitializer(ot_problem.geom, meta_model)
+    meta_initializer = meta_init.MetaInitializer(prob.geom, meta_model)
     for _ in range(50):
       _, _, meta_initializer.state = meta_initializer.update(
-          meta_initializer.state, a=ot_problem.a, b=ot_problem.b
+          meta_initializer.state, a=prob.a, b=prob.b
       )
 
     solver = sinkhorn.Sinkhorn(
         initializer=meta_initializer, lse_mode=lse_mode, max_iterations=3000
     )
-    meta_out = jax.jit(solver)(ot_problem)
+    meta_out = jax.jit(solver)(prob)
 
     # check initializer is better
     if lse_mode:

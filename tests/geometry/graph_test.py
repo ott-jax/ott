@@ -168,8 +168,8 @@ class TestGraph:
 
     def callback(geom: geometry.Geometry) -> sinkhorn.SinkhornOutput:
       solver = sinkhorn.Sinkhorn(lse_mode=False)
-      problem = linear_problem.LinearProblem(geom)
-      return solver(problem)
+      prob = linear_problem.LinearProblem(geom)
+      return solver(prob)
 
     n, eps, tol = 11, 1e-5, 1e-3
     G = _graphs.random_graph(n, p=0.35)
@@ -218,9 +218,9 @@ class TestGraph:
 
       geom = graph.Graph.from_graph(G, t=1.0)
       solver = sinkhorn.Sinkhorn(lse_mode=False, **kwargs)
-      problem = linear_problem.LinearProblem(geom)
+      prob = linear_problem.LinearProblem(geom)
 
-      return solver(problem).reg_ot_cost
+      return solver(prob).reg_ot_cost
 
     if implicit_diff:
       kwargs = {"implicit_diff": implicit_lib.ImplicitDiff()}
