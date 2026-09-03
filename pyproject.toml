@@ -13,11 +13,10 @@ authors = [
     {name = "OTT team", email = "optimal.transport.tools@gmail.com"}
 ]
 dependencies = [
-    "jax>=0.4.0",
+    "jax>=0.8.0",
     "jaxopt>=0.8",
     "lineax>=0.0.7",
     "numpy>=1.20.0",
-    "typing_extensions; python_version <= '3.9'",
     "optax>=0.2.4",
 ]
 keywords = [
@@ -44,11 +43,10 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 [project.urls]
@@ -60,11 +58,10 @@ Changelog = "https://github.com/ott-jax/ott/releases"
 [project.optional-dependencies]
 neural = [
     "flax>=0.11.0",
-    "optax>=0.2.4",
     "diffrax>=0.4.1",
 ]
 dev = [
-    "pre-commit>=2.16.0",
+    "pre-commit>=3.0.0",
     "tox>=4",
 ]
 test = [
@@ -77,7 +74,7 @@ test = [
     "networkx>=2.5",
     "scikit-learn>=1.0",
     "tqdm",
-    "tslearn>=0.5; python_version < '3.13'",
+    "tslearn>=0.5",
     "matplotlib",
 ]
 docs = [
@@ -99,7 +96,7 @@ include-package-data = true
 
 [tool.black]
 line-length = 80
-target-version = ["py39"]
+target-version = ["py311"]
 include = '\.ipynb$'
 
 [tool.isort]
@@ -185,14 +182,14 @@ ignore_path = ["docs/**/_autosummary", "docs/contributing.rst"]
 legacy_tox_ini = """
 [tox]
 min_version = 4.0
-env_list = lint-code,py{3.11,3.12,3.13},py3.12-jax-default
+env_list = lint-code,py{3.11,3.12,3.13,3.14},py3.12-jax-default
 skip_missing_interpreters = true
 
 [testenv]
 extras =
     test
     # neural requires flax>=0.11.0 (NNX API, Python>=3.11)
-    py{3.11,3.12,3.13}: neural
+    py{3.11,3.12,3.13,3.14}: neural
 pass_env = CUDA_*,PYTEST_*,CI
 commands_pre =
     gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
@@ -273,7 +270,7 @@ exclude = [
     "dist"
 ]
 line-length = 80
-target-version = "py38"  # TODO(michalk8): use py39 and fix the type hints
+target-version = "py38"  # TODO(michalk8): bump to py311, see #XXX
 
 [tool.ruff.lint]
 ignore = [
