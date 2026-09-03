@@ -13,7 +13,8 @@
 # limitations under the License.
 """Helpers shared across the test suite."""
 import dataclasses
-from typing import Any, Callable, Dict, List, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -32,10 +33,10 @@ __all__ = [
 @dataclasses.dataclass(frozen=True)
 class PointClouds:
   """Two weighted point clouds, the ingredients of a linear OT problem."""
-  x: jnp.ndarray  # (n, dim)
-  y: jnp.ndarray  # (m, dim)
-  a: jnp.ndarray  # (n,), on the simplex
-  b: jnp.ndarray  # (m,), on the simplex
+  x: jax.Array  # (n, dim)
+  y: jax.Array  # (m, dim)
+  a: jax.Array  # (n,), on the simplex
+  b: jax.Array  # (m,), on the simplex
 
   @property
   def n(self) -> int:
@@ -69,8 +70,8 @@ class PointClouds:
 @dataclasses.dataclass(frozen=True)
 class QuadClouds(PointClouds):
   """Two weighted clouds plus the intra-domain costs of a quadratic problem."""
-  cx: jnp.ndarray  # (n, n)
-  cy: jnp.ndarray  # (m, m)
+  cx: jax.Array  # (n, n)
+  cy: jax.Array  # (m, m)
 
   def quad_problem(
       self,
@@ -96,7 +97,7 @@ def random_weights(
     *,
     offset: float = 0.1,
     zero_at: Sequence[int] = (),
-) -> jnp.ndarray:
+) -> jax.Array:
   """Sample ``n`` random weights on the simplex, 0 at ``zero_at``."""
   a = jr.uniform(rng, (n,)) + offset
   a = a.at[jnp.asarray(zero_at, dtype=int)].set(0.0)
@@ -123,22 +124,22 @@ def random_clouds(
   )
 
 
-def proj(matrix: jnp.ndarray, nu: float = 1.0) -> jnp.ndarray:
+def proj(matrix: jax.Array, nu: float = 1.0) -> jax.Array:
   """Project a matrix onto the Stiefel manifold, scaled by ``nu``."""
   assert nu > 0.0, nu
   u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
   return u.dot(v_h) * jnp.sqrt(nu)
 
 
-def tracing_progress_fn() -> Tuple[Dict[str, List[Any]], Callable[..., None]]:
+def tracing_progress_fn() -> tuple[dict[str, list[Any]], Callable[..., None]]:
   """Progress callback recording the iterations at which it was called.
 
   Returns:
     The recorded values and the callback to pass as ``progress_fn``.
   """
-  traced: Dict[str, List[Any]] = {"iters": [], "error": [], "total": []}
+  traced: dict[str, list[Any]] = {"iters": [], "error": [], "total": []}
 
-  def progress_fn(status: Tuple[Any, ...], *args: Any) -> None:
+  def progress_fn(status: tuple[Any, ...], *args: Any) -> None:
     iteration, inner_iterations, total_iter, state = status
     iteration = int(iteration)
     inner_iterations = int(inner_iterations)

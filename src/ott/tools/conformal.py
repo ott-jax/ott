@@ -14,13 +14,15 @@
 import dataclasses
 import math
 import operator
-from typing import Any, Callable, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
 import scipy as sp
+from jax.typing import ArrayLike
 from scipy.stats import qmc
 
 from ott import utils
@@ -30,14 +32,14 @@ from ott.solvers.linear import sinkhorn
 
 __all__ = ["OTCP", "sobol_ball_sampler"]
 
-ScoreFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
+ScoreFn = Callable[[jax.Array, jax.Array], jax.Array]
 
 
 def sobol_ball_sampler(
-    rng: Optional[jax.Array],
-    shape: Tuple[int, int],
-    n_per_radius: Optional[int] = None,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    rng: jax.Array | None,
+    shape: tuple[int, int],
+    n_per_radius: int | None = None,
+) -> tuple[jax.Array, jax.Array]:
   """Sample target measure for :class:`OTCP`.
 
   Args:
@@ -103,28 +105,28 @@ class OTCP:
     calibration_scores: Nonconformity calibration scores computed in
       :meth:`calibrate`.
   """
-  model: Callable[[jnp.ndarray],
-                  jnp.ndarray] = dataclasses.field(metadata={"static": True})
+  model: Callable[[jax.Array],
+                  jax.Array] = dataclasses.field(metadata={"static": True})
   nonconformity_fn: ScoreFn = dataclasses.field(
       default=operator.sub, metadata={"static": True}
   )
-  sinkhorn_output: Optional[sinkhorn.SinkhornOutput] = None
-  sampler: Optional[Callable[[jax.random.PRNGKey, Tuple[int, int]],
-                             jax.Array]] = dataclasses.field(
-                                 default=None, metadata={"static": True}
-                             )
-  offset: jnp.ndarray = 0.0
-  scale: jnp.ndarray = 1.0
-  calibration_scores: Optional[jnp.ndarray] = None
+  sinkhorn_output: sinkhorn.SinkhornOutput | None = None
+  sampler: Callable[[jax.Array, tuple[int, int]],
+                    jax.Array] | None = dataclasses.field(
+                        default=None, metadata={"static": True}
+                    )
+  offset: ArrayLike = 0.0
+  scale: ArrayLike = 1.0
+  calibration_scores: jax.Array | None = None
 
   def fit_transport(
       self,
-      x: jnp.ndarray,
-      y: jnp.ndarray,
+      x: jax.Array,
+      y: jax.Array,
       epsilon: float = 1e-1,
       n_target: int = 8192,
-      rng: Optional[jax.Array] = None,
-      sampler_kwargs: Optional[Any] = None,
+      rng: jax.Array | None = None,
+      sampler_kwargs: Any | None = None,
       **kwargs: Any,
   ) -> "OTCP":
     """Fit the transport map.
@@ -163,7 +165,7 @@ class OTCP:
         self, sinkhorn_output=out, offset=offset, scale=scale
     )
 
-  def calibrate(self, x: jnp.ndarray, y: jnp.ndarray) -> "OTCP":
+  def calibrate(self, x: jax.Array, y: jax.Array) -> "OTCP":
     """Compute calibration scores.
 
     Args:
@@ -176,7 +178,7 @@ class OTCP:
     scores = self.get_scores(x, y)
     return dataclasses.replace(self, calibration_scores=scores)
 
-  def get_scores(self, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def get_scores(self, x: jax.Array, y: jax.Array) -> jax.Array:
     """Compute nonconformity scores.
 
     Args:
@@ -190,10 +192,10 @@ class OTCP:
 
   def predict(
       self,
-      x: jnp.ndarray,
-      y_candidates: Optional[jnp.ndarray] = None,
+      x: jax.Array,
+      y_candidates: jax.Array | None = None,
       alpha: float = 0.1,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Conformalize the model's prediction.
 
     Args:
@@ -218,21 +220,21 @@ class OTCP:
 
   def _predict_backward(
       self,
-      y_hat: jnp.ndarray,
+      y_hat: jax.Array,
       *,
       quantile: float,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     candidates = self._transport(quantile * self.target_measure, forward=False)
     candidates = self._rescale(candidates, forward=False)
     return y_hat[:, None] + candidates[None]
 
   def _predict_forward(
       self,
-      y_hat: jnp.ndarray,
-      y_candidates: jnp.ndarray,
+      y_hat: jax.Array,
+      y_candidates: jax.Array,
       *,
       quantile: float,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     assert y_candidates.ndim == 2, y_candidates.shape
     score_fn = jax.vmap(
         jax.vmap(self._get_scores, in_axes=[0, None]), in_axes=[None, 0]
@@ -240,25 +242,25 @@ class OTCP:
     scores = score_fn(y_candidates, y_hat)
     return scores <= quantile
 
-  def _get_scores(self, y: jnp.ndarray, y_hat: jnp.ndarray) -> jnp.ndarray:
+  def _get_scores(self, y: jax.Array, y_hat: jax.Array) -> jax.Array:
     scores = self.nonconformity_fn(jnp.atleast_2d(y), jnp.atleast_2d(y_hat))
     scores = self._rescale(scores, forward=True)
     scores = self._transport(scores, forward=True)
     scores = jnp.linalg.norm(scores, axis=-1)
     return scores.squeeze(0) if y.ndim == 1 else scores
 
-  def _transport(self, x: jnp.ndarray, *, forward: bool = True) -> jnp.ndarray:
+  def _transport(self, x: jax.Array, *, forward: bool = True) -> jax.Array:
     assert self.sinkhorn_output is not None, "Run `.fit_transport()` first."
     return self.sinkhorn_output.to_dual_potentials().transport(
         x, forward=forward
     )
 
-  def _rescale(self, x: jnp.ndarray, *, forward: bool) -> jnp.ndarray:
+  def _rescale(self, x: jax.Array, *, forward: bool) -> jax.Array:
     if forward:
       return (x - self.offset) / self.scale
     return (self.scale * x) + self.offset
 
   @property
-  def target_measure(self) -> Optional[jnp.ndarray]:
+  def target_measure(self) -> jax.Array | None:
     """Target measure of shape ``[n_target, dim_y]``."""
     return None if self.sinkhorn_output is None else self.sinkhorn_output.geom.y

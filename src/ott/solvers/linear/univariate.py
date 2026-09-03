@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 import jax
 import jax.experimental.sparse as jesp
@@ -54,11 +54,11 @@ class UnivariateOutput(NamedTuple):
     dual_b: Array of shape ``[m,]`` containing the second dual variable.
   """
   prob: linear_problem.LinearProblem
-  ot_costs: jnp.ndarray
-  paired_indices: Optional[jnp.ndarray] = None
-  mass_paired_indices: Optional[jnp.ndarray] = None
-  dual_a: Optional[jnp.ndarray] = None
-  dual_b: Optional[jnp.ndarray] = None
+  ot_costs: jax.Array
+  paired_indices: jax.Array | None = None
+  mass_paired_indices: jax.Array | None = None
+  dual_a: jax.Array | None = None
+  dual_b: jax.Array | None = None
 
   @property
   def transport_matrices(self) -> jesp.BCOO:
@@ -80,7 +80,7 @@ class UnivariateOutput(NamedTuple):
     return sparse_mean(self.transport_matrices, axis=0)
 
   @property
-  def dual_costs(self) -> jnp.ndarray:
+  def dual_costs(self) -> jax.Array:
     """Array of shape ``[d,]`` containing the dual costs."""
     assert self.dual_a is not None, "Dual variables have not been computed."
     dual_obj = jnp.sum(self.dual_a * self.prob.a[None, :], axis=1)
@@ -112,7 +112,7 @@ def uniform_solver(
 
   @functools.partial(jax.vmap, in_axes=[1, 1])
   @functools.partial(jax.vmap, in_axes=[0, 0])
-  def cost(x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def cost(x: jax.Array, y: jax.Array) -> float:
     return cost_fn(x[None], y[None])
 
   assert prob.is_equal_size, "Source and target have different sizes."
@@ -168,7 +168,7 @@ def quantile_solver(
   """  # noqa: E501
 
   @functools.partial(jax.vmap, in_axes=[1, 1])
-  def dist(x: jnp.ndarray, y: jnp.ndarray):
+  def dist(x: jax.Array, y: jax.Array):
     x, i_x = mu.sort_and_argsort(x, argsort=True)
     y, i_y = mu.sort_and_argsort(y, argsort=True)
 
@@ -241,24 +241,24 @@ def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
   """  # noqa: E501
 
   class State(NamedTuple):
-    x: jnp.ndarray
-    y: jnp.ndarray
-    a: jnp.ndarray
-    b: jnp.ndarray
-    paired_indices: jnp.ndarray
-    mass_paired_indices: jnp.ndarray
-    dual_a: jnp.ndarray
-    dual_b: jnp.ndarray
+    x: jax.Array
+    y: jax.Array
+    a: jax.Array
+    b: jax.Array
+    paired_indices: jax.Array
+    mass_paired_indices: jax.Array
+    dual_a: jax.Array
+    dual_b: jax.Array
 
   def dual_a_update(state: State, i: int,
-                    j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
+                    j: int) -> tuple[State, jax.Array, jax.Array]:
     next_ixs = jnp.array([i + 1, j])
     val = cost_fn(state.x[i + 1, None], state.y[j, None]) - state.dual_b[j]
     da = state.dual_a.at[i + 1].set(val)
     return state._replace(dual_a=da), state.a[i], next_ixs
 
   def dual_b_update(state: State, i: int,
-                    j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
+                    j: int) -> tuple[State, jax.Array, jax.Array]:
     next_ixs = jnp.array([i, j + 1])
     val = cost_fn(state.x[i, None], state.y[j + 1, None]) - state.dual_a[i]
     db = state.dual_b.at[j + 1].set(val)
@@ -280,7 +280,7 @@ def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
     )
 
   @functools.partial(jax.vmap, in_axes=[1, 1])
-  def dist(x: jnp.ndarray, y: jnp.ndarray):
+  def dist(x: jax.Array, y: jax.Array):
     x, i_x = mu.sort_and_argsort(x, argsort=True)
     y, i_y = mu.sort_and_argsort(y, argsort=True)
     sorted_a, sorted_b = a[i_x], b[i_y]

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional, Tuple, Union
+from collections.abc import Callable
 
 import pytest
 
@@ -50,7 +50,7 @@ class TestLRGeometry:
   def test_conversion_pointcloud(
       self,
       rng: jax.Array,
-      scale_cost: Union[str, float],
+      scale_cost: str | float,
   ):
     """Test conversion from PointCloud to LRCGeometry."""
     cost_fn = costs.SqEuclidean()
@@ -127,8 +127,8 @@ class TestLRGeometry:
   @pytest.mark.parametrize("bias", [(0, 0), (4, 5)])
   @pytest.mark.parametrize("scale_factor", [(1, 1), (2, 3)])
   def test_add_lr_geoms(
-      self, rng: jax.Array, bias: Tuple[float, float],
-      scale_factor: Tuple[float, float]
+      self, rng: jax.Array, bias: tuple[float, float],
+      scale_factor: tuple[float, float]
   ):
     """Test application of cost to vec or matrix."""
     n, m, r, q = 17, 11, 7, 2
@@ -167,8 +167,7 @@ class TestLRGeometry:
   @pytest.mark.parametrize(("scale", "scale_cost", "epsilon"),
                            [(0.1, "mean", None), (0.9, "max_cost", 1e-2)])
   def test_add_lr_geoms_scale_factor(
-      self, rng: jax.Array, scale: float, scale_cost: str,
-      epsilon: Optional[float]
+      self, rng: jax.Array, scale: float, scale_cost: str, epsilon: float | None
   ):
     n, d = 71, 2
     rng1, rng2 = jr.split(rng, 2)
@@ -190,7 +189,7 @@ class TestLRGeometry:
   @pytest.mark.parametrize("axis", [0, 1])
   @pytest.mark.parametrize("fn", [lambda x: x + 10, lambda x: x * 2])
   def test_apply_affine_function_efficient(
-      self, rng: jax.Array, fn: Callable[[jnp.ndarray], jnp.ndarray], axis: int
+      self, rng: jax.Array, fn: Callable[[jax.Array], jax.Array], axis: int
   ):
     n, m, d = 21, 13, 3
     rngs = jr.split(rng, 3)
@@ -271,7 +270,7 @@ class TestCostMatrixFactorization:
       only_fast=1
   )
   def test_point_cloud_to_lr(
-      self, rng: jax.Array, batch_size: Optional[int], scale_cost: Optional[str]
+      self, rng: jax.Array, batch_size: int | None, scale_cost: str | None
   ):
     rank, tol = 7, 1e-1
     rng1, rng2 = jr.split(rng, 2)

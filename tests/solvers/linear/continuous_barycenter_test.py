@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Tuple
 
 import pytest
 
@@ -30,7 +29,7 @@ from ott.tools.gaussian_mixture import gaussian_mixture
 means_and_covs_to_x = jax.vmap(costs.mean_and_cov_to_x, in_axes=[0, 0, None])
 
 
-def is_positive_semidefinite(c: jnp.ndarray) -> bool:
+def is_positive_semidefinite(c: jax.Array) -> bool:
   # GPU friendly, eigvals not implemented for non-symmetric matrices
   w = jnp.linalg.eigvalsh((c + c.T) / 2.0)
   return jnp.all(w >= 0)
@@ -129,10 +128,10 @@ class TestBarycenter:
 
     @functools.partial(jax.jit, static_argnums=(2, 3))
     def barycenter(
-        y: jnp.ndarray,
-        b: jnp.ndarray,
+        y: jax.Array,
+        b: jax.Array,
         segment_before: bool,
-        num_per_segment: Tuple[int, ...],
+        num_per_segment: tuple[int, ...],
     ) -> cb.FreeBarycenterState:
       if segment_before:
         y, b, num_per_segment = segment.segment_point_cloud(

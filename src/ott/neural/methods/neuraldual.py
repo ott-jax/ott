@@ -12,16 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import warnings
-from typing import (
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Union,
-)
+from collections.abc import Callable, Iterator
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -37,7 +29,7 @@ from ott.problems.linear import potentials as dual_potentials
 
 __all__ = ["W2NeuralDual"]
 
-Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
+Train_t = dict[Literal["train_logs", "valid_logs"], dict[str, list[float]]]
 Callback_t = Callable[[int, dual_potentials.DualPotentials], None]
 
 PotentialValueFn_t = potentials.PotentialValueFn_t
@@ -46,7 +38,7 @@ PotentialGradientFn_t = potentials.PotentialGradientFn_t
 
 def _value_fn(
     model: nnx.Module,
-    other_value_fn: Optional[Callable] = None,
+    other_value_fn: Callable | None = None,
 ) -> PotentialValueFn_t:
   """Get a scalar value function from an NNX model.
 
@@ -60,7 +52,7 @@ def _value_fn(
       "The value of a gradient-based potential depends on the other potential."
   )
 
-  def value_fn(x: jnp.ndarray) -> jnp.ndarray:
+  def value_fn(x: jax.Array) -> jax.Array:
     squeeze = x.ndim == 1
     if squeeze:
       x = jnp.expand_dims(x, 0)
@@ -147,19 +139,19 @@ class W2NeuralDual:
   def __init__(
       self,
       dim_data: int,
-      neural_f: Optional[nnx.Module] = None,
-      neural_g: Optional[nnx.Module] = None,
-      optimizer_f: Optional[optax.OptState] = None,
-      optimizer_g: Optional[optax.OptState] = None,
+      neural_f: nnx.Module | None = None,
+      neural_g: nnx.Module | None = None,
+      optimizer_f: optax.OptState | None = None,
+      optimizer_g: optax.OptState | None = None,
       num_train_iters: int = 20000,
       num_inner_iters: int = 1,
-      back_and_forth: Optional[bool] = None,
+      back_and_forth: bool | None = None,
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      rng: Optional[jax.Array] = None,
-      conjugate_solver: Optional[conjugate.FenchelConjugateSolver
-                                ] = conjugate.DEFAULT_CONJUGATE_SOLVER,
+      rng: jax.Array | None = None,
+      conjugate_solver: conjugate.FenchelConjugateSolver
+      | None = conjugate.DEFAULT_CONJUGATE_SOLVER,
       amortization_loss: Literal["objective", "regression"] = "regression",
       parallel_updates: bool = True,
   ):
@@ -246,13 +238,13 @@ class W2NeuralDual:
 
   def __call__(  # noqa: D102
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
-      callback: Optional[Callback_t] = None,
-  ) -> Union[dual_potentials.DualPotentials,
-             Tuple[dual_potentials.DualPotentials, Train_t]]:
+      trainloader_source: Iterator[jax.Array],
+      trainloader_target: Iterator[jax.Array],
+      validloader_source: Iterator[jax.Array],
+      validloader_target: Iterator[jax.Array],
+      callback: Callback_t | None = None,
+  ) -> (dual_potentials.DualPotentials |
+        tuple[dual_potentials.DualPotentials, Train_t]):
     logs = self.train_fn(
         trainloader_source,
         trainloader_target,
@@ -270,8 +262,8 @@ class W2NeuralDual:
       self,
       model_f: nnx.Module,
       model_g: nnx.Module,
-      batch: Dict[str, jnp.ndarray],
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+      batch: dict[str, jax.Array],
+  ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Compute all losses.
 
     Returns:
@@ -282,7 +274,7 @@ class W2NeuralDual:
     g_gradient = _gradient_fn(model_g)
     init_source_hat = g_gradient(target)
 
-    def g_value_partial(y: jnp.ndarray) -> jnp.ndarray:
+    def g_value_partial(y: jax.Array) -> jax.Array:
       return _value_fn(model_g)(y)
 
     f_value_partial = _value_fn(model_f, g_value_partial)
@@ -417,11 +409,11 @@ class W2NeuralDual:
 
   def train_neuraldual_parallel(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
-      callback: Optional[Callback_t] = None,
+      trainloader_source: Iterator[jax.Array],
+      trainloader_target: Iterator[jax.Array],
+      validloader_source: Iterator[jax.Array],
+      validloader_target: Iterator[jax.Array],
+      callback: Callback_t | None = None,
   ) -> Train_t:
     """Training and validation with parallel updates."""
     try:
@@ -488,11 +480,11 @@ class W2NeuralDual:
 
   def train_neuraldual_alternating(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
-      callback: Optional[Callback_t] = None,
+      trainloader_source: Iterator[jax.Array],
+      trainloader_target: Iterator[jax.Array],
+      validloader_source: Iterator[jax.Array],
+      validloader_target: Iterator[jax.Array],
+      callback: Callback_t | None = None,
   ) -> Train_t:
     """Training and validation with alternating updates."""
     try:
@@ -565,7 +557,7 @@ class W2NeuralDual:
     f_value = _value_fn(self.neural_f)
     g_value_prediction = _value_fn(self.neural_g, f_value)
 
-    def g_value_finetuned(y: jnp.ndarray) -> jnp.ndarray:
+    def g_value_finetuned(y: jax.Array) -> jax.Array:
       x_hat = jax.grad(g_value_prediction)(y)
       grad_g_y = jax.lax.stop_gradient(
           self.conjugate_solver.solve(f_value, y, x_init=x_hat).grad
@@ -586,10 +578,10 @@ class W2NeuralDual:
 
   @staticmethod
   def _update_logs(
-      logs: Dict[str, List[Union[float, str]]],
-      loss_f: jnp.ndarray,
-      loss_g: jnp.ndarray,
-      w_dist: jnp.ndarray,
+      logs: dict[str, list[float | str]],
+      loss_f: jax.Array,
+      loss_g: jax.Array,
+      w_dist: jax.Array,
   ) -> None:
     logs["loss_f"].append(float(loss_f))
     logs["loss_g"].append(float(loss_g))

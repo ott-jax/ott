@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Dict, Literal, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -22,9 +23,8 @@ from ott.math import utils as math_utils
 __all__ = ["LinearProblem"]
 
 # TODO(michalk8): move to typing.py when refactoring the types
-MarginalFunc = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
-TransportAppFunc = Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, int],
-                            jnp.ndarray]
+MarginalFunc = Callable[[jax.Array, jax.Array], jax.Array]
+TransportAppFunc = Callable[[jax.Array, jax.Array, jax.Array, int], jax.Array]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -51,8 +51,8 @@ class LinearProblem:
   def __init__(
       self,
       geom: geometry.Geometry,
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
+      a: jax.Array | None = None,
+      b: jax.Array | None = None,
       tau_a: float = 1.0,
       tau_b: float = 1.0
   ):
@@ -63,7 +63,7 @@ class LinearProblem:
     self.tau_b = tau_b
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> jax.Array:
     """First marginal."""
     if self._a is not None:
       return self._a
@@ -71,7 +71,7 @@ class LinearProblem:
     return jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jax.Array:
     """Second marginal."""
     if self._b is not None:
       return self._b
@@ -112,7 +112,7 @@ class LinearProblem:
       self,
       fg: jax.Array,
       *,
-      epsilon: Optional[float] = None,
+      epsilon: float | None = None,
       axis: Literal[0, 1],
   ) -> Callable[[jax.Array], jax.Array]:
     r"""Get potential function from a dual vector using the :term:`c-transform`.
@@ -150,16 +150,16 @@ class LinearProblem:
       self,
       fg: jax.Array,
       *,
-      epsilon: Optional[float] = None,
+      epsilon: float | None = None,
       axis: Literal[0, 1],
-  ) -> Tuple[jax.Array, jax.Array]:
+  ) -> tuple[jax.Array, jax.Array]:
 
-    def _soft_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
+    def _soft_c_transform(fg: jax.Array) -> tuple[jax.Array, jax.Array]:
       cost = self.geom.cost_matrix
       z = (fg - cost) / epsilon
       return -epsilon * math_utils.logsumexp(z, b=self.b, axis=axis), z
 
-    def _hard_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
+    def _hard_c_transform(fg: jax.Array) -> tuple[jax.Array, jax.Array]:
       cost = self.geom.cost_matrix
       z = fg - cost
       pos_weights = self.b[None, :] > 0.0
@@ -172,7 +172,7 @@ class LinearProblem:
 
   def get_transport_functions(
       self, lse_mode: bool
-  ) -> Tuple[MarginalFunc, MarginalFunc, TransportAppFunc]:
+  ) -> tuple[MarginalFunc, MarginalFunc, TransportAppFunc]:
     """Instantiate useful functions for Sinkhorn depending on lse_mode."""
     geom = self.geom
     if lse_mode:
@@ -192,7 +192,7 @@ class LinearProblem:
       )
     return marginal_a, marginal_b, app_transport
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return ([self.geom, self._a, self._b], {
         "tau_a": self.tau_a,
         "tau_b": self.tau_b
@@ -200,6 +200,6 @@ class LinearProblem:
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "LinearProblem":
     return cls(*children, **aux_data)

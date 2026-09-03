@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Literal, Tuple, Union
+from typing import Literal
 
 import pytest
 
@@ -35,9 +35,9 @@ FUSED_PENALTY = 2.0
 @dataclasses.dataclass(frozen=True)
 class FusedClouds(_utils.QuadClouds):
   """:class:`~tests._utils.QuadClouds` plus the fused, inter-domain data."""
-  x_2: jnp.ndarray  # (n, d_xy), source of the fused term
-  y_2: jnp.ndarray  # (m, d_xy), target of the fused term
-  cxy: jnp.ndarray  # (n, m), inter-domain cost
+  x_2: jax.Array  # (n, d_xy), source of the fused term
+  y_2: jax.Array  # (m, d_xy), target of the fused term
+  cxy: jax.Array  # (n, m), inter-domain cost
 
 
 @pytest.fixture(scope="module")
@@ -67,7 +67,7 @@ class TestFusedGromovWasserstein:
     geom_y = pointcloud.PointCloud(clouds.y)
     geom_xy = pointcloud.PointCloud(clouds.x_2, clouds.y_2)
 
-    def reg_gw(a: jnp.ndarray, b: jnp.ndarray, implicit: bool):
+    def reg_gw(a: jax.Array, b: jax.Array, implicit: bool):
       prob = quadratic_problem.QuadraticProblem(
           geom_x, geom_y, geom_xy, fused_penalty=FUSED_PENALTY, a=a, b=b
       )
@@ -112,9 +112,8 @@ class TestFusedGromovWasserstein:
     """Test gradient w.r.t. the geometries."""
 
     def reg_gw(
-        x: jnp.ndarray, y: jnp.ndarray,
-        xy: Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]],
-        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
+        x: jax.Array, y: jax.Array, xy: jax.Array | tuple[jax.Array, jax.Array],
+        fused_penalty: float, a: jax.Array, b: jax.Array, implicit: bool
     ):
       if is_cost:
         geom_x = geometry.Geometry(cost_matrix=x)
@@ -189,8 +188,8 @@ class TestFusedGromovWasserstein:
     lse_mode = True
 
     def reg_gw(
-        cx: jnp.ndarray, cy: jnp.ndarray, cxy: jnp.ndarray,
-        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
+        cx: jax.Array, cy: jax.Array, cxy: jax.Array, fused_penalty: float,
+        a: jax.Array, b: jax.Array, implicit: bool
     ) -> float:
       geom_x = geometry.Geometry(cost_matrix=cx)
       geom_y = geometry.Geometry(cost_matrix=cy)
@@ -254,7 +253,7 @@ class TestFusedGromovWasserstein:
 
   @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
   def test_fgw_lr_generic_cost_matrix(
-      self, rng: jax.Array, cost_rank: Union[int, Tuple[int, int, int]]
+      self, rng: jax.Array, cost_rank: int | tuple[int, int, int]
   ):
     n, m = 20, 30
     rng1, rng2, rng3, rng4 = jr.split(rng, 4)

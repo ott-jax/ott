@@ -13,6 +13,7 @@
 # limitations under the License.
 import pytest
 
+import chex
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -157,7 +158,7 @@ class TestGaussianMixture:
     children, aux_data = jax.tree_util.tree_flatten(gmm)
     gmm_new = jax.tree_util.tree_unflatten(aux_data, children)
 
-    assert gmm == gmm_new
+    chex.assert_trees_all_equal(gmm, gmm_new)
 
   def test_pytree_mapping(self, rng: jax.Array):
     gmm = gaussian_mixture.GaussianMixture.from_random(

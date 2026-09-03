@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -38,7 +38,7 @@ class TestBatchedVmap:
 
   def test_pytree(self, rng: jax.Array):
 
-    def f(x: Any) -> jnp.ndarray:
+    def f(x: Any) -> jax.Array:
       return x["foo"]["bar"].std() + x["baz"].mean(
       ) + x["quux"][0] * x["quux"][1]
 
@@ -61,7 +61,7 @@ class TestBatchedVmap:
   @pytest.mark.parametrize("in_axes", [0, 1, -1, -2, [0, None], (0, -2)])
   def test_in_axes(self, rng: jax.Array, in_axes: Any, batch_size: int):
 
-    def f(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    def f(x: jax.Array, y: jax.Array) -> jax.Array:
       x = jnp.atleast_2d(x)
       y = jnp.atleast_2d(y)
       return jnp.dot(x, y.T)
@@ -90,7 +90,7 @@ class TestBatchedVmap:
   )
   def test_in_axes_pytree(self, rng: jax.Array, in_axes: Any):
 
-    def f(tree: Any) -> jnp.ndarray:
+    def f(tree: Any) -> jax.Array:
       x = tree[0]["foo"]["bar"]
       y = tree[0]["baz"]
       z, ((v,), w) = tree[1], tree[2]
@@ -117,7 +117,7 @@ class TestBatchedVmap:
   @pytest.mark.parametrize("out_axes", [0, 1, 2, -1, -2, -3])
   def test_out_axes(self, rng: jax.Array, out_axes: int):
 
-    def f(x: jnp.ndarray, y: jnp.ndarray) -> Any:
+    def f(x: jax.Array, y: jax.Array) -> Any:
       return (x.sum() + y.sum()).reshape(1, 1)
 
     rng1, rng2 = jr.split(rng, 2)
@@ -138,7 +138,7 @@ class TestBatchedVmap:
   )
   def test_out_axes_pytree(self, rng: jax.Array, out_axes: Any):
 
-    def f(x: jnp.ndarray) -> Any:
+    def f(x: jax.Array) -> Any:
       z = jnp.arange(9).reshape(3, 3)
       return x.mean(), {"x": {"y": jnp.ones(13)}}, (z,)
 
@@ -157,7 +157,7 @@ class TestBatchedVmap:
     @jax.jit
     @functools.partial(utils.batched_vmap, batch_size=batch_size)
     @chex.assert_max_traces(n=max_traces)
-    def fn(x: jnp.ndarray) -> jnp.ndarray:
+    def fn(x: jax.Array) -> jax.Array:
       return x.sum()
 
     chex.clear_trace_counter()
@@ -206,7 +206,7 @@ class TestBatchedVmap:
 
 @pytest.mark.parametrize(("version", "msg"), [(None, "foo, bar, baz"),
                                               ("quux", None)])
-def test_deprecation_warning(version: Optional[str], msg: Optional[str]):
+def test_deprecation_warning(version: str | None, msg: str | None):
 
   @utils.deprecate(version=version, alt=msg)
   def func() -> int:

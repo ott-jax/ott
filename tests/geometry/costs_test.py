@@ -344,7 +344,7 @@ class TestRegTICost:
 
     @jax.jit
     @functools.partial(jax.vmap, in_axes=0)
-    def expected_fn(x: jnp.ndarray) -> jnp.ndarray:
+    def expected_fn(x: jax.Array) -> jax.Array:
       f_h = cost_fn.h_transform(f)
       return x - cost_fn.regularizer.prox(jax.grad(f_h)(x))
 

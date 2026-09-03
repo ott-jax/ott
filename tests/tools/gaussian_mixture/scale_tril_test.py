@@ -13,6 +13,7 @@
 # limitations under the License.
 import pytest
 
+import chex
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -107,7 +108,7 @@ class TestScaleTriL:
     children, aux_data = jtu.tree_flatten(scale)
     scale_new = jtu.tree_unflatten(aux_data, children)
     np.testing.assert_array_equal(scale.params, scale_new.params)
-    assert scale == scale_new
+    chex.assert_trees_all_equal(scale, scale_new)
 
   def test_pytree_mapping(self, rng: jax.Array):
     scale = scale_tril.ScaleTriL.from_random(rng=rng, n_dimensions=3)

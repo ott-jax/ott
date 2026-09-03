@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Problems shared by the initializer tests."""
-from typing import Optional
 
 import jax
 import jax.numpy as jnp
@@ -29,7 +28,7 @@ def create_ot_problem(
     n: int,
     m: int,
     epsilon: float = 1e-2,
-    batch_size: Optional[int] = None,
+    batch_size: int | None = None,
 ) -> linear_problem.LinearProblem:
   """Two well-separated Gaussian clouds in 2D, with uniform marginals."""
   rng_x, rng_y = jr.split(rng)

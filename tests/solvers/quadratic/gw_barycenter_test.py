@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
 import pytest
 
@@ -36,7 +37,7 @@ class TestGWBarycenter:
       n: int,
       d: int,
       rng: jax.Array,
-      m: Optional[int] = None,
+      m: int | None = None,
       **kwargs: Any
   ) -> pointcloud.PointCloud:
     rng1, rng2 = jr.split(rng, 2)
@@ -46,9 +47,9 @@ class TestGWBarycenter:
 
   @staticmethod
   def pad_cost_matrices(
-      costs: Sequence[jnp.ndarray],
-      shape: Optional[Tuple[int, int]] = None
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      costs: Sequence[jax.Array],
+      shape: tuple[int, int] | None = None
+  ) -> tuple[jax.Array, jax.Array]:
     if shape is None:
       shape = jnp.asarray([arr.shape for arr in costs]).max()
       shape = (shape, shape)
@@ -69,8 +70,7 @@ class TestGWBarycenter:
       [("sqeucl", 17, None)]  # , ("kl", 22, 1e-2)]
   )
   def test_gw_barycenter(
-      self, rng: jax.Array, gw_loss: str, bar_size: int,
-      epsilon: Optional[float]
+      self, rng: jax.Array, gw_loss: str, bar_size: int, epsilon: float | None
   ):
     tol = 1e-3 if gw_loss == "sqeucl" else 1e-1
     num_per_segment = (13, 15, 21)
@@ -139,7 +139,7 @@ class TestGWBarycenter:
   ):
 
     def barycenter(
-        y: jnp.ndim, y_fused: jnp.ndarray, num_per_segment: Tuple[int, ...]
+        y: jnp.ndim, y_fused: jax.Array, num_per_segment: tuple[int, ...]
     ) -> gwb_solver.GWBarycenterState:
       bar_prob = gwb.GWBarycenterProblem(
           y=y,

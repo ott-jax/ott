@@ -11,10 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional, Union
+from typing import Any
 
 import jax
-import jax.numpy as jnp
 
 from ott import utils
 from ott.geometry import geometry, pointcloud
@@ -28,13 +27,13 @@ __all__ = ["solve", "solve_univariate", "solve_semidiscrete"]
 
 def solve(
     geom: geometry.Geometry,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+    a: jax.Array | None = None,
+    b: jax.Array | None = None,
     tau_a: float = 1.0,
     tau_b: float = 1.0,
     rank: int = -1,
     **kwargs: Any
-) -> Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]:
+) -> sinkhorn.SinkhornOutput | sinkhorn_lr.LRSinkhornOutput:
   """Solve linear regularized OT problem using Sinkhorn iterations.
 
   Args:
@@ -66,8 +65,8 @@ def solve(
 
 def solve_univariate(
     geom: pointcloud.PointCloud,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+    a: jax.Array | None = None,
+    b: jax.Array | None = None,
     *,
     return_transport: bool = False,
     return_dual_variables: bool = False,
@@ -104,8 +103,8 @@ def solve_univariate(
 
 def solve_semidiscrete(
     geom: sdpc.SemidiscretePointCloud,
-    b: Optional[jnp.ndarray] = None,
-    rng: Optional[jax.Array] = None,
+    b: jax.Array | None = None,
+    rng: jax.Array | None = None,
     **kwargs: Any,
 ) -> semidiscrete.SemidiscreteOutput:
   """Solve a (regularized) semidiscrete OT problem.

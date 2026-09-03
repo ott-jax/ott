@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 import jax.numpy as jnp
 import jax.tree_util as jtu
@@ -44,7 +43,7 @@ class Epsilon:
     self.init = init
     self.decay = decay
 
-  def __call__(self, it: Optional[int]) -> jnp.array:
+  def __call__(self, it: int | None) -> jnp.array:
     """Intermediate regularizer value at a given iteration number.
 
     Args:

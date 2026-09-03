@@ -18,16 +18,18 @@ for ICNNs with non-negative weights, ensuring controlled correlation
 and variance propagation through layers.
 """
 import math
-from typing import Callable, Literal, Tuple
+from collections.abc import Callable
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
+from jax.typing import DTypeLike
 
 from flax import nnx
 
 __all__ = ["get_rectifier_inverse", "principled_icnn_init"]
 
-Initializer = Callable[[jax.Array, Tuple[int, ...], jnp.dtype], jax.Array]
+Initializer = Callable[[jax.Array, tuple[int, ...], DTypeLike], jax.Array]
 RectifierName = Literal["exp", "softplus", "relu", "identity"]
 
 
@@ -59,7 +61,7 @@ def _principled_icnn_weights(
     *,
     alpha: float,
     rho: float = 0.5,
-) -> Tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Compute log-normal weight parameters for principled ICNN init."""
 
   def _corr_func(fan_in: int, *, rho: float) -> float:
@@ -93,7 +95,7 @@ def principled_icnn_init(
     rectifier_fn: Callable[[jax.Array], jax.Array] = jax.nn.softplus,
     target_rho: float = 0.5,
     target_var: float = 1.0,
-) -> Tuple[Initializer, Initializer]:
+) -> tuple[Initializer, Initializer]:
   """Compute principled weight and bias initializers for ICNN layers.
 
   Implements the initialization from :cite:`hoedt:2023` that
@@ -126,8 +128,8 @@ def principled_icnn_init(
 
   def weights_init(
       rng: jax.Array,
-      shape: Tuple[int, ...],
-      dtype: jnp.dtype = None
+      shape: tuple[int, ...],
+      dtype: DTypeLike | None = None
   ) -> jax.Array:
     w = nnx.initializers.normal(stddev=w_log_var ** 0.5)(rng, shape, dtype)
     w = jnp.exp(w_log_mean + w)
@@ -135,8 +137,8 @@ def principled_icnn_init(
 
   def biases_init(
       rng: jax.Array,
-      shape: Tuple[int, ...],
-      dtype: jnp.dtype = None
+      shape: tuple[int, ...],
+      dtype: DTypeLike | None = None
   ) -> jax.Array:
     return nnx.initializers.constant(b_mean)(rng, shape, dtype)
 
@@ -148,7 +150,7 @@ def _principled_init_fixed(
     *,
     alpha: float,
     inv_fn: Callable[[jax.Array], jax.Array],
-) -> Tuple[Initializer, Initializer]:
+) -> tuple[Initializer, Initializer]:
   """Optimized principled init for target_rho=0.5, target_var=1.0."""
 
   def get_factors():

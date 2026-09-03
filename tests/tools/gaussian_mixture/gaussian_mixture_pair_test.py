@@ -11,10 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple
 
 import pytest
 
+import chex
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -23,7 +23,7 @@ import numpy as np
 
 from ott.tools.gaussian_mixture import gaussian_mixture, gaussian_mixture_pair
 
-GMMPair_t = Tuple[gaussian_mixture.GaussianMixture,
+GMMPair_t = tuple[gaussian_mixture.GaussianMixture,
                   gaussian_mixture.GaussianMixture]
 
 N_COMPONENTS = 3
@@ -156,12 +156,12 @@ class TestGaussianMixturePair:
     children, aux_data = jax.tree_util.tree_flatten(pair)
     pair_new = jax.tree_util.tree_unflatten(aux_data, children)
 
-    assert pair.gmm0 == pair_new.gmm0
-    assert pair.gmm1 == pair_new.gmm1
+    chex.assert_trees_all_equal(pair.gmm0, pair_new.gmm0)
+    chex.assert_trees_all_equal(pair.gmm1, pair_new.gmm1)
     assert pair.epsilon == pair_new.epsilon
     assert pair.tau == pair_new.tau
     assert pair.lock_gmm1 == pair_new.lock_gmm1
-    assert pair == pair_new
+    chex.assert_trees_all_equal(pair, pair_new)
 
   @pytest.mark.fast.with_args(
       "epsilon,tau,lock_gmm1",

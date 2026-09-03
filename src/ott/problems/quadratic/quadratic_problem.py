@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Literal
 
 import jax
 import jax.numpy as jnp
@@ -83,17 +83,17 @@ class QuadraticProblem:
       self,
       geom_xx: geometry.Geometry,
       geom_yy: geometry.Geometry,
-      geom_xy: Optional[geometry.Geometry] = None,
+      geom_xy: geometry.Geometry | None = None,
       fused_penalty: float = 1.0,
-      scale_cost: Optional[Union[float, str]] = None,
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
-      loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
+      scale_cost: float | str | None = None,
+      a: jax.Array | None = None,
+      b: jax.Array | None = None,
+      loss: Literal["sqeucl", "kl"] | quadratic_costs.GWLoss = "sqeucl",
       tau_a: float = 1.0,
       tau_b: float = 1.0,
       gw_unbalanced_correction: bool = True,
-      ranks: Union[int, Tuple[int, ...]] = -1,
-      tolerances: Union[float, Tuple[float, ...]] = 1e-2,
+      ranks: int | tuple[int, ...] = -1,
+      tolerances: float | tuple[float, ...] = 1e-2,
   ):
     if scale_cost is not None:
       geom_xx = geom_xx.set_scale_cost(scale_cost)
@@ -124,8 +124,8 @@ class QuadraticProblem:
 
   def marginal_dependent_cost(
       self,
-      marginal_1: jnp.ndarray,
-      marginal_2: jnp.ndarray,
+      marginal_1: jax.Array,
+      marginal_2: jax.Array,
   ) -> low_rank.LRCGeometry:
     r"""Initialize cost term that depends on the marginals of the transport.
 
@@ -168,9 +168,9 @@ class QuadraticProblem:
 
   def cost_unbalanced_correction(
       self,
-      transport_matrix: jnp.ndarray,
-      marginal_1: jnp.ndarray,
-      marginal_2: jnp.ndarray,
+      transport_matrix: jax.Array,
+      marginal_1: jax.Array,
+      marginal_2: jax.Array,
       epsilon: float,
   ) -> float:
     r"""Calculate cost term from the quadratic divergence when unbalanced.
@@ -192,10 +192,10 @@ class QuadraticProblem:
         :math:`+ epsilon * \sum(KL(P|ab'))`
 
     Args:
-      transport_matrix: jnp.ndarray<float>[num_a, num_b], transport matrix.
-      marginal_1: jnp.ndarray<float>[num_a,], marginal of the transport matrix
+      transport_matrix: jax.Array<float>[num_a, num_b], transport matrix.
+      marginal_1: jax.Array<float>[num_a,], marginal of the transport matrix
         for samples from :attr:`geom_xx`.
-      marginal_2: jnp.ndarray<float>[num_b,], marginal of the transport matrix
+      marginal_2: jax.Array<float>[num_b,], marginal of the transport matrix
         for samples from :attr:`geom_yy`.
       epsilon: entropy regularizer.
 
@@ -234,7 +234,7 @@ class QuadraticProblem:
   def update_lr_geom(
       self,
       lr_sink: "sinkhorn_lr.LRSinkhornOutput",
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
   ) -> geometry.Geometry:
     """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
     marginal_1 = lr_sink.marginal(1)
@@ -268,9 +268,9 @@ class QuadraticProblem:
   def update_linearization(
       self,
       transport: Transport,
-      epsilon: Optional[float] = None,
+      epsilon: float | None = None,
       old_transport_mass: float = 1.0,
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
   ) -> linear_problem.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
@@ -337,7 +337,7 @@ class QuadraticProblem:
       self,
       lr_sink: "sinkhorn_lr.LRSinkhornOutput",
       *,
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
   ) -> linear_problem.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
     return linear_problem.LinearProblem(
@@ -349,7 +349,7 @@ class QuadraticProblem:
     )
 
   @property
-  def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
+  def _fused_cost_matrix(self) -> float | jax.Array:
     return self.geom_xy.cost_matrix if self.is_fused else 0.0
 
   @property
@@ -372,7 +372,7 @@ class QuadraticProblem:
 
   def to_low_rank(
       self,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
   ) -> "QuadraticProblem":
     """Convert geometries to low-rank.
 
@@ -384,8 +384,8 @@ class QuadraticProblem:
     """
 
     def convert(
-        vals: Union[int, float, Tuple[Union[int, float], ...]]
-    ) -> Tuple[Union[int, float], ...]:
+        vals: int | float | tuple[int | float, ...]
+    ) -> tuple[int | float, ...]:
       size = 2 + self.is_fused
       if isinstance(vals, (int, float)):
         return (vals,) * 3
@@ -425,18 +425,18 @@ class QuadraticProblem:
     return self._geom_yy
 
   @property
-  def geom_xy(self) -> Optional[geometry.Geometry]:
+  def geom_xy(self) -> geometry.Geometry | None:
     """Geometry of the joint space."""
     return self._geom_xy
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> jax.Array:
     """First marginal."""
     num_a = self.geom_xx.shape[0]
     return jnp.ones((num_a,)) / num_a if self._a is None else self._a
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jax.Array:
     """Second marginal."""
     num_b = self.geom_yy.shape[0]
     return jnp.ones((num_b,)) / num_b if self._b is None else self._b
@@ -456,12 +456,12 @@ class QuadraticProblem:
     )
 
   @property
-  def linear_loss(self) -> Tuple[quadratic_costs.Loss, quadratic_costs.Loss]:
+  def linear_loss(self) -> tuple[quadratic_costs.Loss, quadratic_costs.Loss]:
     """Linear part of the Gromov-Wasserstein loss."""
     return self.loss.f1, self.loss.f2
 
   @property
-  def quad_loss(self) -> Tuple[quadratic_costs.Loss, quadratic_costs.Loss]:
+  def quad_loss(self) -> tuple[quadratic_costs.Loss, quadratic_costs.Loss]:
     """Quadratic part of the Gromov-Wasserstein loss."""
     return self.loss.h1, self.loss.h2
 
@@ -490,7 +490,7 @@ class QuadraticProblem:
 
 
 def apply_cost(  # noqa: D103
-    geom: geometry.Geometry, arr: jnp.ndarray, *, axis: int,
+    geom: geometry.Geometry, arr: jax.Array, *, axis: int,
     fn: quadratic_costs.Loss
-) -> jnp.ndarray:
+) -> jax.Array:
   return geom.apply_cost(arr, axis=axis, fn=fn.func, is_linear=fn.is_linear)

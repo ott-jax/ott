@@ -13,7 +13,8 @@
 # limitations under the License.
 import itertools
 from collections import abc
-from typing import Any, Iterator, Mapping, Optional, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+from typing import Any
 
 import pytest
 
@@ -51,8 +52,8 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
   fast_marks = [m for m in metafunc.function.pytestmark if m.name == "fast"]
   if fast_marks:
     mark, = fast_marks
-    selected: Optional[Mapping[str, Any]] = mark.kwargs.pop("only_fast", None)
-    ids: Optional[Sequence[str]] = mark.kwargs.pop("ids", None)
+    selected: Mapping[str, Any] | None = mark.kwargs.pop("only_fast", None)
+    ids: Sequence[str] | None = mark.kwargs.pop("ids", None)
 
     if mark.args:
       argnames, argvalues = mark.args

@@ -15,10 +15,11 @@
 import abc
 import functools
 import math
-from typing import Any, Literal, Optional, Tuple, Union
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
+from jax.typing import DTypeLike
 
 from flax import nnx
 
@@ -45,21 +46,21 @@ def timestep_embedding(
 class GroupNorm32(nnx.GroupNorm):
 
   def __call__(
-      self, x: jax.Array, *, mask: Optional[jax.Array] = None
+      self, x: jax.Array, *, mask: jax.Array | None = None
   ) -> jax.Array:
     return super().__call__(x.astype(jnp.float32), mask=mask).astype(x.dtype)
 
 
 def conv_nd(
     dims: int,
-    in_channels: Union[int, Tuple[int, ...]],
-    out_channels: Union[int, Tuple[int, ...]],
-    kernel_size: Union[int, Tuple[int, ...]],
-    strides: Union[int, Tuple[int, ...]] = 1,
+    in_channels: int | tuple[int, ...],
+    out_channels: int | tuple[int, ...],
+    kernel_size: int | tuple[int, ...],
+    strides: int | tuple[int, ...] = 1,
     *,
-    dtype: Optional[jnp.dtype] = None,
-    param_dtype: jnp.dtype = jnp.float32,
-    padding: Union[int, Tuple[int, ...]] = 0,
+    dtype: DTypeLike | None = None,
+    param_dtype: DTypeLike = jnp.float32,
+    padding: int | tuple[int, ...] = 0,
     zero_init: bool = False,
     rngs: nnx.Rngs,
     **kwargs: Any,
@@ -91,8 +92,8 @@ def conv_nd(
 def normalization(
     channels: int,
     *,
-    dtype: Optional[jnp.dtype] = None,
-    param_dtype: jnp.dtype = jnp.float32,
+    dtype: DTypeLike | None = None,
+    param_dtype: DTypeLike = jnp.float32,
     rngs: nnx.Rngs,
 ) -> nnx.GroupNorm:
   return GroupNorm32(
@@ -114,7 +115,7 @@ class TimestepBlock(nnx.Module):
       x: jax.Array,
       emb: jax.Array,
       *,
-      rngs: Optional[nnx.Rngs] = None,
+      rngs: nnx.Rngs | None = None,
   ) -> jax.Array:
     pass
 
@@ -128,9 +129,9 @@ class TimestepEmbedSequential(nnx.Module):
   def __call__(
       self,
       x: jax.Array,
-      emb: Optional[jax.Array] = None,
+      emb: jax.Array | None = None,
       *,
-      rngs: Optional[nnx.Rngs] = None,
+      rngs: nnx.Rngs | None = None,
   ) -> jax.Array:
     for layer in self.layers:
       if isinstance(layer, TimestepBlock):
@@ -147,9 +148,9 @@ class Upsample(nnx.Module):
       channels: int,
       use_conv: bool,
       *,
-      out_channels: Optional[int] = None,
-      dtype: Optional[jnp.dtype] = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      out_channels: int | None = None,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -186,9 +187,9 @@ class Downsample(nnx.Module):
       channels: int,
       use_conv: bool,
       *,
-      out_channels: Optional[int] = None,
-      dtype: Optional[jnp.dtype] = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      out_channels: int | None = None,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -224,12 +225,12 @@ class ResBlock(TimestepBlock):
       emb_channels: int,
       dropout: float,
       *,
-      out_channels: Optional[int] = None,
+      out_channels: int | None = None,
       use_conv: bool = False,
       up: bool = False,
       down: bool = False,
-      dtype: Optional[jnp.dtype] = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -344,7 +345,7 @@ class ResBlock(TimestepBlock):
       x: jax.Array,
       emb: jax.Array,
       *,
-      rngs: Optional[nnx.Rngs] = None,
+      rngs: nnx.Rngs | None = None,
   ) -> jax.Array:
     if self.updown:
       h = self.in_norm(x)
@@ -374,7 +375,7 @@ class QKVAttention(nnx.Module):
   def __init__(
       self,
       n_heads: int,
-      attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
+      attn_implementation: Literal["xla", "cudnn"] | None = None,
   ):
     super().__init__()
     self.n_heads = n_heads
@@ -410,9 +411,9 @@ class AttentionBlock(nnx.Module):
       channels: int,
       *,
       num_heads: int = 1,
-      attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
-      dtype: Optional[jnp.dtype] = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      attn_implementation: Literal["xla", "cudnn"] | None = None,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -488,22 +489,22 @@ class UNet(nnx.Module):
   def __init__(
       self,
       *,
-      shape: Tuple[int, int, int],
+      shape: tuple[int, int, int],
       model_channels: int,
       num_res_blocks: int,
-      attention_resolutions: Tuple[int, ...],
-      out_channels: Optional[int] = None,
+      attention_resolutions: tuple[int, ...],
+      out_channels: int | None = None,
       dropout: float = 0.0,
-      channel_mult: Tuple[float, ...] = (1, 2, 4, 8),
-      time_embed_dim: Optional[Union[int, float]] = None,
+      channel_mult: tuple[float, ...] = (1, 2, 4, 8),
+      time_embed_dim: int | float | None = None,
       conv_resample: bool = True,
       num_heads: int = 1,
-      num_heads_upsample: Optional[int] = None,
+      num_heads_upsample: int | None = None,
       resblock_updown: bool = False,
-      num_classes: Optional[int] = None,
-      dtype: Optional[jnp.dtype] = None,
-      param_dtype: jnp.dtype = jnp.float32,
-      attn_implementation: Optional[Literal["xla", "cudnn"]] = None,
+      num_classes: int | None = None,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
+      attn_implementation: Literal["xla", "cudnn"] | None = None,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -742,9 +743,9 @@ class UNet(nnx.Module):
       self,
       t: jax.Array,
       x: jax.Array,
-      cond: Optional[jax.Array] = None,
+      cond: jax.Array | None = None,
       *,
-      rngs: Optional[nnx.Rngs] = None,
+      rngs: nnx.Rngs | None = None,
   ) -> jax.Array:
     """Compute the velocity.
 
