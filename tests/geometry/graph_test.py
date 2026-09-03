@@ -121,7 +121,7 @@ class TestGraph:
   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):
 
-    def create_graph(G: jnp.ndarray) -> graph.Graph:
+    def create_graph(G: jax.Array) -> graph.Graph:
       return graph.Graph.from_graph(G, directed=True, normalize=normalize)
 
     G = _graphs.random_graph(16, p=0.25, directed=True)
@@ -142,7 +142,7 @@ class TestGraph:
   @pytest.mark.parametrize("normalize", [False, True])
   def test_normalize_laplacian(self, directed: bool, normalize: bool):
 
-    def laplacian(G: jnp.ndarray) -> jnp.ndarray:
+    def laplacian(G: jax.Array) -> jax.Array:
       if directed:
         G = G + G.T
 
@@ -211,8 +211,8 @@ class TestGraph:
   ):
 
     def callback(
-        data: jnp.ndarray, rows: jnp.ndarray, cols: jnp.ndarray,
-        shape: tuple[int, int]
+        data: jax.Array, rows: jax.Array, cols: jax.Array, shape: tuple[int,
+                                                                        int]
     ) -> float:
       G = jesp.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
 

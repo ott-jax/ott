@@ -30,7 +30,7 @@ def get_model_and_data(
     n_samples: int,
     target_dim: int,
     random_state: int = 0,
-) -> tuple[Callable[[jnp.ndarray], jnp.ndarray], tuple[jnp.ndarray, ...]]:
+) -> tuple[Callable[[jax.Array], jax.Array], tuple[jax.Array, ...]]:
   x, y = datasets.make_regression(
       n_samples=n_samples,
       n_features=5,

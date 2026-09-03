@@ -38,7 +38,7 @@ class SinkhornInitializer(abc.ABC):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Initialize Sinkhorn potential/scaling f_u.
 
     Args:
@@ -56,7 +56,7 @@ class SinkhornInitializer(abc.ABC):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Initialize Sinkhorn potential/scaling g_v.
 
     Args:
@@ -73,7 +73,7 @@ class SinkhornInitializer(abc.ABC):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-  ) -> tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jax.Array, jax.Array]:
     """Initialize Sinkhorn potentials/scalings f_u and g_v.
 
     Args:
@@ -118,7 +118,7 @@ class DefaultInitializer(SinkhornInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del rng
     return jnp.zeros_like(ot_prob.a) if lse_mode else jnp.ones_like(ot_prob.a)
 
@@ -127,7 +127,7 @@ class DefaultInitializer(SinkhornInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del rng
     return jnp.zeros_like(ot_prob.b) if lse_mode else jnp.ones_like(ot_prob.b)
 
@@ -148,7 +148,7 @@ class GaussianInitializer(DefaultInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     # import Gaussian here due to circular imports
     from ott.tools.gaussian_mixture import gaussian
 
@@ -196,8 +196,8 @@ class SortingInitializer(DefaultInitializer):
     self.vectorized_update = vectorized_update
 
   def _init_sorting_dual(
-      self, modified_cost: jnp.ndarray, init_f: jnp.ndarray
-  ) -> jnp.ndarray:
+      self, modified_cost: jax.Array, init_f: jax.Array
+  ) -> jax.Array:
     """Run DualSort algorithm.
 
     Args:
@@ -210,15 +210,15 @@ class SortingInitializer(DefaultInitializer):
     """
 
     def body_fn(
-        state: tuple[jnp.ndarray, float, int]
-    ) -> tuple[jnp.ndarray, float, int]:
+        state: tuple[jax.Array, float, int]
+    ) -> tuple[jax.Array, float, int]:
       prev_f, _, it = state
       new_f = fn(prev_f, modified_cost)
       diff = jnp.sum((new_f - prev_f) ** 2)
       it += 1
       return new_f, diff, it
 
-    def cond_fn(state: tuple[jnp.ndarray, float, int]) -> bool:
+    def cond_fn(state: tuple[jax.Array, float, int]) -> bool:
       _, diff, it = state
       return jnp.logical_and(diff > self.tolerance, it < self.max_iter)
 
@@ -235,8 +235,8 @@ class SortingInitializer(DefaultInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-      init_f: jnp.ndarray | None = None,
-  ) -> jnp.ndarray:
+      init_f: jax.Array | None = None,
+  ) -> jax.Array:
     """Apply DualSort algorithm.
 
     Args:
@@ -313,7 +313,7 @@ class SubsampleInitializer(DefaultInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     from ott.solvers import linear
 
     assert isinstance(
@@ -361,9 +361,7 @@ class SubsampleInitializer(DefaultInitializer):
     })
 
 
-def _vectorized_update(
-    f: jnp.ndarray, modified_cost: jnp.ndarray
-) -> jnp.ndarray:
+def _vectorized_update(f: jax.Array, modified_cost: jax.Array) -> jax.Array:
   """Inner loop DualSort Update.
 
   Args:
@@ -376,9 +374,7 @@ def _vectorized_update(
   return jnp.min(modified_cost + f[None, :], axis=1)
 
 
-def _coordinate_update(
-    f: jnp.ndarray, modified_cost: jnp.ndarray
-) -> jnp.ndarray:
+def _coordinate_update(f: jax.Array, modified_cost: jax.Array) -> jax.Array:
   """Coordinate-wise updates within inner loop.
 
   Args:
@@ -389,7 +385,7 @@ def _coordinate_update(
     updated potential vector, f.
   """
 
-  def body_fn(i: int, f: jnp.ndarray) -> jnp.ndarray:
+  def body_fn(i: int, f: jax.Array) -> jax.Array:
     new_f = jnp.min(modified_cost[i, :] + f)
     return f.at[i].set(new_f)
 

@@ -29,7 +29,7 @@ from ott.solvers.linear import sinkhorn
 from tests.geometry import _graphs
 
 
-def exact_heat_kernel(G: jnp.ndarray, normalize: bool = False, t: float = 10):
+def exact_heat_kernel(G: jax.Array, normalize: bool = False, t: float = 10):
   degree = jnp.sum(G, axis=1)
   L = jnp.diag(degree) - G
   if normalize:
@@ -105,7 +105,7 @@ class TestGeodesic:
   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):
 
-    def create_graph(G: jnp.ndarray) -> graph.Graph:
+    def create_graph(G: jax.Array) -> graph.Graph:
       return geodesic.Geodesic.from_graph(G, directed=True, normalize=normalize)
 
     G = _graphs.random_graph(16, p=0.25, directed=True)
@@ -126,7 +126,7 @@ class TestGeodesic:
   @pytest.mark.parametrize("normalize", [False, True])
   def test_normalize_laplacian(self, directed: bool, normalize: bool):
 
-    def laplacian(G: jnp.ndarray) -> jnp.ndarray:
+    def laplacian(G: jax.Array) -> jax.Array:
       if directed:
         G = G + G.T
 

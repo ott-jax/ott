@@ -40,8 +40,8 @@ class Dataset(NamedTuple):
     target_iter: loader for the target measure
   """
 
-  source_iter: Iterator[jnp.ndarray]
-  target_iter: Iterator[jnp.ndarray]
+  source_iter: Iterator[jax.Array]
+  target_iter: Iterator[jax.Array]
 
 
 class ConditionalDataset(NamedTuple):
@@ -55,10 +55,10 @@ class ConditionalDataset(NamedTuple):
     label_iter: loader for integer condition labels, ``[batch]``
   """
 
-  source_iter: Iterator[jnp.ndarray]
-  target_iter: Iterator[jnp.ndarray]
-  condition_iter: Iterator[jnp.ndarray]
-  label_iter: Iterator[jnp.ndarray]
+  source_iter: Iterator[jax.Array]
+  target_iter: Iterator[jax.Array]
+  condition_iter: Iterator[jax.Array]
+  label_iter: Iterator[jax.Array]
 
 
 @dataclasses.dataclass
@@ -191,13 +191,13 @@ class ConditionalGaussianMixture:
   num_conditions: int
   batch_size: int
   dim: int
-  offsets: jnp.ndarray
+  offsets: jax.Array
   rng: jax.Array
 
-  def __iter__(self) -> Iterator[tuple[jnp.ndarray, ...]]:
+  def __iter__(self) -> Iterator[tuple[jax.Array, ...]]:
     return self._generate()
 
-  def _generate(self) -> Iterator[tuple[jnp.ndarray, ...]]:
+  def _generate(self) -> Iterator[tuple[jax.Array, ...]]:
     rng = self.rng
     per_cond = self.batch_size // self.num_conditions
     while True:
@@ -271,7 +271,7 @@ def create_conditional_gaussian_mixture_samplers(
         cache["batch"] = next(gen)
       return cache
 
-    def _iter(idx: int) -> Iterator[jnp.ndarray]:
+    def _iter(idx: int) -> Iterator[jax.Array]:
       while True:
         c = _next_batch()
         val = c["batch"][idx]

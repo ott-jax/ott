@@ -61,11 +61,11 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def __init__(
       self,
-      y: jnp.ndarray | None = None,
-      b: jnp.ndarray | None = None,
-      weights: jnp.ndarray | None = None,
-      costs: jnp.ndarray | None = None,
-      y_fused: jnp.ndarray | None = None,
+      y: jax.Array | None = None,
+      b: jax.Array | None = None,
+      weights: jax.Array | None = None,
+      costs: jax.Array | None = None,
+      y_fused: jax.Array | None = None,
       fused_penalty: float = 1.0,
       gw_loss: Literal["sqeucl", "kl"] = "sqeucl",
       scale_cost: float | Literal["mean", "max_cost"] = 1.0,
@@ -99,9 +99,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       # TODO(michalk8): in the future, consider checking the other 2 cases
       # using `segmented_y` and `segmented_y_fused`?
 
-  def update_barycenter(
-      self, transports: jnp.ndarray, a: jnp.ndarray
-  ) -> jnp.ndarray:
+  def update_barycenter(self, transports: jax.Array, a: jax.Array) -> jax.Array:
     """Update the barycenter cost matrix.
 
     Uses the eq. 14 and 15 of :cite:`peyre:16`.
@@ -117,11 +115,11 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
     @functools.partial(jax.vmap, in_axes=[0, 0, 0, None])
     def project(
-        y: jnp.ndarray,
-        b: jnp.ndarray,
-        transport: jnp.ndarray,
+        y: jax.Array,
+        b: jax.Array,
+        transport: jax.Array,
         fn: quadratic_costs.Loss | None,
-    ) -> jnp.ndarray:
+    ) -> jax.Array:
       geom = self._create_y_geometry(y)
       fn, lin = (None, True) if fn is None else (fn.func, fn.is_linear)
 
@@ -148,8 +146,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     return barycenter
 
   def update_features(
-      self, transports: jnp.ndarray, a: jnp.ndarray
-  ) -> jnp.ndarray | None:
+      self, transports: jax.Array, a: jax.Array
+  ) -> jax.Array | None:
     """Update the barycenter features in the fused case :cite:`vayer:19`.
 
     Uses :cite:`cuturi:14` eq. 8, and is implemented only
@@ -183,7 +181,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def _create_bary_geometry(
       self,
-      cost_matrix: jnp.ndarray,
+      cost_matrix: jax.Array,
   ) -> geometry.Geometry:
     return geometry.Geometry(
         cost_matrix=cost_matrix,
@@ -193,7 +191,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def _create_y_geometry(
       self,
-      y: jnp.ndarray,
+      y: jax.Array,
   ) -> geometry.Geometry:
     if self._y_as_costs:
       assert y.shape[0] == y.shape[1], y.shape
@@ -211,8 +209,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def _create_fused_geometry(
       self,
-      x: jnp.ndarray,
-      y: jnp.ndarray,
+      x: jax.Array,
+      y: jax.Array,
   ) -> pointcloud.PointCloud:
     return pointcloud.PointCloud(
         x,
@@ -225,9 +223,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   def _create_problem(
       self,
       state: "GWBarycenterState",  # noqa: F821
-      y: jnp.ndarray,
-      b: jnp.ndarray,
-      f: jnp.ndarray | None = None
+      y: jax.Array,
+      b: jax.Array,
+      f: jax.Array | None = None
   ) -> quadratic_problem.QuadraticProblem:
     geom_xx = self._create_bary_geometry(state.cost)
     geom_yy = self._create_y_geometry(y)
@@ -253,7 +251,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     return self._y_fused is not None
 
   @property
-  def segmented_y_fused(self) -> jnp.ndarray | None:
+  def segmented_y_fused(self) -> jax.Array | None:
     """Feature array of shape used in the fused case."""
     if not self.is_fused or self._y_fused.ndim == 3:
       return self._y_fused

@@ -31,7 +31,7 @@ def make_blobs(
     *args: Any,
     cost_fn: Literal["sqeucl", "cosine"] | None = None,
     **kwargs: Any
-) -> tuple[jnp.ndarray | pointcloud.PointCloud, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jax.Array | pointcloud.PointCloud, jax.Array, jax.Array]:
   X, y, c = datasets.make_blobs(*args, return_centers=True, **kwargs)
   X, y, c = jnp.asarray(X), jnp.asarray(y), jnp.asarray(c)
   if cost_fn is None:
@@ -47,10 +47,10 @@ def make_blobs(
 
 
 def compute_assignment(
-    x: jnp.ndarray,
-    centers: jnp.ndarray,
-    weights: jnp.ndarray | None = None
-) -> tuple[jnp.ndarray, float]:
+    x: jax.Array,
+    centers: jax.Array,
+    weights: jax.Array | None = None
+) -> tuple[jax.Array, float]:
   if weights is None:
     weights = jnp.ones(x.shape[0])
   cost_matrix = pointcloud.PointCloud(x, centers).cost_matrix
@@ -104,7 +104,7 @@ class TestKmeansPlusPlus:
 
   def test_initialization_differentiable(self, rng: jax.Array):
 
-    def callback(x: jnp.ndarray) -> float:
+    def callback(x: jax.Array) -> float:
       geom = pointcloud.PointCloud(x)
       centers = k_means._k_means_plus_plus(geom, k=3, rng=jr.key(0))
       _, inertia = compute_assignment(x, centers)
@@ -335,7 +335,7 @@ class TestKmeans:
       self, rng: jax.Array, init: Literal["k-means++", "random"]
   ):
 
-    def callback(x: jnp.ndarray) -> k_means.KMeansOutput:
+    def callback(x: jax.Array) -> k_means.KMeansOutput:
       return k_means.k_means(
           x, k=k, init=init, store_inner_errors=True, rng=jr.key(0)
       )
@@ -363,7 +363,7 @@ class TestKmeans:
       self, rng: jax.Array, jit: bool, force_scan: bool
   ):
 
-    def inertia(x: jnp.ndarray, w: jnp.ndarray) -> float:
+    def inertia(x: jax.Array, w: jax.Array) -> float:
       return k_means.k_means(
           x,
           k=k,

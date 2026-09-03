@@ -328,12 +328,10 @@ class TestSinkhornJIT:
     ) -> None:
       """Assert SinkhornOutputs are close."""
       x = tuple(
-          a for a in x
-          if (a is not None and (isinstance(a, (jnp.ndarray, int))))
+          a for a in x if (a is not None and (isinstance(a, (jax.Array, int))))
       )
       y = tuple(
-          a for a in y
-          if (a is not None and (isinstance(a, (jnp.ndarray, int))))
+          a for a in y if (a is not None and (isinstance(a, (jax.Array, int))))
       )
       return chex.assert_trees_all_close(x, y, atol=1e-6, rtol=0)
 
@@ -348,7 +346,7 @@ class TestSinkhornJIT:
   ):
 
     @jax.value_and_grad
-    def val_grad(a: jnp.ndarray, x: jnp.ndarray) -> float:
+    def val_grad(a: jax.Array, x: jax.Array) -> float:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = geometry.Geometry(
           cost_matrix=(

@@ -46,12 +46,12 @@ class FreeBarycenterState(NamedTuple):
       at each iteration.
   """
 
-  x: jnp.ndarray
-  a: jnp.ndarray
-  costs: jnp.ndarray | None = None
-  linear_convergence: jnp.ndarray | None = None
+  x: jax.Array
+  a: jax.Array
+  costs: jax.Array | None = None
+  linear_convergence: jax.Array | None = None
   linear_outputs: LinearOutput | None = None
-  errors: jnp.ndarray | None = None
+  errors: jax.Array | None = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
     """Return a copy of self, possibly with overwrites."""
@@ -76,7 +76,7 @@ class FreeBarycenterState(NamedTuple):
 
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_linear_ot(
-        a: jnp.ndarray | None, x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
+        a: jax.Array | None, x: jax.Array, b: jax.Array, y: jax.Array
     ):
       geom = pointcloud.PointCloud(
           x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
@@ -140,20 +140,20 @@ class FreeBarycenterOutput(NamedTuple):
       at each iteration.
   """
 
-  x: jnp.ndarray
-  a: jnp.ndarray
+  x: jax.Array
+  a: jax.Array
   bar_prob: barycenter_problem.FreeBarycenterProblem
-  costs: jnp.ndarray
-  linear_convergence: jnp.ndarray
+  costs: jax.Array
+  linear_convergence: jax.Array
   linear_outputs: LinearOutput
-  errors: jnp.ndarray | None = None
+  errors: jax.Array | None = None
 
   @property
   def all_linear_solvers_converged(self) -> bool:
     """Whether all linear convergence flags converged."""
     return jnp.all(self.linear_convergence[self.linear_convergence != -1])
 
-  def matrix_at_index(self, measure_index: int) -> jnp.ndarray:
+  def matrix_at_index(self, measure_index: int) -> jax.Array:
     """Return the transport matrix from barycenter to measure_index measure."""
     size_measure = self.bar_prob.num_per_measure[measure_index]
     matrix = self.linear_output_at_index(measure_index).matrix
@@ -170,7 +170,7 @@ class FreeBarycenterOutput(NamedTuple):
     return jnp.sum(self.linear_convergence != -1)
 
   @property
-  def costs_along_iterations(self) -> jnp.ndarray:
+  def costs_along_iterations(self) -> jax.Array:
     """Costs vector with superfluous values removed."""
     return self.costs[:self.num_iters]
 
@@ -187,7 +187,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
-      x_init: jnp.ndarray | None = None,
+      x_init: jax.Array | None = None,
       rng: jax.Array | None = None,
   ) -> FreeBarycenterState:
     rng = utils.default_prng_key(rng)
@@ -197,7 +197,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
-      x_init: jnp.ndarray | None = None,
+      x_init: jax.Array | None = None,
       rng: jax.Array | None = None,
   ) -> FreeBarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations.
@@ -279,7 +279,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
 
   def iterations(
       self, bar_size: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
-      x_init: jnp.ndarray, rng: jax.Array
+      x_init: jax.Array, rng: jax.Array
   ) -> FreeBarycenterState:
     """Wasserstein barycenter outer loop."""
 

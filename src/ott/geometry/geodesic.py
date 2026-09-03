@@ -27,7 +27,7 @@ from ott.math import utils as mu
 
 __all__ = ["Geodesic"]
 
-Array_g = jnp.ndarray | jesp.BCOO
+Array_g = jax.Array | jesp.BCOO
 
 
 @jtu.register_pytree_node_class
@@ -54,8 +54,8 @@ class Geodesic(geometry.Geometry):
   def __init__(
       self,
       scaled_laplacian: Array_g,
-      eigval: jnp.ndarray,
-      chebyshev_coeffs: jnp.ndarray,
+      eigval: jax.Array,
+      chebyshev_coeffs: jax.Array,
       t: float = 1e-3,
       **kwargs: Any
   ):
@@ -70,7 +70,7 @@ class Geodesic(geometry.Geometry):
       cls,
       G: Array_g,
       t: float | None = 1e-3,
-      eigval: jnp.ndarray | None = None,
+      eigval: jax.Array | None = None,
       order: int = 100,
       directed: bool = False,
       normalize: bool = False,
@@ -136,10 +136,10 @@ class Geodesic(geometry.Geometry):
 
   def apply_kernel(
       self,
-      vec: jnp.ndarray,
+      vec: jax.Array,
       eps: float | None = None,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     r"""Apply :attr:`kernel_matrix` on a positive vector.
 
     Args:
@@ -155,7 +155,7 @@ class Geodesic(geometry.Geometry):
     )
 
   @property
-  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def kernel_matrix(self) -> jax.Array:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
     return jax.lax.cond(
@@ -164,7 +164,7 @@ class Geodesic(geometry.Geometry):
     )
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def cost_matrix(self) -> jax.Array:  # noqa: D102
     # Calculate the cost matrix using the formula (5) from the main reference
     return -4.0 * self.t * mu.safe_log(self.kernel_matrix)
 
@@ -180,28 +180,26 @@ class Geodesic(geometry.Geometry):
   def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.scaled_laplacian.dtype
 
-  def transport_from_potentials(
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
+  def transport_from_potentials(self, f: jax.Array, g: jax.Array) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
   def apply_transport_from_potentials(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
-      vec: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
+      vec: jax.Array,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
   def marginal_from_potentials(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
@@ -220,14 +218,12 @@ class Geodesic(geometry.Geometry):
     return cls(*children, **aux_data)
 
 
-def normalize_laplacian(laplacian: Array_g, degree: jnp.ndarray) -> Array_g:
+def normalize_laplacian(laplacian: Array_g, degree: jax.Array) -> Array_g:
   inv_sqrt_deg = jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
   return inv_sqrt_deg[:, None] * laplacian * inv_sqrt_deg[None, :]
 
 
-def compute_dense_laplacian(
-    G: jnp.ndarray, normalize: bool = False
-) -> jnp.ndarray:
+def compute_dense_laplacian(G: jax.Array, normalize: bool = False) -> jax.Array:
   degree = jnp.sum(G, axis=1)
   laplacian = jnp.diag(degree) - G
   if normalize:
@@ -254,7 +250,7 @@ def compute_sparse_laplacian(
 
 
 def compute_largest_eigenvalue(
-    laplacian_matrix: jnp.ndarray,
+    laplacian_matrix: jax.Array,
     rng: jax.Array,
 ) -> float:
   # Compute the largest eigenvalue of the Laplacian matrix.
@@ -275,8 +271,8 @@ def compute_largest_eigenvalue(
 
 
 def expm_multiply(
-    L: Array_g, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
-) -> jnp.ndarray:
+    L: Array_g, X: jax.Array, coeff: jax.Array, eigval: float
+) -> jax.Array:
 
   def body(carry, c):
     T0, T1, Y = carry
@@ -296,7 +292,7 @@ def expm_multiply(
 
 def compute_chebychev_coeff_all(
     eigval: float, tau: float, K: int, dtype: np.dtype
-) -> jnp.ndarray:
+) -> jax.Array:
   """Jax wrapper to compute the K+1 Chebychev coefficients."""
   result_shape_dtype = jax.ShapeDtypeStruct(
       shape=(K + 1,),

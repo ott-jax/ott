@@ -23,15 +23,15 @@ from ott.solvers.linear import univariate
 
 __all__ = ["random_proj_sphere", "sliced_wasserstein"]
 
-Projector = Callable[[jax.Array, jnp.ndarray], jnp.ndarray]
+Projector = Callable[[jax.Array, jax.Array], jax.Array]
 
 
 def random_proj_sphere(
     rng: jax.Array,
-    x: jnp.ndarray,
+    x: jax.Array,
     *,
     n_proj: int = 1000,
-) -> jnp.ndarray:
+) -> jax.Array:
   """Project data on directions sampled randomly from sphere.
 
   Args:
@@ -50,17 +50,17 @@ def random_proj_sphere(
 
 
 def sliced_wasserstein(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    a: jnp.ndarray | None = None,
-    b: jnp.ndarray | None = None,
+    x: jax.Array,
+    y: jax.Array,
+    a: jax.Array | None = None,
+    b: jax.Array | None = None,
     cost_fn: costs.CostFn | None = None,
     proj_fn: Projector | None = None,
-    weights: jnp.ndarray | None = None,
+    weights: jax.Array | None = None,
     return_transport: bool = False,
     return_dual_variables: bool = False,
     rng: jax.Array | None = None,
-) -> tuple[jnp.ndarray, univariate.UnivariateOutput]:
+) -> tuple[jax.Array, univariate.UnivariateOutput]:
   r"""Compute the Sliced Wasserstein distance between two weighted point clouds.
 
   Follows the approach outlined in :cite:`rabin:12` to compute a proxy for OT

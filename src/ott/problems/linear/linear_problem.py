@@ -23,9 +23,8 @@ from ott.math import utils as math_utils
 __all__ = ["LinearProblem"]
 
 # TODO(michalk8): move to typing.py when refactoring the types
-MarginalFunc = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
-TransportAppFunc = Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, int],
-                            jnp.ndarray]
+MarginalFunc = Callable[[jax.Array, jax.Array], jax.Array]
+TransportAppFunc = Callable[[jax.Array, jax.Array, jax.Array, int], jax.Array]
 
 
 @jax.tree_util.register_pytree_node_class
@@ -52,8 +51,8 @@ class LinearProblem:
   def __init__(
       self,
       geom: geometry.Geometry,
-      a: jnp.ndarray | None = None,
-      b: jnp.ndarray | None = None,
+      a: jax.Array | None = None,
+      b: jax.Array | None = None,
       tau_a: float = 1.0,
       tau_b: float = 1.0
   ):
@@ -64,7 +63,7 @@ class LinearProblem:
     self.tau_b = tau_b
 
   @property
-  def a(self) -> jnp.ndarray:
+  def a(self) -> jax.Array:
     """First marginal."""
     if self._a is not None:
       return self._a
@@ -72,7 +71,7 @@ class LinearProblem:
     return jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jax.Array:
     """Second marginal."""
     if self._b is not None:
       return self._b

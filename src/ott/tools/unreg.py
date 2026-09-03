@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import jax
 import jax.numpy as jnp
 
 from optax import assignment
@@ -25,7 +26,7 @@ __all__ = ["hungarian", "wassdis_p"]
 
 def hungarian(
     geom: geometry.Geometry
-) -> tuple[jnp.ndarray, semidiscrete.HardAssignmentOutput]:
+) -> tuple[jax.Array, semidiscrete.HardAssignmentOutput]:
   """Solve matching problem using the :term:`Hungarian algorithm`.
 
   Uses the implementation from :mod:`optax`.
@@ -50,7 +51,7 @@ def hungarian(
   return transport_cost, out
 
 
-def wassdis_p(x: jnp.ndarray, y: jnp.ndarray, *, p: float = 2.0) -> float:
+def wassdis_p(x: jax.Array, y: jax.Array, *, p: float = 2.0) -> float:
   """Compute the :term:`Wasserstein distance`, uses :term:`Hungarian algorithm`.
 
   Uses :func:`hungarian` to solve the :term:`optimal matching problem` between

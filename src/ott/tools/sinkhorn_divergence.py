@@ -29,8 +29,8 @@ __all__ = [
     "SinkhornDivergenceOutput"
 ]
 
-Potentials = tuple[jnp.ndarray, jnp.ndarray]
-Factors = tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+Potentials = tuple[jax.Array, jax.Array]
+Factors = tuple[jax.Array, jax.Array, jax.Array]
 
 
 @utils.register_pytree_node
@@ -65,11 +65,11 @@ class SinkhornDivergenceOutput:  # noqa: D101
   """
   divergence: float
   geoms: tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
-  a: jnp.ndarray
-  b: jnp.ndarray
+  a: jax.Array
+  b: jax.Array
   potentials: tuple[Potentials, Potentials, Potentials] | None
   factors: tuple[Factors, Factors, Factors] | None
-  errors: tuple[jnp.ndarray | None, jnp.ndarray | None, jnp.ndarray | None]
+  errors: tuple[jax.Array | None, jax.Array | None, jax.Array | None]
   converged: tuple[bool, bool, bool]
   n_iters: tuple[int, int, int]
 
@@ -134,13 +134,13 @@ class SinkhornDivergenceOutput:  # noqa: D101
 
 
 def sinkdiv(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
+    x: jax.Array,
+    y: jax.Array,
     *,
     cost_fn: costs.CostFn | None = None,
     epsilon: float | None = None,
     **kwargs: Any,
-) -> tuple[jnp.ndarray, SinkhornDivergenceOutput]:
+) -> tuple[jax.Array, SinkhornDivergenceOutput]:
   """Wrapper to get the :term:`Sinkhorn divergence` between two point clouds.
 
   Convenience wrapper around
@@ -178,15 +178,15 @@ def sinkdiv(
 def sinkhorn_divergence(
     geom: type[geometry.Geometry],
     *args: Any,
-    a: jnp.ndarray | None = None,
-    b: jnp.ndarray | None = None,
+    a: jax.Array | None = None,
+    b: jax.Array | None = None,
     solve_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     offset_static_b: float | None = None,
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = True,
     **kwargs: Any,
-) -> tuple[jnp.ndarray, SinkhornDivergenceOutput]:
+) -> tuple[jax.Array, SinkhornDivergenceOutput]:
   r"""Compute :term:`Sinkhorn divergence` between two measures.
 
   The :term:`Sinkhorn divergence` is computed between two measures :math:`\mu`
@@ -259,8 +259,8 @@ def _sinkhorn_divergence(
     geometry_xy: geometry.Geometry,
     geometry_xx: geometry.Geometry,
     geometry_yy: geometry.Geometry | None,
-    a: jnp.ndarray,
-    b: jnp.ndarray,
+    a: jax.Array,
+    b: jax.Array,
     symmetric_sinkhorn: bool,
     offset_yy: float | None,
     **kwargs: Any,
@@ -279,9 +279,9 @@ def _sinkhorn_divergence(
     between elements of the view X.
     geometry_yy: a Cost object able to apply kernels with a certain epsilon,
     between elements of the view Y.
-    a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
+    a: jax.Array<float>[n]: the weight of each input point. The sum of
      all elements of ``b`` must match that of ``a`` to converge.
-    b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
+    b: jax.Array<float>[m]: the weight of each target point. The sum of
      all elements of ``b`` must match that of ``a`` to converge.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
@@ -352,24 +352,24 @@ def _sinkhorn_divergence(
 
 
 def segment_sinkhorn_divergence(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
+    x: jax.Array,
+    y: jax.Array,
     num_segments: int | None = None,
     max_measure_size: int | None = None,
     cost_fn: costs.CostFn | None = None,
-    segment_ids_x: jnp.ndarray | None = None,
-    segment_ids_y: jnp.ndarray | None = None,
+    segment_ids_x: jax.Array | None = None,
+    segment_ids_y: jax.Array | None = None,
     indices_are_sorted: bool = False,
     num_per_segment_x: tuple[int, ...] | None = None,
     num_per_segment_y: tuple[int, ...] | None = None,
-    weights_x: jnp.ndarray | None = None,
-    weights_y: jnp.ndarray | None = None,
+    weights_x: jax.Array | None = None,
+    weights_y: jax.Array | None = None,
     solve_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
     symmetric_sinkhorn: bool = False,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Compute Sinkhorn divergence between subsets of vectors in `x` and `y`.
 
   Helper function designed to compute Sinkhorn divergences between several point
@@ -446,10 +446,10 @@ def segment_sinkhorn_divergence(
     padding_vector = cost_fn._padder(dim=dim)
 
   def eval_fn(
-      padded_x: jnp.ndarray,
-      padded_y: jnp.ndarray,
-      padded_weight_x: jnp.ndarray,
-      padded_weight_y: jnp.ndarray,
+      padded_x: jax.Array,
+      padded_y: jax.Array,
+      padded_weight_x: jax.Array,
+      padded_weight_y: jax.Array,
   ) -> float:
     div, _ = sinkhorn_divergence(
         pointcloud.PointCloud,

@@ -376,11 +376,11 @@ def _batched_map(
     out_axes: Any = 0,
 ) -> Callable[P, R]:
 
-  def unbatch(axis: int, x: jnp.ndarray) -> jnp.ndarray:
+  def unbatch(axis: int, x: jax.Array) -> jax.Array:
     x = jnp.moveaxis(x, 0, axis)
     return jax.lax.collapse(x, axis, axis + 2)
 
-  def concat(axis: int, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+  def concat(axis: int, x: jax.Array, y: jax.Array) -> jax.Array:
     return jnp.concatenate([x, y], axis=axis)
 
   @functools.wraps(fun)

@@ -15,7 +15,6 @@ from collections.abc import Callable
 from typing import Any
 
 import jax
-import jax.numpy as jnp
 
 import optax
 
@@ -26,11 +25,11 @@ __all__ = ["lbfgs"]
 
 def run_opt(
     opt: optax.GradientTransformationExtraArgs,
-    x_init: jnp.ndarray,
-    fun: Callable[[jnp.ndarray], jnp.ndarray],
+    x_init: jax.Array,
+    fun: Callable[[jax.Array], jax.Array],
     max_iter: int,
     tol: float,
-) -> tuple[jnp.ndarray, optax.OptState]:
+) -> tuple[jax.Array, optax.OptState]:
   """Runs an optimization algorithm on a function.
 
   Args:
@@ -69,12 +68,12 @@ def run_opt(
 
 
 def lbfgs(
-    fun: Callable[[jnp.ndarray], jnp.ndarray],
-    x_init: jnp.ndarray,
+    fun: Callable[[jax.Array], jax.Array],
+    x_init: jax.Array,
     max_iter: int = 100,
     tol: float = 1e-4,
     **kwargs: Any,
-) -> tuple[jnp.ndarray, optax.OptState]:
+) -> tuple[jax.Array, optax.OptState]:
   """Runs optax's L-BFGS optimization on function.
 
   Args:

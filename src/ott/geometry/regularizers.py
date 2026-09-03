@@ -38,7 +38,7 @@ class ProximalOperator(abc.ABC):
   """Proximal operator base class."""
 
   @abc.abstractmethod
-  def __call__(self, x: jnp.ndarray) -> float:
+  def __call__(self, x: jax.Array) -> float:
     """Function.
 
     Args:
@@ -49,7 +49,7 @@ class ProximalOperator(abc.ABC):
     """
 
   @abc.abstractmethod
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+  def prox(self, v: jax.Array, tau: float = 1.0) -> jax.Array:
     """Proximal operator.
 
     Args:
@@ -60,7 +60,7 @@ class ProximalOperator(abc.ABC):
         The prox of ``v``.
     """
 
-  def prox_dual(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+  def prox_dual(self, v: jax.Array, tau: float = 1.0) -> jax.Array:
     r"""Proximal operator of the convex conjugate.
 
     Uses Moreau's decomposition:
@@ -78,7 +78,7 @@ class ProximalOperator(abc.ABC):
     """
     return v - tau * self.prox(v / tau, 1.0 / tau)
 
-  def moreau_envelope(self, x: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:
+  def moreau_envelope(self, x: jax.Array, tau: float = 1.0) -> jax.Array:
     r"""Moreau Envelope.
 
     Uses Remark 12.24 from :cite:`bauschke:17`:
@@ -121,10 +121,10 @@ class PostComposition(ProximalOperator):
     self.alpha = alpha
     self.b = b
 
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jax.Array) -> float:  # noqa: D102
     return self.alpha * self.f(x) + self.b
 
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+  def prox(self, v: jax.Array, tau: float = 1.0) -> jax.Array:  # noqa: D102
     return self.f.prox(v, tau * self.alpha)
 
   def tree_flatten(self):  # noqa: D102
@@ -144,7 +144,7 @@ class Regularization(ProximalOperator):
   def __init__(
       self,
       f: ProximalOperator,
-      a: jnp.ndarray | None = None,
+      a: jax.Array | None = None,
       rho: float = 1.0,
   ):
     super().__init__()
@@ -152,11 +152,11 @@ class Regularization(ProximalOperator):
     self.a = a
     self.rho = rho
 
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jax.Array) -> float:  # noqa: D102
     norm = jnp.sum(x ** 2) if self.a is None else jnp.sum((x - self.a) ** 2)
     return self.f(x) + (0.5 * self.rho) * norm
 
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+  def prox(self, v: jax.Array, tau: float = 1.0) -> jax.Array:  # noqa: D102
     tau_tilde = tau / (1.0 + tau * self.rho)
     # (tau_tilde / tau) * v
     vv = 1.0 / (1 + tau * self.rho) * v
@@ -186,25 +186,25 @@ class Orthogonal(ProximalOperator):
   def __init__(
       self,
       f: ProximalOperator,
-      A: jnp.ndarray | lx.AbstractLinearOperator | None,
-      b: jnp.ndarray | None = None,
+      A: jax.Array | lx.AbstractLinearOperator | None,
+      b: jax.Array | None = None,
       nu: float = 1.0,
   ):
     assert nu > 0.0, nu
     super().__init__()
     self.f = f
     # AA^T = alpha I
-    self.A = lx.MatrixLinearOperator(A) if isinstance(A, jnp.ndarray) else A
+    self.A = lx.MatrixLinearOperator(A) if isinstance(A, jax.Array) else A
     self.b = b
     self.nu = nu
 
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jax.Array) -> float:  # noqa: D102
     z = self.A.mv(x)
     if self.b is not None:
       z = z + self.b
     return self.f(z)
 
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+  def prox(self, v: jax.Array, tau: float = 1.0) -> jax.Array:  # noqa: D102
     w = self.A.mv(v)
     if self.b is None:
       tmp = self.f.prox(w, tau * self.nu)
@@ -245,29 +245,29 @@ class Quadratic(ProximalOperator):
 
   def __init__(
       self,
-      A: jnp.ndarray | lx.AbstractLinearOperator | None = None,
-      b: jnp.ndarray | None = None,
+      A: jax.Array | lx.AbstractLinearOperator | None = None,
+      b: jax.Array | None = None,
       *,
       is_complement: bool = False,
       is_orthogonal: bool = False,
       is_factor: bool = False,
-      solver: Callable[[lx.AbstractLinearOperator, jnp.ndarray], jnp.ndarray]
+      solver: Callable[[lx.AbstractLinearOperator, jax.Array], jax.Array]
       | None = None,
   ):
     super().__init__()
-    self.A = lx.MatrixLinearOperator(A) if isinstance(A, jnp.ndarray) else A
+    self.A = lx.MatrixLinearOperator(A) if isinstance(A, jax.Array) else A
     self.b = b
     self._is_complement = is_complement
     self._is_orthogonal = is_orthogonal
     self._is_factor = is_factor
     self._solver = solver
 
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jax.Array) -> float:  # noqa: D102
     Q = self.Q
     y = 0.5 * (jnp.dot(x, x) if Q is None else jnp.dot(x, Q.mv(x)))
     return y if self.b is None else (y + jnp.dot(x, self.b))
 
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+  def prox(self, v: jax.Array, tau: float = 1.0) -> jax.Array:  # noqa: D102
     # section 6.1.1 in :cite:`parikh:14`
     Q = self.Q
     b = v if self.b is None else (v - tau * self.b)
@@ -338,10 +338,10 @@ class Quadratic(ProximalOperator):
 class L1(ProximalOperator):
   r"""L1-norm regularizer :math:`\ell_1`."""
 
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jax.Array) -> float:  # noqa: D102
     return jnp.linalg.norm(x, ord=1)
 
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+  def prox(self, v: jax.Array, tau: float = 1.0) -> jax.Array:  # noqa: D102
     return jnp.sign(v) * jax.nn.relu(jnp.abs(v) - tau)
 
 
@@ -357,17 +357,17 @@ class SqL2(ProximalOperator):
 
   def __init__(
       self,
-      A: jnp.ndarray | lx.AbstractLinearOperator | None = None,
+      A: jax.Array | lx.AbstractLinearOperator | None = None,
       **kwargs: Any,
   ):
     super().__init__()
     self.f = Quadratic(A, is_factor=True, **kwargs)
     self._init_kwargs = kwargs
 
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jax.Array) -> float:  # noqa: D102
     return self.f(x)
 
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+  def prox(self, v: jax.Array, tau: float = 1.0) -> jax.Array:  # noqa: D102
     return self.f.prox(v, tau)
 
   def tree_flatten(self):  # noqa: D102
@@ -394,13 +394,13 @@ class STVS(ProximalOperator):
     super().__init__()
     self.gamma = gamma
 
-  def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, x: jax.Array) -> float:  # noqa: D102
     # Lemma 2.1 of `schreck:15`
     u = jnp.arcsinh(jnp.abs(x) / (2.0 * self.gamma))
     y = u - 0.5 * jnp.exp(-2.0 * u)
     return self.gamma ** 2 * jnp.sum(y + 0.5)  # make positive
 
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
+  def prox(self, v: jax.Array, tau: float = 1.0) -> jax.Array:  # noqa: D102
     s = (tau * self.gamma) ** 2
     return jnp.where(v ** 2 <= s, 0.0, v - s / jnp.where(v == 0.0, 1.0, v))
 
@@ -429,7 +429,7 @@ class SqKOverlap(ProximalOperator):
     super().__init__()
     self.k = k
 
-  def __call__(self, z: jnp.ndarray) -> float:  # noqa: D102
+  def __call__(self, z: jax.Array) -> float:  # noqa: D102
     # Prop 2.1 in :cite:`argyriou:12`
     k = self.k
     top_w = jax.lax.top_k(jnp.abs(z), k)[0]  # Fetch largest k values
@@ -450,15 +450,14 @@ class SqKOverlap(ProximalOperator):
 
     return 0.5 * (s + (r + 1) * cesaro[r] ** 2)
 
-  def prox(self, v: jnp.ndarray, tau: float = 1.0) -> float:  # noqa: D102
+  def prox(self, v: jax.Array, tau: float = 1.0) -> float:  # noqa: D102
 
     @functools.partial(jax.vmap, in_axes=[0, None, None])
-    def find_indices(r: int, l: jnp.ndarray,
-                     z: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
+    def find_indices(r: int, l: jax.Array,
+                     z: jax.Array) -> tuple[jax.Array, jax.Array]:
 
       @functools.partial(jax.vmap, in_axes=[None, 0, None])
-      def inner(r: int, l: int,
-                z: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
+      def inner(r: int, l: int, z: jax.Array) -> tuple[jax.Array, jax.Array]:
         i = k - r - 1
         res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
         res /= l - k + (beta + 1) * r + beta + 1

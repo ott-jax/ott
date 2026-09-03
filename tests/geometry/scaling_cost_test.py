@@ -30,16 +30,16 @@ EPS = 5e-2
 @dataclasses.dataclass(frozen=True)
 class ScaleCostData:
   """Inputs shared by every scale-cost test."""
-  x: jnp.ndarray  # (n, dim)
-  y: jnp.ndarray  # (m, dim)
-  a: jnp.ndarray  # (n,), deliberately not normalized
-  b: jnp.ndarray  # (m,), deliberately not normalized
-  vec: jnp.ndarray  # (m,)
-  cost1: jnp.ndarray  # (n, 2), low-rank cost factor
-  cost2: jnp.ndarray  # (m, 2), low-rank cost factor
+  x: jax.Array  # (n, dim)
+  y: jax.Array  # (m, dim)
+  a: jax.Array  # (n,), deliberately not normalized
+  b: jax.Array  # (m,), deliberately not normalized
+  vec: jax.Array  # (m,)
+  cost1: jax.Array  # (n, 2), low-rank cost factor
+  cost2: jax.Array  # (m, 2), low-rank cost factor
 
   @property
-  def cost(self) -> jnp.ndarray:
+  def cost(self) -> jax.Array:
     """Squared Euclidean cost matrix between :attr:`x` and :attr:`y`."""
     return ((self.x[:, None, :] - self.y[None, :, :]) ** 2).sum(-1)
 
@@ -73,7 +73,7 @@ class TestScaleCost:
     """Test various scale cost options for pointcloud."""
 
     def apply_sinkhorn(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+        x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array,
         scale_cost: str | float
     ):
       geom = pointcloud.PointCloud(x, y, epsilon=EPS, scale_cost=scale_cost)
@@ -140,8 +140,7 @@ class TestScaleCost:
     """Test various scale cost options for geometry."""
 
     def apply_sinkhorn(
-        cost: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
-        scale_cost: str | float
+        cost: jax.Array, a: jax.Array, b: jax.Array, scale_cost: str | float
     ):
       geom = geometry.Geometry(cost, epsilon=EPS, scale_cost=scale_cost)
       prob = linear_problem.LinearProblem(geom, a, b)

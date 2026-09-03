@@ -32,7 +32,7 @@ EPSILON = 1e-2
 def samples(
     gmm_reference: gaussian_mixture.GaussianMixture,
     gmm_shifted: gaussian_mixture.GaussianMixture
-) -> tuple[jnp.ndarray, jnp.ndarray]:
+) -> tuple[jax.Array, jax.Array]:
   """Points drawn from the reference mixture and from its shifted variant."""
   rng0, rng1 = jr.split(jr.key(0), 2)
   return (
@@ -47,7 +47,7 @@ class TestFitGmmPair:
       balanced=[False, True], weighted=[False, True], only_fast=0
   )
   def test_fit_gmm(
-      self, rng: jax.Array, samples: tuple[jnp.ndarray, jnp.ndarray],
+      self, rng: jax.Array, samples: tuple[jax.Array, jax.Array],
       balanced: bool, weighted: bool
   ):
     # dumb integration test that makes sure nothing crashes

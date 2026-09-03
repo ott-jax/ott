@@ -15,6 +15,7 @@ import abc
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, Literal
 
+import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 
@@ -120,7 +121,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       defaults to the product coupling :math:`ab^T`.
   """
 
-  def __init__(self, init_coupling: jnp.ndarray | None = None):
+  def __init__(self, init_coupling: jax.Array | None = None):
     super().__init__()
     self.init_coupling = init_coupling
 

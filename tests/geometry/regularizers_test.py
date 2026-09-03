@@ -114,7 +114,7 @@ class TestQuadratic:
       is_factor: bool,
   ):
 
-    def loss(reg: regularizers.ProximalOperator, x: jnp.ndarray) -> float:
+    def loss(reg: regularizers.ProximalOperator, x: jax.Array) -> float:
       return jnp.mean(jax.vmap(reg)(x))
 
     def test_properties(reg: regularizers.ProximalOperator) -> None:

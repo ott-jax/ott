@@ -51,9 +51,9 @@ class FreeBarycenterProblem:
 
   def __init__(
       self,
-      y: jnp.ndarray,
-      b: jnp.ndarray | None = None,
-      weights: jnp.ndarray | None = None,
+      y: jax.Array,
+      b: jax.Array | None = None,
+      weights: jax.Array | None = None,
       cost_fn: costs.CostFn | None = None,
       epsilon: float | None = None,
       **kwargs: Any,
@@ -79,7 +79,7 @@ class FreeBarycenterProblem:
         "Point clouds and weights do not have matching shapes."
 
   @property
-  def segmented_y_b(self) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  def segmented_y_b(self) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Tuple of arrays containing segmented measures, weights, # of points.
 
     - Segmented measures of shape ``[num_measures, max_measure_size, ndim]``.
@@ -99,20 +99,20 @@ class FreeBarycenterProblem:
     return y, b, num_per_measure
 
   @property
-  def num_per_measure(self) -> jnp.ndarray:
+  def num_per_measure(self) -> jax.Array:
     """``[num_measures,]`` array  containing number of points per measure."""
     _, _, num_per_measure = self.segmented_y_b
     return num_per_measure
 
   @property
-  def flattened_y(self) -> jnp.ndarray:
+  def flattened_y(self) -> jax.Array:
     """Array of shape ``[num_measures * (N_1 + N_2 + ...), ndim]``."""
     if self._is_segmented:
       return self._y.reshape((-1, self._y.shape[-1]))
     return self._y
 
   @property
-  def flattened_b(self) -> jnp.ndarray | None:
+  def flattened_b(self) -> jax.Array | None:
     """Array of shape ``[num_measures * (N_1 + N_2 + ...),]``."""
     return None if self._b is None else self._b.ravel()
 
@@ -132,7 +132,7 @@ class FreeBarycenterProblem:
     return self._y.shape[-1]
 
   @property
-  def weights(self) -> jnp.ndarray:
+  def weights(self) -> jax.Array:
     """Barycenter weights of shape ``[num_measures,]`` that sum to 1."""
     if self._weights is None:
       return jnp.ones((self.num_measures,)) / self.num_measures
@@ -176,8 +176,8 @@ class FixedBarycenterProblem:
   def __init__(
       self,
       geom: geometry.Geometry,
-      a: jnp.ndarray,
-      weights: jnp.ndarray | None = None,
+      a: jax.Array,
+      weights: jax.Array | None = None,
   ):
     self.geom = geom
     self.a = a
@@ -189,7 +189,7 @@ class FixedBarycenterProblem:
     return self.a.shape[0]
 
   @property
-  def weights(self) -> jnp.ndarray:
+  def weights(self) -> jax.Array:
     """Barycenter weights of shape ``[num_measures,]`` that sum to :math`1`."""
     if self._weights is None:
       return jnp.ones((self.num_measures,)) / self.num_measures

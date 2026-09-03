@@ -99,8 +99,8 @@ class MetaInitializer(initializers.DefaultInitializer):
     self.update_impl = self._get_update_fn()
 
   def update(
-      self, state: train_state.TrainState, a: jnp.ndarray, b: jnp.ndarray
-  ) -> tuple[jnp.ndarray, jnp.ndarray, train_state.TrainState]:
+      self, state: train_state.TrainState, a: jax.Array, b: jax.Array
+  ) -> tuple[jax.Array, jax.Array, train_state.TrainState]:
     r"""Update the meta model with the dual objective.
 
     The goal is for the model to match the optimal duals, i.e.,
@@ -139,7 +139,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
       rng: jax.Array | None = None,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del rng
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2)
@@ -190,9 +190,9 @@ class MetaInitializer(initializers.DefaultInitializer):
     return update
 
   def _compute_f(
-      self, a: jnp.ndarray, b: jnp.ndarray,
-      params: frozen_dict.FrozenDict[str, jnp.ndarray]
-  ) -> jnp.ndarray:
+      self, a: jax.Array, b: jax.Array,
+      params: frozen_dict.FrozenDict[str, jax.Array]
+  ) -> jax.Array:
     r"""Predict the optimal :math:`f` potential.
 
     Args:

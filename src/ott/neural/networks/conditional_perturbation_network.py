@@ -1,6 +1,7 @@
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 
+import jax
 import jax.numpy as jnp
 
 import flax.linen as nn
@@ -18,7 +19,7 @@ class ConditionalPerturbationNetwork(BasePotential):
   # Same length as context_entity_bonds if embed_cond_equal is False
   # (if True, first item is size of deep set layer, rest is ignored)
   dim_cond_map: Iterable[int] = (50,)
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.gelu
+  act_fn: Callable[[jax.Array], jax.Array] = nn.gelu
   is_potential: bool = False
   layer_norm: bool = False
   embed_cond_equal: bool = (
@@ -34,9 +35,9 @@ class ConditionalPerturbationNetwork(BasePotential):
   @nn.compact
   def __call__(
       self,
-      x: jnp.ndarray,
-      c: jnp.ndarray | None = None
-  ) -> jnp.ndarray | dict[str, jnp.ndarray]:  # noqa: D102
+      x: jax.Array,
+      c: jax.Array | None = None
+  ) -> jax.Array | dict[str, jax.Array]:  # noqa: D102
     """Forward pass: map (x, c) -> x + residual.
 
     Args:
@@ -115,7 +116,7 @@ class ConditionalPerturbationNetwork(BasePotential):
 
   def create_train_state(
       self,
-      rng: jnp.ndarray,
+      rng: jax.Array,
       optimizer: optax.OptState,
       dim_data: int,
       **kwargs: Any,

@@ -21,15 +21,15 @@ __all__ = ["segment_point_cloud"]
 
 
 def segment_point_cloud(
-    x: jnp.ndarray,
-    a: jnp.ndarray | None = None,
+    x: jax.Array,
+    a: jax.Array | None = None,
     num_segments: int | None = None,
     max_measure_size: int | None = None,
-    segment_ids: jnp.ndarray | None = None,
+    segment_ids: jax.Array | None = None,
     indices_are_sorted: bool = False,
     num_per_segment: tuple[int, ...] | None = None,
-    padding_vector: jnp.ndarray | None = None
-) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    padding_vector: jax.Array | None = None
+) -> tuple[jax.Array, jax.Array, jax.Array]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces:
@@ -131,21 +131,20 @@ def segment_point_cloud(
 
 
 def _segment_interface(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    eval_fn: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
-                      jnp.ndarray],
+    x: jax.Array,
+    y: jax.Array,
+    eval_fn: Callable[[jax.Array, jax.Array, jax.Array, jax.Array], jax.Array],
     num_segments: int | None = None,
     max_measure_size: int | None = None,
-    segment_ids_x: jnp.ndarray | None = None,
-    segment_ids_y: jnp.ndarray | None = None,
+    segment_ids_x: jax.Array | None = None,
+    segment_ids_y: jax.Array | None = None,
     indices_are_sorted: bool = False,
-    num_per_segment_x: jnp.ndarray | None = None,
-    num_per_segment_y: jnp.ndarray | None = None,
-    weights_x: jnp.ndarray | None = None,
-    weights_y: jnp.ndarray | None = None,
-    padding_vector: jnp.ndarray | None = None,
-) -> jnp.ndarray:
+    num_per_segment_x: jax.Array | None = None,
+    num_per_segment_y: jax.Array | None = None,
+    weights_x: jax.Array | None = None,
+    weights_y: jax.Array | None = None,
+    padding_vector: jax.Array | None = None,
+) -> jax.Array:
   """Wrapper to segment two point clouds and return parallel evaluations.
 
   Utility function that segments two point clouds using the approach outlined

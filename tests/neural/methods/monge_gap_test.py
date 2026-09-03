@@ -15,7 +15,6 @@
 import pytest
 
 import jax
-import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
@@ -140,8 +139,8 @@ class TestMongeGapEstimator:
 
     # define the fitting loss and the regularizer
     def fitting_loss(
-        samples: jnp.ndarray,
-        mapped_samples: jnp.ndarray,
+        samples: jax.Array,
+        mapped_samples: jax.Array,
     ) -> float | None:
       r"""Sinkhorn divergence fitting loss."""
       div, _ = sinkhorn_divergence.sinkdiv(

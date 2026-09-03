@@ -15,7 +15,6 @@
 import pytest
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ott.geometry import costs, pointcloud
@@ -51,6 +50,6 @@ class TestHungarian:
 
 
 def gen_data(rng: jax.Array, n: int, m: int,
-             dim: int) -> tuple[jnp.ndarray, jnp.ndarray]:
+             dim: int) -> tuple[jax.Array, jax.Array]:
   c = _utils.random_clouds(rng, n=n, m=m, dim=dim, offset=0.0)
   return c.x, c.y

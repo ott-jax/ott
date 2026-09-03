@@ -157,8 +157,8 @@ class TestGromovWasserstein:
   def test_gradient_marginals_gw(self, clouds: _utils.QuadClouds, jit: bool):
     """Test gradient w.r.t. probability weights."""
 
-    def reg_gw(a: jnp.ndarray, b: jnp.ndarray,
-               implicit: bool) -> tuple[float, tuple[jnp.ndarray, jnp.ndarray]]:
+    def reg_gw(a: jax.Array, b: jax.Array,
+               implicit: bool) -> tuple[float, tuple[jax.Array, jax.Array]]:
       prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, a=a, b=b)
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       linear_solver = sinkhorn.Sinkhorn(
@@ -250,8 +250,7 @@ class TestGromovWasserstein:
     """Test gradient w.r.t. the geometries."""
 
     def reg_gw(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
-        implicit: bool
+        x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array, implicit: bool
     ) -> float:
       if is_cost:
         geom_x = geometry.Geometry(cost_matrix=x)
@@ -522,7 +521,7 @@ class TestGromovWasserstein:
   @pytest.mark.parametrize("grad", [False, True])
   def test_gw_progress_fn(self, clouds: _utils.QuadClouds, grad: bool):
 
-    def callback(x: jnp.ndarray, y: jnp.ndarray):
+    def callback(x: jax.Array, y: jax.Array):
       geom_xx = pointcloud.PointCloud(x)
       geom_yy = pointcloud.PointCloud(y)
       prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy)

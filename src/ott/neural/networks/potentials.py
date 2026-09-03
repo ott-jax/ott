@@ -34,8 +34,8 @@ __all__ = [
     "LinenMLP",
 ]
 
-PotentialValueFn_t = Callable[[jnp.ndarray], jnp.ndarray]
-PotentialGradientFn_t = Callable[[jnp.ndarray], jnp.ndarray]
+PotentialValueFn_t = Callable[[jax.Array], jax.Array]
+PotentialGradientFn_t = Callable[[jax.Array], jax.Array]
 
 
 # ---------------------------------------------------------------------------
@@ -54,9 +54,9 @@ class PotentialTrainState(train_state.TrainState):
     potential_gradient_fn: the potential's gradient function
   """
   potential_value_fn: Callable[
-      [frozen_dict.FrozenDict[str, jnp.ndarray], PotentialValueFn_t | None],
+      [frozen_dict.FrozenDict[str, jax.Array], PotentialValueFn_t | None],
       PotentialValueFn_t] = struct.field(pytree_node=False)
-  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
+  potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jax.Array]],
                                   PotentialGradientFn_t] = struct.field(
                                       pytree_node=False
                                   )
@@ -83,7 +83,7 @@ class BasePotential(abc.ABC, nn.Module):
 
   def potential_value_fn(
       self,
-      params: frozen_dict.FrozenDict[str, jnp.ndarray],
+      params: frozen_dict.FrozenDict[str, jax.Array],
       other_potential_value_fn: PotentialValueFn_t | None = None,
   ) -> PotentialValueFn_t:
     r"""Return a function giving the value of the potential.
@@ -115,7 +115,7 @@ class BasePotential(abc.ABC, nn.Module):
       "The value of the gradient-based potential depends " \
       "on the value of the other potential."
 
-    def value_fn(x: jnp.ndarray) -> jnp.ndarray:
+    def value_fn(x: jax.Array) -> jax.Array:
       squeeze = x.ndim == 1
       if squeeze:
         x = jnp.expand_dims(x, 0)
@@ -128,7 +128,7 @@ class BasePotential(abc.ABC, nn.Module):
 
   def potential_gradient_fn(
       self,
-      params: frozen_dict.FrozenDict[str, jnp.ndarray],
+      params: frozen_dict.FrozenDict[str, jax.Array],
   ) -> PotentialGradientFn_t:
     """Return a function returning a vector or the gradient of the potential.
 
@@ -182,10 +182,10 @@ class LinenPotentialMLP(BasePotential):
 
   dim_hidden: Sequence[int]
   is_potential: bool = True
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = nn.leaky_relu
+  act_fn: Callable[[jax.Array], jax.Array] = nn.leaky_relu
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
+  def __call__(self, x: jax.Array) -> jax.Array:  # noqa: D102
     squeeze = x.ndim == 1
     if squeeze:
       x = jnp.expand_dims(x, 0)
@@ -222,10 +222,10 @@ class LinenMLP(nn.Module):
   """
 
   dim_hidden: Sequence[int]
-  act_fn: Callable[[jnp.ndarray], jnp.ndarray] = jax.nn.elu
+  act_fn: Callable[[jax.Array], jax.Array] = jax.nn.elu
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jax.Array) -> jax.Array:
     """Apply MLP transform."""
     for feat in self.dim_hidden[:-1]:
       x = self.act_fn(nn.Dense(feat)(x))
@@ -277,7 +277,7 @@ class BaseDualPotential(abc.ABC, nnx.Module):
         "on the value of the other potential."
     )
 
-    def value_fn(x: jnp.ndarray) -> jnp.ndarray:
+    def value_fn(x: jax.Array) -> jax.Array:
       squeeze = x.ndim == 1
       if squeeze:
         x = jnp.expand_dims(x, 0)
@@ -322,7 +322,7 @@ class PotentialMLP(BaseDualPotential):
       *,
       input_dim: int,
       is_potential: bool = True,
-      act_fn: Callable[[jnp.ndarray], jnp.ndarray] = jax.nn.leaky_relu,
+      act_fn: Callable[[jax.Array], jax.Array] = jax.nn.leaky_relu,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -347,7 +347,7 @@ class PotentialMLP(BaseDualPotential):
   def is_potential(self) -> bool:  # noqa: D102
     return self._is_potential
 
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:  # noqa: D102
+  def __call__(self, x: jax.Array) -> jax.Array:  # noqa: D102
     squeeze = x.ndim == 1
     if squeeze:
       x = jnp.expand_dims(x, 0)
@@ -386,7 +386,7 @@ class MLP(nnx.Module):
       dim_hidden: Sequence[int],
       *,
       input_dim: int,
-      act_fn: Callable[[jnp.ndarray], jnp.ndarray] = jax.nn.elu,
+      act_fn: Callable[[jax.Array], jax.Array] = jax.nn.elu,
       rngs: nnx.Rngs,
   ):
     self._act_fn = act_fn
@@ -396,7 +396,7 @@ class MLP(nnx.Module):
       self.layers.append(nnx.Linear(prev_dim, feat, rngs=rngs))
       prev_dim = feat
 
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jax.Array) -> jax.Array:
     """Apply MLP transform."""
     for layer in self.layers[:-1]:
       x = self._act_fn(layer(x))

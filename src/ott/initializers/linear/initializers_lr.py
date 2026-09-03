@@ -58,9 +58,9 @@ class LRInitializer(abc.ABC):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Initialize the low-rank factor :math:`Q`.
 
     Args:
@@ -79,9 +79,9 @@ class LRInitializer(abc.ABC):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Initialize the low-rank factor :math:`R`.
 
     Args:
@@ -100,7 +100,7 @@ class LRInitializer(abc.ABC):
       ot_prob: Problem_t,
       rng: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Initialize the low-rank factor :math:`g`.
 
     Args:
@@ -117,7 +117,7 @@ class LRInitializer(abc.ABC):
       ot_prob: Problem_t,
       rng: jax.Array | None = None,
       **kwargs: Any,
-  ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
 
     Args:
@@ -171,9 +171,9 @@ class RandomInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del kwargs, init_g
     a = ot_prob.a
     init_q = jnp.abs(jax.random.normal(rng, (a.shape[0], self.rank)))
@@ -184,9 +184,9 @@ class RandomInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del kwargs, init_g
     b = ot_prob.b
     init_r = jnp.abs(jax.random.normal(rng, (b.shape[0], self.rank)))
@@ -197,7 +197,7 @@ class RandomInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del kwargs
     init_g = jnp.abs(jax.random.uniform(rng, (self.rank,))) + 1.0
     return init_g / jnp.sum(init_g)
@@ -215,10 +215,10 @@ class Rank2Initializer(LRInitializer):
   def _compute_factor(
       self,
       ot_prob: Problem_t,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       *,
       which: Literal["q", "r"],
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     a, b = ot_prob.a, ot_prob.b
     marginal = a if which == "q" else b
     n, r = marginal.shape[0], self.rank
@@ -244,9 +244,9 @@ class Rank2Initializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del rng, kwargs
     return self._compute_factor(ot_prob, init_g, which="q")
 
@@ -255,9 +255,9 @@ class Rank2Initializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del rng, kwargs
     return self._compute_factor(ot_prob, init_g, which="r")
 
@@ -266,7 +266,7 @@ class Rank2Initializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del rng, kwargs
     return jnp.ones((self.rank,)) / self.rank
 
@@ -301,7 +301,7 @@ class KMeansInitializer(LRInitializer):
     self._sinkhorn_kwargs = {} if sinkhorn_kwargs is None else sinkhorn_kwargs
 
   @staticmethod
-  def _extract_array(geom: geometry.Geometry, *, first: bool) -> jnp.ndarray:
+  def _extract_array(geom: geometry.Geometry, *, first: bool) -> jax.Array:
     if isinstance(geom, pointcloud.PointCloud):
       return geom.x if first else geom.y
     if isinstance(geom, low_rank.LRCGeometry):
@@ -315,10 +315,10 @@ class KMeansInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       which: Literal["q", "r"],
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     from ott.problems.linear import linear_problem
     from ott.problems.quadratic import quadratic_problem
     from ott.solvers.linear import sinkhorn
@@ -357,9 +357,9 @@ class KMeansInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     return self._compute_factor(
         ot_prob, rng, init_g=init_g, which="q", **kwargs
     )
@@ -369,9 +369,9 @@ class KMeansInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     return self._compute_factor(
         ot_prob, rng, init_g=init_g, which="r", **kwargs
     )
@@ -381,7 +381,7 @@ class KMeansInitializer(LRInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     del rng, kwargs
     return jnp.ones((self.rank,)) / self.rank
 
@@ -435,14 +435,14 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
   class Constants(NamedTuple):  # noqa: D106
     solver: "sinkhorn.Sinkhorn"
     geom: geometry.Geometry  # (n, n)
-    marginal: jnp.ndarray  # (n,)
-    g: jnp.ndarray  # (r,)
+    marginal: jax.Array  # (n,)
+    g: jax.Array  # (r,)
     gamma: float
     threshold: float
 
   class State(NamedTuple):  # noqa: D106
-    factor: jnp.ndarray
-    criterions: jnp.ndarray
+    factor: jax.Array
+    criterions: jax.Array
     crossed_threshold: bool
 
   def _compute_factor(
@@ -450,10 +450,10 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       ot_prob: Problem_t,
       rng: jax.Array,
       *,
-      init_g: jnp.ndarray,
+      init_g: jax.Array,
       which: Literal["q", "r"],
       **kwargs: Any,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     from ott.problems.linear import linear_problem
     from ott.problems.quadratic import quadratic_problem
     from ott.solvers.linear import sinkhorn

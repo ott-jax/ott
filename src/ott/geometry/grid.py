@@ -72,7 +72,7 @@ class Grid(geometry.Geometry):
 
   def __init__(
       self,
-      x: Sequence[jnp.ndarray] | None = None,
+      x: Sequence[jax.Array] | None = None,
       grid_size: Sequence[int] | None = None,
       cost_fns: Sequence[costs.CostFn] | None = None,
       num_a: int | None = None,
@@ -147,12 +147,12 @@ class Grid(geometry.Geometry):
   # Reimplemented functions to be used in regularized OT
   def apply_lse_kernel(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
       eps: float,
-      vec: jnp.ndarray | None = None,
+      vec: jax.Array | None = None,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Apply grid kernel in log space. See notes in parent class for use case.
 
     Reshapes vector inputs below as grids, applies kernels onto each slice, and
@@ -161,10 +161,10 @@ class Grid(geometry.Geometry):
     More implementation details in :cite:`schmitz:18`.
 
     Args:
-      f: jnp.ndarray, a vector of potentials
-      g: jnp.ndarray, a vector of potentials
+      f: jax.Array, a vector of potentials
+      g: jax.Array, a vector of potentials
       eps: float, regularization strength
-      vec: jnp.ndarray, if needed, a vector onto which apply the kernel weighted
+      vec: jax.Array, if needed, a vector onto which apply the kernel weighted
         by f and g.
       axis: axis (0 or 1) along which summation should be carried out.
 
@@ -211,11 +211,11 @@ class Grid(geometry.Geometry):
 
   def _apply_cost_to_vec(
       self,
-      vec: jnp.ndarray,
+      vec: jax.Array,
       axis: int = 0,
-      fn: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
+      fn: Callable[[jax.Array], jax.Array] | None = None,
       is_linear: bool = False,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     r"""Apply grid's cost matrix (without instantiating it) to a vector.
 
     The `apply_cost` operation on grids rests on the following identity.
@@ -234,14 +234,14 @@ class Grid(geometry.Geometry):
     summation while keeping dimensions.
 
     Args:
-      vec: jnp.ndarray, flat vector of total size prod(grid_size).
+      vec: jax.Array, flat vector of total size prod(grid_size).
       axis: axis 0 if applying transpose costs, 1 if using the original cost.
       fn: function optionally applied to cost matrix element-wise, before the
         dot product.
       is_linear: TODO.
 
     Returns:
-      A jnp.ndarray corresponding to cost x matrix
+      A jax.Array corresponding to cost x matrix
     """
     # TODO(michalk8):
     del fn, is_linear
@@ -263,10 +263,10 @@ class Grid(geometry.Geometry):
 
   def apply_kernel(
       self,
-      vec: jnp.ndarray,
+      vec: jax.Array,
       eps: float | None = None,
       axis: int | None = None
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Apply grid kernel on scaling vector.
 
     See notes in parent class for use.
@@ -277,7 +277,7 @@ class Grid(geometry.Geometry):
     More implementation details in :cite:`schmitz:18`,
 
     Args:
-      vec: jnp.ndarray, a vector of scaling (>0) values.
+      vec: jax.Array, a vector of scaling (>0) values.
       eps: float, regularization strength
       axis: axis (0 or 1) along which summation should be carried out.
 
@@ -295,7 +295,7 @@ class Grid(geometry.Geometry):
     return vec.ravel()
 
   def transport_from_potentials(
-      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
+      self, f: jax.Array, g: jax.Array, axis: int = 0
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_potentials` instead."""
     raise ValueError(
@@ -306,7 +306,7 @@ class Grid(geometry.Geometry):
     )
 
   def transport_from_scalings(
-      self, f: jnp.ndarray, g: jnp.ndarray, axis: int = 0
+      self, f: jax.Array, g: jax.Array, axis: int = 0
   ) -> NoReturn:
     """Not implemented, use :meth:`apply_transport_from_scalings` instead."""
     raise ValueError(
@@ -317,14 +317,14 @@ class Grid(geometry.Geometry):
     )
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:
+  def cost_matrix(self) -> jax.Array:
     """Not implemented."""
     raise NotImplementedError(
         "Instantiating cost matrix is not implemented for grids."
     )
 
   @property
-  def kernel_matrix(self) -> jnp.ndarray:
+  def kernel_matrix(self) -> jax.Array:
     """Not implemented."""
     raise NotImplementedError(
         "Instantiating kernel matrix is not implemented for grids."

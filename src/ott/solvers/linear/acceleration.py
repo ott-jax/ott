@@ -34,7 +34,7 @@ class AndersonAcceleration:
   refresh_every: int = 1  # Recompute interpolation periodically.
   ridge_identity: float = 1e-2  # Ridge used in the linear system.
 
-  def extrapolation(self, xs: jnp.ndarray, fxs: jnp.ndarray) -> jnp.ndarray:
+  def extrapolation(self, xs: jax.Array, fxs: jax.Array) -> jax.Array:
     """Compute Anderson extrapolation from past observations."""
     # Remove -inf values to instantiate quadratic problem. All others
     # remain since they might be caused by a valid issue.
@@ -161,10 +161,10 @@ class Momentum:
   def __call__(  # noqa: D102
       self,
       weight: float,
-      value: jnp.ndarray,
-      new_value: jnp.ndarray,
+      value: jax.Array,
+      new_value: jax.Array,
       lse_mode: bool = True
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     if lse_mode:
       value = jnp.where(jnp.isfinite(value), value, 0.0)
       return (1.0 - weight) * value + weight * new_value

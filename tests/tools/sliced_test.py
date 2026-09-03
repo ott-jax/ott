@@ -26,20 +26,17 @@ from ott.solvers import linear
 from ott.tools import sliced
 from tests import _utils
 
-Projector = Callable[[jax.Array, jnp.ndarray], jnp.ndarray]
+Projector = Callable[[jax.Array, jax.Array], jax.Array]
 
 
-def custom_proj(
-    rng: jax.Array, x: jnp.ndarray, *, n_proj: int = 27
-) -> jnp.ndarray:
+def custom_proj(rng: jax.Array, x: jax.Array, *, n_proj: int = 27) -> jax.Array:
   dim = x.shape[1]
   proj_m = jr.uniform(rng, (n_proj, dim))
   return (x @ proj_m.T) ** 2
 
 
-def gen_data(
-    rng: jax.Array, n: int, m: int, dim: int
-) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+def gen_data(rng: jax.Array, n: int, m: int,
+             dim: int) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
   c = _utils.random_clouds(rng, n=n, m=m, dim=dim, offset=0.0)
   return c.a, c.x, c.b, c.y
 

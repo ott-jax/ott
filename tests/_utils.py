@@ -33,10 +33,10 @@ __all__ = [
 @dataclasses.dataclass(frozen=True)
 class PointClouds:
   """Two weighted point clouds, the ingredients of a linear OT problem."""
-  x: jnp.ndarray  # (n, dim)
-  y: jnp.ndarray  # (m, dim)
-  a: jnp.ndarray  # (n,), on the simplex
-  b: jnp.ndarray  # (m,), on the simplex
+  x: jax.Array  # (n, dim)
+  y: jax.Array  # (m, dim)
+  a: jax.Array  # (n,), on the simplex
+  b: jax.Array  # (m,), on the simplex
 
   @property
   def n(self) -> int:
@@ -70,8 +70,8 @@ class PointClouds:
 @dataclasses.dataclass(frozen=True)
 class QuadClouds(PointClouds):
   """Two weighted clouds plus the intra-domain costs of a quadratic problem."""
-  cx: jnp.ndarray  # (n, n)
-  cy: jnp.ndarray  # (m, m)
+  cx: jax.Array  # (n, n)
+  cy: jax.Array  # (m, m)
 
   def quad_problem(
       self,
@@ -97,7 +97,7 @@ def random_weights(
     *,
     offset: float = 0.1,
     zero_at: Sequence[int] = (),
-) -> jnp.ndarray:
+) -> jax.Array:
   """Sample ``n`` random weights on the simplex, 0 at ``zero_at``."""
   a = jr.uniform(rng, (n,)) + offset
   a = a.at[jnp.asarray(zero_at, dtype=int)].set(0.0)
@@ -124,7 +124,7 @@ def random_clouds(
   )
 
 
-def proj(matrix: jnp.ndarray, nu: float = 1.0) -> jnp.ndarray:
+def proj(matrix: jax.Array, nu: float = 1.0) -> jax.Array:
   """Project a matrix onto the Stiefel manifold, scaled by ``nu``."""
   assert nu > 0.0, nu
   u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)

@@ -31,13 +31,13 @@ ScaleCost_t = float | Literal["mean", "max_cost", "median"]
 
 
 def match_linear(
-    x: jnp.ndarray,
-    y: jnp.ndarray | None,
+    x: jax.Array,
+    y: jax.Array | None,
     cost_fn: costs.CostFn | None = None,
     epsilon: float | None = None,
     scale_cost: ScaleCost_t = 1.0,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Compute solution to a linear OT problem.
 
   Args:
@@ -59,14 +59,14 @@ def match_linear(
 
 
 def match_quadratic(
-    xx: jnp.ndarray,
-    yy: jnp.ndarray,
-    x: jnp.ndarray | None = None,
-    y: jnp.ndarray | None = None,
+    xx: jax.Array,
+    yy: jax.Array,
+    x: jax.Array | None = None,
+    y: jax.Array | None = None,
     scale_cost: ScaleCost_t = 1.0,
     cost_fn: costs.CostFn | None = None,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Compute solution to a quadratic OT problem.
 
   Args:
@@ -95,7 +95,7 @@ def match_quadratic(
 
 
 def sample_joint(rng: jax.Array,
-                 tmat: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
+                 tmat: jax.Array) -> tuple[jax.Array, jax.Array]:
   """Sample jointly from a transport matrix.
 
   Args:
@@ -117,10 +117,10 @@ def sample_joint(rng: jax.Array,
 
 def sample_conditional(
     rng: jax.Array,
-    tmat: jnp.ndarray,
+    tmat: jax.Array,
     *,
     k: int = 1,
-) -> tuple[jnp.ndarray, jnp.ndarray]:
+) -> tuple[jax.Array, jax.Array]:
   """Sample conditionally from a transport matrix.
 
   Args:
@@ -155,7 +155,7 @@ def uniform_sampler(
     low: float = 0.0,
     high: float = 1.0,
     offset: float | None = None
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Sample from a uniform distribution.
 
   Sample :math:`t` from a uniform distribution :math:`[low, high]`.

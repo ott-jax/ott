@@ -38,10 +38,10 @@ __all__ = [
 
 
 def safe_log(  # noqa: D103
-    x: jnp.ndarray,
+    x: jax.Array,
     *,
     eps: float | None = None
-) -> jnp.ndarray:
+) -> jax.Array:
   if eps is None:
     eps = jnp.finfo(x.dtype).tiny
   return jnp.where(x > 0.0, jnp.log(x), jnp.log(eps))
@@ -50,11 +50,11 @@ def safe_log(  # noqa: D103
 @functools.partial(jax.custom_jvp, nondiff_argnames=("ord", "axis", "keepdims"))
 @functools.partial(jax.jit, static_argnames=("ord", "axis", "keepdims"))
 def norm(
-    x: jnp.ndarray,
+    x: jax.Array,
     ord: int | str | None = None,
     axis: None | Sequence[int] | int = None,
     keepdims: bool = False
-) -> jnp.ndarray:
+) -> jax.Array:
   """Computes order ord norm of vector, using `jnp.linalg` in forward pass.
 
   Evaluations of distances between a vector and itself using translation
@@ -109,23 +109,23 @@ def norm_jvp(ord, axis, keepdims, primals, tangents):
 
 
 # TODO(michalk8): add axis argument
-def kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
+def kl(p: jax.Array, q: jax.Array) -> float:
   """Kullback-Leibler divergence."""
   return jnp.vdot(p, (safe_log(p) - safe_log(q)))
 
 
-def gen_ent(x: jnp.ndarray) -> float:
+def gen_ent(x: jax.Array) -> float:
   """Generalized entropy, adds the sum of ``x`` compared to usual entropy."""
   return jnp.sum(jsp.special.entr(x)) + jnp.sum(x)
 
 
-def gen_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
+def gen_kl(p: jax.Array, q: jax.Array) -> float:
   """Generalized Kullback-Leibler divergence."""
   return jnp.vdot(p, (safe_log(p) - safe_log(q))) + jnp.sum(q) - jnp.sum(p)
 
 
 # TODO(michalk8): add axis argument
-def gen_js(p: jnp.ndarray, q: jnp.ndarray, c: float = 0.5) -> float:
+def gen_js(p: jax.Array, q: jax.Array, c: float = 0.5) -> float:
   """Jensen-Shannon divergence."""
   return c * (gen_kl(p, q) + gen_kl(q, p))
 
@@ -191,10 +191,10 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
 
 @functools.partial(jax.custom_vjp, nondiff_argnames=("axis",))
 def softmin(
-    x: jnp.ndarray,
+    x: jax.Array,
     gamma: float,
     axis: int | Sequence[int] | None = None
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Soft-min operator.
 
   Args:
@@ -222,8 +222,8 @@ softmin.defvjp(
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
 def barycentric_projection(
-    matrix: jnp.ndarray, y: jnp.ndarray, cost_fn: "costs.CostFn"
-) -> jnp.ndarray:
+    matrix: jax.Array, y: jax.Array, cost_fn: "costs.CostFn"
+) -> jax.Array:
   """Compute the barycentric projection of a matrix.
 
   Args:
@@ -243,7 +243,7 @@ def sort_and_argsort(
     x: jnp.array,
     *,
     argsort: bool = False
-) -> tuple[jnp.ndarray, jnp.ndarray | None]:
+) -> tuple[jax.Array, jax.Array | None]:
   """Unified function that returns both sort and argsort, if latter needed."""
   if argsort:
     i_x = jnp.argsort(x)
@@ -252,9 +252,7 @@ def sort_and_argsort(
 
 
 @functools.partial(jax.custom_jvp, nondiff_argnames=("tol", "max_iter"))
-def lambertw(
-    z: jnp.ndarray, tol: float = 1e-8, max_iter: int = 100
-) -> jnp.ndarray:
+def lambertw(z: jax.Array, tol: float = 1e-8, max_iter: int = 100) -> jax.Array:
   """Principal branch of the
   `Lambert W function <https://en.wikipedia.org/wiki/Lambert_W_function>`_.
 
@@ -270,7 +268,7 @@ def lambertw(
     The Lambert W evaluated at ``z``.
   """  # noqa: D205
 
-  def initial_iacono(x: jnp.ndarray) -> jnp.ndarray:
+  def initial_iacono(x: jax.Array) -> jax.Array:
     y = jnp.sqrt(1.0 + jnp.e * x)
     num = 1.0 + 1.14956131 * y
     denom = 1.0 + 0.45495740 * jnp.log1p(y)
@@ -303,9 +301,9 @@ def lambertw(
 
 @lambertw.defjvp
 def _lambertw_jvp(
-    tol: float, max_iter: int, primals: tuple[jnp.ndarray, ...],
-    tangents: tuple[jnp.ndarray, ...]
-) -> tuple[jnp.ndarray, jnp.ndarray]:
+    tol: float, max_iter: int, primals: tuple[jax.Array, ...],
+    tangents: tuple[jax.Array, ...]
+) -> tuple[jax.Array, jax.Array]:
   z, = primals
   dz, = tangents
   w = lambertw(z, tol=tol, max_iter=max_iter)

@@ -22,7 +22,7 @@ def get_cifar10(
     root: str = "data/cifar10",
     batch_size: int = 1000,
     use_flip: bool = True
-) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jax.Array, jax.Array, jax.Array]:
 
   transform = transforms.Compose([
       transforms.ToTensor(),
@@ -53,7 +53,7 @@ def get_cifar10(
   target_batches = []
   label_batches = []
 
-  def psd_gaussian_blur(x: jnp.ndarray) -> jnp.ndarray:
+  def psd_gaussian_blur(x: jax.Array) -> jax.Array:
     assert x.ndim == 4, x.shape
     n, c, h, w = x.shape
     assert h == w

@@ -52,7 +52,7 @@ class ENOTPotentials(dual_potentials.DualPotentials):
   ):
     self.__grad_f = grad_f
 
-    def f_potential(x: jnp.ndarray) -> jnp.ndarray:
+    def f_potential(x: jax.Array) -> jax.Array:
       y_hat = cost_fn.twist_operator(x, grad_f(x), False)
       y_hat = jax.lax.stop_gradient(y_hat)
       return -g(y_hat) + cost_fn(x, y_hat)
@@ -60,7 +60,7 @@ class ENOTPotentials(dual_potentials.DualPotentials):
     super().__init__(f_potential, g, cost_fn=cost_fn)
 
   @property
-  def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  def _grad_f(self) -> Callable[[jax.Array], jax.Array]:
     return jax.vmap(self.__grad_f)
 
 
@@ -79,15 +79,15 @@ class PotentialModelWrapper(potentials.BasePotential):
   is_potential: bool = True
 
   @nn.compact
-  def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, x: jax.Array) -> jax.Array:
     """Apply model and optionally add l2 norm or x."""
-    z: jnp.ndarray = self.model(x)
+    z: jax.Array = self.model(x)
     if self.is_potential:
       z = z.squeeze()
     return z
 
   def potential_gradient_fn(
-      self, params: frozen_dict.FrozenDict[str, jnp.ndarray]
+      self, params: frozen_dict.FrozenDict[str, jax.Array]
   ) -> potentials.PotentialGradientFn_t:
     """A vector function or gradient of the potential."""
     if self.is_potential:
@@ -204,10 +204,10 @@ class ExpectileNeuralDual:
 
   def __call__(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
+      trainloader_source: Iterator[jax.Array],
+      trainloader_target: Iterator[jax.Array],
+      validloader_source: Iterator[jax.Array],
+      validloader_target: Iterator[jax.Array],
       callback: Callback_t | None = None,
   ) -> ENOTPotentials | tuple[ENOTPotentials, Train_t]:
     """Train and return the Kantorovich dual potentials."""
@@ -224,10 +224,10 @@ class ExpectileNeuralDual:
 
   def train_fn(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
+      trainloader_source: Iterator[jax.Array],
+      trainloader_target: Iterator[jax.Array],
+      validloader_source: Iterator[jax.Array],
+      validloader_target: Iterator[jax.Array],
       callback: Callback_t | None = None,
   ) -> Train_t:
     """Training and validation."""
@@ -281,9 +281,9 @@ class ExpectileNeuralDual:
       self
   ) -> Callable[[
       potentials.PotentialTrainState, potentials.PotentialTrainState, dict[
-          str, jnp.ndarray]
+          str, jax.Array]
   ], tuple[potentials.PotentialTrainState, potentials.PotentialTrainState,
-           jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+           jax.Array, jax.Array, jax.Array, jax.Array]]:
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
@@ -307,8 +307,8 @@ class ExpectileNeuralDual:
       self
   ) -> Callable[[
       potentials.PotentialTrainState, potentials.PotentialTrainState, dict[
-          str, jnp.ndarray]
-  ], tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+          str, jax.Array]
+  ], tuple[jax.Array, jax.Array, jax.Array]]:
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
@@ -324,14 +324,14 @@ class ExpectileNeuralDual:
 
     return step_fn
 
-  def _expectile_loss(self, diff: jnp.ndarray) -> jnp.ndarray:
+  def _expectile_loss(self, diff: jax.Array) -> jax.Array:
     """Loss of the expectile regression :cite:`buzun:24`."""
     weight = jnp.where(diff >= 0, self.expectile, (1 - self.expectile))
     return weight * diff ** 2
 
   def _get_g_value_partial(
-      self, params_g: frozen_dict.FrozenDict[str, jnp.ndarray],
-      g_value: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
+      self, params_g: frozen_dict.FrozenDict[str, jax.Array],
+      g_value: Callable[[frozen_dict.FrozenDict[str, jax.Array]],
                         potentials.PotentialValueFn_t]
   ):
 
@@ -341,14 +341,14 @@ class ExpectileNeuralDual:
     return g_value_partial, g_value_partial_detach
 
   def _loss_fn(
-      self, params_f: frozen_dict.FrozenDict[str, jnp.ndarray],
-      params_g: frozen_dict.FrozenDict[str, jnp.ndarray],
-      gradient_f: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
+      self, params_f: frozen_dict.FrozenDict[str, jax.Array],
+      params_g: frozen_dict.FrozenDict[str, jax.Array],
+      gradient_f: Callable[[frozen_dict.FrozenDict[str, jax.Array]],
                            potentials.PotentialGradientFn_t],
-      g_value: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
+      g_value: Callable[[frozen_dict.FrozenDict[str, jax.Array]],
                         potentials.PotentialValueFn_t], batch: dict[str,
-                                                                    jnp.ndarray]
-  ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+                                                                    jax.Array]
+  ) -> tuple[jax.Array, tuple[jax.Array, jax.Array, jax.Array]]:
 
     source, target = batch["source"], batch["target"]
 
@@ -407,9 +407,9 @@ class ExpectileNeuralDual:
   @staticmethod
   def _update_logs(
       logs: dict[str, list[float | str]],
-      loss_f: jnp.ndarray,
-      loss_g: jnp.ndarray,
-      w_dist: jnp.ndarray,
+      loss_f: jax.Array,
+      loss_g: jax.Array,
+      w_dist: jax.Array,
   ) -> None:
     logs["loss_f"].append(float(loss_f))
     logs["loss_g"].append(float(loss_g))

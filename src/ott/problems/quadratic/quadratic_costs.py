@@ -14,6 +14,7 @@
 from collections.abc import Callable
 from typing import NamedTuple
 
+import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 
@@ -21,7 +22,7 @@ __all__ = ["make_square_loss", "make_kl_loss"]
 
 
 class Loss(NamedTuple):  # noqa: D101
-  func: Callable[[jnp.ndarray], jnp.ndarray]
+  func: Callable[[jax.Array], jax.Array]
   is_linear: bool
 
 

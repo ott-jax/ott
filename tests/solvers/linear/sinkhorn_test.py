@@ -676,7 +676,7 @@ class TestSinkhorn:
     ]
 
   @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16])
-  def test_sinkhorn_dtype(self, clouds: _utils.PointClouds, dtype: jnp.ndarray):
+  def test_sinkhorn_dtype(self, clouds: _utils.PointClouds, dtype: jax.Array):
     x = clouds.x.astype(dtype)
     y = clouds.y.astype(dtype)
     geom = pointcloud.PointCloud(x, y, epsilon=jnp.array(1e-1, dtype=dtype))

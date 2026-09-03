@@ -23,9 +23,9 @@ __all__ = ["legendre"]
 
 
 def legendre(
-    fun: Callable[[jnp.ndarray], jnp.ndarray],
+    fun: Callable[[jax.Array], jax.Array],
     **kwargs: Any,
-) -> Callable[[jnp.ndarray, jnp.ndarray | None, Any], jnp.ndarray]:
+) -> Callable[[jax.Array, jax.Array | None, Any], jax.Array]:
   """Legendre (Fenchel) transform of a function.
 
   The solution is computed numerically using L-BFGS.
@@ -43,8 +43,8 @@ def legendre(
   """
 
   def fun_star(
-      x: jnp.ndarray,
-      x_init: jnp.ndarray | None = None,
+      x: jax.Array,
+      x_init: jax.Array | None = None,
   ) -> float:
     """Runs optimization to compute the Legendre transform of ``fun`` at ``x``.
 
@@ -58,7 +58,7 @@ def legendre(
     """
     x_init = x if x_init is None else x_init
 
-    def mod_fun(z: jnp.ndarray) -> float:
+    def mod_fun(z: jax.Array) -> float:
       """Conjugate maximizes <x,z> - fun(z), here minimize fun(z) - <x,z>."""
       return fun(z) - jnp.dot(x, z)
 

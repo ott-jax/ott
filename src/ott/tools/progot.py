@@ -34,8 +34,8 @@ Output = sinkhorn.SinkhornOutput | sd.SinkhornDivergenceOutput
 
 
 class ProgOTState(NamedTuple):
-  x: jnp.ndarray
-  init_potentials: tuple[jnp.ndarray, jnp.ndarray] | None
+  x: jax.Array
+  init_potentials: tuple[jax.Array, jax.Array] | None
 
 
 class ProgOTOutput(NamedTuple):
@@ -49,17 +49,17 @@ class ProgOTOutput(NamedTuple):
     xs: Intermediate interpolations of shape ``[num_steps, n, d]``, if present.
   """
   prob: linear_problem.LinearProblem
-  alphas: jnp.ndarray
-  epsilons: jnp.ndarray
+  alphas: jax.Array
+  epsilons: jax.Array
   outputs: Output
-  xs: jnp.ndarray | None = None
+  xs: jax.Array | None = None
 
   def transport(
       self,
-      x: jnp.ndarray,
+      x: jax.Array,
       num_steps: int | None = None,
       return_intermediate: bool = False,
-  ) -> tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jax.Array, jax.Array]:
     """Transport points.
 
     Args:
@@ -76,9 +76,9 @@ class ProgOTOutput(NamedTuple):
     """
 
     def body_fn(
-        xy: tuple[jnp.ndarray, jnp.ndarray | None], it: int
-    ) -> tuple[tuple[jnp.ndarray, jnp.ndarray | None], tuple[
-        jnp.ndarray | None, jnp.ndarray | None]]:
+        xy: tuple[jax.Array, jax.Array | None], it: int
+    ) -> tuple[tuple[jax.Array, jax.Array | None], tuple[jax.Array | None,
+                                                         jax.Array | None]]:
       x, _ = xy
       alpha = self.alphas[it]
       dp = self.get_output(it).to_dual_potentials()
@@ -114,9 +114,7 @@ class ProgOTOutput(NamedTuple):
     return jtu.tree_map(lambda x: x[step], self.outputs)
 
   @property
-  def converged(
-      self
-  ) -> jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  def converged(self) -> jax.Array | tuple[jax.Array, jax.Array, jax.Array]:
     """Convergence at each step.
 
     - If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
@@ -127,7 +125,7 @@ class ProgOTOutput(NamedTuple):
     return jnp.stack(self.outputs.converged, axis=-1)
 
   @property
-  def num_iters(self) -> jnp.ndarray:
+  def num_iters(self) -> jax.Array:
     """Number of Sinkhorn iterations within each step.
 
     - If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
@@ -168,10 +166,10 @@ class ProgOT:
 
   def __init__(
       self,
-      alphas: jnp.ndarray,
+      alphas: jax.Array,
       *,
-      epsilons: jnp.ndarray | None = None,
-      epsilon_scales: jnp.ndarray | None = None,
+      epsilons: jax.Array | None = None,
+      epsilon_scales: jax.Array | None = None,
       is_debiased: bool = False,
   ):
     if epsilons is not None and epsilon_scales is not None:
@@ -298,12 +296,12 @@ class ProgOT:
 def get_epsilon_schedule(
     geom: pointcloud.PointCloud,
     *,
-    alphas: jnp.ndarray,
-    epsilon_scales: jnp.ndarray,
-    y_eval: jnp.ndarray,
+    alphas: jax.Array,
+    epsilon_scales: jax.Array,
+    y_eval: jax.Array,
     start_epsilon_scale: float = 1.0,
     **kwargs: Any,
-) -> jnp.ndarray:
+) -> jax.Array:
   """Get the epsilon regularization schedule.
 
   See Algorithm 4 in :cite:`kassraie:24` for more information.
@@ -358,7 +356,7 @@ def get_epsilon_schedule(
 
 def get_alpha_schedule(
     kind: Literal["lin", "exp", "quad"], *, num_steps: int
-) -> jnp.ndarray:
+) -> jax.Array:
   """Get the step size schedule.
 
   Convenience wrapper to get a sequence of ``num_steps`` timestamps between
@@ -391,11 +389,11 @@ def get_alpha_schedule(
 
 
 def _sinkhorn(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
+    x: jax.Array,
+    y: jax.Array,
     cost_fn: costs.TICost,
     eps: float | None,
-    init: tuple[jnp.ndarray, jnp.ndarray] | None = None,
+    init: tuple[jax.Array, jax.Array] | None = None,
     **kwargs: Any,
 ) -> sinkhorn.SinkhornOutput:
   geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=eps)
@@ -405,8 +403,8 @@ def _sinkhorn(
 
 
 def _sinkhorn_divergence(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
+    x: jax.Array,
+    y: jax.Array,
     cost_fn: costs.TICost,
     eps: float | None,
     **kwargs: Any,

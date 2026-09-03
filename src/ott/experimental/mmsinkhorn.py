@@ -26,13 +26,13 @@ __all__ = ["MMSinkhornOutput", "MMSinkhorn"]
 
 
 class MMSinkhornState(NamedTuple):
-  potentials: tuple[jnp.ndarray, ...]
-  errors: jnp.ndarray
+  potentials: tuple[jax.Array, ...]
+  errors: jax.Array
 
   def solution_error(
       self,
-      cost_t: jnp.ndarray,
-      a_s: tuple[jnp.ndarray, ...],
+      cost_t: jax.Array,
+      a_s: tuple[jax.Array, ...],
       epsilon: float,
       norm_error: float = 1.0
   ) -> float:
@@ -80,14 +80,14 @@ class MMSinkhornOutput(NamedTuple):
     inner_iterations: Number of iterations that were run between two
       computations of errors.
   """
-  potentials: tuple[jnp.ndarray, ...]
-  errors: jnp.ndarray
-  x_s: tuple[jnp.ndarray, ...] | None = None
-  a_s: tuple[jnp.ndarray, ...] | None = None
+  potentials: tuple[jax.Array, ...]
+  errors: jax.Array
+  x_s: tuple[jax.Array, ...] | None = None
+  a_s: tuple[jax.Array, ...] | None = None
   cost_fns: costs.CostFn | tuple[costs.CostFn, ...] | None = None
   epsilon: float | None = None
-  ent_reg_cost: jnp.ndarray | None = None
-  threshold: jnp.ndarray | None = None
+  ent_reg_cost: jax.Array | None = None
+  threshold: jax.Array | None = None
   converged: bool | None = None
   inner_iterations: int | None = None
 
@@ -101,23 +101,23 @@ class MMSinkhornOutput(NamedTuple):
     return jnp.sum(self.errors != -1) * self.inner_iterations
 
   @property
-  def cost_t(self) -> jnp.ndarray:
+  def cost_t(self) -> jax.Array:
     """Cost tensor."""
     return cost_tensor(self.x_s, self.cost_fns)
 
   @property
-  def tensor(self) -> jnp.ndarray:
+  def tensor(self) -> jax.Array:
     """Transport tensor."""
     return jnp.exp(
         -remove_tensor_sum(self.cost_t, self.potentials) / self.epsilon
     )
 
   @property
-  def marginals(self) -> tuple[jnp.ndarray, ...]:
+  def marginals(self) -> tuple[jax.Array, ...]:
     """:math:`k` marginal probability weight vectors."""
     return tensor_marginals(self.tensor)
 
-  def marginal(self, k: int) -> jnp.ndarray:
+  def marginal(self, k: int) -> jax.Array:
     """Return the marginal probability weight vector at slice :math:`k`."""
     return tensor_marginal(self.tensor, k)
 
@@ -138,9 +138,9 @@ class MMSinkhornOutput(NamedTuple):
 
 
 def cost_tensor(
-    x_s: tuple[jnp.ndarray, ...],
+    x_s: tuple[jax.Array, ...],
     cost_fns: costs.CostFn | tuple[costs.CostFn, ...]
-) -> jnp.ndarray:
+) -> jax.Array:
   r"""Create a cost tensor from a tuple of :math:`k` :math:`d`-dim point clouds.
 
   Args:
@@ -171,9 +171,7 @@ def cost_tensor(
   return cost_t
 
 
-def remove_tensor_sum(
-    c: jnp.ndarray, u: tuple[jnp.ndarray, ...]
-) -> jnp.ndarray:
+def remove_tensor_sum(c: jax.Array, u: tuple[jax.Array, ...]) -> jax.Array:
   r"""Remove the tensor sum of :math:`k` vectors to tensor of :math:`k` dims.
 
   Args:
@@ -189,11 +187,11 @@ def remove_tensor_sum(
   return c
 
 
-def tensor_marginals(coupling: jnp.ndarray) -> tuple[jnp.ndarray, ...]:
+def tensor_marginals(coupling: jax.Array) -> tuple[jax.Array, ...]:
   return tuple(tensor_marginal(coupling, ix) for ix in range(coupling.ndim))
 
 
-def tensor_marginal(coupling: jnp.ndarray, slice_index: int) -> jnp.ndarray:
+def tensor_marginal(coupling: jax.Array, slice_index: int) -> jax.Array:
   k = coupling.ndim
   axis = list(range(slice_index)) + list(range(slice_index + 1, k))
   return coupling.sum(axis=axis)
@@ -251,8 +249,8 @@ class MMSinkhorn:
 
   def __call__(
       self,
-      x_s: tuple[jnp.ndarray, ...],
-      a_s: tuple[jnp.ndarray, ...] | None = None,
+      x_s: tuple[jax.Array, ...],
+      a_s: tuple[jax.Array, ...] | None = None,
       cost_fns: costs.CostFn | tuple[costs.CostFn, ...] | None = None,
       epsilon: float | None = None
   ) -> MMSinkhornOutput:
@@ -351,25 +349,25 @@ class MMSinkhorn:
 
 
 def run(
-    const: tuple[jnp.ndarray, tuple[jnp.ndarray, ...], float],
-    solver: MMSinkhorn, state: MMSinkhornState
+    const: tuple[jax.Array, tuple[jax.Array, ...], float], solver: MMSinkhorn,
+    state: MMSinkhornState
 ) -> MMSinkhornOutput:
 
   def cond_fn(
-      iteration: int, const: tuple[jnp.ndarray, tuple[jnp.ndarray, ...], float],
+      iteration: int, const: tuple[jax.Array, tuple[jax.Array, ...], float],
       state: MMSinkhornState
   ) -> bool:
     del const
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration: int, const: tuple[jnp.ndarray, tuple[jnp.ndarray, ...], float],
+      iteration: int, const: tuple[jax.Array, tuple[jax.Array, ...], float],
       state: MMSinkhornState, compute_error: bool
   ) -> MMSinkhornState:
     cost_t, a_s, epsilon = const
     k = len(a_s)
 
-    def one_slice(potentials: tuple[jnp.ndarray, ...], l: int, a: jnp.ndarray):
+    def one_slice(potentials: tuple[jax.Array, ...], l: int, a: jax.Array):
       pot = potentials[l]
       axis = list(range(l)) + list(range(l + 1, k))
       app_lse = mu.softmin(
@@ -431,6 +429,6 @@ def run(
 
 
 def coupling_tensor(
-    potentials: tuple[jnp.ndarray], cost_t: jnp.ndarray, epsilon: float
-) -> jnp.ndarray:
+    potentials: tuple[jax.Array], cost_t: jax.Array, epsilon: float
+) -> jax.Array:
   return jnp.exp(-remove_tensor_sum(cost_t, potentials) / epsilon)

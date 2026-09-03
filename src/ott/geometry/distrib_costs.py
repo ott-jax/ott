@@ -13,6 +13,7 @@
 # limitations under the License.
 from collections.abc import Callable
 
+import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 
@@ -51,7 +52,7 @@ class UnivariateWasserstein(costs.CostFn):
     )
     self._solve_fn = solve_fn
 
-  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+  def __call__(self, x: jax.Array, y: jax.Array) -> float:
     """Wasserstein distance between :math:`x` and :math:`y` seen as a 1D dist.
 
     Args:

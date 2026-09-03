@@ -92,7 +92,7 @@ class SemidiscreteLinearProblem:
     return prob.potential_fn_from_dual_vec(g, epsilon=epsilon, axis=1)
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jax.Array:
     """Second marginal."""
     if self._b is not None:
       return self._b

@@ -21,13 +21,13 @@ __all__ = ["solve_lineax"]
 
 
 def _cg(
-    matvec: Callable[[jnp.ndarray], jnp.ndarray],
-    b: jnp.ndarray,
+    matvec: Callable[[jax.Array], jax.Array],
+    b: jax.Array,
     *,
     rtol: float = 1e-6,
     atol: float = 1e-6,
     maxiter: int | None = None,
-) -> jnp.ndarray:
+) -> jax.Array:
   """Conjugate gradient solver using jax.lax.while_loop."""
   if maxiter is None:
     maxiter = 10 * b.shape[0]
@@ -61,14 +61,14 @@ def _cg(
 
 def solve_lineax(
     lin: Callable,
-    b: jnp.ndarray,
+    b: jax.Array,
     lin_t: Callable | None = None,
     symmetric: bool = False,
     nonsym_solver: Any | None = None,
     ridge_identity: float = 0.0,
     ridge_kernel: float = 0.0,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Solve a linear system using conjugate gradients.
 
   This implementation uses a JAX-native CG solver that works correctly inside

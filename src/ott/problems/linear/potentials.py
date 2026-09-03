@@ -50,7 +50,7 @@ class DualPotentials:
   g: PotentialFn | None
   cost_fn: costs.CostFn
 
-  def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
+  def transport(self, vec: jax.Array, forward: bool = True) -> jax.Array:
     r"""Transport ``vec`` according to Gangbo-McCann Brenier :cite:`brenier:91`.
 
     Uses Proposition 1.15 from :cite:`santambrogio:15` to compute an OT map when
@@ -84,7 +84,7 @@ class DualPotentials:
       return twist_op(vec, self._grad_f(vec), False)
     return twist_op(vec, self._grad_g(vec), True)
 
-  def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
+  def distance(self, src: jax.Array, tgt: jax.Array) -> float:
     r"""Evaluate Wasserstein distance between samples using dual potentials.
 
     This uses direct estimation of potentials against measures when dual
@@ -103,22 +103,22 @@ class DualPotentials:
     return jnp.mean(f(src)) + jnp.mean(g(tgt))
 
   @property
-  def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  def _grad_f(self) -> Callable[[jax.Array], jax.Array]:
     """Vectorized gradient of the potential function :attr:`f`."""
     assert self.f is not None, "The `f` potential is not computed."
     return jax.vmap(jax.grad(self.f, argnums=0))
 
   @property
-  def _grad_g(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  def _grad_g(self) -> Callable[[jax.Array], jax.Array]:
     """Vectorized gradient of the potential function :attr:`g`."""
     assert self.g is not None, "The `g` potential is not computed."
     return jax.vmap(jax.grad(self.g, argnums=0))
 
   def plot_ot_map(
       self,
-      source: jnp.ndarray,
-      target: jnp.ndarray,
-      samples: jnp.ndarray | None = None,
+      source: jax.Array,
+      target: jax.Array,
+      samples: jax.Array | None = None,
       forward: bool = True,
       ax: "plt.Axes | None" = None,
       scatter_kwargs: dict[str, Any] | None = None,
