@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 import pytest
 
@@ -143,7 +142,7 @@ class TestMongeGapEstimator:
     def fitting_loss(
         samples: jnp.ndarray,
         mapped_samples: jnp.ndarray,
-    ) -> Optional[float]:
+    ) -> float | None:
       r"""Sinkhorn divergence fitting loss."""
       div, _ = sinkhorn_divergence.sinkdiv(
           x=samples,

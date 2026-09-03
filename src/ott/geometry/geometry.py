@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
   from ott.geometry import low_rank
@@ -75,12 +76,11 @@ class Geometry:
 
   def __init__(
       self,
-      cost_matrix: Optional[jnp.ndarray] = None,
-      kernel_matrix: Optional[jnp.ndarray] = None,
-      epsilon: Optional[Union[float, eps_scheduler.Epsilon]] = None,
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
-      scale_cost: Union[float, Literal["mean", "max_cost", "median",
-                                       "std"]] = 1.0,
+      cost_matrix: jnp.ndarray | None = None,
+      kernel_matrix: jnp.ndarray | None = None,
+      epsilon: float | eps_scheduler.Epsilon | None = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
+      scale_cost: float | Literal["mean", "max_cost", "median", "std"] = 1.0,
   ):
     self._cost_matrix = cost_matrix
     self._kernel_matrix = kernel_matrix
@@ -89,7 +89,7 @@ class Geometry:
     self._scale_cost = scale_cost
 
   @property
-  def cost_rank(self) -> Optional[int]:
+  def cost_rank(self) -> int | None:
     """Output rank of cost matrix, if any was provided."""
 
   @property
@@ -176,7 +176,7 @@ class Geometry:
     return self.epsilon_scheduler.target
 
   @property
-  def shape(self) -> Tuple[int, int]:
+  def shape(self) -> tuple[int, int]:
     """Shape of the geometry."""
     mat = (
         self._kernel_matrix if self._cost_matrix is None else self._cost_matrix
@@ -235,7 +235,7 @@ class Geometry:
     assert self.is_square, "Cost matrix must be square to compute diagonal."
     return jnp.diag(self.cost_matrix)
 
-  def set_scale_cost(self, scale_cost: Union[float, str]) -> "Geometry":
+  def set_scale_cost(self, scale_cost: float | str) -> "Geometry":
     """Modify how to rescale of the :attr:`cost_matrix`."""
     # case when `geom` doesn't have `scale_cost` or doesn't need to be modified
     # `False` retains the original scale
@@ -264,7 +264,7 @@ class Geometry:
       eps: float,
       vec: jnp.ndarray = None,
       axis: int = 0
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray]:
     r"""Apply :attr:`kernel_matrix` in log domain.
 
     This function applies the ground geometry's kernel in log domain, using
@@ -301,7 +301,7 @@ class Geometry:
   def apply_kernel(
       self,
       vec: jnp.ndarray,
-      eps: Optional[float] = None,
+      eps: float | None = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     """Apply :attr:`kernel_matrix` on positive scaling vector.
@@ -378,7 +378,7 @@ class Geometry:
       f: jnp.ndarray,
       g: jnp.ndarray,
       log_marginal: jnp.ndarray,
-      iteration: Optional[int] = None,
+      iteration: int | None = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     """Carry out one Sinkhorn update for potentials, i.e. in log space.
@@ -401,7 +401,7 @@ class Geometry:
       self,
       scaling: jnp.ndarray,
       marginal: jnp.ndarray,
-      iteration: Optional[int] = None,
+      iteration: int | None = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     """Carry out one Sinkhorn update for scalings, using kernel directly.
@@ -424,9 +424,9 @@ class Geometry:
     return f[:, jnp.newaxis] + g[jnp.newaxis, :] - self.cost_matrix
 
   def _softmax(
-      self, f: jnp.ndarray, g: jnp.ndarray, eps: float,
-      vec: Optional[jnp.ndarray], axis: int
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+      self, f: jnp.ndarray, g: jnp.ndarray, eps: float, vec: jnp.ndarray | None,
+      axis: int
+  ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Apply softmax row or column wise, weighted by vec."""
     if vec is not None:
       if axis == 0:
@@ -569,7 +569,7 @@ class Geometry:
       self,
       arr: jnp.ndarray,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
       is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply :attr:`cost_matrix` to array (vector or matrix).
@@ -600,7 +600,7 @@ class Geometry:
       self,
       vec: jnp.ndarray,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
       is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply ``[num_a, num_b]`` fn(cost) (or transpose) to vector.
@@ -627,7 +627,7 @@ class Geometry:
       *args: Any,
       static_b: bool = False,
       **kwargs: Any
-  ) -> Tuple["Geometry", ...]:
+  ) -> tuple["Geometry", ...]:
     """Instantiate 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
     nones = [None, None, None]
@@ -643,7 +643,7 @@ class Geometry:
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
       scale: float = 1.0
   ) -> "low_rank.LRCGeometry":
     r"""Factorize the cost matrix using either SVD (full) or :cite:`indyk:19`.
@@ -737,8 +737,8 @@ class Geometry:
 
   def subset(
       self,
-      row_ixs: Optional[jnp.ndarray] = None,
-      col_ixs: Optional[jnp.ndarray] = None
+      row_ixs: jnp.ndarray | None = None,
+      col_ixs: jnp.ndarray | None = None
   ) -> "Geometry":
     """Subset rows or columns of a geometry.
 

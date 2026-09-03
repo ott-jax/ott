@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -51,10 +52,10 @@ class FreeBarycenterProblem:
   def __init__(
       self,
       y: jnp.ndarray,
-      b: Optional[jnp.ndarray] = None,
-      weights: Optional[jnp.ndarray] = None,
-      cost_fn: Optional[costs.CostFn] = None,
-      epsilon: Optional[float] = None,
+      b: jnp.ndarray | None = None,
+      weights: jnp.ndarray | None = None,
+      cost_fn: costs.CostFn | None = None,
+      epsilon: float | None = None,
       **kwargs: Any,
   ):
     self._y = y
@@ -78,7 +79,7 @@ class FreeBarycenterProblem:
         "Point clouds and weights do not have matching shapes."
 
   @property
-  def segmented_y_b(self) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  def segmented_y_b(self) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Tuple of arrays containing segmented measures, weights, # of points.
 
     - Segmented measures of shape ``[num_measures, max_measure_size, ndim]``.
@@ -111,7 +112,7 @@ class FreeBarycenterProblem:
     return self._y
 
   @property
-  def flattened_b(self) -> Optional[jnp.ndarray]:
+  def flattened_b(self) -> jnp.ndarray | None:
     """Array of shape ``[num_measures * (N_1 + N_2 + ...),]``."""
     return None if self._b is None else self._b.ravel()
 
@@ -144,7 +145,7 @@ class FreeBarycenterProblem:
   def _is_segmented(self) -> bool:
     return self._y.ndim == 3
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return ([self._y, self._b, self._weights], {
         "cost_fn": self.cost_fn,
         "epsilon": self.epsilon,
@@ -153,7 +154,7 @@ class FreeBarycenterProblem:
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "FreeBarycenterProblem":
     y, b, weights = children
     return cls(y=y, b=b, weights=weights, **aux_data)
@@ -176,7 +177,7 @@ class FixedBarycenterProblem:
       self,
       geom: geometry.Geometry,
       a: jnp.ndarray,
-      weights: Optional[jnp.ndarray] = None,
+      weights: jnp.ndarray | None = None,
   ):
     self.geom = geom
     self.a = a
@@ -203,7 +204,7 @@ class FixedBarycenterProblem:
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "FixedBarycenterProblem":
     del aux_data
     geom, a, weights = children

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple
 
 import pytest
 
@@ -23,7 +22,7 @@ import numpy as np
 
 from ott.tools.gaussian_mixture import gaussian_mixture, gaussian_mixture_pair
 
-GMMPair_t = Tuple[gaussian_mixture.GaussianMixture,
+GMMPair_t = tuple[gaussian_mixture.GaussianMixture,
                   gaussian_mixture.GaussianMixture]
 
 N_COMPONENTS = 3

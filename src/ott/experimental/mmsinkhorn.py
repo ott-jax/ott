@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, NamedTuple, Optional, Tuple, Union
+from typing import Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -26,13 +26,13 @@ __all__ = ["MMSinkhornOutput", "MMSinkhorn"]
 
 
 class MMSinkhornState(NamedTuple):
-  potentials: Tuple[jnp.ndarray, ...]
+  potentials: tuple[jnp.ndarray, ...]
   errors: jnp.ndarray
 
   def solution_error(
       self,
       cost_t: jnp.ndarray,
-      a_s: Tuple[jnp.ndarray, ...],
+      a_s: tuple[jnp.ndarray, ...],
       epsilon: float,
       norm_error: float = 1.0
   ) -> float:
@@ -80,16 +80,16 @@ class MMSinkhornOutput(NamedTuple):
     inner_iterations: Number of iterations that were run between two
       computations of errors.
   """
-  potentials: Tuple[jnp.ndarray, ...]
+  potentials: tuple[jnp.ndarray, ...]
   errors: jnp.ndarray
-  x_s: Optional[Tuple[jnp.ndarray, ...]] = None
-  a_s: Optional[Tuple[jnp.ndarray, ...]] = None
-  cost_fns: Optional[Union[costs.CostFn, Tuple[costs.CostFn, ...]]] = None
-  epsilon: Optional[float] = None
-  ent_reg_cost: Optional[jnp.ndarray] = None
-  threshold: Optional[jnp.ndarray] = None
-  converged: Optional[bool] = None
-  inner_iterations: Optional[int] = None
+  x_s: tuple[jnp.ndarray, ...] | None = None
+  a_s: tuple[jnp.ndarray, ...] | None = None
+  cost_fns: costs.CostFn | tuple[costs.CostFn, ...] | None = None
+  epsilon: float | None = None
+  ent_reg_cost: jnp.ndarray | None = None
+  threshold: jnp.ndarray | None = None
+  converged: bool | None = None
+  inner_iterations: int | None = None
 
   def set(self, **kwargs: Any) -> "MMSinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -113,7 +113,7 @@ class MMSinkhornOutput(NamedTuple):
     )
 
   @property
-  def marginals(self) -> Tuple[jnp.ndarray, ...]:
+  def marginals(self) -> tuple[jnp.ndarray, ...]:
     """:math:`k` marginal probability weight vectors."""
     return tensor_marginals(self.tensor)
 
@@ -127,7 +127,7 @@ class MMSinkhornOutput(NamedTuple):
     return jnp.sum(self.tensor)
 
   @property
-  def shape(self) -> Tuple[int, ...]:
+  def shape(self) -> tuple[int, ...]:
     """Shape of the transport :attr:`tensor`."""
     return tuple(x.shape[0] for x in self.x_s)
 
@@ -138,8 +138,8 @@ class MMSinkhornOutput(NamedTuple):
 
 
 def cost_tensor(
-    x_s: Tuple[jnp.ndarray, ...], cost_fns: Union[costs.CostFn,
-                                                  Tuple[costs.CostFn, ...]]
+    x_s: tuple[jnp.ndarray, ...],
+    cost_fns: costs.CostFn | tuple[costs.CostFn, ...]
 ) -> jnp.ndarray:
   r"""Create a cost tensor from a tuple of :math:`k` :math:`d`-dim point clouds.
 
@@ -172,7 +172,7 @@ def cost_tensor(
 
 
 def remove_tensor_sum(
-    c: jnp.ndarray, u: Tuple[jnp.ndarray, ...]
+    c: jnp.ndarray, u: tuple[jnp.ndarray, ...]
 ) -> jnp.ndarray:
   r"""Remove the tensor sum of :math:`k` vectors to tensor of :math:`k` dims.
 
@@ -189,7 +189,7 @@ def remove_tensor_sum(
   return c
 
 
-def tensor_marginals(coupling: jnp.ndarray) -> Tuple[jnp.ndarray, ...]:
+def tensor_marginals(coupling: jnp.ndarray) -> tuple[jnp.ndarray, ...]:
   return tuple(tensor_marginal(coupling, ix) for ix in range(coupling.ndim))
 
 
@@ -251,10 +251,10 @@ class MMSinkhorn:
 
   def __call__(
       self,
-      x_s: Tuple[jnp.ndarray, ...],
-      a_s: Optional[Tuple[jnp.ndarray, ...]] = None,
-      cost_fns: Optional[Union[costs.CostFn, Tuple[costs.CostFn, ...]]] = None,
-      epsilon: Optional[float] = None
+      x_s: tuple[jnp.ndarray, ...],
+      a_s: tuple[jnp.ndarray, ...] | None = None,
+      cost_fns: costs.CostFn | tuple[costs.CostFn, ...] | None = None,
+      epsilon: float | None = None
   ) -> MMSinkhornOutput:
     r"""Solve multimarginal OT for :math:`k` :math:`d`-dim point clouds.
 
@@ -288,7 +288,7 @@ class MMSinkhorn:
     n_s = [x.shape[0] for x in x_s]
     if cost_fns is None:
       cost_fns = costs.SqEuclidean()
-    elif isinstance(cost_fns, Tuple):
+    elif isinstance(cost_fns, tuple):
       assert len(cost_fns) == (len(n_s) * (len(n_s) - 1)) // 2
 
     # Default to uniform probability weights for each point cloud.
@@ -310,7 +310,7 @@ class MMSinkhorn:
     out = run(const, self, state)
     return out.set(x_s=x_s, a_s=a_s, cost_fns=cost_fns, epsilon=epsilon)
 
-  def init_state(self, n_s: Tuple[int, ...]) -> MMSinkhornState:
+  def init_state(self, n_s: tuple[int, ...]) -> MMSinkhornState:
     """Return the initial state of the loop."""
     errors = -jnp.ones((self.outer_iterations, 1))
     potentials = tuple(jnp.zeros(n) for n in n_s)
@@ -351,25 +351,25 @@ class MMSinkhorn:
 
 
 def run(
-    const: Tuple[jnp.ndarray, Tuple[jnp.ndarray, ...], float],
+    const: tuple[jnp.ndarray, tuple[jnp.ndarray, ...], float],
     solver: MMSinkhorn, state: MMSinkhornState
 ) -> MMSinkhornOutput:
 
   def cond_fn(
-      iteration: int, const: Tuple[jnp.ndarray, Tuple[jnp.ndarray, ...], float],
+      iteration: int, const: tuple[jnp.ndarray, tuple[jnp.ndarray, ...], float],
       state: MMSinkhornState
   ) -> bool:
     del const
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration: int, const: Tuple[jnp.ndarray, Tuple[jnp.ndarray, ...], float],
+      iteration: int, const: tuple[jnp.ndarray, tuple[jnp.ndarray, ...], float],
       state: MMSinkhornState, compute_error: bool
   ) -> MMSinkhornState:
     cost_t, a_s, epsilon = const
     k = len(a_s)
 
-    def one_slice(potentials: Tuple[jnp.ndarray, ...], l: int, a: jnp.ndarray):
+    def one_slice(potentials: tuple[jnp.ndarray, ...], l: int, a: jnp.ndarray):
       pot = potentials[l]
       axis = list(range(l)) + list(range(l + 1, k))
       app_lse = mu.softmin(
@@ -431,6 +431,6 @@ def run(
 
 
 def coupling_tensor(
-    potentials: Tuple[jnp.ndarray], cost_t: jnp.ndarray, epsilon: float
+    potentials: tuple[jnp.ndarray], cost_t: jnp.ndarray, epsilon: float
 ) -> jnp.ndarray:
   return jnp.exp(-remove_tensor_sum(cost_t, potentials) / epsilon)

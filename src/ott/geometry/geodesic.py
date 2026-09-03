@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import Any
 
 import jax
 import jax.experimental.sparse as jesp
@@ -26,7 +27,7 @@ from ott.math import utils as mu
 
 __all__ = ["Geodesic"]
 
-Array_g = Union[jnp.ndarray, jesp.BCOO]
+Array_g = jnp.ndarray | jesp.BCOO
 
 
 @jtu.register_pytree_node_class
@@ -68,12 +69,12 @@ class Geodesic(geometry.Geometry):
   def from_graph(
       cls,
       G: Array_g,
-      t: Optional[float] = 1e-3,
-      eigval: Optional[jnp.ndarray] = None,
+      t: float | None = 1e-3,
+      eigval: jnp.ndarray | None = None,
       order: int = 100,
       directed: bool = False,
       normalize: bool = False,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
       **kwargs: Any
   ) -> "Geodesic":
     r"""Construct a Geodesic geometry from an adjacency matrix.
@@ -136,7 +137,7 @@ class Geodesic(geometry.Geometry):
   def apply_kernel(
       self,
       vec: jnp.ndarray,
-      eps: Optional[float] = None,
+      eps: float | None = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     r"""Apply :attr:`kernel_matrix` on a positive vector.
@@ -168,7 +169,7 @@ class Geodesic(geometry.Geometry):
     return -4.0 * self.t * mu.safe_log(self.kernel_matrix)
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self.scaled_laplacian.shape
 
   @property
@@ -204,7 +205,7 @@ class Geodesic(geometry.Geometry):
     """Not implemented."""
     raise ValueError("Not implemented.")
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return [
         self.scaled_laplacian,
         self.eigval,
@@ -214,7 +215,7 @@ class Geodesic(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "Geodesic":
     return cls(*children, **aux_data)
 

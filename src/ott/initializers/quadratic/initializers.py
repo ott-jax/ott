@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Literal
 
 import jax.numpy as jnp
 import jax.tree_util as jtu
@@ -72,12 +73,12 @@ class BaseQuadraticInitializer(abc.ABC):
       Geometry used to initialize the linearized problem.
     """
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return [], {}
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "BaseQuadraticInitializer":
     return cls(*children, **aux_data)
 
@@ -119,7 +120,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       defaults to the product coupling :math:`ab^T`.
   """
 
-  def __init__(self, init_coupling: Optional[jnp.ndarray] = None):
+  def __init__(self, init_coupling: jnp.ndarray | None = None):
     super().__init__()
     self.init_coupling = init_coupling
 
@@ -128,7 +129,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       quad_prob: "quadratic_problem.QuadraticProblem",
       *,
       epsilon: float,
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
       **kwargs: Any,
   ) -> geometry.Geometry:
     """Compute initial geometry for linearization.
@@ -179,5 +180,5 @@ class QuadraticInitializer(BaseQuadraticInitializer):
         relative_epsilon=relative_epsilon
     )
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return [self.init_coupling], {}

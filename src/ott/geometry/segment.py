@@ -12,7 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional, Tuple
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -22,14 +22,14 @@ __all__ = ["segment_point_cloud"]
 
 def segment_point_cloud(
     x: jnp.ndarray,
-    a: Optional[jnp.ndarray] = None,
-    num_segments: Optional[int] = None,
-    max_measure_size: Optional[int] = None,
-    segment_ids: Optional[jnp.ndarray] = None,
+    a: jnp.ndarray | None = None,
+    num_segments: int | None = None,
+    max_measure_size: int | None = None,
+    segment_ids: jnp.ndarray | None = None,
     indices_are_sorted: bool = False,
-    num_per_segment: Optional[Tuple[int, ...]] = None,
-    padding_vector: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    num_per_segment: tuple[int, ...] | None = None,
+    padding_vector: jnp.ndarray | None = None
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Segment and pad as needed the entries of a point cloud.
 
   There are two interfaces:
@@ -135,16 +135,16 @@ def _segment_interface(
     y: jnp.ndarray,
     eval_fn: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray],
                       jnp.ndarray],
-    num_segments: Optional[int] = None,
-    max_measure_size: Optional[int] = None,
-    segment_ids_x: Optional[jnp.ndarray] = None,
-    segment_ids_y: Optional[jnp.ndarray] = None,
+    num_segments: int | None = None,
+    max_measure_size: int | None = None,
+    segment_ids_x: jnp.ndarray | None = None,
+    segment_ids_y: jnp.ndarray | None = None,
     indices_are_sorted: bool = False,
-    num_per_segment_x: Optional[jnp.ndarray] = None,
-    num_per_segment_y: Optional[jnp.ndarray] = None,
-    weights_x: Optional[jnp.ndarray] = None,
-    weights_y: Optional[jnp.ndarray] = None,
-    padding_vector: Optional[jnp.ndarray] = None,
+    num_per_segment_x: jnp.ndarray | None = None,
+    num_per_segment_y: jnp.ndarray | None = None,
+    weights_x: jnp.ndarray | None = None,
+    weights_y: jnp.ndarray | None = None,
+    padding_vector: jnp.ndarray | None = None,
 ) -> jnp.ndarray:
   """Wrapper to segment two point clouds and return parallel evaluations.
 

@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import NamedTuple, Optional, Sequence
+from collections.abc import Sequence
+from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -79,7 +80,7 @@ class FixedBarycenter:
   def __call__(
       self,
       fixed_bp: barycenter_problem.FixedBarycenterProblem,
-      dual_initialization: Optional[jnp.ndarray] = None,
+      dual_initialization: jnp.ndarray | None = None,
   ) -> SinkhornBarycenterOutput:
     """Solve barycenter problem, possibly using clever initialization.
 

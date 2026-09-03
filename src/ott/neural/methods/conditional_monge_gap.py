@@ -14,17 +14,8 @@
 import collections
 import functools
 import logging
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterator,
-    Literal,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Callable, Iterator, Sequence
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -53,15 +44,15 @@ def cmonge_gap_from_samples(
     source: jnp.ndarray,
     target: jnp.ndarray,
     condition: jnp.ndarray,
-    cost_fn: Optional[costs.CostFn] = None,
-    epsilon: Optional[float] = None,
-    relative_epsilon: Optional[Literal["mean", "std"]] = None,
-    scale_cost: Union[float, Literal["mean", "max_cost", "median"]] = 1.0,
+    cost_fn: costs.CostFn | None = None,
+    epsilon: float | None = None,
+    relative_epsilon: Literal["mean", "std"] | None = None,
+    scale_cost: float | Literal["mean", "max_cost", "median"] = 1.0,
     return_output: bool = False,
-    num_segments: Optional[int] = None,
-    max_measure_size: Optional[int] = None,
+    num_segments: int | None = None,
+    max_measure_size: int | None = None,
     **kwargs: Any,
-) -> Union[float, Tuple[float, jnp.ndarray]]:
+) -> float | tuple[float, jnp.ndarray]:
   r"""Conditional Monge gap from samples using the segment interface.
 
   Computes the average Monge gap across conditions:
@@ -218,18 +209,16 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
       self,
       dim_data: int,
       model: ConditionalPerturbationNetwork,
-      optimizer: Optional[optax.OptState] = None,
-      fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
-                                      Tuple[float, Optional[Any]]]] = None,
-      regularizer: Optional[Callable[
-          [jnp.ndarray, jnp.ndarray, jnp.ndarray],
-          Tuple[float, Optional[Any]],
-      ]] = None,
-      regularizer_strength: Union[float, Sequence[float]] = 1.0,
+      optimizer: optax.OptState | None = None,
+      fitting_loss: Callable[[jnp.ndarray, jnp.ndarray],
+                             tuple[float, Any | None]] | None = None,
+      regularizer: Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+                            tuple[float, Any | None]] | None = None,
+      regularizer_strength: float | Sequence[float] = 1.0,
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
@@ -264,8 +253,8 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
   @property
   def regularizer(
       self,
-  ) -> Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray], Tuple[float,
-                                                               Optional[Any]]]:
+  ) -> Callable[[jnp.ndarray, jnp.ndarray, jnp.ndarray], tuple[float, Any
+                                                               | None]]:
     """Conditional regularizer ``(source, mapped, labels) -> (loss, log)``.
 
     Defaults to zero if not provided.
@@ -277,7 +266,7 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
   @property
   def fitting_loss(
       self,
-  ) -> Callable[[jnp.ndarray, jnp.ndarray], Tuple[float, Optional[Any]]]:
+  ) -> Callable[[jnp.ndarray, jnp.ndarray], tuple[float, Any | None]]:
     """Fitting loss ``(mapped, target) -> (loss, log)``.
 
     Defaults to zero if not provided.
@@ -292,7 +281,7 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
       loader_target: Iterator[jnp.ndarray],
       loader_condition: Iterator[jnp.ndarray],
       loader_label: Iterator[jnp.ndarray],
-  ) -> Dict[str, jnp.ndarray]:
+  ) -> dict[str, jnp.ndarray]:
     """Generate a batch of samples from all four iterators."""
     return {
         "source": next(loader_source),
@@ -311,7 +300,7 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
       validloader_target: Iterator[jnp.ndarray],
       validloader_condition: Iterator[jnp.ndarray],
       validloader_label: Iterator[jnp.ndarray],
-  ) -> Tuple[train_state.TrainState, Dict[str, Any]]:
+  ) -> tuple[train_state.TrainState, dict[str, Any]]:
     """Training loop."""
     logs = collections.defaultdict(lambda: collections.defaultdict(list))
 
@@ -372,9 +361,9 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
     def loss_fn(
         params: frozen_dict.FrozenDict,
         apply_fn: Callable,
-        batch: Dict[str, jnp.ndarray],
+        batch: dict[str, jnp.ndarray],
         step: int,
-    ) -> Tuple[float, Dict[str, float]]:
+    ) -> tuple[float, dict[str, float]]:
       """Loss function with conditional map and regularizer."""
       # Apply the conditional map: T(source, condition)
       mapped_samples = apply_fn({"params": params}, batch["source"],
@@ -407,11 +396,11 @@ conditional_perturbation_network.ConditionalPerturbationNetwork` or any
     @functools.partial(jax.jit, static_argnums=3)
     def step_fn(
         state_neural_net: train_state.TrainState,
-        train_batch: Dict[str, jnp.ndarray],
-        valid_batch: Optional[Dict[str, jnp.ndarray]] = None,
+        train_batch: dict[str, jnp.ndarray],
+        valid_batch: dict[str, jnp.ndarray] | None = None,
         is_logging_step: bool = False,
         step: int = 0,
-    ) -> Tuple[train_state.TrainState, Dict[str, float]]:
+    ) -> tuple[train_state.TrainState, dict[str, float]]:
       """One step function."""
       grad_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)
       (_, current_train_logs), grads = grad_fn(

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 import jax
 import jax.experimental.sparse as jesp
@@ -55,10 +55,10 @@ class UnivariateOutput(NamedTuple):
   """
   prob: linear_problem.LinearProblem
   ot_costs: jnp.ndarray
-  paired_indices: Optional[jnp.ndarray] = None
-  mass_paired_indices: Optional[jnp.ndarray] = None
-  dual_a: Optional[jnp.ndarray] = None
-  dual_b: Optional[jnp.ndarray] = None
+  paired_indices: jnp.ndarray | None = None
+  mass_paired_indices: jnp.ndarray | None = None
+  dual_a: jnp.ndarray | None = None
+  dual_b: jnp.ndarray | None = None
 
   @property
   def transport_matrices(self) -> jesp.BCOO:
@@ -251,14 +251,14 @@ def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
     dual_b: jnp.ndarray
 
   def dual_a_update(state: State, i: int,
-                    j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
+                    j: int) -> tuple[State, jnp.ndarray, jnp.ndarray]:
     next_ixs = jnp.array([i + 1, j])
     val = cost_fn(state.x[i + 1, None], state.y[j, None]) - state.dual_b[j]
     da = state.dual_a.at[i + 1].set(val)
     return state._replace(dual_a=da), state.a[i], next_ixs
 
   def dual_b_update(state: State, i: int,
-                    j: int) -> Tuple[State, jnp.ndarray, jnp.ndarray]:
+                    j: int) -> tuple[State, jnp.ndarray, jnp.ndarray]:
     next_ixs = jnp.array([i, j + 1])
     val = cost_fn(state.x[i, None], state.y[j + 1, None]) - state.dual_a[i]
     db = state.dual_b.at[j + 1].set(val)

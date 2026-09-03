@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Type
 
 import pytest
 
@@ -46,7 +45,7 @@ class TestLRSinkhorn:
   )
   def test_euclidean_point_cloud_lr(
       self, clouds: _utils.PointClouds, use_lrcgeom: bool,
-      initializer_class: Type[initializers_lr.LRInitializer],
+      initializer_class: type[initializers_lr.LRInitializer],
       gamma_rescale: bool, lse_mode: bool
   ):
     """Two point clouds, tested with 3 different initializations."""

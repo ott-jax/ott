@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -206,7 +206,7 @@ class TestBatchedVmap:
 
 @pytest.mark.parametrize(("version", "msg"), [(None, "foo, bar, baz"),
                                               ("quux", None)])
-def test_deprecation_warning(version: Optional[str], msg: Optional[str]):
+def test_deprecation_warning(version: str | None, msg: str | None):
 
   @utils.deprecate(version=version, alt=msg)
   def func() -> int:

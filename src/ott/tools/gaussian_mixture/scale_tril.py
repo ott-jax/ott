@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple
 
 import jax
 import jax.numpy as jnp
@@ -36,7 +35,7 @@ class ScaleTriL:
       cls,
       points: jnp.ndarray,
       weights: jnp.ndarray,
-  ) -> Tuple[jnp.ndarray, "ScaleTriL"]:
+  ) -> tuple[jnp.ndarray, "ScaleTriL"]:
     """Get a mean and a ScaleTriL from a set of points and weights."""
     mean, cov = linalg.get_mean_and_cov(points=points, weights=weights)
     return mean, cls.from_covariance(cov)
@@ -46,7 +45,7 @@ class ScaleTriL:
       cls,
       rng: jax.Array,
       n_dimensions: int,
-      stdev: Optional[float] = 0.1,
+      stdev: float | None = 0.1,
   ) -> "ScaleTriL":
     """Construct a random ScaleTriL.
 

@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
@@ -39,7 +40,7 @@ __all__ = [
 def safe_log(  # noqa: D103
     x: jnp.ndarray,
     *,
-    eps: Optional[float] = None
+    eps: float | None = None
 ) -> jnp.ndarray:
   if eps is None:
     eps = jnp.finfo(x.dtype).tiny
@@ -50,8 +51,8 @@ def safe_log(  # noqa: D103
 @functools.partial(jax.jit, static_argnames=("ord", "axis", "keepdims"))
 def norm(
     x: jnp.ndarray,
-    ord: Union[int, str, None] = None,
-    axis: Union[None, Sequence[int], int] = None,
+    ord: int | str | None = None,
+    axis: None | Sequence[int] | int = None,
     keepdims: bool = False
 ) -> jnp.ndarray:
   """Computes order ord norm of vector, using `jnp.linalg` in forward pass.
@@ -192,7 +193,7 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
 def softmin(
     x: jnp.ndarray,
     gamma: float,
-    axis: Optional[Union[int, Sequence[int]]] = None
+    axis: int | Sequence[int] | None = None
 ) -> jnp.ndarray:
   r"""Soft-min operator.
 
@@ -242,7 +243,7 @@ def sort_and_argsort(
     x: jnp.array,
     *,
     argsort: bool = False
-) -> Tuple[jnp.ndarray, Optional[jnp.ndarray]]:
+) -> tuple[jnp.ndarray, jnp.ndarray | None]:
   """Unified function that returns both sort and argsort, if latter needed."""
   if argsort:
     i_x = jnp.argsort(x)
@@ -302,9 +303,9 @@ def lambertw(
 
 @lambertw.defjvp
 def _lambertw_jvp(
-    tol: float, max_iter: int, primals: Tuple[jnp.ndarray, ...],
-    tangents: Tuple[jnp.ndarray, ...]
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    tol: float, max_iter: int, primals: tuple[jnp.ndarray, ...],
+    tangents: tuple[jnp.ndarray, ...]
+) -> tuple[jnp.ndarray, jnp.ndarray]:
   z, = primals
   dz, = tangents
   w = lambertw(z, tol=tol, max_iter=max_iter)

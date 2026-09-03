@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Literal, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -52,7 +53,7 @@ class LRCGeometry(geometry.Geometry):
       cost_2: jnp.ndarray,
       bias: float = 0.0,
       scale_factor: float = 1.0,
-      scale_cost: Union[float, Literal["mean", "max_bound", "max_cost"]] = 1.0,
+      scale_cost: float | Literal["mean", "max_bound", "max_cost"] = 1.0,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -89,7 +90,7 @@ class LRCGeometry(geometry.Geometry):
     return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self._cost_1.shape[0], self._cost_2.shape[0]
 
   @property
@@ -142,7 +143,7 @@ class LRCGeometry(geometry.Geometry):
       self,
       vec: jnp.ndarray,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
       is_linear: bool = False,
   ) -> jnp.ndarray:
     """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
@@ -166,7 +167,7 @@ class LRCGeometry(geometry.Geometry):
       self,
       vec: jnp.ndarray,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
   ) -> jnp.ndarray:
     c1, c2 = (self.cost_1,
               self.cost_2) if axis == 1 else (self.cost_2, self.cost_1)
@@ -187,7 +188,7 @@ class LRCGeometry(geometry.Geometry):
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
       scale: float = 1.0,
   ) -> "LRCGeometry":
     """Return self."""
@@ -258,7 +259,7 @@ class LRKGeometry(geometry.Geometry):
       self,
       k1: jnp.ndarray,
       k2: jnp.ndarray,
-      epsilon: Optional[float] = None,
+      epsilon: float | None = None,
       **kwargs: Any
   ):
     super().__init__(epsilon=epsilon, relative_epsilon=None, **kwargs)
@@ -275,7 +276,7 @@ class LRKGeometry(geometry.Geometry):
       rank: int = 100,
       std: float = 1.0,
       n: int = 1,
-      rng: Optional[jax.Array] = None
+      rng: jax.Array | None = None
   ) -> "LRKGeometry":
     r"""Low-rank kernel approximation :cite:`scetbon:20`.
 
@@ -317,7 +318,7 @@ class LRKGeometry(geometry.Geometry):
   def apply_kernel(  # noqa: D102
       self,
       vec: jnp.ndarray,
-      eps: Optional[float] = None,
+      eps: float | None = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     if axis == 0:
@@ -338,7 +339,7 @@ class LRKGeometry(geometry.Geometry):
     return self.k1.shape[1]
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self.k1.shape[0], self.k2.shape[0]
 
   @property

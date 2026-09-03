@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Callable, Literal, NamedTuple, Optional
+from collections.abc import Callable
+from typing import Literal, NamedTuple
 
 import jax.numpy as jnp
 from jaxopt import LBFGS
@@ -52,7 +53,7 @@ class FenchelConjugateSolver(abc.ABC):
       self,
       f: Callable[[jnp.ndarray], jnp.ndarray],
       y: jnp.ndarray,
-      x_init: Optional[jnp.ndarray] = None
+      x_init: jnp.ndarray | None = None
   ) -> ConjugateResults:
     """Solve for the conjugate.
 
@@ -92,7 +93,7 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
       self,
       f: Callable[[jnp.ndarray], jnp.ndarray],
       y: jnp.ndarray,
-      x_init: Optional[jnp.array] = None
+      x_init: jnp.array | None = None
   ) -> ConjugateResults:
     assert y.ndim
 

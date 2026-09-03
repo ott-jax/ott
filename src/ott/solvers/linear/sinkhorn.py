@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, NamedTuple, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -30,16 +31,16 @@ from ott.solvers.linear import implicit_differentiation as implicit_lib
 __all__ = ["Sinkhorn", "SinkhornOutput"]
 
 ProgressFunction = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "SinkhornState"]], None]
+    [tuple[np.ndarray, np.ndarray, np.ndarray, "SinkhornState"]], None]
 
 
 class SinkhornState(NamedTuple):
   """Holds the state variables used to solve OT with Sinkhorn."""
 
-  potentials: Tuple[jnp.ndarray, ...]
-  errors: Optional[jnp.ndarray] = None
-  old_fus: Optional[jnp.ndarray] = None
-  old_mapped_fus: Optional[jnp.ndarray] = None
+  potentials: tuple[jnp.ndarray, ...]
+  errors: jnp.ndarray | None = None
+  old_fus: jnp.ndarray | None = None
+  old_mapped_fus: jnp.ndarray | None = None
 
   def set(self, **kwargs: Any) -> "SinkhornState":
     """Return a copy of self, with potential overwrites."""
@@ -78,7 +79,7 @@ class SinkhornState(NamedTuple):
       f: jnp.ndarray,
       g: jnp.ndarray,
       ot_prob: linear_problem.LinearProblem,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Re-center dual potentials.
 
     If the ``ot_prob`` is balanced, the ``f`` potential is zero-centered.
@@ -314,13 +315,13 @@ class SinkhornOutput(NamedTuple):
       computations of errors.
   """
 
-  potentials: Tuple[jnp.ndarray, ...]
-  errors: Optional[jnp.ndarray] = None
-  reg_ot_cost: Optional[jnp.ndarray] = None
-  ot_prob: Optional[linear_problem.LinearProblem] = None
-  threshold: Optional[jnp.ndarray] = None
-  converged: Optional[bool] = None
-  inner_iterations: Optional[int] = None
+  potentials: tuple[jnp.ndarray, ...]
+  errors: jnp.ndarray | None = None
+  reg_ot_cost: jnp.ndarray | None = None
+  ot_prob: linear_problem.LinearProblem | None = None
+  threshold: jnp.ndarray | None = None
+  converged: bool | None = None
+  inner_iterations: int | None = None
 
   def set(self, **kwargs: Any) -> "SinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -434,7 +435,7 @@ class SinkhornOutput(NamedTuple):
     return jnp.sum(self.errors != -1) * self.inner_iterations
 
   @property
-  def scalings(self) -> Tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102
+  def scalings(self) -> tuple[jnp.ndarray, jnp.ndarray]:  # noqa: D102
     u = self.ot_prob.geom.scaling_from_potential(self.f)
     v = self.ot_prob.geom.scaling_from_potential(self.g)
     return u, v
@@ -479,7 +480,7 @@ class SinkhornOutput(NamedTuple):
     )
 
   def to_dual_potentials(
-      self, epsilon: Optional[float] = None
+      self, epsilon: float | None = None
   ) -> potentials.DualPotentials:
     """Compute dual potential functions.
 
@@ -723,15 +724,15 @@ class Sinkhorn:
       inner_iterations: int = 10,
       min_iterations: int = 0,
       max_iterations: int = 2000,
-      momentum: Optional[acceleration.Momentum] = None,
-      anderson: Optional[acceleration.AndersonAcceleration] = None,
+      momentum: acceleration.Momentum | None = None,
+      anderson: acceleration.AndersonAcceleration | None = None,
       parallel_dual_updates: bool = False,
       recenter_potentials: bool = False,
-      use_danskin: Optional[bool] = None,
-      implicit_diff: Optional[implicit_lib.ImplicitDiff
-                             ] = implicit_lib.ImplicitDiff(),  # noqa: B008
-      initializer: Optional[init_lib.SinkhornInitializer] = None,
-      progress_fn: Optional[ProgressFunction] = None,
+      use_danskin: bool | None = None,
+      implicit_diff: implicit_lib.ImplicitDiff
+      | None = implicit_lib.ImplicitDiff(),  # noqa: B008
+      initializer: init_lib.SinkhornInitializer | None = None,
+      progress_fn: ProgressFunction | None = None,
   ):
     self.lse_mode = lse_mode
     self.threshold = threshold
@@ -782,7 +783,7 @@ class Sinkhorn:
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      init: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None,
+      init: tuple[jnp.ndarray, jnp.ndarray] | None = None,
       **kwargs: Any,
   ) -> SinkhornOutput:
     """Run Sinkhorn algorithm.
@@ -962,7 +963,7 @@ class Sinkhorn:
     return np.ceil(self.max_iterations / self.inner_iterations).astype(int)
 
   def init_state(
-      self, ot_prob: linear_problem.LinearProblem, init: Tuple[jnp.ndarray,
+      self, ot_prob: linear_problem.LinearProblem, init: tuple[jnp.ndarray,
                                                                jnp.ndarray]
   ) -> SinkhornState:
     """Return the initial state of the loop."""
@@ -1029,7 +1030,7 @@ class Sinkhorn:
                           inner_iterations=self.inner_iterations)
 
   @property
-  def norm_error(self) -> Tuple[int, ...]:
+  def norm_error(self) -> tuple[int, ...]:
     """Powers used to compute the p-norm between marginal/target."""
     # To change momentum adaptively, one needs errors in ||.||_1 norm.
     # In that case, we add this exponent to the list of errors to compute,
@@ -1051,7 +1052,7 @@ class Sinkhorn:
 
 def run(
     ot_prob: linear_problem.LinearProblem, solver: Sinkhorn,
-    init: Tuple[jnp.ndarray, ...]
+    init: tuple[jnp.ndarray, ...]
 ) -> SinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   iter_fun = _iterations_implicit if solver.implicit_diff else iterations
@@ -1064,19 +1065,19 @@ def run(
 
 def iterations(
     ot_prob: linear_problem.LinearProblem, solver: Sinkhorn,
-    init: Tuple[jnp.ndarray, ...]
+    init: tuple[jnp.ndarray, ...]
 ) -> SinkhornOutput:
   """Jittable Sinkhorn loop. args contain initialization variables."""
 
   def cond_fn(
-      iteration: int, const: Tuple[linear_problem.LinearProblem, Sinkhorn],
+      iteration: int, const: tuple[linear_problem.LinearProblem, Sinkhorn],
       state: SinkhornState
   ) -> bool:
     _, solver = const
     return solver._continue(state, iteration)
 
   def body_fn(
-      iteration: int, const: Tuple[linear_problem.LinearProblem, Sinkhorn],
+      iteration: int, const: tuple[linear_problem.LinearProblem, Sinkhorn],
       state: SinkhornState, compute_error: bool
   ) -> SinkhornState:
     ot_prob, solver = const
@@ -1101,8 +1102,8 @@ def iterations(
 
 def _iterations_taped(
     ot_prob: linear_problem.LinearProblem, solver: Sinkhorn,
-    init: Tuple[jnp.ndarray, ...]
-) -> Tuple[SinkhornOutput, Tuple[jnp.ndarray, jnp.ndarray,
+    init: tuple[jnp.ndarray, ...]
+) -> tuple[SinkhornOutput, tuple[jnp.ndarray, jnp.ndarray,
                                  linear_problem.LinearProblem, Sinkhorn]]:
   """Run forward pass of the Sinkhorn algorithm storing side information."""
   state = iterations(ot_prob, solver, init)

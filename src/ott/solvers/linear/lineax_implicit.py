@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -25,7 +26,7 @@ def _cg(
     *,
     rtol: float = 1e-6,
     atol: float = 1e-6,
-    maxiter: Optional[int] = None,
+    maxiter: int | None = None,
 ) -> jnp.ndarray:
   """Conjugate gradient solver using jax.lax.while_loop."""
   if maxiter is None:
@@ -61,9 +62,9 @@ def _cg(
 def solve_lineax(
     lin: Callable,
     b: jnp.ndarray,
-    lin_t: Optional[Callable] = None,
+    lin_t: Callable | None = None,
     symmetric: bool = False,
-    nonsym_solver: Optional[Any] = None,
+    nonsym_solver: Any | None = None,
     ridge_identity: float = 0.0,
     ridge_kernel: float = 0.0,
     **kwargs: Any

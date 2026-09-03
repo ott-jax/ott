@@ -13,18 +13,8 @@
 # limitations under the License.
 import abc
 import functools
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Literal,
-    Mapping,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -125,9 +115,9 @@ class LRInitializer(abc.ABC):
   def __call__(
       self,
       ot_prob: Problem_t,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
       **kwargs: Any,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Initialize the factors :math:`Q`, :math:`R` and :math:`g`.
 
     Args:
@@ -157,12 +147,12 @@ class LRInitializer(abc.ABC):
     """Rank of the transport matrix factorization."""
     return self._rank
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return [], {**self._kwargs, "rank": self.rank}
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "LRInitializer":
     return cls(*children, **aux_data)
 
@@ -302,7 +292,7 @@ class KMeansInitializer(LRInitializer):
       rank: int,
       min_iterations: int = 100,
       max_iterations: int = 100,
-      sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
+      sinkhorn_kwargs: Mapping[str, Any] | None = None,
       **kwargs: Any
   ):
     super().__init__(rank, **kwargs)
@@ -395,7 +385,7 @@ class KMeansInitializer(LRInitializer):
     del rng, kwargs
     return jnp.ones((self.rank,)) / self.rank
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["sinkhorn_kwargs"] = self._sinkhorn_kwargs
     aux_data["min_iterations"] = self._min_iter
@@ -429,7 +419,7 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
       max_iterations: int = 100,
       inner_iterations: int = 10,
       threshold: float = 1e-6,
-      sinkhorn_kwargs: Optional[Mapping[str, Any]] = None,
+      sinkhorn_kwargs: Mapping[str, Any] | None = None,
   ):
     super().__init__(
         rank,

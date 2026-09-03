@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import jax.numpy as jnp
 import jax.tree_util as jtu
@@ -43,7 +43,7 @@ class UnivariateWasserstein(costs.CostFn):
       self,
       solve_fn: Callable[[linear_problem.LinearProblem],
                          univariate.UnivariateOutput],
-      ground_cost: Optional[costs.TICost] = None,
+      ground_cost: costs.TICost | None = None,
   ):
     super().__init__()
     self.ground_cost = (

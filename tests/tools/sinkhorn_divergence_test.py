@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 import pytest
 
@@ -399,7 +399,7 @@ class TestSinkhornDivergence:
   # yapf: enable
   def test_euclidean_momentum_params(
       self, clouds: _utils.PointClouds, rng: jax.Array,
-      solve_kwargs: Dict[str, Any], epsilon: Optional[float]
+      solve_kwargs: dict[str, Any], epsilon: float | None
   ):
     # check if sinkhorn divergence solve_kwargs parameters used for
     # momentum/Anderson are properly overridden for the symmetric (x,x) and
@@ -472,7 +472,7 @@ class TestSinkhornDivergenceGrad:
     )
 
   @pytest.mark.parametrize("grid_size", [(5,), (2, 3), (3, 4, 5)])
-  def test_grid_geometry(self, rng: jax.Array, grid_size: Tuple[int, ...]):
+  def test_grid_geometry(self, rng: jax.Array, grid_size: tuple[int, ...]):
     rng1, rng2 = jr.split(rng, 2)
     gs = (5,)
 

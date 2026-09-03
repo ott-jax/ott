@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from ott.geometry import pointcloud
 from ott.problems.quadratic import quadratic_problem
@@ -27,7 +27,7 @@ __all__ = ["third_lower_bound"]
 def third_lower_bound(
     prob: quadratic_problem.QuadraticProblem,
     distrib_cost: "distrib_costs.UnivariateWasserstein",
-    epsilon: Optional[float] = None,
+    epsilon: float | None = None,
     **kwargs: Any,
 ) -> sinkhorn.SinkhornOutput:
   """Computes the third lower bound distance from :cite:`memoli:11`, def. 6.3.

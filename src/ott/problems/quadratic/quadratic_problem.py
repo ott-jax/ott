@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Literal
 
 import jax
 import jax.numpy as jnp
@@ -83,17 +83,17 @@ class QuadraticProblem:
       self,
       geom_xx: geometry.Geometry,
       geom_yy: geometry.Geometry,
-      geom_xy: Optional[geometry.Geometry] = None,
+      geom_xy: geometry.Geometry | None = None,
       fused_penalty: float = 1.0,
-      scale_cost: Optional[Union[float, str]] = None,
-      a: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
-      loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
+      scale_cost: float | str | None = None,
+      a: jnp.ndarray | None = None,
+      b: jnp.ndarray | None = None,
+      loss: Literal["sqeucl", "kl"] | quadratic_costs.GWLoss = "sqeucl",
       tau_a: float = 1.0,
       tau_b: float = 1.0,
       gw_unbalanced_correction: bool = True,
-      ranks: Union[int, Tuple[int, ...]] = -1,
-      tolerances: Union[float, Tuple[float, ...]] = 1e-2,
+      ranks: int | tuple[int, ...] = -1,
+      tolerances: float | tuple[float, ...] = 1e-2,
   ):
     if scale_cost is not None:
       geom_xx = geom_xx.set_scale_cost(scale_cost)
@@ -234,7 +234,7 @@ class QuadraticProblem:
   def update_lr_geom(
       self,
       lr_sink: "sinkhorn_lr.LRSinkhornOutput",
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
   ) -> geometry.Geometry:
     """Recompute (possibly LRC) linearization using LR Sinkhorn output."""
     marginal_1 = lr_sink.marginal(1)
@@ -268,9 +268,9 @@ class QuadraticProblem:
   def update_linearization(
       self,
       transport: Transport,
-      epsilon: Optional[float] = None,
+      epsilon: float | None = None,
       old_transport_mass: float = 1.0,
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
   ) -> linear_problem.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
@@ -337,7 +337,7 @@ class QuadraticProblem:
       self,
       lr_sink: "sinkhorn_lr.LRSinkhornOutput",
       *,
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
   ) -> linear_problem.LinearProblem:
     """Update a Quad problem linearization using a LR Sinkhorn."""
     return linear_problem.LinearProblem(
@@ -349,7 +349,7 @@ class QuadraticProblem:
     )
 
   @property
-  def _fused_cost_matrix(self) -> Union[float, jnp.ndarray]:
+  def _fused_cost_matrix(self) -> float | jnp.ndarray:
     return self.geom_xy.cost_matrix if self.is_fused else 0.0
 
   @property
@@ -372,7 +372,7 @@ class QuadraticProblem:
 
   def to_low_rank(
       self,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
   ) -> "QuadraticProblem":
     """Convert geometries to low-rank.
 
@@ -384,8 +384,8 @@ class QuadraticProblem:
     """
 
     def convert(
-        vals: Union[int, float, Tuple[Union[int, float], ...]]
-    ) -> Tuple[Union[int, float], ...]:
+        vals: int | float | tuple[int | float, ...]
+    ) -> tuple[int | float, ...]:
       size = 2 + self.is_fused
       if isinstance(vals, (int, float)):
         return (vals,) * 3
@@ -425,7 +425,7 @@ class QuadraticProblem:
     return self._geom_yy
 
   @property
-  def geom_xy(self) -> Optional[geometry.Geometry]:
+  def geom_xy(self) -> geometry.Geometry | None:
     """Geometry of the joint space."""
     return self._geom_xy
 
@@ -456,12 +456,12 @@ class QuadraticProblem:
     )
 
   @property
-  def linear_loss(self) -> Tuple[quadratic_costs.Loss, quadratic_costs.Loss]:
+  def linear_loss(self) -> tuple[quadratic_costs.Loss, quadratic_costs.Loss]:
     """Linear part of the Gromov-Wasserstein loss."""
     return self.loss.f1, self.loss.f2
 
   @property
-  def quad_loss(self) -> Tuple[quadratic_costs.Loss, quadratic_costs.Loss]:
+  def quad_loss(self) -> tuple[quadratic_costs.Loss, quadratic_costs.Loss]:
     """Quadratic part of the Gromov-Wasserstein loss."""
     return self.loss.h1, self.loss.h2
 

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 import networkx as nx
 from networkx.generators import balanced_tree
@@ -88,7 +87,7 @@ class TestGeodesic:
       t=[1e-4, 1e-5],
       only_fast=-1,
   )
-  def test_approximates_ground_truth(self, t: Optional[float], order: int):
+  def test_approximates_ground_truth(self, t: float | None, order: int):
     tol = 1e-2
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
     G = jnp.asarray(G.toarray().astype(float))

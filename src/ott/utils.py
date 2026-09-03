@@ -15,18 +15,8 @@ import dataclasses
 import functools
 import io
 import warnings
-from collections.abc import Sequence
-from typing import (
-    Any,
-    Callable,
-    List,
-    NamedTuple,
-    Optional,
-    ParamSpec,
-    Tuple,
-    TypeVar,
-    Union,
-)
+from collections.abc import Callable, Sequence
+from typing import Any, NamedTuple, ParamSpec, TypeVar
 
 import jax
 import jax._src.interpreters.batching as batching
@@ -47,7 +37,7 @@ __all__ = [
     "batched_vmap",
 ]
 
-IOStatus = Tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple]
+IOStatus = tuple[np.ndarray, np.ndarray, np.ndarray, NamedTuple]
 IOCallback = Callable[[IOStatus], None]
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -64,9 +54,9 @@ def register_pytree_node(cls: type) -> type:
 
 def deprecate(  # noqa: D103
     *,
-    version: Optional[str] = None,
-    alt: Optional[str] = None,
-    func: Optional[Callable[P, R]] = None
+    version: str | None = None,
+    alt: str | None = None,
+    func: Callable[P, R] | None = None
 ) -> Callable[P, R]:
 
   def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -84,7 +74,7 @@ def deprecate(  # noqa: D103
   return functools.wraps(func)(wrapper)
 
 
-def default_prng_key(rng: Optional[jax.Array] = None) -> jax.Array:
+def default_prng_key(rng: jax.Array | None = None) -> jax.Array:
   """Get the default PRNG key.
 
   Args:
@@ -99,7 +89,7 @@ def default_prng_key(rng: Optional[jax.Array] = None) -> jax.Array:
 
 def default_progress_fn(
     fmt: str = "{iter} / {max_iter} -- {error}",
-    stream: Optional[io.TextIOBase] = None,
+    stream: io.TextIOBase | None = None,
 ) -> IOCallback:
   """Return a callback that prints the progress when solving
   :mod:`linear problems <ott.problems.linear>`.
@@ -216,7 +206,7 @@ def tqdm_progress_fn(
   return progress_callback
 
 
-def _prepare_info(status: IOStatus) -> Tuple[int, int, int, np.ndarray]:
+def _prepare_info(status: IOStatus) -> tuple[int, int, int, np.ndarray]:
   iteration, inner_iterations, total_iter, state = status
   iteration = int(iteration) + 1
   inner_iterations = int(inner_iterations)
@@ -260,8 +250,8 @@ def _batch_and_remainder(
     args: Any,
     *,
     batch_size: int,
-    in_axes: Optional[Union[int, Sequence[int], Any]],
-) -> Tuple[Any, Any]:
+    in_axes: int | Sequence[int] | Any | None,
+) -> tuple[Any, Any]:
   assert batch_size > 0, f"Batch size must be positive, got {batch_size}."
   leaves, treedef = jax.tree.flatten(args, is_leaf=batching.is_vmappable)
   in_axes = _prepare_axes(
@@ -311,11 +301,10 @@ def _batch_and_remainder(
 
 
 def _apply_scan(
-    vmapped_fun: Callable[P, R], in_axes: Optional[Union[int, Sequence[int],
-                                                         Any]]
+    vmapped_fun: Callable[P, R], in_axes: int | Sequence[int] | Any | None
 ) -> Callable[P, R]:
 
-  def num_steps(axes: List[Any], args: Tuple[Any, ...]) -> int:
+  def num_steps(axes: list[Any], args: tuple[Any, ...]) -> int:
     ix = next(ix for ix, axis in enumerate(axes) if axis is not None)
     leaf, *_ = jax.tree.leaves(args[ix])
     axis, *_ = jax.tree.leaves(axes[ix])
@@ -329,7 +318,7 @@ def _apply_scan(
 
   def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
 
-    def body_fn(carry: None, index: int) -> Tuple[None, R]:
+    def body_fn(carry: None, index: int) -> tuple[None, R]:
       del carry
       new_args = treedef.unflatten([
           arg if axis is None else select_batch(arg, index, axis=axis)
@@ -358,7 +347,7 @@ def batched_vmap(
     fun: Callable[P, R],
     *,
     batch_size: int,
-    in_axes: Optional[Union[int, Sequence[int], Any]] = 0,
+    in_axes: int | Sequence[int] | Any | None = 0,
     out_axes: Any = 0,
 ) -> Callable[P, R]:
   """Batched version of :func:`~jax.vmap`.
@@ -383,7 +372,7 @@ def _batched_map(
     fun: Callable[P, R],
     *,
     batch_size: int,
-    in_axes: Optional[Union[int, Sequence[int], Any]] = 0,
+    in_axes: int | Sequence[int] | Any | None = 0,
     out_axes: Any = 0,
 ) -> Callable[P, R]:
 

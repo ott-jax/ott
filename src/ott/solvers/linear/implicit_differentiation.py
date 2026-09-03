@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
@@ -25,8 +26,7 @@ if TYPE_CHECKING:
   from ott.problems.linear import linear_problem
 
 LinOp_t = Callable[[jnp.ndarray], jnp.ndarray]
-Solver_t = Callable[[LinOp_t, jnp.ndarray, Optional[LinOp_t], bool],
-                    jnp.ndarray]
+Solver_t = Callable[[LinOp_t, jnp.ndarray, LinOp_t | None, bool], jnp.ndarray]
 
 __all__ = ["ImplicitDiff", "solve_jax_cg"]
 
@@ -72,14 +72,14 @@ class ImplicitDiff:
       :term`implicit differentiation`.
   """
 
-  solver: Optional[Solver_t] = None
-  solver_kwargs: Optional[Dict[str, Any]] = None
+  solver: Solver_t | None = None
+  solver_kwargs: dict[str, Any] | None = None
   symmetric: bool = False
-  precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None
+  precondition_fun: Callable[[jnp.ndarray], jnp.ndarray] | None = None
 
   def solve(
       self,
-      gr: Tuple[jnp.ndarray, jnp.ndarray],
+      gr: tuple[jnp.ndarray, jnp.ndarray],
       ot_prob: "linear_problem.LinearProblem",
       f: jnp.ndarray,
       g: jnp.ndarray,
@@ -274,7 +274,7 @@ class ImplicitDiff:
 
   def gradient(
       self, prob: "linear_problem.LinearProblem", f: jnp.ndarray,
-      g: jnp.ndarray, lse_mode: bool, gr: Tuple[jnp.ndarray, jnp.ndarray]
+      g: jnp.ndarray, lse_mode: bool, gr: tuple[jnp.ndarray, jnp.ndarray]
   ) -> "linear_problem.LinearProblem":
     """Apply VJP to recover gradient in reverse mode differentiation."""
     # Applies first part of vjp to gr: inverse part of implicit function theorem
@@ -295,7 +295,7 @@ class ImplicitDiff:
 def solve_jax_cg(
     lin: LinOp_t,
     b: jnp.ndarray,
-    lin_t: Optional[LinOp_t] = None,
+    lin_t: LinOp_t | None = None,
     symmetric: bool = False,
     ridge_identity: float = 0.0,
     ridge_kernel: float = 0.0,

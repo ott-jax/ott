@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Dict, Literal, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -60,14 +61,14 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   def __init__(
       self,
-      y: Optional[jnp.ndarray] = None,
-      b: Optional[jnp.ndarray] = None,
-      weights: Optional[jnp.ndarray] = None,
-      costs: Optional[jnp.ndarray] = None,
-      y_fused: Optional[jnp.ndarray] = None,
+      y: jnp.ndarray | None = None,
+      b: jnp.ndarray | None = None,
+      weights: jnp.ndarray | None = None,
+      costs: jnp.ndarray | None = None,
+      y_fused: jnp.ndarray | None = None,
       fused_penalty: float = 1.0,
       gw_loss: Literal["sqeucl", "kl"] = "sqeucl",
-      scale_cost: Union[float, Literal["mean", "max_cost"]] = 1.0,
+      scale_cost: float | Literal["mean", "max_cost"] = 1.0,
       **kwargs: Any,
   ):
     assert y is None or costs is None, "Cannot specify both `y` and `costs`."
@@ -119,7 +120,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         y: jnp.ndarray,
         b: jnp.ndarray,
         transport: jnp.ndarray,
-        fn: Optional[quadratic_costs.Loss],
+        fn: quadratic_costs.Loss | None,
     ) -> jnp.ndarray:
       geom = self._create_y_geometry(y)
       fn, lin = (None, True) if fn is None else (fn.func, fn.is_linear)
@@ -146,8 +147,9 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       return jnp.exp(barycenter)
     return barycenter
 
-  def update_features(self, transports: jnp.ndarray,
-                      a: jnp.ndarray) -> Optional[jnp.ndarray]:
+  def update_features(
+      self, transports: jnp.ndarray, a: jnp.ndarray
+  ) -> jnp.ndarray | None:
     """Update the barycenter features in the fused case :cite:`vayer:19`.
 
     Uses :cite:`cuturi:14` eq. 8, and is implemented only
@@ -225,7 +227,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       state: "GWBarycenterState",  # noqa: F821
       y: jnp.ndarray,
       b: jnp.ndarray,
-      f: Optional[jnp.ndarray] = None
+      f: jnp.ndarray | None = None
   ) -> quadratic_problem.QuadraticProblem:
     geom_xx = self._create_bary_geometry(state.cost)
     geom_yy = self._create_y_geometry(y)
@@ -251,7 +253,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     return self._y_fused is not None
 
   @property
-  def segmented_y_fused(self) -> Optional[jnp.ndarray]:
+  def segmented_y_fused(self) -> jnp.ndarray | None:
     """Feature array of shape used in the fused case."""
     if not self.is_fused or self._y_fused.ndim == 3:
       return self._y_fused
@@ -263,11 +265,11 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     return y_fused
 
   @property
-  def ndim(self) -> Optional[int]:  # noqa: D102
+  def ndim(self) -> int | None:  # noqa: D102
     return None if self._y_as_costs else self._y.shape[-1]
 
   @property
-  def ndim_fused(self) -> Optional[int]:
+  def ndim_fused(self) -> int | None:
     """Number of dimensions of the fused term."""
     return self._y_fused.shape[-1] if self.is_fused else None
 
@@ -286,7 +288,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         f"Loss `{self._loss_name}` is not yet implemented."
     )
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     (y, b, weights), aux = super().tree_flatten()
     if self._y_as_costs:
       children = [None, b, weights, y]
@@ -299,7 +301,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "GWBarycenterProblem":
     y, b, weights, costs, y_fused = children
     return cls(

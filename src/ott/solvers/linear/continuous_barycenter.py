@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, NamedTuple, Optional, Tuple, Union
+from typing import Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -27,7 +27,7 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 __all__ = ["FreeBarycenterState", "FreeWassersteinBarycenter"]
 
-LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
+LinearOutput = sinkhorn.SinkhornOutput | sinkhorn_lr.LRSinkhornOutput
 
 
 class FreeBarycenterState(NamedTuple):
@@ -48,10 +48,10 @@ class FreeBarycenterState(NamedTuple):
 
   x: jnp.ndarray
   a: jnp.ndarray
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
-  linear_outputs: Optional[LinearOutput] = None
-  errors: Optional[jnp.ndarray] = None
+  costs: jnp.ndarray | None = None
+  linear_convergence: jnp.ndarray | None = None
+  linear_outputs: LinearOutput | None = None
+  errors: jnp.ndarray | None = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
     """Return a copy of self, possibly with overwrites."""
@@ -76,7 +76,7 @@ class FreeBarycenterState(NamedTuple):
 
     @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
     def solve_linear_ot(
-        a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
+        a: jnp.ndarray | None, x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
     ):
       geom = pointcloud.PointCloud(
           x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
@@ -146,7 +146,7 @@ class FreeBarycenterOutput(NamedTuple):
   costs: jnp.ndarray
   linear_convergence: jnp.ndarray
   linear_outputs: LinearOutput
-  errors: Optional[jnp.ndarray] = None
+  errors: jnp.ndarray | None = None
 
   @property
   def all_linear_solvers_converged(self) -> bool:
@@ -187,8 +187,8 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int = 100,
-      x_init: Optional[jnp.ndarray] = None,
-      rng: Optional[jax.Array] = None,
+      x_init: jnp.ndarray | None = None,
+      rng: jax.Array | None = None,
   ) -> FreeBarycenterState:
     rng = utils.default_prng_key(rng)
     return self.iterations(bar_size, bar_prob, x_init, rng)
@@ -197,8 +197,8 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       self,
       bar_prob: barycenter_problem.FreeBarycenterProblem,
       bar_size: int,
-      x_init: Optional[jnp.ndarray] = None,
-      rng: Optional[jax.Array] = None,
+      x_init: jnp.ndarray | None = None,
+      rng: jax.Array | None = None,
   ) -> FreeBarycenterState:
     """Initialize the state of the Wasserstein barycenter iterations.
 
@@ -285,14 +285,14 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
 
     def cond_fn(
         iteration: int,
-        constants: Tuple[FreeWassersteinBarycenter,
+        constants: tuple[FreeWassersteinBarycenter,
                          barycenter_problem.FreeBarycenterProblem],
         state: FreeBarycenterState
     ) -> bool:
       return self._continue(state, iteration)
 
     def body_fn(
-        iteration, constants: Tuple[FreeWassersteinBarycenter,
+        iteration, constants: tuple[FreeWassersteinBarycenter,
                                     barycenter_problem.FreeBarycenterProblem],
         state: FreeBarycenterState, compute_error: bool
     ) -> FreeBarycenterState:

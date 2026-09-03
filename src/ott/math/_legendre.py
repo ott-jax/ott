@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -24,7 +25,7 @@ __all__ = ["legendre"]
 def legendre(
     fun: Callable[[jnp.ndarray], jnp.ndarray],
     **kwargs: Any,
-) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], jnp.ndarray]:
+) -> Callable[[jnp.ndarray, jnp.ndarray | None, Any], jnp.ndarray]:
   """Legendre (Fenchel) transform of a function.
 
   The solution is computed numerically using L-BFGS.
@@ -43,7 +44,7 @@ def legendre(
 
   def fun_star(
       x: jnp.ndarray,
-      x_init: Optional[jnp.ndarray] = None,
+      x_init: jnp.ndarray | None = None,
   ) -> float:
     """Runs optimization to compute the Legendre transform of ``fun`` at ``x``.
 

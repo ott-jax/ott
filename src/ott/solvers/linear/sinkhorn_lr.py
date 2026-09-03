@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Mapping, NamedTuple, Optional, Tuple
+from collections.abc import Callable, Mapping
+from typing import Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -28,7 +29,7 @@ from ott.solvers.linear import lr_utils, sinkhorn
 __all__ = ["LRSinkhorn", "LRSinkhornOutput"]
 
 ProgressFunction = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "LRSinkhornState"]], None]
+    [tuple[np.ndarray, np.ndarray, np.ndarray, "LRSinkhornState"]], None]
 
 
 class LRSinkhornState(NamedTuple):
@@ -69,7 +70,7 @@ class LRSinkhornState(NamedTuple):
     )
 
   def solution_error(  # noqa: D102
-      self, ot_prob: linear_problem.LinearProblem, norm_error: Tuple[int, ...]
+      self, ot_prob: linear_problem.LinearProblem, norm_error: tuple[int, ...]
   ) -> jnp.ndarray:
     return solution_error(self.q, self.r, ot_prob, norm_error)
 
@@ -119,7 +120,7 @@ def compute_reg_ot_cost(
 
 def solution_error(
     q: jnp.ndarray, r: jnp.ndarray, ot_prob: linear_problem.LinearProblem,
-    norm_error: Tuple[int, ...]
+    norm_error: tuple[int, ...]
 ) -> jnp.ndarray:
   """Compute solution error.
 
@@ -165,7 +166,7 @@ class LRSinkhornOutput(NamedTuple):
   inner_iterations: int
   converged: bool
   # TODO(michalk8): Optional is an artifact of the current impl., refactor
-  reg_ot_cost: Optional[float] = None
+  reg_ot_cost: float | None = None
 
   def set(self, **kwargs: Any) -> "LRSinkhornOutput":
     """Return a copy of self, with potential overwrites."""
@@ -296,12 +297,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       gamma: float = 10.0,
       gamma_rescale: bool = True,
       epsilon: float = 0.0,
-      initializer: Optional[initializers_lr.LRInitializer] = None,
+      initializer: initializers_lr.LRInitializer | None = None,
       lse_mode: bool = True,
       inner_iterations: int = 10,
       use_danskin: bool = True,
-      kwargs_dys: Optional[Mapping[str, Any]] = None,
-      progress_fn: Optional[ProgressFunction] = None,
+      kwargs_dys: Mapping[str, Any] | None = None,
+      progress_fn: ProgressFunction | None = None,
       **kwargs: Any,
   ):
     kwargs["implicit_diff"] = None  # not yet implemented
@@ -324,7 +325,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   def __call__(
       self,
       ot_prob: linear_problem.LinearProblem,
-      init: Optional[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]] = None,
+      init: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray] | None = None,
       **kwargs: Any,
   ) -> LRSinkhornOutput:
     """Run low-rank Sinkhorn.
@@ -351,7 +352,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       self,
       ot_prob: linear_problem.LinearProblem,
       state: LRSinkhornState,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
     log_q, log_r, log_g = (
         mu.safe_log(state.q), mu.safe_log(state.r), mu.safe_log(state.g)
     )
@@ -397,7 +398,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       min_iter: int = 0,
       inner_iter: int = 10,
       max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
@@ -415,8 +416,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     constants = c_q, c_r, loga, logb
 
     def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
+        iteration: int, constants: tuple[jnp.ndarray, ...],
+        state_inner: tuple[jnp.ndarray, ...]
     ) -> bool:
       del iteration, constants
       *_, err = state_inner
@@ -430,9 +431,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       )
 
     def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
+        iteration: int, constants: tuple[jnp.ndarray, ...],
+        state_inner: tuple[jnp.ndarray, ...], compute_error: bool
+    ) -> tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
       c_q, c_r, loga, logb = constants
@@ -489,7 +490,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         c_r: jnp.ndarray,
         h: jnp.ndarray,
         gamma: float,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
       q = jnp.exp(gamma * (f1[:, None] + g1[None, :] - c_q))
       r = jnp.exp(gamma * (f2[:, None] + g2[None, :] - c_r))
       g = jnp.exp(gamma * h)
@@ -514,7 +515,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       min_iter: int = 0,
       inner_iter: int = 10,
       max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     rank = self.rank
@@ -533,17 +534,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     constants = k_q, k_r, k_g, a, b
 
     def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
+        iteration: int, constants: tuple[jnp.ndarray, ...],
+        state_inner: tuple[jnp.ndarray, ...]
     ) -> bool:
       del iteration, constants
       *_, err = state_inner
       return err > tolerance
 
     def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
+        iteration: int, constants: tuple[jnp.ndarray, ...],
+        state_inner: tuple[jnp.ndarray, ...], compute_error: bool
+    ) -> tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
       k_q, k_r, k_g, a, b = constants
@@ -587,7 +588,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         v2: jnp.ndarray,
         k_r: jnp.ndarray,
         g: jnp.ndarray,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
       q = u1.reshape((-1, 1)) * k_q * v1.reshape((1, -1))
       r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
       return q, r, g
@@ -694,12 +695,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     return state
 
   @property
-  def norm_error(self) -> Tuple[int]:  # noqa: D102
+  def norm_error(self) -> tuple[int]:  # noqa: D102
     return self._norm_error,
 
   def init_state(
       self, ot_prob: linear_problem.LinearProblem,
-      init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+      init: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
   ) -> LRSinkhornState:
     """Return the initial state of the loop."""
     q, r, g = init
@@ -779,7 +780,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 def run(
     ot_prob: linear_problem.LinearProblem,
     solver: LRSinkhorn,
-    init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+    init: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
 ) -> LRSinkhornOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)

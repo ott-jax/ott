@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -35,9 +36,9 @@ Func_t = Callable[[jnp.ndarray], jnp.ndarray]
 
 def transport_for_sort(
     inputs: jnp.ndarray,
-    weights: Optional[jnp.ndarray] = None,
-    target_weights: Optional[jnp.ndarray] = None,
-    squashing_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+    weights: jnp.ndarray | None = None,
+    target_weights: jnp.ndarray | None = None,
+    squashing_fun: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
     epsilon: float = 1e-2,
     **kwargs: Any,
 ) -> sinkhorn.SinkhornOutput:
@@ -120,7 +121,7 @@ def apply_on_axis(op, inputs, axis, *args, **kwargs: Any) -> jnp.ndarray:
 
 
 def _sort(
-    inputs: jnp.ndarray, topk: int, num_targets: Optional[int], **kwargs: Any
+    inputs: jnp.ndarray, topk: int, num_targets: int | None, **kwargs: Any
 ) -> jnp.ndarray:
   """Apply the soft sort operator on a one dimensional array."""
   num_points = inputs.shape[0]
@@ -148,7 +149,7 @@ def sort(
     inputs: jnp.ndarray,
     axis: int = -1,
     topk: int = -1,
-    num_targets: Optional[int] = None,
+    num_targets: int | None = None,
     **kwargs: Any,
 ) -> jnp.ndarray:
   r"""Apply the soft sort operator on a given axis of the input.
@@ -222,8 +223,8 @@ def _ranks(
 def ranks(
     inputs: jnp.ndarray,
     axis: int = -1,
-    num_targets: Optional[int] = None,
-    target_weights: Optional[jnp.ndarray] = None,
+    num_targets: int | None = None,
+    target_weights: jnp.ndarray | None = None,
     **kwargs: Any,
 ) -> jnp.ndarray:
   r"""Apply the soft rank operator on input tensor.
@@ -338,9 +339,9 @@ def topk_mask(
 
 def quantile(
     inputs: jnp.ndarray,
-    q: Optional[Union[float, jnp.ndarray]],
-    axis: Union[int, Tuple[int, ...]] = -1,
-    weight: Optional[Union[float, jnp.ndarray]] = None,
+    q: float | jnp.ndarray | None,
+    axis: int | tuple[int, ...] = -1,
+    weight: float | jnp.ndarray | None = None,
     **kwargs: Any,
 ) -> jnp.ndarray:
   r"""Apply the soft quantiles operator on the input tensor.
@@ -458,14 +459,14 @@ def quantile(
 
 def multivariate_cdf_quantile_maps(
     inputs: jnp.ndarray,
-    target_sampler: Optional[Callable[[jax.Array, Tuple[int, int]],
-                                      jax.Array]] = None,
-    rng: Optional[jax.Array] = None,
-    num_target_samples: Optional[int] = None,
-    cost_fn: Optional[costs.CostFn] = None,
-    epsilon: Optional[float] = None,
-    input_weights: Optional[jnp.ndarray] = None,
-    target_weights: Optional[jnp.ndarray] = None,
+    target_sampler: Callable[[jax.Array, tuple[int, int]], jax.Array]
+    | None = None,
+    rng: jax.Array | None = None,
+    num_target_samples: int | None = None,
+    cost_fn: costs.CostFn | None = None,
+    epsilon: float | None = None,
+    input_weights: jnp.ndarray | None = None,
+    target_weights: jnp.ndarray | None = None,
     **kwargs: Any
 ) -> potentials.DualPotentials:
   r"""Returns multivariate CDF and quantile maps, given input samples.
@@ -547,7 +548,7 @@ def _quantile_normalization(
 def quantile_normalization(
     inputs: jnp.ndarray,
     targets: jnp.ndarray,
-    weights: Optional[jnp.ndarray] = None,
+    weights: jnp.ndarray | None = None,
     axis: int = -1,
     **kwargs: Any,
 ) -> jnp.ndarray:

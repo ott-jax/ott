@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Literal, Optional, Tuple
+from typing import Literal
 
 import networkx as nx
 from networkx.generators import balanced_tree
@@ -97,7 +97,7 @@ class TestGraph:
       t=[1e-4, 1e-5],
       only_fast=0,
   )
-  def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
+  def test_crank_nicolson_more_stable(self, t: float | None, n_steps: int):
     tol = 5 * t
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
     G = jnp.asarray(G.toarray())
@@ -212,7 +212,7 @@ class TestGraph:
 
     def callback(
         data: jnp.ndarray, rows: jnp.ndarray, cols: jnp.ndarray,
-        shape: Tuple[int, int]
+        shape: tuple[int, int]
     ) -> float:
       G = jesp.BCOO((data, jnp.c_[rows, cols]), shape=shape).todense()
 

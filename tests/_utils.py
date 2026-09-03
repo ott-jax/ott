@@ -13,7 +13,8 @@
 # limitations under the License.
 """Helpers shared across the test suite."""
 import dataclasses
-from typing import Any, Callable, Dict, List, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -130,15 +131,15 @@ def proj(matrix: jnp.ndarray, nu: float = 1.0) -> jnp.ndarray:
   return u.dot(v_h) * jnp.sqrt(nu)
 
 
-def tracing_progress_fn() -> Tuple[Dict[str, List[Any]], Callable[..., None]]:
+def tracing_progress_fn() -> tuple[dict[str, list[Any]], Callable[..., None]]:
   """Progress callback recording the iterations at which it was called.
 
   Returns:
     The recorded values and the callback to pass as ``progress_fn``.
   """
-  traced: Dict[str, List[Any]] = {"iters": [], "error": [], "total": []}
+  traced: dict[str, list[Any]] = {"iters": [], "error": [], "total": []}
 
-  def progress_fn(status: Tuple[Any, ...], *args: Any) -> None:
+  def progress_fn(status: tuple[Any, ...], *args: Any) -> None:
     iteration, inner_iterations, total_iter, state = status
     iteration = int(iteration)
     inner_iterations = int(inner_iterations)

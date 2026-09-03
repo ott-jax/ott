@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -29,7 +28,7 @@ __all__ = ["GaussianMixture"]
 def get_summary_stats_from_points_and_assignment_probs(
     points: jnp.ndarray, point_weights: jnp.ndarray,
     assignment_probs: jnp.ndarray
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Get component summary stats from points and component probabilities.
 
   Args:
@@ -84,7 +83,7 @@ class GaussianMixture:
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
       stdev_weights: float = 0.1,
-      ridge: Union[float, jnp.array] = 0,
+      ridge: float | jnp.array = 0,
   ) -> "GaussianMixture":
     """Construct a random GMM."""
     loc = []
@@ -215,7 +214,7 @@ class GaussianMixture:
         loc=self.loc[index], scale_params=self.scale_params[index]
     )
 
-  def components(self) -> List[gaussian.Gaussian]:
+  def components(self) -> list[gaussian.Gaussian]:
     """List of all GMM components."""
     return [self.get_component(i) for i in range(self.n_components)]
 

@@ -1,13 +1,5 @@
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterable,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any
 
 import jax.numpy as jnp
 
@@ -32,7 +24,7 @@ class ConditionalPerturbationNetwork(BasePotential):
   embed_cond_equal: bool = (
       False  # Whether all context variables should be treated as set or not
   )
-  context_entity_bonds: Iterable[Tuple[int, int]] = (
+  context_entity_bonds: Iterable[tuple[int, int]] = (
       (0, 10),
       (10, 20),
   )  # (start, stop) slicing bounds per context modality in c;
@@ -43,8 +35,8 @@ class ConditionalPerturbationNetwork(BasePotential):
   def __call__(
       self,
       x: jnp.ndarray,
-      c: Optional[jnp.ndarray] = None
-  ) -> Union[jnp.ndarray, Dict[str, jnp.ndarray]]:  # noqa: D102
+      c: jnp.ndarray | None = None
+  ) -> jnp.ndarray | dict[str, jnp.ndarray]:  # noqa: D102
     """Forward pass: map (x, c) -> x + residual.
 
     Args:

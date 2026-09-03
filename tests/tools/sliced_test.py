@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Callable, Optional, Tuple
+from collections.abc import Callable
 
 import pytest
 
@@ -39,7 +39,7 @@ def custom_proj(
 
 def gen_data(
     rng: jax.Array, n: int, m: int, dim: int
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   c = _utils.random_clouds(rng, n=n, m=m, dim=dim, offset=0.0)
   return c.a, c.x, c.b, c.y
 
@@ -49,8 +49,8 @@ class TestSliced:
   @pytest.mark.parametrize("proj_fn", [None, custom_proj])
   @pytest.mark.parametrize("cost_fn", [costs.PNormP(1.3), None])
   def test_random_projs(
-      self, rng: jax.Array, cost_fn: Optional[costs.CostFn],
-      proj_fn: Optional[Projector]
+      self, rng: jax.Array, cost_fn: costs.CostFn | None,
+      proj_fn: Projector | None
   ):
     n, m, dim, n_proj = 12, 17, 5, 13
     rng_data, rng_w, rng_proj = jr.split(rng, 3)
@@ -79,7 +79,7 @@ class TestSliced:
 
   @pytest.mark.parametrize("cost_fn", [costs.SqPNorm(1.4), None])
   def test_consistency_with_id(
-      self, rng: jax.Array, cost_fn: Optional[costs.CostFn]
+      self, rng: jax.Array, cost_fn: costs.CostFn | None
   ):
     n, m, dim = 11, 12, 4
     _, x, _, y = gen_data(rng, n, m, dim)
@@ -93,7 +93,7 @@ class TestSliced:
     np.testing.assert_allclose(out_lin, cost, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.parametrize("proj_fn", [None, custom_proj])
-  def test_diff(self, rng: jax.Array, proj_fn: Optional[Projector]):
+  def test_diff(self, rng: jax.Array, proj_fn: Projector | None):
     eps = 1e-4
     n, m, dim = 13, 16, 7
     rng_data, rng_dx = jr.split(rng, 2)

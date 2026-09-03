@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import math
-from typing import Optional, Union
 
 import jax
 import jax.numpy as jnp
@@ -36,7 +35,7 @@ class Gaussian:
   def from_samples(
       cls,
       points: jnp.ndarray,
-      weights: Optional[jnp.ndarray] = None
+      weights: jnp.ndarray | None = None
   ) -> "Gaussian":
     """Construct a Gaussian from weighted samples.
 
@@ -67,7 +66,7 @@ class Gaussian:
       n_dimensions: int,
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
-      ridge: Union[float, jnp.ndarray] = 0,
+      ridge: float | jnp.ndarray = 0,
   ) -> "Gaussian":
     """Construct a random Gaussian.
 

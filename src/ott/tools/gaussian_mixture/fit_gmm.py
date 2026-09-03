@@ -49,8 +49,6 @@ Q(\Theta|\Theta(t)) = E_{Z|X,\Theta^{(t)}} \left[ \log L(\Theta; X, Z) \right]
 $$
 """
 
-from typing import Optional
-
 import jax
 import jax.numpy as jnp
 
@@ -83,7 +81,7 @@ def get_q(
     gmm: gaussian_mixture.GaussianMixture,
     assignment_probs: jnp.ndarray,
     points: jnp.ndarray,
-    point_weights: Optional[jnp.ndarray] = None,
+    point_weights: jnp.ndarray | None = None,
 ) -> float:
   r"""Get Q(\Theta|\Theta^{(t)}).
 
@@ -110,7 +108,7 @@ def get_q(
 def log_prob_loss(
     gmm: gaussian_mixture.GaussianMixture,
     points: jnp.ndarray,
-    point_weights: Optional[jnp.ndarray] = None,
+    point_weights: jnp.ndarray | None = None,
 ) -> float:
   """Loss function: weighted mean of (-log prob of observations).
 
@@ -131,7 +129,7 @@ def log_prob_loss(
 def fit_model_em(
     gmm: gaussian_mixture.GaussianMixture,
     points: jnp.ndarray,
-    point_weights: Optional[jnp.ndarray],
+    point_weights: jnp.ndarray | None,
     steps: int,
     jit: bool = True,
     verbose: bool = False,
@@ -231,7 +229,7 @@ def _get_locs(
 def from_kmeans_plusplus(
     rng: jax.Array,
     points: jnp.ndarray,
-    point_weights: Optional[jnp.ndarray],
+    point_weights: jnp.ndarray | None,
     n_components: int,
 ) -> gaussian_mixture.GaussianMixture:
   """Initialize a GMM via a single pass of K-means++.
@@ -267,7 +265,7 @@ def from_kmeans_plusplus(
 def initialize(
     rng: jax.Array,
     points: jnp.ndarray,
-    point_weights: Optional[jnp.ndarray],
+    point_weights: jnp.ndarray | None,
     n_components: int,
     n_attempts: int = 50,
     verbose: bool = False

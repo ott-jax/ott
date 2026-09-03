@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -45,8 +46,8 @@ class DualPotentials:
     g: The second dual potential function.
     cost_fn: The cost function used to solve the OT problem.
   """
-  f: Optional[PotentialFn]
-  g: Optional[PotentialFn]
+  f: PotentialFn | None
+  g: PotentialFn | None
   cost_fn: costs.CostFn
 
   def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
@@ -117,12 +118,12 @@ class DualPotentials:
       self,
       source: jnp.ndarray,
       target: jnp.ndarray,
-      samples: Optional[jnp.ndarray] = None,
+      samples: jnp.ndarray | None = None,
       forward: bool = True,
-      ax: Optional["plt.Axes"] = None,
-      scatter_kwargs: Optional[Dict[str, Any]] = None,
-      legend_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple["plt.Figure", "plt.Axes"]:
+      ax: "plt.Axes | None" = None,
+      scatter_kwargs: dict[str, Any] | None = None,
+      legend_kwargs: dict[str, Any] | None = None,
+  ) -> tuple["plt.Figure", "plt.Axes"]:
     """Plot data and learned optimal transport map.
 
     Args:
@@ -211,12 +212,12 @@ class DualPotentials:
       forward: bool = True,
       quantile: float = 0.05,
       kantorovich: bool = True,
-      ax: Optional["mpl.axes.Axes"] = None,
-      x_bounds: Tuple[float, float] = (-6, 6),
-      y_bounds: Tuple[float, float] = (-6, 6),
+      ax: "mpl.axes.Axes | None" = None,
+      x_bounds: tuple[float, float] = (-6, 6),
+      y_bounds: tuple[float, float] = (-6, 6),
       num_grid: int = 50,
-      contourf_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
+      contourf_kwargs: dict[str, Any] | None = None,
+  ) -> tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
     r"""Plot the potential.
 
     Args:

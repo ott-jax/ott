@@ -13,16 +13,8 @@
 # limitations under the License.
 import functools
 import inspect
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Literal,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Callable, Sequence
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -42,8 +34,8 @@ __all__ = [
     "gaussian_nll",
 ]
 
-DivState = Tuple[jax.Array, jax.Array]  # velocity, divergence
-Batch = Dict[Literal["t", "x_t", "v_t", "cond"], jax.Array]
+DivState = tuple[jax.Array, jax.Array]  # velocity, divergence
+Batch = dict[Literal["t", "x_t", "v_t", "cond"], jax.Array]
 
 
 def flow_matching_step(
@@ -52,9 +44,9 @@ def flow_matching_step(
     batch: Batch,
     *,
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
-    model_callback_fn: Optional[Callable[[nnx.Module], None]] = None,
-    rngs: Optional[nnx.Rngs] = None,
-) -> Dict[Literal["loss", "grad_norm"], jax.Array]:
+    model_callback_fn: Callable[[nnx.Module], None] | None = None,
+    rngs: nnx.Rngs | None = None,
+) -> dict[Literal["loss", "grad_norm"], jax.Array]:
   """Perform a flow matching step.
 
   Args:
@@ -99,10 +91,10 @@ def interpolate_samples(
     rng: jax.Array,
     x0: jax.Array,
     x1: jax.Array,
-    cond: Optional[jax.Array] = None,
+    cond: jax.Array | None = None,
     *,
-    time_sampler: Optional[Callable[[jax.Array, Tuple[int], jnp.dtype],
-                                    jax.Array]] = None
+    time_sampler: Callable[[jax.Array, tuple[int], jnp.dtype], jax.Array]
+    | None = None
 ) -> Batch:
   """Sample time and interpolate.
 
@@ -142,16 +134,16 @@ def interpolate_samples(
 
 def evaluate_velocity_field(
     model: nnx.Module,
-    x: Union[jax.Array, Any],
-    cond: Optional[jax.Array] = None,
+    x: jax.Array | Any,
+    cond: jax.Array | None = None,
     *,
     t0: float = 0.0,
     t1: float = 1.0,
     reverse: bool = False,
-    num_steps: Optional[int] = None,
-    solver: Optional[diffrax.AbstractSolver] = None,
-    save_trajectory_kwargs: Optional[Dict[str, Any]] = None,
-    save_velocity_kwargs: Optional[Dict[str, Any]] = None,
+    num_steps: int | None = None,
+    solver: diffrax.AbstractSolver | None = None,
+    save_trajectory_kwargs: dict[str, Any] | None = None,
+    save_velocity_kwargs: dict[str, Any] | None = None,
     **kwargs: Any,
 ) -> diffrax.Solution:
   """Solve an ODE.
@@ -226,13 +218,13 @@ def evaluate_velocity_field(
 def curvature(
     model: nnx.Module,
     x0: jax.Array,
-    cond: Optional[jax.Array] = None,
+    cond: jax.Array | None = None,
     *,
-    ts: Union[int, jax.Array, Sequence[float]],
-    drop_last_velocity: Optional[bool] = None,
+    ts: int | jax.Array | Sequence[float],
+    drop_last_velocity: bool | None = None,
     loss_fn: Callable[[jax.Array, jax.Array], jax.Array] = optax.squared_error,
     **kwargs: Any,
-) -> Tuple[jax.Array, diffrax.Solution]:
+) -> tuple[jax.Array, diffrax.Solution]:
   """Compute the curvature :cite:`lee:23`.
 
   Also known as straightness in :cite:`liu:22`.
@@ -284,12 +276,12 @@ def curvature(
 def gaussian_nll(
     model: nnx.Module,
     x1: jax.Array,
-    cond: Optional[jax.Array] = None,
+    cond: jax.Array | None = None,
     *,
-    noise: Optional[jax.Array] = None,
+    noise: jax.Array | None = None,
     stddev: float = 1.0,
     **kwargs: Any,
-) -> Tuple[jax.Array, diffrax.Solution]:
+) -> tuple[jax.Array, diffrax.Solution]:
   """Compute the Gaussian negative log-likelihood.
 
   Args:
@@ -336,19 +328,19 @@ def gaussian_nll(
 
 
 def _velocity(
-    t: jax.Array, x_t: jax.Array, cond: Optional[jax.Array], model: nnx.Module
+    t: jax.Array, x_t: jax.Array, cond: jax.Array | None, model: nnx.Module
 ) -> jax.Array:
   cond = None if cond is None else cond[None]
   return model(t[None], x_t[None], cond).squeeze(0)
 
 
 def _exact_divergence(
-    t: jax.Array, state_t: DivState, cond: Optional[jax.Array], *,
+    t: jax.Array, state_t: DivState, cond: jax.Array | None, *,
     model: nnx.Module
 ) -> DivState:
 
   def divergence_v(
-      t: jax.Array, x: jax.Array, cond: Optional[jax.Array]
+      t: jax.Array, x: jax.Array, cond: jax.Array | None
   ) -> jax.Array:
     # divergence of fwd velocity field
     jacobian = jax.jacrev(_velocity, argnums=1)(t, x, cond, model)
@@ -362,7 +354,7 @@ def _exact_divergence(
 
 
 def _hutchinson_divergence(
-    t: jax.Array, state_t: DivState, cond: Optional[jax.Array], *,
+    t: jax.Array, state_t: DivState, cond: jax.Array | None, *,
     model: nnx.Module, h: jax.Array
 ) -> DivState:
   x_t, _ = state_t

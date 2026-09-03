@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Tuple
 
 import pytest
 
@@ -132,7 +131,7 @@ class TestBarycenter:
         y: jnp.ndarray,
         b: jnp.ndarray,
         segment_before: bool,
-        num_per_segment: Tuple[int, ...],
+        num_per_segment: tuple[int, ...],
     ) -> cb.FreeBarycenterState:
       if segment_before:
         y, b, num_per_segment = segment.segment_point_cloud(

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, Optional, Tuple, Union
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -27,14 +27,14 @@ __all__ = [
     "uniform_sampler",
 ]
 
-ScaleCost_t = Union[float, Literal["mean", "max_cost", "median"]]
+ScaleCost_t = float | Literal["mean", "max_cost", "median"]
 
 
 def match_linear(
     x: jnp.ndarray,
-    y: Optional[jnp.ndarray],
-    cost_fn: Optional[costs.CostFn] = None,
-    epsilon: Optional[float] = None,
+    y: jnp.ndarray | None,
+    cost_fn: costs.CostFn | None = None,
+    epsilon: float | None = None,
     scale_cost: ScaleCost_t = 1.0,
     **kwargs: Any
 ) -> jnp.ndarray:
@@ -61,10 +61,10 @@ def match_linear(
 def match_quadratic(
     xx: jnp.ndarray,
     yy: jnp.ndarray,
-    x: Optional[jnp.ndarray] = None,
-    y: Optional[jnp.ndarray] = None,
+    x: jnp.ndarray | None = None,
+    y: jnp.ndarray | None = None,
     scale_cost: ScaleCost_t = 1.0,
-    cost_fn: Optional[costs.CostFn] = None,
+    cost_fn: costs.CostFn | None = None,
     **kwargs: Any
 ) -> jnp.ndarray:
   """Compute solution to a quadratic OT problem.
@@ -95,7 +95,7 @@ def match_quadratic(
 
 
 def sample_joint(rng: jax.Array,
-                 tmat: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+                 tmat: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
   """Sample jointly from a transport matrix.
 
   Args:
@@ -120,7 +120,7 @@ def sample_conditional(
     tmat: jnp.ndarray,
     *,
     k: int = 1,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray]:
   """Sample conditionally from a transport matrix.
 
   Args:
@@ -154,7 +154,7 @@ def uniform_sampler(
     num_samples: int,
     low: float = 0.0,
     high: float = 1.0,
-    offset: Optional[float] = None
+    offset: float | None = None
 ) -> jnp.ndarray:
   r"""Sample from a uniform distribution.
 

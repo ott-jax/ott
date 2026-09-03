@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import itertools
-from typing import Any, Callable, List, NoReturn, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any, NoReturn
 
 import jax
 import jax.numpy as jnp
@@ -71,11 +72,11 @@ class Grid(geometry.Geometry):
 
   def __init__(
       self,
-      x: Optional[Sequence[jnp.ndarray]] = None,
-      grid_size: Optional[Sequence[int]] = None,
-      cost_fns: Optional[Sequence[costs.CostFn]] = None,
-      num_a: Optional[int] = None,
-      grid_dimension: Optional[int] = None,
+      x: Sequence[jnp.ndarray] | None = None,
+      grid_size: Sequence[int] | None = None,
+      cost_fns: Sequence[costs.CostFn] | None = None,
+      num_a: int | None = None,
+      grid_dimension: int | None = None,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -111,7 +112,7 @@ class Grid(geometry.Geometry):
     }
 
   @property
-  def geometries(self) -> List[geometry.Geometry]:
+  def geometries(self) -> list[geometry.Geometry]:
     """Cost matrices along each dimension of the grid."""
     geometries = []
     for dimension, cost_fn in itertools.zip_longest(
@@ -136,7 +137,7 @@ class Grid(geometry.Geometry):
     return True
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self.num_a, self.num_a
 
   @property
@@ -149,7 +150,7 @@ class Grid(geometry.Geometry):
       f: jnp.ndarray,
       g: jnp.ndarray,
       eps: float,
-      vec: Optional[jnp.ndarray] = None,
+      vec: jnp.ndarray | None = None,
       axis: int = 0
   ) -> jnp.ndarray:
     """Apply grid kernel in log space. See notes in parent class for use case.
@@ -212,7 +213,7 @@ class Grid(geometry.Geometry):
       self,
       vec: jnp.ndarray,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
       is_linear: bool = False,
   ) -> jnp.ndarray:
     r"""Apply grid's cost matrix (without instantiating it) to a vector.
@@ -263,8 +264,8 @@ class Grid(geometry.Geometry):
   def apply_kernel(
       self,
       vec: jnp.ndarray,
-      eps: Optional[float] = None,
-      axis: Optional[int] = None
+      eps: float | None = None,
+      axis: int | None = None
   ) -> jnp.ndarray:
     """Apply grid kernel on scaling vector.
 
@@ -335,7 +336,7 @@ class Grid(geometry.Geometry):
       *args: Any,
       static_b: bool = False,
       **kwargs: Any
-  ) -> Tuple["Grid", ...]:
+  ) -> tuple["Grid", ...]:
     """Instantiate the geometries used for a divergence computation."""
     sep_grid = cls(*args, **kwargs)
     size = 2 if static_b else 3

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, Optional, Tuple, Union
+from typing import Any, Literal
 
 import pytest
 
@@ -29,9 +29,9 @@ from ott.tools import k_means
 
 def make_blobs(
     *args: Any,
-    cost_fn: Optional[Literal["sqeucl", "cosine"]] = None,
+    cost_fn: Literal["sqeucl", "cosine"] | None = None,
     **kwargs: Any
-) -> Tuple[Union[jnp.ndarray, pointcloud.PointCloud], jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray | pointcloud.PointCloud, jnp.ndarray, jnp.ndarray]:
   X, y, c = datasets.make_blobs(*args, return_centers=True, **kwargs)
   X, y, c = jnp.asarray(X), jnp.asarray(y), jnp.asarray(c)
   if cost_fn is None:
@@ -49,8 +49,8 @@ def make_blobs(
 def compute_assignment(
     x: jnp.ndarray,
     centers: jnp.ndarray,
-    weights: Optional[jnp.ndarray] = None
-) -> Tuple[jnp.ndarray, float]:
+    weights: jnp.ndarray | None = None
+) -> tuple[jnp.ndarray, float]:
   if weights is None:
     weights = jnp.ones(x.shape[0])
   cost_matrix = pointcloud.PointCloud(x, centers).cost_matrix
@@ -63,7 +63,7 @@ def compute_assignment(
 class TestKmeansPlusPlus:
 
   @pytest.mark.fast.with_args("n_local_trials", [None, 3], only_fast=-1)
-  def test_n_local_trials(self, rng: jax.Array, n_local_trials: Optional[int]):
+  def test_n_local_trials(self, rng: jax.Array, n_local_trials: int | None):
     n, k = 100, 4
     rng1, rng2 = rng, jr.key(0)
     geom, _, c = make_blobs(

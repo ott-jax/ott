@@ -13,7 +13,7 @@
 # limitations under the License.
 import functools
 import math
-from typing import Callable, Tuple
+from collections.abc import Callable
 
 import pytest
 
@@ -30,7 +30,7 @@ def get_model_and_data(
     n_samples: int,
     target_dim: int,
     random_state: int = 0,
-) -> Tuple[Callable[[jnp.ndarray], jnp.ndarray], Tuple[jnp.ndarray, ...]]:
+) -> tuple[Callable[[jnp.ndarray], jnp.ndarray], tuple[jnp.ndarray, ...]]:
   x, y = datasets.make_regression(
       n_samples=n_samples,
       n_features=5,
@@ -57,7 +57,7 @@ def get_model_and_data(
 class TestOTCP:
 
   @pytest.mark.parametrize("shape", [(16, 2), (58, 9), (128, 9)])
-  def test_sobol_ball_sampler(self, shape: Tuple[int, int], rng: jax.Array):
+  def test_sobol_ball_sampler(self, shape: tuple[int, int], rng: jax.Array):
     n, d = shape
     n_per_radius = math.ceil(math.sqrt(n))
     n_sphere, n_0s = divmod(n, n_per_radius)

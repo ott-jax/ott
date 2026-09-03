@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Literal, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -48,14 +49,14 @@ class SemidiscretePointCloud:
 
   def __init__(
       self,
-      sampler: Callable[[jax.Array, Tuple[int, ...], Optional[jnp.dtype]],
+      sampler: Callable[[jax.Array, tuple[int, ...], jnp.dtype | None],
                         jax.Array],
       y: jax.Array,
-      cost_fn: Optional[costs.CostFn] = None,
-      epsilon: Optional[Union[float, jax.Array]] = None,
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
-      scale_cost: Union[float, Literal["mean", "max_norm", "max_bound",
-                                       "max_cost", "median"]] = 1.0,
+      cost_fn: costs.CostFn | None = None,
+      epsilon: float | jax.Array | None = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
+      scale_cost: float
+      | Literal["mean", "max_norm", "max_bound", "max_cost", "median"] = 1.0,
       relative_epsilon_seed: int = 0,
       relative_epsilon_num_samples: int = 1024,
   ):
@@ -75,7 +76,7 @@ class SemidiscretePointCloud:
       rng: jax.Array,
       num_samples: int,
       *,
-      epsilon: Optional[float] = None
+      epsilon: float | None = None
   ) -> pointcloud.PointCloud:
     """Sample a point cloud.
 

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Literal, Tuple, Union
+from typing import Literal
 
 import pytest
 
@@ -113,8 +113,8 @@ class TestFusedGromovWasserstein:
 
     def reg_gw(
         x: jnp.ndarray, y: jnp.ndarray,
-        xy: Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray]],
-        fused_penalty: float, a: jnp.ndarray, b: jnp.ndarray, implicit: bool
+        xy: jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray], fused_penalty: float,
+        a: jnp.ndarray, b: jnp.ndarray, implicit: bool
     ):
       if is_cost:
         geom_x = geometry.Geometry(cost_matrix=x)
@@ -254,7 +254,7 @@ class TestFusedGromovWasserstein:
 
   @pytest.mark.parametrize("cost_rank", [4, (2, 3, 4)])
   def test_fgw_lr_generic_cost_matrix(
-      self, rng: jax.Array, cost_rank: Union[int, Tuple[int, int, int]]
+      self, rng: jax.Array, cost_rank: int | tuple[int, int, int]
   ):
     n, m = 20, 30
     rng1, rng2, rng3, rng4 = jr.split(rng, 4)

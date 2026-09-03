@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Literal, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -54,11 +55,11 @@ class PointCloud(geometry.Geometry):
   def __init__(
       self,
       x: jnp.ndarray,
-      y: Optional[jnp.ndarray] = None,
-      cost_fn: Optional[costs.CostFn] = None,
-      batch_size: Optional[int] = None,
-      scale_cost: Union[float, Literal["mean", "max_norm", "max_bound",
-                                       "max_cost", "median"]] = 1.0,
+      y: jnp.ndarray | None = None,
+      cost_fn: costs.CostFn | None = None,
+      batch_size: int | None = None,
+      scale_cost: float
+      | Literal["mean", "max_norm", "max_bound", "max_cost", "median"] = 1.0,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -76,14 +77,14 @@ class PointCloud(geometry.Geometry):
       f: jnp.ndarray,
       g: jnp.ndarray,
       eps: float,
-      vec: Optional[jnp.ndarray] = None,
+      vec: jnp.ndarray | None = None,
       axis: int = 0
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray]:
     if not self.is_online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
     def apply(x: jnp.ndarray, y: jnp.ndarray, f: jnp.ndarray,
-              g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+              g: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
       cost = cost.squeeze(1 - axis)
@@ -105,7 +106,7 @@ class PointCloud(geometry.Geometry):
   def apply_kernel(  # noqa: D102
       self,
       vec: jnp.ndarray,
-      eps: Optional[float] = None,
+      eps: float | None = None,
       axis: int = 0
   ) -> jnp.ndarray:
     if eps is None:
@@ -130,9 +131,9 @@ class PointCloud(geometry.Geometry):
       self,
       vec: jnp.ndarray,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
       is_linear: bool = False,
-      scale_cost: Optional[float] = None,
+      scale_cost: float | None = None,
   ) -> jnp.ndarray:
 
     def apply(x: jnp.ndarray, y: jnp.ndarray, arr: jnp.ndarray) -> jnp.ndarray:
@@ -172,7 +173,7 @@ class PointCloud(geometry.Geometry):
       vec: jnp.ndarray,
       scale_cost: float,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
   ) -> jnp.ndarray:
     assert vec.ndim == 1, vec.shape
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
@@ -229,7 +230,7 @@ class PointCloud(geometry.Geometry):
       y: jnp.ndarray,
       static_b: bool = False,
       **kwargs: Any
-  ) -> Tuple["PointCloud", ...]:
+  ) -> tuple["PointCloud", ...]:
     """Instantiate the geometries used for a divergence computation."""
     couples = [(x, y), (x, x)]
     if not static_b:
@@ -267,7 +268,7 @@ class PointCloud(geometry.Geometry):
       self,
       scale: float = 1.0,
       **kwargs: Any,
-  ) -> Union[low_rank.LRCGeometry, "PointCloud"]:
+  ) -> "low_rank.LRCGeometry | PointCloud":
     r"""Convert point cloud to low-rank geometry.
 
     Args:
@@ -332,7 +333,7 @@ class PointCloud(geometry.Geometry):
     )
 
   @property
-  def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+  def cost_matrix(self) -> jnp.ndarray | None:  # noqa: D102
     return self.inv_scale_cost * self._unscaled_cost_matrix
 
   @property
@@ -384,8 +385,8 @@ class PointCloud(geometry.Geometry):
 
   def subset(  # noqa: D102
       self,
-      row_ixs: Optional[jnp.ndarray] = None,
-      col_ixs: Optional[jnp.ndarray] = None,
+      row_ixs: jnp.ndarray | None = None,
+      col_ixs: jnp.ndarray | None = None,
   ) -> "PointCloud":
     (x, y, *rest), aux_data = self.tree_flatten()
     if row_ixs is not None:
@@ -395,11 +396,11 @@ class PointCloud(geometry.Geometry):
     return type(self).tree_unflatten(aux_data, (x, y, *rest))
 
   @property
-  def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+  def kernel_matrix(self) -> jnp.ndarray | None:  # noqa: D102
     return jnp.exp(-self.cost_matrix / self.epsilon)
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self.x.shape[0], self.y.shape[0]
 
   @property
@@ -435,7 +436,7 @@ class PointCloud(geometry.Geometry):
     return self.x.shape[1]
 
   @property
-  def batch_size(self) -> Optional[int]:
+  def batch_size(self) -> int | None:
     """Batch size for online mode."""
     if self._batch_size is None:
       return None

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 import jax
 import jax.numpy as jnp
@@ -37,7 +36,7 @@ class Probabilities:
       cls,
       rng: jax.Array,
       n_dimensions: int,
-      stdev: Optional[float] = 0.1,
+      stdev: float | None = 0.1,
   ) -> "Probabilities":
     """Construct a random Probabilities."""
     return cls(params=jax.random.normal(rng, shape=(n_dimensions - 1,)) * stdev)

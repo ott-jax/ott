@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """A Jax implementation of the unbalanced low-rank GW algorithm."""
-from typing import Any, Callable, Mapping, NamedTuple, Optional, Tuple
+from collections.abc import Callable, Mapping
+from typing import Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -31,7 +32,7 @@ from ott.solvers.linear import lr_utils, sinkhorn
 __all__ = ["LRGromovWasserstein", "LRGWOutput"]
 
 ProgressFunction = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "LRGWState"]], None]
+    [tuple[np.ndarray, np.ndarray, np.ndarray, "LRGWState"]], None]
 
 
 class LRGWState(NamedTuple):
@@ -141,7 +142,7 @@ class LRGWOutput(NamedTuple):
   epsilon: float
   inner_iterations: int
   converged: bool
-  reg_gw_cost: Optional[float] = None
+  reg_gw_cost: float | None = None
 
   def set(self, **kwargs: Any) -> "LRGWOutput":
     """Return a copy of self, with potential overwrites."""
@@ -289,15 +290,15 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       gamma: float = 10.0,
       gamma_rescale: bool = True,
       epsilon: float = 0.0,
-      initializer: Optional[initializers_lr.LRInitializer] = None,
+      initializer: initializers_lr.LRInitializer | None = None,
       lse_mode: bool = True,
       use_danskin: bool = True,
       implicit_diff: bool = False,
       inner_iterations: int = 2_000,
       min_iterations: int = 10_000,
       max_iterations: int = 100_000,
-      kwargs_dys: Optional[Mapping[str, Any]] = None,
-      progress_fn: Optional[ProgressFunction] = None,
+      kwargs_dys: Mapping[str, Any] | None = None,
+      progress_fn: ProgressFunction | None = None,
       **kwargs: Any,
   ):
     assert not implicit_diff, "Implicit diff. not yet implemented."
@@ -324,8 +325,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   def __call__(
       self,
       ot_prob: quadratic_problem.QuadraticProblem,
-      init: Optional[Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]] = None,
-      rng: Optional[jax.Array] = None,
+      init: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray] | None = None,
+      rng: jax.Array | None = None,
       **kwargs: Any,
   ) -> LRGWOutput:
     """Run the low-rank Gromov-Wasserstein solver.
@@ -359,7 +360,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       self,
       ot_prob: quadratic_problem.QuadraticProblem,
       state: LRGWState,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray, float]:
     q, r, g = state.q, state.r, state.g
     log_q, log_r, log_g = mu.safe_log(q), mu.safe_log(r), mu.safe_log(g)
     inv_g = 1.0 / g[None, :]
@@ -430,7 +431,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       min_iter: int = 0,
       inner_iter: int = 10,
       max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
@@ -448,8 +449,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     constants = c_q, c_r, loga, logb
 
     def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
+        iteration: int, constants: tuple[jnp.ndarray, ...],
+        state_inner: tuple[jnp.ndarray, ...]
     ) -> bool:
       del iteration, constants
       *_, err = state_inner
@@ -463,9 +464,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       )
 
     def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
+        iteration: int, constants: tuple[jnp.ndarray, ...],
+        state_inner: tuple[jnp.ndarray, ...], compute_error: bool
+    ) -> tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
       c_q, c_r, loga, logb = constants
@@ -523,7 +524,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         c_r: jnp.ndarray,
         h: jnp.ndarray,
         gamma: float,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
       q = jnp.exp(gamma * (f1[:, None] + g1[None, :] - c_q))
       r = jnp.exp(gamma * (f2[:, None] + g2[None, :] - c_r))
       g = jnp.exp(gamma * h)
@@ -548,7 +549,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       min_iter: int = 0,
       inner_iter: int = 10,
       max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     del gamma
@@ -568,17 +569,17 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     constants = k_q, k_r, k_g, a, b
 
     def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
+        iteration: int, constants: tuple[jnp.ndarray, ...],
+        state_inner: tuple[jnp.ndarray, ...]
     ) -> bool:
       del iteration, constants
       *_, err = state_inner
       return err > tolerance
 
     def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
+        iteration: int, constants: tuple[jnp.ndarray, ...],
+        state_inner: tuple[jnp.ndarray, ...], compute_error: bool
+    ) -> tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
       k_q, k_r, k_g, a, b = constants
@@ -623,7 +624,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         v2: jnp.ndarray,
         k_r: jnp.ndarray,
         g: jnp.ndarray,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+    ) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
       q = u1.reshape((-1, 1)) * k_q * v1.reshape((1, -1))
       r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
       return q, r, g
@@ -731,12 +732,12 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     return state
 
   @property
-  def norm_error(self) -> Tuple[int]:  # noqa: D102
+  def norm_error(self) -> tuple[int]:  # noqa: D102
     return self._norm_error,
 
   def init_state(
       self, ot_prob: quadratic_problem.QuadraticProblem,
-      init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+      init: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
   ) -> LRGWState:
     """Return the initial state of the loop."""
     q, r, g = init
@@ -816,7 +817,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 def run(
     ot_prob: quadratic_problem.QuadraticProblem,
     solver: LRGromovWasserstein,
-    init: Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
+    init: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
 ) -> LRGWOutput:
   """Run loop of the solver, outputting a state upgraded to an output."""
   out = sinkhorn.iterations(ot_prob, solver, init)
@@ -828,7 +829,7 @@ def run(
 
 def dykstra_solution_error(
     q: jnp.ndarray, r: jnp.ndarray, ot_prob: quadratic_problem.QuadraticProblem,
-    norm_error: Tuple[int, ...]
+    norm_error: tuple[int, ...]
 ) -> jnp.ndarray:
   """Compute solution error.
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Literal
 
 import jax.numpy as jnp
 
@@ -27,18 +27,18 @@ __all__ = ["solve"]
 def solve(
     geom_xx: geometry.Geometry,
     geom_yy: geometry.Geometry,
-    geom_xy: Optional[geometry.Geometry] = None,
+    geom_xy: geometry.Geometry | None = None,
     fused_penalty: float = 1.0,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
+    a: jnp.ndarray | None = None,
+    b: jnp.ndarray | None = None,
     tau_a: float = 1.0,
     tau_b: float = 1.0,
-    loss: Union[Literal["sqeucl", "kl"], quadratic_costs.GWLoss] = "sqeucl",
+    loss: Literal["sqeucl", "kl"] | quadratic_costs.GWLoss = "sqeucl",
     gw_unbalanced_correction: bool = True,
     rank: int = -1,
-    linear_solver_kwargs: Optional[Dict[str, Any]] = None,
+    linear_solver_kwargs: dict[str, Any] | None = None,
     **kwargs: Any,
-) -> Union[gw.GWOutput, lrgw.LRGWOutput]:
+) -> gw.GWOutput | lrgw.LRGWOutput:
   """Solve quadratic regularized OT problem using a Gromov-Wasserstein solver.
 
   Args:

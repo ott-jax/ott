@@ -14,7 +14,8 @@
 import abc
 import functools
 import math
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -53,7 +54,7 @@ class CostFn(abc.ABC):
     """
 
   def barycenter(self, weights: jnp.ndarray,
-                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+                 xs: jnp.ndarray) -> tuple[jnp.ndarray, Any]:
     """Barycentric operator.
 
     Args:
@@ -159,9 +160,9 @@ class TICost(CostFn):
   def h_transform(
       self,
       f: Func,
-      solver: Optional[Callable[[Func, jnp.ndarray, jnp.ndarray, Any],
-                                jnp.ndarray]] = None,
-  ) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], float]:
+      solver: Callable[[Func, jnp.ndarray, jnp.ndarray, Any], jnp.ndarray]
+      | None = None,
+  ) -> Callable[[jnp.ndarray, jnp.ndarray | None, Any], float]:
     r"""Compute the h-transform of a concave function.
 
     Return a callable :math:`f_h` defined as:
@@ -192,7 +193,7 @@ class TICost(CostFn):
 
     def f_h(
         x: jnp.ndarray,
-        x_init: Optional[jnp.ndarray] = None,
+        x_init: jnp.ndarray | None = None,
         **kwargs: Any
     ) -> float:
       """h-transform of a concave function.
@@ -260,7 +261,7 @@ class TICost(CostFn):
     return transport
 
   def barycenter(self, weights: jnp.ndarray,
-                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+                 xs: jnp.ndarray) -> tuple[jnp.ndarray, Any]:
     """Output barycenter of vectors."""
     return jnp.average(xs, weights=weights, axis=0), None
 
@@ -383,7 +384,7 @@ class NegDotProduct(CostFn):
     return jnp.sum(x ** 2, axis=-1)
 
   def barycenter(self, weights: jnp.ndarray,
-                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+                 xs: jnp.ndarray) -> tuple[jnp.ndarray, Any]:
     """Output usual barycenter of vectors."""
     return jnp.average(xs, weights=weights, axis=0), None
 
@@ -437,11 +438,11 @@ class RegTICost(TICost):
       out, _ = fwd(z)
       return out
 
-    def fwd(z: jnp.ndarray) -> Tuple[float, jnp.ndarray]:
+    def fwd(z: jnp.ndarray) -> tuple[float, jnp.ndarray]:
       q = self.regularizer.prox(z)
       return jnp.dot(q, z) - self.h(q), q
 
-    def bwd(q: jnp.ndarray, g: jnp.ndarray) -> Tuple[jnp.ndarray]:
+    def bwd(q: jnp.ndarray, g: jnp.ndarray) -> tuple[jnp.ndarray]:
       return jnp.dot(g, q),
 
     fn.defvjp(fwd, bwd)
@@ -450,7 +451,7 @@ class RegTICost(TICost):
   def h_transform(
       self,
       f: Func,
-  ) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], float]:
+  ) -> Callable[[jnp.ndarray, jnp.ndarray | None, Any], float]:
     r"""Compute the h-transform of a concave function.
 
     Return a callable :math:`f_h` defined as:
@@ -481,7 +482,7 @@ class RegTICost(TICost):
 
     def f_h(
         x: jnp.ndarray,
-        x_init: Optional[jnp.ndarray] = None,
+        x_init: jnp.ndarray | None = None,
         **kwargs: Any
     ) -> float:
       """h-transform of a concave function.
@@ -572,7 +573,7 @@ class SqEuclidean(TICost):
     return 0.25 * jnp.sum(z ** 2)
 
   def barycenter(self, weights: jnp.ndarray,
-                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
+                 xs: jnp.ndarray) -> tuple[jnp.ndarray, Any]:
     """Output barycenter of vectors when using squared-Euclidean distance."""
     return jnp.average(xs, weights=weights, axis=0), None
 
@@ -677,7 +678,7 @@ class Bures(CostFn):
       behavior of inner calls to :func:`~ott.math.matrix_square_root.sqrtm`.
   """
 
-  def __init__(self, dimension: int, sqrtm_kw: Optional[Dict[str, Any]] = None):
+  def __init__(self, dimension: int, sqrtm_kw: dict[str, Any] | None = None):
     super().__init__()
     self._dimension = dimension
     self._sqrtm_kw = {} if sqrtm_kw is None else sqrtm_kw
@@ -709,7 +710,7 @@ class Bures(CostFn):
       covs: jnp.ndarray,
       weights: jnp.ndarray,
       tolerance: float = 1e-4,
-      sqrtm_kw: Optional[Dict[str, Any]] = None,
+      sqrtm_kw: dict[str, Any] | None = None,
       **kwargs: Any
   ) -> jnp.ndarray:
     """Iterate fix-point updates to compute barycenter of Gaussians.
@@ -742,15 +743,15 @@ class Bures(CostFn):
       return weight * matrix_square_root.sqrtm_only((cov_sqrt @ cov) @ cov_sqrt,
                                                     **sqrtm_kw)
 
-    def cond_fn(iteration: int, constants: Tuple[Any, ...], state) -> bool:
+    def cond_fn(iteration: int, constants: tuple[Any, ...], state) -> bool:
       del constants
       _, diffs = state
       return diffs[iteration // inner_iterations] > tolerance
 
     def body_fn(
-        iteration: int, constants: Tuple[Any, ...],
-        state: Tuple[jnp.ndarray, float], compute_error: bool
-    ) -> Tuple[jnp.ndarray, float]:
+        iteration: int, constants: tuple[Any, ...],
+        state: tuple[jnp.ndarray, float], compute_error: bool
+    ) -> tuple[jnp.ndarray, float]:
       del constants, compute_error
       cov, diffs = state
       cov_sqrt, cov_inv_sqrt, _ = matrix_square_root.sqrtm(cov, **sqrtm_kw)
@@ -762,7 +763,7 @@ class Bures(CostFn):
       diffs = diffs.at[iteration // inner_iterations].set(diff)
       return next_cov, diffs
 
-    def init_state() -> Tuple[jnp.ndarray, float]:
+    def init_state() -> tuple[jnp.ndarray, float]:
       cov_init = jnp.eye(self._dimension)
       diffs = -jnp.ones(math.ceil(max_iterations / inner_iterations))
       return cov_init, diffs
@@ -783,9 +784,9 @@ class Bures(CostFn):
       weights: jnp.ndarray,
       xs: jnp.ndarray,
       tolerance: float = 1e-4,
-      sqrtm_kw: Optional[Dict[str, Any]] = None,
+      sqrtm_kw: dict[str, Any] | None = None,
       **kwargs: Any
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Compute the Bures barycenter of weighted Gaussian distributions.
 
     Implements the fixed point approach proposed in :cite:`alvarez-esteban:16`
@@ -975,7 +976,7 @@ class SoftDTW(CostFn):
   def __init__(
       self,
       gamma: float,
-      ground_cost: Optional[CostFn] = None,
+      ground_cost: CostFn | None = None,
       debiased: bool = False
   ):
     self.gamma = gamma
@@ -991,9 +992,9 @@ class SoftDTW(CostFn):
   def _soft_dtw(self, t1: jnp.ndarray, t2: jnp.ndarray) -> float:
 
     def body(
-        carry: Tuple[jnp.ndarray, jnp.ndarray],
+        carry: tuple[jnp.ndarray, jnp.ndarray],
         current_antidiagonal: jnp.ndarray
-    ) -> Tuple[Tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
+    ) -> tuple[tuple[jnp.ndarray, jnp.ndarray], jnp.ndarray]:
       # modified from: https://github.com/khdlr/softdtw_jax
       two_ago, one_ago = carry
 
@@ -1041,7 +1042,7 @@ class SoftDTW(CostFn):
 
 
 def x_to_means_and_covs(x: jnp.ndarray,
-                        dimension: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+                        dimension: int) -> tuple[jnp.ndarray, jnp.ndarray]:
   """Extract means and covariance matrices of Gaussians from raveled vector.
 
   Args:

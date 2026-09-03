@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Literal, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -68,7 +69,7 @@ class Graph(geometry.Geometry):
   def from_graph(
       cls,
       G: jnp.ndarray,
-      t: Optional[float] = 1e-3,
+      t: float | None = 1e-3,
       directed: bool = False,
       normalize: bool = False,
       **kwargs: Any
@@ -115,7 +116,7 @@ class Graph(geometry.Geometry):
   def apply_kernel(
       self,
       vec: jnp.ndarray,
-      eps: Optional[float] = None,
+      eps: float | None = None,
       axis: int = 0,
   ) -> jnp.ndarray:
     r"""Apply :attr:`kernel_matrix` on a positive vector.
@@ -130,8 +131,8 @@ class Graph(geometry.Geometry):
     """
 
     def conf_fn(
-        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
-        old_new: Tuple[jnp.ndarray, jnp.ndarray]
+        iteration: int, consts: tuple[jnp.ndarray, jnp.ndarray | None],
+        old_new: tuple[jnp.ndarray, jnp.ndarray]
     ) -> bool:
       del iteration, consts
 
@@ -144,9 +145,9 @@ class Graph(geometry.Geometry):
       return (jnp.nanmax(f) - jnp.nanmin(f)) > self.tol
 
     def body_fn(
-        iteration: int, consts: Tuple[jnp.ndarray, Optional[jnp.ndarray]],
-        old_new: Tuple[jnp.ndarray, jnp.ndarray], compute_errors: bool
-    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        iteration: int, consts: tuple[jnp.ndarray, jnp.ndarray | None],
+        old_new: tuple[jnp.ndarray, jnp.ndarray], compute_errors: bool
+    ) -> tuple[jnp.ndarray, jnp.ndarray]:
       del iteration, compute_errors
 
       L, scaled_lap = consts
@@ -223,7 +224,7 @@ class Graph(geometry.Geometry):
     return self._scaled_laplacian + jnp.eye(n)
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self.laplacian.shape
 
   @property
@@ -259,7 +260,7 @@ class Graph(geometry.Geometry):
     """Not implemented."""
     raise ValueError("Not implemented.")
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return [self.laplacian, self.t], {
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
@@ -268,6 +269,6 @@ class Graph(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "Graph":
     return cls(*children, **aux_data)

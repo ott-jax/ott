@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Callable, List, Optional, Tuple
+from collections.abc import Callable
 
 import pytest
 
@@ -136,7 +136,7 @@ class TestSinkhornJacobian:
       only_fast=0,
   )
   def test_autograd_sinkhorn(
-      self, rng: jax.Array, lse_mode: bool, shape_data: Tuple[int, int]
+      self, rng: jax.Array, lse_mode: bool, shape_data: tuple[int, int]
   ):
     """Test gradient w.r.t. probability weights."""
     n, m = shape_data
@@ -180,7 +180,7 @@ class TestSinkhornJacobian:
   @pytest.mark.parametrize(("lse_mode", "shape_data"), [(True, (7, 9)),
                                                         (False, (11, 5))])
   def test_gradient_sinkhorn_geometry(
-      self, rng: jax.Array, lse_mode: bool, shape_data: Tuple[int, int]
+      self, rng: jax.Array, lse_mode: bool, shape_data: tuple[int, int]
   ):
     """Test gradient w.r.t. cost matrix."""
     n, m = shape_data
@@ -263,7 +263,7 @@ class TestSinkhornJacobian:
     y = y.at[0].set(x[0, :] + 1e-3)
 
     def loss_fn(x: jnp.ndarray,
-                y: jnp.ndarray) -> Tuple[float, sinkhorn.SinkhornOutput]:
+                y: jnp.ndarray) -> tuple[float, sinkhorn.SinkhornOutput]:
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon, cost_fn=cost_fn)
       prob = linear_problem.LinearProblem(geom, a, b)
@@ -455,7 +455,7 @@ class TestSinkhornJacobian:
   )
   def test_potential_jacobian_sinkhorn(
       self, rng: jax.Array, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], arg: int
+      shape: tuple[int, int], arg: int
   ):
     """Test Jacobian of optimal potential w.r.t. weights and locations."""
     atol = 1e-2 if lse_mode else 5e-2  # lower tolerance for lse mode.
@@ -551,7 +551,7 @@ class TestSinkhornGradGrid:
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
 
-    def reg_ot(x: List[jnp.ndarray]) -> float:
+    def reg_ot(x: list[jnp.ndarray]) -> float:
       geom = grid.Grid(x=x, epsilon=1.0)
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
       solver = sinkhorn.Sinkhorn(threshold=1e-1, lse_mode=lse_mode)
@@ -635,7 +635,7 @@ class TestSinkhornJacobianPreconditioning:
   )
   def test_potential_jacobian_sinkhorn_precond(
       self, rng: jax.Array, lse_mode: bool, tau_a: float, tau_b: float,
-      shape: Tuple[int, int], arg: int
+      shape: tuple[int, int], arg: int
   ):
     """Test Jacobian of optimal potential works across 2 precond_fun."""
     atol = 1e-2 if lse_mode else 5e-2  # lower tolerance for lse mode.
@@ -665,7 +665,7 @@ class TestSinkhornJacobianPreconditioning:
     def loss_from_potential(
         a: jnp.ndarray,
         x: jnp.ndarray,
-        precondition_fun: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+        precondition_fun: Callable[[jnp.ndarray], jnp.ndarray] | None = None,
         symmetric: bool = False
     ) -> float:
       geom = pointcloud.PointCloud(x, y, epsilon=epsilon)

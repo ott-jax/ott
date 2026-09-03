@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Optional
+from typing import Any
 
 import pytest
 
@@ -36,7 +36,7 @@ def _random_problem(
     *,
     m: int,
     d: int,
-    dtype: Optional[jnp.dtype] = None,
+    dtype: jnp.dtype | None = None,
     **kwargs: Any
 ) -> sdlp.SemidiscreteLinearProblem:
   rng_b, rng_y = jr.split(rng, 2)
@@ -54,7 +54,7 @@ class TestSemidiscreteSolver:
   @pytest.mark.parametrize("n", [20, 31])
   @pytest.mark.parametrize("epsilon", [0.0, 1e-3, 1e-2, 1e-1, None])
   def test_custom_gradient_semidiscrete_loss(
-      self, rng: jax.Array, n: int, epsilon: Optional[float]
+      self, rng: jax.Array, n: int, epsilon: float | None
   ):
 
     def semidiscrete_loss(
@@ -85,9 +85,7 @@ class TestSemidiscreteSolver:
   @pytest.mark.parametrize(("dtype", "epsilon"), [(jnp.float16, 0.0),
                                                   (jnp.bfloat16, 0.5),
                                                   (jnp.float32, None)])
-  def test_dtype(
-      self, rng: jax.Array, dtype: jnp.dtype, epsilon: Optional[float]
-  ):
+  def test_dtype(self, rng: jax.Array, dtype: jnp.dtype, epsilon: float | None):
     m, d = 22, 3
     rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
     prob = _random_problem(rng_prob, m=m, d=d, epsilon=epsilon, dtype=dtype)
@@ -135,7 +133,7 @@ class TestSemidiscreteSolver:
     assert actual.err == ""
 
   @pytest.mark.parametrize("epsilon", [0.0, 1e-2, None])
-  def test_epsilon(self, rng: jax.Array, epsilon: Optional[float]):
+  def test_epsilon(self, rng: jax.Array, epsilon: float | None):
     rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
 
     prob = _random_problem(rng_prob, m=15, d=4, epsilon=epsilon)
@@ -161,7 +159,7 @@ class TestSemidiscreteSolver:
       assert isinstance(out_sampled, semidiscrete.HardAssignmentOutput)
 
   @pytest.mark.parametrize("epsilon", [1e-1, None])
-  def test_match_with_finiteOT(self, rng: jax.Array, epsilon: Optional[float]):
+  def test_match_with_finiteOT(self, rng: jax.Array, epsilon: float | None):
     rng_solver, rng_sample, rng_b, rng_y = jr.split(rng, 4)
     m, d = 8, 2
     b = jr.uniform(rng_b, (m,)) + 1.  # balanced distribution helps converge
@@ -200,7 +198,7 @@ class TestSemidiscreteSolver:
     np.testing.assert_allclose(g_ot, g_sd, rtol=1e-2, atol=1e-1)
 
   @pytest.mark.parametrize("epsilon", [0.0, 1e-2, None])
-  def test_initial_potential(self, rng: jax.Array, epsilon: Optional[float]):
+  def test_initial_potential(self, rng: jax.Array, epsilon: float | None):
     rng_prob, rng_solver = jr.split(rng, 2)
     prob = _random_problem(rng_prob, m=32, d=3, epsilon=epsilon)
 
@@ -232,7 +230,7 @@ class TestSemidiscreteSolver:
 
   @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
                                               (35, None)])
-  def test_output(self, rng: jax.Array, n: int, epsilon: Optional[float]):
+  def test_output(self, rng: jax.Array, n: int, epsilon: float | None):
     m, d = 32, 3
     rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
     prob = _random_problem(rng_prob, m=m, d=d, epsilon=epsilon)
@@ -280,7 +278,7 @@ class TestSemidiscreteSolver:
   @pytest.mark.parametrize("epsilon_dp", [None, 0.1])
   @pytest.mark.parametrize("epsilon_prob", [0.0, 1e-2])
   def test_sd_dual_potentials(
-      self, rng: jax.Array, epsilon_prob: float, epsilon_dp: Optional[float]
+      self, rng: jax.Array, epsilon_prob: float, epsilon_dp: float | None
   ):
     rng_prob, rng_solver, rng_sample = jr.split(rng, 3)
 

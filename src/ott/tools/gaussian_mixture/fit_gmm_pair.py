@@ -79,7 +79,8 @@ pair, loss = fit_model_em_fn(
 
 import functools
 import math
-from typing import Callable, NamedTuple, Optional, Tuple
+from collections.abc import Callable
+from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -309,12 +310,12 @@ def get_fit_model_em_fn(
       pair: gaussian_mixture_pair.GaussianMixturePair,
       points0: jnp.ndarray,
       points1: jnp.ndarray,
-      point_weights0: Optional[jnp.ndarray],
-      point_weights1: Optional[jnp.ndarray],
+      point_weights0: jnp.ndarray | None,
+      point_weights1: jnp.ndarray | None,
       em_steps: int,
       m_steps: int = 50,
       verbose: bool = False,
-  ) -> Tuple[gaussian_mixture_pair.GaussianMixturePair, float]:
+  ) -> tuple[gaussian_mixture_pair.GaussianMixturePair, float]:
     """Optimize a GaussianMixturePair using penalized EM.
 
     Args:

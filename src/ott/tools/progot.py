@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, NamedTuple, Optional, Tuple, Union
+from typing import Any, Literal, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -30,12 +30,12 @@ __all__ = [
     "get_alpha_schedule",
 ]
 
-Output = Union[sinkhorn.SinkhornOutput, sd.SinkhornDivergenceOutput]
+Output = sinkhorn.SinkhornOutput | sd.SinkhornDivergenceOutput
 
 
 class ProgOTState(NamedTuple):
   x: jnp.ndarray
-  init_potentials: Optional[Tuple[jnp.ndarray, jnp.ndarray]]
+  init_potentials: tuple[jnp.ndarray, jnp.ndarray] | None
 
 
 class ProgOTOutput(NamedTuple):
@@ -52,14 +52,14 @@ class ProgOTOutput(NamedTuple):
   alphas: jnp.ndarray
   epsilons: jnp.ndarray
   outputs: Output
-  xs: Optional[jnp.ndarray] = None
+  xs: jnp.ndarray | None = None
 
   def transport(
       self,
       x: jnp.ndarray,
-      num_steps: Optional[int] = None,
+      num_steps: int | None = None,
       return_intermediate: bool = False,
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray]:
     """Transport points.
 
     Args:
@@ -76,9 +76,9 @@ class ProgOTOutput(NamedTuple):
     """
 
     def body_fn(
-        xy: Tuple[jnp.ndarray, Optional[jnp.ndarray]], it: int
-    ) -> Tuple[Tuple[jnp.ndarray, Optional[jnp.ndarray]], Tuple[
-        Optional[jnp.ndarray], Optional[jnp.ndarray]]]:
+        xy: tuple[jnp.ndarray, jnp.ndarray | None], it: int
+    ) -> tuple[tuple[jnp.ndarray, jnp.ndarray | None], tuple[
+        jnp.ndarray | None, jnp.ndarray | None]]:
       x, _ = xy
       alpha = self.alphas[it]
       dp = self.get_output(it).to_dual_potentials()
@@ -116,7 +116,7 @@ class ProgOTOutput(NamedTuple):
   @property
   def converged(
       self
-  ) -> Union[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+  ) -> jnp.ndarray | tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
     """Convergence at each step.
 
     - If :attr:`is_debiased`, return an array of shape ``[num_steps, 3]`` with
@@ -170,8 +170,8 @@ class ProgOT:
       self,
       alphas: jnp.ndarray,
       *,
-      epsilons: Optional[jnp.ndarray] = None,
-      epsilon_scales: Optional[jnp.ndarray] = None,
+      epsilons: jnp.ndarray | None = None,
+      epsilon_scales: jnp.ndarray | None = None,
       is_debiased: bool = False,
   ):
     if epsilons is not None and epsilon_scales is not None:
@@ -218,7 +218,7 @@ class ProgOT:
     """
 
     def body_fn(state: ProgOTState,
-                it: int) -> Tuple[ProgOTState, Tuple[Output, float]]:
+                it: int) -> tuple[ProgOTState, tuple[Output, float]]:
       alpha = self.alphas[it]
       eps = None if self.epsilons is None else self.epsilons[it]
       if self.epsilon_scales is not None:
@@ -394,8 +394,8 @@ def _sinkhorn(
     x: jnp.ndarray,
     y: jnp.ndarray,
     cost_fn: costs.TICost,
-    eps: Optional[float],
-    init: Optional[Tuple[jnp.ndarray, jnp.ndarray]] = None,
+    eps: float | None,
+    init: tuple[jnp.ndarray, jnp.ndarray] | None = None,
     **kwargs: Any,
 ) -> sinkhorn.SinkhornOutput:
   geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, epsilon=eps)
@@ -408,7 +408,7 @@ def _sinkhorn_divergence(
     x: jnp.ndarray,
     y: jnp.ndarray,
     cost_fn: costs.TICost,
-    eps: Optional[float],
+    eps: float | None,
     **kwargs: Any,
 ) -> sd.SinkhornDivergenceOutput:
   _, out = sd.sinkhorn_divergence(

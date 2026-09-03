@@ -13,7 +13,8 @@
 # limitations under the License.
 import abc
 import functools
-from typing import Any, Callable, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 import lineax as lx
 
@@ -143,7 +144,7 @@ class Regularization(ProximalOperator):
   def __init__(
       self,
       f: ProximalOperator,
-      a: Optional[jnp.ndarray] = None,
+      a: jnp.ndarray | None = None,
       rho: float = 1.0,
   ):
     super().__init__()
@@ -185,8 +186,8 @@ class Orthogonal(ProximalOperator):
   def __init__(
       self,
       f: ProximalOperator,
-      A: Optional[Union[jnp.ndarray, lx.AbstractLinearOperator]],
-      b: Optional[jnp.ndarray] = None,
+      A: jnp.ndarray | lx.AbstractLinearOperator | None,
+      b: jnp.ndarray | None = None,
       nu: float = 1.0,
   ):
     assert nu > 0.0, nu
@@ -244,14 +245,14 @@ class Quadratic(ProximalOperator):
 
   def __init__(
       self,
-      A: Optional[Union[jnp.ndarray, lx.AbstractLinearOperator]] = None,
-      b: Optional[jnp.ndarray] = None,
+      A: jnp.ndarray | lx.AbstractLinearOperator | None = None,
+      b: jnp.ndarray | None = None,
       *,
       is_complement: bool = False,
       is_orthogonal: bool = False,
       is_factor: bool = False,
-      solver: Optional[Callable[[lx.AbstractLinearOperator, jnp.ndarray],
-                                jnp.ndarray]] = None,
+      solver: Callable[[lx.AbstractLinearOperator, jnp.ndarray], jnp.ndarray]
+      | None = None,
   ):
     super().__init__()
     self.A = lx.MatrixLinearOperator(A) if isinstance(A, jnp.ndarray) else A
@@ -295,7 +296,7 @@ class Quadratic(ProximalOperator):
     return self._solver(A, b)
 
   @property
-  def A_comp(self) -> Optional[lx.AbstractLinearOperator]:
+  def A_comp(self) -> lx.AbstractLinearOperator | None:
     r"""Orthogonal complement :math:`A^{\perp}` of :math:`A`."""
     return _complement(
         self.A, self.is_orthogonal
@@ -317,7 +318,7 @@ class Quadratic(ProximalOperator):
     return self.A is not None and self._is_orthogonal
 
   @property
-  def Q(self) -> Optional[lx.AbstractLinearOperator]:
+  def Q(self) -> lx.AbstractLinearOperator | None:
     r"""Linear operator :math:`Q`."""
     Q = self.A_comp if self.is_complement else self.A
     if Q is None:
@@ -356,7 +357,7 @@ class SqL2(ProximalOperator):
 
   def __init__(
       self,
-      A: Optional[Union[jnp.ndarray, lx.AbstractLinearOperator]] = None,
+      A: jnp.ndarray | lx.AbstractLinearOperator | None = None,
       **kwargs: Any,
   ):
     super().__init__()
@@ -453,11 +454,11 @@ class SqKOverlap(ProximalOperator):
 
     @functools.partial(jax.vmap, in_axes=[0, None, None])
     def find_indices(r: int, l: jnp.ndarray,
-                     z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+                     z: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
 
       @functools.partial(jax.vmap, in_axes=[None, 0, None])
       def inner(r: int, l: int,
-                z: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+                z: jnp.ndarray) -> tuple[jnp.ndarray, jnp.ndarray]:
         i = k - r - 1
         res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
         res /= l - k + (beta + 1) * r + beta + 1

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Iterable, List, Tuple
+from collections.abc import Callable, Iterable
 
 import jax
 import jax.numpy as jnp
@@ -20,7 +20,7 @@ import jax.numpy as jnp
 def get_mean_and_var(
     points: jnp.ndarray,  # (n, d)
     weights: jnp.ndarray,  # (n,)
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray]:
   """Get the mean and variance of a weighted set of points."""
   weights_sum = jnp.sum(weights, axis=-1)  # (1,)
   mean = (
@@ -39,7 +39,7 @@ def get_mean_and_var(
 def get_mean_and_cov(
     points: jnp.ndarray,  # (n, d)
     weights: jnp.ndarray,  # (n,)
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray]:
   """Get the mean and covariance of a weighted set of points."""
   weights_sum = jnp.sum(weights, axis=-1, keepdims=True)  # (1,)
   mean = (
@@ -103,7 +103,7 @@ def apply_to_diag(
 def matrix_powers(
     m: jnp.ndarray,
     powers: Iterable[float],
-) -> List[jnp.ndarray]:
+) -> list[jnp.ndarray]:
   """Raise a real, symmetric matrix to multiple powers."""
   eigs, q = jnp.linalg.eigh(m)
   qt = jnp.swapaxes(q, axis1=-2, axis2=-1)

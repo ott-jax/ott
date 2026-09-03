@@ -13,7 +13,6 @@
 # limitations under the License.
 """Random graphs shared by the graph and geodesic geometry tests."""
 import functools
-from typing import Optional, Union
 
 import networkx as nx
 from networkx.algorithms import shortest_paths
@@ -28,11 +27,11 @@ from ott.geometry import geometry
 __all__ = ["random_graph", "gt_geometry"]
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def random_graph(
     n: int,
     p: float = 0.3,
-    seed: Optional[int] = 0,
+    seed: int | None = 0,
     is_sparse: bool = False,
     *,
     return_laplacian: bool = False,
@@ -57,9 +56,7 @@ def random_graph(
 
 
 def gt_geometry(
-    G: Union[jnp.ndarray, nx.Graph],
-    *,
-    epsilon: float = 1e-2
+    G: jnp.ndarray | nx.Graph, *, epsilon: float = 1e-2
 ) -> geometry.Geometry:
   """Geometry whose cost is the squared shortest-path distance on ``G``."""
   if not isinstance(G, nx.Graph):

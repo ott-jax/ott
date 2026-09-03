@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Any, Callable, Optional, Sequence, Tuple, Union
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -53,7 +54,7 @@ class PotentialTrainState(train_state.TrainState):
     potential_gradient_fn: the potential's gradient function
   """
   potential_value_fn: Callable[
-      [frozen_dict.FrozenDict[str, jnp.ndarray], Optional[PotentialValueFn_t]],
+      [frozen_dict.FrozenDict[str, jnp.ndarray], PotentialValueFn_t | None],
       PotentialValueFn_t] = struct.field(pytree_node=False)
   potential_gradient_fn: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
                                   PotentialGradientFn_t] = struct.field(
@@ -83,7 +84,7 @@ class BasePotential(abc.ABC, nn.Module):
   def potential_value_fn(
       self,
       params: frozen_dict.FrozenDict[str, jnp.ndarray],
-      other_potential_value_fn: Optional[PotentialValueFn_t] = None,
+      other_potential_value_fn: PotentialValueFn_t | None = None,
   ) -> PotentialValueFn_t:
     r"""Return a function giving the value of the potential.
 
@@ -145,7 +146,7 @@ class BasePotential(abc.ABC, nn.Module):
       self,
       rng: jax.Array,
       optimizer: optax.OptState,
-      input: Union[int, Tuple[int, ...]],
+      input: int | tuple[int, ...],
       **kwargs: Any,
   ) -> PotentialTrainState:
     """Create initial training state."""
@@ -250,7 +251,7 @@ class BaseDualPotential(abc.ABC, nnx.Module):
 
   def potential_value_fn(
       self,
-      other_potential_value_fn: Optional[PotentialValueFn_t] = None,
+      other_potential_value_fn: PotentialValueFn_t | None = None,
   ) -> PotentialValueFn_t:
     r"""Return a callable giving the potential value.
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional, Tuple
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -52,15 +52,15 @@ def random_proj_sphere(
 def sliced_wasserstein(
     x: jnp.ndarray,
     y: jnp.ndarray,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    cost_fn: Optional[costs.CostFn] = None,
-    proj_fn: Optional[Projector] = None,
-    weights: Optional[jnp.ndarray] = None,
+    a: jnp.ndarray | None = None,
+    b: jnp.ndarray | None = None,
+    cost_fn: costs.CostFn | None = None,
+    proj_fn: Projector | None = None,
+    weights: jnp.ndarray | None = None,
     return_transport: bool = False,
     return_dual_variables: bool = False,
-    rng: Optional[jax.Array] = None,
-) -> Tuple[jnp.ndarray, univariate.UnivariateOutput]:
+    rng: jax.Array | None = None,
+) -> tuple[jnp.ndarray, univariate.UnivariateOutput]:
   r"""Compute the Sliced Wasserstein distance between two weighted point clouds.
 
   Follows the approach outlined in :cite:`rabin:12` to compute a proxy for OT

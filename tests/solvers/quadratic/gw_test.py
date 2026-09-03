@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple, Union
 
 import pytest
 
@@ -36,7 +35,7 @@ class TestQuadraticProblem:
   @pytest.mark.parametrize("rank", [-1, 5, (1, 2, 3), (2, 3, 5)])
   def test_quad_to_low_rank(
       self, clouds: _utils.QuadClouds, rng: jax.Array, as_pc: bool,
-      rank: Union[int, Tuple[int, ...]]
+      rank: int | tuple[int, ...]
   ):
     n, m, d1, d2, d = 100, 120, 4, 6, 10
     rng1, rng2, rng3, rng4 = jr.split(rng, 4)
@@ -159,7 +158,7 @@ class TestGromovWasserstein:
     """Test gradient w.r.t. probability weights."""
 
     def reg_gw(a: jnp.ndarray, b: jnp.ndarray,
-               implicit: bool) -> Tuple[float, Tuple[jnp.ndarray, jnp.ndarray]]:
+               implicit: bool) -> tuple[float, tuple[jnp.ndarray, jnp.ndarray]]:
       prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, a=a, b=b)
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       linear_solver = sinkhorn.Sinkhorn(
@@ -414,7 +413,7 @@ class TestGromovWasserstein:
   def test_relative_epsilon(
       self,
       rng: jax.Array,
-      scale_cost: Union[float, str],
+      scale_cost: float | str,
   ):
     eps = 1e-2
     rng1, rng2 = jr.split(rng, 2)

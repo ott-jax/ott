@@ -13,7 +13,8 @@
 # limitations under the License.
 import functools
 import math
-from typing import Callable, Literal, NamedTuple, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Literal, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -24,8 +25,9 @@ from ott.math import fixed_point_loop
 
 __all__ = ["k_means", "KMeansOutput"]
 
-Init_t = Union[Literal["k-means++", "random"],
-               Callable[[pointcloud.PointCloud, int, jnp.ndarray], jnp.ndarray]]
+Init_t = Literal["k-means++",
+                 "random"] | Callable[[pointcloud.PointCloud, int, jnp.ndarray],
+                                      jnp.ndarray]
 
 
 class KPPState(NamedTuple):  # noqa: D101
@@ -80,7 +82,7 @@ class KMeansOutput(NamedTuple):
   converged: bool
   iteration: int
   error: float
-  inner_errors: Optional[jnp.ndarray]
+  inner_errors: jnp.ndarray | None
 
   @classmethod
   def _from_state(
@@ -120,7 +122,7 @@ def _k_means_plus_plus(
     geom: pointcloud.PointCloud,
     k: int,
     rng: jax.Array,
-    n_local_trials: Optional[int] = None,
+    n_local_trials: int | None = None,
 ) -> jnp.ndarray:
 
   def init_fn(geom: pointcloud.PointCloud, rng: jax.Array) -> KPPState:
@@ -131,7 +133,7 @@ def _k_means_plus_plus(
     return KPPState(rng=next_rng, centroids=centroids, centroid_dists=dists)
 
   def body_fn(
-      iteration: int, const: Tuple[pointcloud.PointCloud, jnp.ndarray],
+      iteration: int, const: tuple[pointcloud.PointCloud, jnp.ndarray],
       state: KPPState, compute_error: bool
   ) -> KPPState:
     del compute_error
@@ -180,7 +182,7 @@ def _reallocate_centroids(
     ix: jnp.ndarray,
     centroid: jnp.ndarray,
     weight: jnp.ndarray,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray]:
   is_empty = weight <= 0.0
   new_centroid = (1 - is_empty) * centroid + is_empty * const.x[ix]  # (ndim,)
   centroid_to_remove = is_empty * const.weighted_x[ix]  # (ndim,)
@@ -191,7 +193,7 @@ def _reallocate_centroids(
 def _update_assignment(
     const: KMeansConst,
     centroids: jnp.ndarray,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray]:
   (x, _, *args), aux_data = const.geom.tree_flatten()
   cost_matrix = type(
       const.geom
@@ -227,9 +229,9 @@ def _k_means(
     rng: jax.Array,
     geom: pointcloud.PointCloud,
     k: int,
-    weights: Optional[jnp.ndarray] = None,
+    weights: jnp.ndarray | None = None,
     init: Init_t = "k-means++",
-    n_local_trials: Optional[int] = None,
+    n_local_trials: int | None = None,
     tol: float = 1e-4,
     min_iterations: int = 0,
     max_iterations: int = 300,
@@ -342,17 +344,17 @@ def _k_means(
 
 
 def k_means(
-    geom: Union[jnp.ndarray, pointcloud.PointCloud],
+    geom: jnp.ndarray | pointcloud.PointCloud,
     k: int,
-    weights: Optional[jnp.ndarray] = None,
+    weights: jnp.ndarray | None = None,
     init: Init_t = "k-means++",
     n_init: int = 10,
-    n_local_trials: Optional[int] = None,
+    n_local_trials: int | None = None,
     tol: float = 1e-4,
     min_iterations: int = 0,
     max_iterations: int = 300,
     store_inner_errors: bool = False,
-    rng: Optional[jax.Array] = None,
+    rng: jax.Array | None = None,
 ) -> KMeansOutput:
   r"""K-means clustering using Lloyd's algorithm :cite:`lloyd:82`.
 

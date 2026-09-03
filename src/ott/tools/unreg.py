@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple
 
 import jax.numpy as jnp
 
@@ -26,7 +25,7 @@ __all__ = ["hungarian", "wassdis_p"]
 
 def hungarian(
     geom: geometry.Geometry
-) -> Tuple[jnp.ndarray, semidiscrete.HardAssignmentOutput]:
+) -> tuple[jnp.ndarray, semidiscrete.HardAssignmentOutput]:
   """Solve matching problem using the :term:`Hungarian algorithm`.
 
   Uses the implementation from :mod:`optax`.

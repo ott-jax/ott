@@ -14,7 +14,8 @@
 import dataclasses
 import math
 import operator
-from typing import Any, Callable, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -34,10 +35,10 @@ ScoreFn = Callable[[jnp.ndarray, jnp.ndarray], jnp.ndarray]
 
 
 def sobol_ball_sampler(
-    rng: Optional[jax.Array],
-    shape: Tuple[int, int],
-    n_per_radius: Optional[int] = None,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    rng: jax.Array | None,
+    shape: tuple[int, int],
+    n_per_radius: int | None = None,
+) -> tuple[jnp.ndarray, jnp.ndarray]:
   """Sample target measure for :class:`OTCP`.
 
   Args:
@@ -108,14 +109,14 @@ class OTCP:
   nonconformity_fn: ScoreFn = dataclasses.field(
       default=operator.sub, metadata={"static": True}
   )
-  sinkhorn_output: Optional[sinkhorn.SinkhornOutput] = None
-  sampler: Optional[Callable[[jax.random.PRNGKey, Tuple[int, int]],
-                             jax.Array]] = dataclasses.field(
-                                 default=None, metadata={"static": True}
-                             )
+  sinkhorn_output: sinkhorn.SinkhornOutput | None = None
+  sampler: Callable[[jax.random.PRNGKey, tuple[int, int]],
+                    jax.Array] | None = dataclasses.field(
+                        default=None, metadata={"static": True}
+                    )
   offset: jnp.ndarray = 0.0
   scale: jnp.ndarray = 1.0
-  calibration_scores: Optional[jnp.ndarray] = None
+  calibration_scores: jnp.ndarray | None = None
 
   def fit_transport(
       self,
@@ -123,8 +124,8 @@ class OTCP:
       y: jnp.ndarray,
       epsilon: float = 1e-1,
       n_target: int = 8192,
-      rng: Optional[jax.Array] = None,
-      sampler_kwargs: Optional[Any] = None,
+      rng: jax.Array | None = None,
+      sampler_kwargs: Any | None = None,
       **kwargs: Any,
   ) -> "OTCP":
     """Fit the transport map.
@@ -191,7 +192,7 @@ class OTCP:
   def predict(
       self,
       x: jnp.ndarray,
-      y_candidates: Optional[jnp.ndarray] = None,
+      y_candidates: jnp.ndarray | None = None,
       alpha: float = 0.1,
   ) -> jnp.ndarray:
     """Conformalize the model's prediction.
@@ -259,6 +260,6 @@ class OTCP:
     return (self.scale * x) + self.offset
 
   @property
-  def target_measure(self) -> Optional[jnp.ndarray]:
+  def target_measure(self) -> jnp.ndarray | None:
     """Target measure of shape ``[n_target, dim_y]``."""
     return None if self.sinkhorn_output is None else self.sinkhorn_output.geom.y

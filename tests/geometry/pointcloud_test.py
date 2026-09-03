@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Union
 
 import pytest
 
@@ -128,7 +127,7 @@ class TestPointCloudCosineConversion:
 
   @pytest.mark.parametrize("scale_cost", ["mean", "median", "max_cost", 41])
   def test_cosine_to_sqeucl_conversion(
-      self, rng: jax.Array, scale_cost: Union[str, float]
+      self, rng: jax.Array, scale_cost: str | float
   ):
     rng1, rng2 = jr.split(rng, 2)
     x = jr.normal(rng1, shape=(101, 4))
@@ -159,7 +158,7 @@ class TestPointCloudCosineConversion:
   @pytest.mark.parametrize("scale_cost", ["mean", "median", "max_cost", 2.0])
   @pytest.mark.parametrize("axis", [0, 1])
   def test_apply_cost_cosine_to_sqeucl(
-      self, rng: jax.Array, axis: int, scale_cost: Union[str, float]
+      self, rng: jax.Array, axis: int, scale_cost: str | float
   ):
     rng1, rng2 = jr.split(rng, 2)
     x = jr.normal(rng1, shape=(17, 5))

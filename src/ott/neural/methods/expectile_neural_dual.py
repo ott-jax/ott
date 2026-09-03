@@ -11,16 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import (
-    Callable,
-    Dict,
-    Iterator,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Union,
-)
+from collections.abc import Callable, Iterator
+from typing import Literal
 
 import jax
 import jax.numpy as jnp
@@ -37,7 +29,7 @@ from ott.problems.linear import potentials as dual_potentials
 
 __all__ = ["ENOTPotentials", "PotentialModelWrapper", "ExpectileNeuralDual"]
 
-Train_t = Dict[Literal["train_logs", "valid_logs"], Dict[str, List[float]]]
+Train_t = dict[Literal["train_logs", "valid_logs"], dict[str, list[float]]]
 Callback_t = Callable[[int, dual_potentials.DualPotentials], None]
 
 
@@ -156,18 +148,18 @@ class ExpectileNeuralDual:
   def __init__(
       self,
       dim_data: int,
-      neural_f: Optional[nn.Module] = None,
-      neural_g: Optional[nn.Module] = None,
-      optimizer_f: Optional[optax.GradientTransformation] = None,
-      optimizer_g: Optional[optax.GradientTransformation] = None,
-      cost_fn: Optional[costs.TICost] = None,
+      neural_f: nn.Module | None = None,
+      neural_g: nn.Module | None = None,
+      optimizer_f: optax.GradientTransformation | None = None,
+      optimizer_g: optax.GradientTransformation | None = None,
+      cost_fn: costs.TICost | None = None,
       expectile: float = 0.99,
       expectile_loss_coef: float = 1.0,
       num_train_iters: int = 20000,
       valid_freq: int = 1000,
       log_freq: int = 1000,
       logging: bool = False,
-      rng: Optional[jax.Array] = None
+      rng: jax.Array | None = None
   ):
     self.num_train_iters = num_train_iters
     self.valid_freq = valid_freq
@@ -216,8 +208,8 @@ class ExpectileNeuralDual:
       trainloader_target: Iterator[jnp.ndarray],
       validloader_source: Iterator[jnp.ndarray],
       validloader_target: Iterator[jnp.ndarray],
-      callback: Optional[Callback_t] = None,
-  ) -> Union[ENOTPotentials, Tuple[ENOTPotentials, Train_t]]:
+      callback: Callback_t | None = None,
+  ) -> ENOTPotentials | tuple[ENOTPotentials, Train_t]:
     """Train and return the Kantorovich dual potentials."""
     logs = self.train_fn(
         trainloader_source,
@@ -236,7 +228,7 @@ class ExpectileNeuralDual:
       trainloader_target: Iterator[jnp.ndarray],
       validloader_source: Iterator[jnp.ndarray],
       validloader_target: Iterator[jnp.ndarray],
-      callback: Optional[Callback_t] = None,
+      callback: Callback_t | None = None,
   ) -> Train_t:
     """Training and validation."""
     try:
@@ -288,9 +280,9 @@ class ExpectileNeuralDual:
   def _get_train_step(
       self
   ) -> Callable[[
-      potentials.PotentialTrainState, potentials.PotentialTrainState, Dict[
+      potentials.PotentialTrainState, potentials.PotentialTrainState, dict[
           str, jnp.ndarray]
-  ], Tuple[potentials.PotentialTrainState, potentials.PotentialTrainState,
+  ], tuple[potentials.PotentialTrainState, potentials.PotentialTrainState,
            jnp.ndarray, jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
 
     @jax.jit
@@ -314,9 +306,9 @@ class ExpectileNeuralDual:
   def _get_valid_step(
       self
   ) -> Callable[[
-      potentials.PotentialTrainState, potentials.PotentialTrainState, Dict[
+      potentials.PotentialTrainState, potentials.PotentialTrainState, dict[
           str, jnp.ndarray]
-  ], Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+  ], tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
 
     @jax.jit
     def step_fn(state_f, state_g, batch):
@@ -354,9 +346,9 @@ class ExpectileNeuralDual:
       gradient_f: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
                            potentials.PotentialGradientFn_t],
       g_value: Callable[[frozen_dict.FrozenDict[str, jnp.ndarray]],
-                        potentials.PotentialValueFn_t], batch: Dict[str,
+                        potentials.PotentialValueFn_t], batch: dict[str,
                                                                     jnp.ndarray]
-  ) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
+  ) -> tuple[jnp.ndarray, tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]]:
 
     source, target = batch["source"], batch["target"]
 
@@ -414,7 +406,7 @@ class ExpectileNeuralDual:
 
   @staticmethod
   def _update_logs(
-      logs: Dict[str, List[Union[float, str]]],
+      logs: dict[str, list[float | str]],
       loss_f: jnp.ndarray,
       loss_g: jnp.ndarray,
       w_dist: jnp.ndarray,

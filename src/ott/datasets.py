@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Iterator, Literal, NamedTuple, Optional, Tuple
+from collections.abc import Iterator
+from typing import Literal, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -135,8 +136,8 @@ def create_gaussian_mixture_samplers(
     name_target: Name_t,
     train_batch_size: int = 2048,
     valid_batch_size: int = 2048,
-    rng: Optional[jax.Array] = None,
-) -> Tuple[Dataset, Dataset, int]:
+    rng: jax.Array | None = None,
+) -> tuple[Dataset, Dataset, int]:
   """Gaussian samplers.
 
   Args:
@@ -193,10 +194,10 @@ class ConditionalGaussianMixture:
   offsets: jnp.ndarray
   rng: jax.Array
 
-  def __iter__(self) -> Iterator[Tuple[jnp.ndarray, ...]]:
+  def __iter__(self) -> Iterator[tuple[jnp.ndarray, ...]]:
     return self._generate()
 
-  def _generate(self) -> Iterator[Tuple[jnp.ndarray, ...]]:
+  def _generate(self) -> Iterator[tuple[jnp.ndarray, ...]]:
     rng = self.rng
     per_cond = self.batch_size // self.num_conditions
     while True:
@@ -225,8 +226,8 @@ def create_conditional_gaussian_mixture_samplers(
     dim: int = 2,
     train_batch_size: int = 90,
     valid_batch_size: int = 90,
-    rng: Optional[jax.Array] = None,
-) -> Tuple[ConditionalDataset, ConditionalDataset, int, int, int]:
+    rng: jax.Array | None = None,
+) -> tuple[ConditionalDataset, ConditionalDataset, int, int, int]:
   """Create conditional Gaussian samplers for testing.
 
   Each condition defines a different translation of the source distribution.

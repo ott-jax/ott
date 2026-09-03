@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import NamedTuple, Optional, Tuple
+from typing import NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -37,8 +37,8 @@ class Constants(NamedTuple):  # noqa: D101
   b: jnp.ndarray
   rho_a: float
   rho_b: float
-  supp_a: Optional[jnp.ndarray] = None
-  supp_b: Optional[jnp.ndarray] = None
+  supp_a: jnp.ndarray | None = None
+  supp_b: jnp.ndarray | None = None
 
 
 def unbalanced_dykstra_lse(
@@ -52,7 +52,7 @@ def unbalanced_dykstra_lse(
     min_iter: int = 0,
     inner_iter: int = 10,
     max_iter: int = 10000
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Dykstra's algorithm for the unbalanced
   :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` in LSE mode.
 
@@ -191,7 +191,7 @@ def unbalanced_dykstra_kernel(
     min_iter: int = 0,
     inner_iter: int = 10,
     max_iter: int = 10000
-) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
+) -> tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
   """Dykstra's algorithm for the unbalanced
   :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` in kernel mode.
 
@@ -319,7 +319,7 @@ def unbalanced_dykstra_kernel(
 def compute_lambdas(
     const: Constants, state: State, gamma: float, g: jnp.ndarray, *,
     lse_mode: bool
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
   """TODO."""
   gamma_inv = 1.0 / gamma
   rho_a = const.rho_a

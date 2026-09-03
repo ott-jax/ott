@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -29,7 +30,7 @@ def run_opt(
     fun: Callable[[jnp.ndarray], jnp.ndarray],
     max_iter: int,
     tol: float,
-) -> Tuple[jnp.ndarray, optax.OptState]:
+) -> tuple[jnp.ndarray, optax.OptState]:
   """Runs an optimization algorithm on a function.
 
   Args:
@@ -73,7 +74,7 @@ def lbfgs(
     max_iter: int = 100,
     tol: float = 1e-4,
     **kwargs: Any,
-) -> Tuple[jnp.ndarray, optax.OptState]:
+) -> tuple[jnp.ndarray, optax.OptState]:
   """Runs optax's L-BFGS optimization on function.
 
   Args:

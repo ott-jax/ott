@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Dict, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -74,10 +75,9 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       geom: geometry.Geometry,
       meta_model: nn.Module,
-      opt: Optional[optax.GradientTransformation
-                   ] = optax.adam(learning_rate=1e-3),  # noqa: B008
-      rng: Optional[jax.Array] = None,
-      state: Optional[train_state.TrainState] = None,
+      opt: optax.GradientTransformation | None = optax.adam(1e-3),  # noqa: B008
+      rng: jax.Array | None = None,
+      state: train_state.TrainState | None = None,
   ):
     self.geom = geom
     self.opt = opt
@@ -100,7 +100,7 @@ class MetaInitializer(initializers.DefaultInitializer):
 
   def update(
       self, state: train_state.TrainState, a: jnp.ndarray, b: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, train_state.TrainState]:
+  ) -> tuple[jnp.ndarray, jnp.ndarray, train_state.TrainState]:
     r"""Update the meta model with the dual objective.
 
     The goal is for the model to match the optimal duals, i.e.,
@@ -138,7 +138,7 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
   ) -> jnp.ndarray:
     del rng
     # Detect if the problem is batched.
@@ -206,7 +206,7 @@ class MetaInitializer(initializers.DefaultInitializer):
     return self.meta_model.apply({"params": params},
                                  jnp.concatenate([a, b], axis=-1))
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return [self.geom, self.meta_model, self.opt], {
         "rng": self.rng,
         "state": self.state
