@@ -201,9 +201,3 @@ class ScaleTriL:
         class_name, ", ".join([repr(c) for c in children] +
                               [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
-
-  def __hash__(self):
-    return jax.tree_util.tree_flatten(self).__hash__()
-
-  def __eq__(self, other):
-    return jax.tree_util.tree_flatten(self) == jax.tree_util.tree_flatten(other)

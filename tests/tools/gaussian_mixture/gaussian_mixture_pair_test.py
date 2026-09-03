@@ -14,6 +14,7 @@
 
 import pytest
 
+import chex
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -155,12 +156,12 @@ class TestGaussianMixturePair:
     children, aux_data = jax.tree_util.tree_flatten(pair)
     pair_new = jax.tree_util.tree_unflatten(aux_data, children)
 
-    assert pair.gmm0 == pair_new.gmm0
-    assert pair.gmm1 == pair_new.gmm1
+    chex.assert_trees_all_equal(pair.gmm0, pair_new.gmm0)
+    chex.assert_trees_all_equal(pair.gmm1, pair_new.gmm1)
     assert pair.epsilon == pair_new.epsilon
     assert pair.tau == pair_new.tau
     assert pair.lock_gmm1 == pair_new.lock_gmm1
-    assert pair == pair_new
+    chex.assert_trees_all_equal(pair, pair_new)
 
   @pytest.mark.fast.with_args(
       "epsilon,tau,lock_gmm1",

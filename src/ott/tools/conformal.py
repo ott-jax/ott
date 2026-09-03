@@ -22,6 +22,7 @@ import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
 import scipy as sp
+from jax.typing import ArrayLike
 from scipy.stats import qmc
 
 from ott import utils
@@ -110,12 +111,12 @@ class OTCP:
       default=operator.sub, metadata={"static": True}
   )
   sinkhorn_output: sinkhorn.SinkhornOutput | None = None
-  sampler: Callable[[jax.random.PRNGKey, tuple[int, int]],
+  sampler: Callable[[jax.Array, tuple[int, int]],
                     jax.Array] | None = dataclasses.field(
                         default=None, metadata={"static": True}
                     )
-  offset: jax.Array = 0.0
-  scale: jax.Array = 1.0
+  offset: ArrayLike = 0.0
+  scale: ArrayLike = 1.0
   calibration_scores: jax.Array | None = None
 
   def fit_transport(

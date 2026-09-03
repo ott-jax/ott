@@ -18,6 +18,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax.typing import ArrayLike
 
 from ott import utils
 from ott.geometry import costs, pointcloud
@@ -339,9 +340,9 @@ def topk_mask(
 
 def quantile(
     inputs: jax.Array,
-    q: float | jax.Array | None,
+    q: ArrayLike | None,
     axis: int | tuple[int, ...] = -1,
-    weight: float | jax.Array | None = None,
+    weight: ArrayLike | None = None,
     **kwargs: Any,
 ) -> jax.Array:
   r"""Apply the soft quantiles operator on the input tensor.

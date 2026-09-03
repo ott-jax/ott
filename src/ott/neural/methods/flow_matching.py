@@ -21,6 +21,7 @@ import jax.numpy as jnp
 import jax.random as jr
 import jax.tree_util as jtu
 import numpy as np
+from jax.typing import DTypeLike
 
 import diffrax
 import optax
@@ -93,7 +94,7 @@ def interpolate_samples(
     x1: jax.Array,
     cond: jax.Array | None = None,
     *,
-    time_sampler: Callable[[jax.Array, tuple[int], jnp.dtype], jax.Array]
+    time_sampler: Callable[[jax.Array, tuple[int], DTypeLike], jax.Array]
     | None = None
 ) -> Batch:
   """Sample time and interpolate.

@@ -15,6 +15,7 @@ import math
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 from ott.tools.gaussian_mixture import scale_tril
 
@@ -64,7 +65,7 @@ class Gaussian:
       n_dimensions: int,
       stdev_mean: float = 0.1,
       stdev_cov: float = 0.1,
-      ridge: float | jax.Array = 0,
+      ridge: ArrayLike = 0,
   ) -> "Gaussian":
     """Construct a random Gaussian.
 
@@ -206,9 +207,3 @@ class Gaussian:
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     return cls(*children, **aux_data)
-
-  def __hash__(self):
-    return jax.tree_util.tree_flatten(self).__hash__()
-
-  def __eq__(self, other):
-    return jax.tree_util.tree_flatten(self) == jax.tree_util.tree_flatten(other)

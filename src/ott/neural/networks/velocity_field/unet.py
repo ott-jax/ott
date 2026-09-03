@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
+from jax.typing import DTypeLike
 
 from flax import nnx
 
@@ -57,8 +58,8 @@ def conv_nd(
     kernel_size: int | tuple[int, ...],
     strides: int | tuple[int, ...] = 1,
     *,
-    dtype: jnp.dtype | None = None,
-    param_dtype: jnp.dtype = jnp.float32,
+    dtype: DTypeLike | None = None,
+    param_dtype: DTypeLike = jnp.float32,
     padding: int | tuple[int, ...] = 0,
     zero_init: bool = False,
     rngs: nnx.Rngs,
@@ -91,8 +92,8 @@ def conv_nd(
 def normalization(
     channels: int,
     *,
-    dtype: jnp.dtype | None = None,
-    param_dtype: jnp.dtype = jnp.float32,
+    dtype: DTypeLike | None = None,
+    param_dtype: DTypeLike = jnp.float32,
     rngs: nnx.Rngs,
 ) -> nnx.GroupNorm:
   return GroupNorm32(
@@ -148,8 +149,8 @@ class Upsample(nnx.Module):
       use_conv: bool,
       *,
       out_channels: int | None = None,
-      dtype: jnp.dtype | None = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -187,8 +188,8 @@ class Downsample(nnx.Module):
       use_conv: bool,
       *,
       out_channels: int | None = None,
-      dtype: jnp.dtype | None = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -228,8 +229,8 @@ class ResBlock(TimestepBlock):
       use_conv: bool = False,
       up: bool = False,
       down: bool = False,
-      dtype: jnp.dtype | None = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -411,8 +412,8 @@ class AttentionBlock(nnx.Module):
       *,
       num_heads: int = 1,
       attn_implementation: Literal["xla", "cudnn"] | None = None,
-      dtype: jnp.dtype | None = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       rngs: nnx.Rngs,
   ):
     super().__init__()
@@ -501,8 +502,8 @@ class UNet(nnx.Module):
       num_heads_upsample: int | None = None,
       resblock_updown: bool = False,
       num_classes: int | None = None,
-      dtype: jnp.dtype | None = None,
-      param_dtype: jnp.dtype = jnp.float32,
+      dtype: DTypeLike | None = None,
+      param_dtype: DTypeLike = jnp.float32,
       attn_implementation: Literal["xla", "cudnn"] | None = None,
       rngs: nnx.Rngs,
   ):

@@ -411,4 +411,4 @@ def k_means(
       max_iterations, store_inner_errors
   )
   best_ix = jnp.argmin(out.error)
-  return jax.tree_util.tree_map(lambda arr: arr[best_ix], out)
+  return jax.tree.map(lambda arr: arr[best_ix], out)

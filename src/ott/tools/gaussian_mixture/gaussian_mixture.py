@@ -298,10 +298,7 @@ class GaussianMixture:
     )
 
   def has_nans(self) -> bool:  # noqa: D102
-    for leaf in jax.tree_util.tree_leaves(self):
-      if jnp.any(~jnp.isfinite(leaf)):
-        return True
-    return False
+    return any(jnp.any(~jnp.isfinite(leaf)) for leaf in jax.tree.leaves(self))
 
   def tree_flatten(self):  # noqa: D102
     children = (self.loc, self.scale_params, self.component_weight_ob)
@@ -319,9 +316,3 @@ class GaussianMixture:
         class_name, ", ".join([repr(c) for c in children] +
                               [f"{k}: {repr(v)}" for k, v in aux.items()])
     )
-
-  def __hash__(self):
-    return jax.tree_util.tree_flatten(self).__hash__()
-
-  def __eq__(self, other):
-    return jax.tree_util.tree_flatten(self) == jax.tree_util.tree_flatten(other)

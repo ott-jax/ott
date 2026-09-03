@@ -111,7 +111,7 @@ class ProgOTOutput(NamedTuple):
     Returns:
       The OT solver output at a ``step``.
     """
-    return jtu.tree_map(lambda x: x[step], self.outputs)
+    return jax.tree.map(lambda x: x[step], self.outputs)
 
   @property
   def converged(self) -> jax.Array | tuple[jax.Array, jax.Array, jax.Array]:

@@ -23,12 +23,13 @@ from typing import Literal
 
 import jax
 import jax.numpy as jnp
+from jax.typing import DTypeLike
 
 from flax import nnx
 
 __all__ = ["get_rectifier_inverse", "principled_icnn_init"]
 
-Initializer = Callable[[jax.Array, tuple[int, ...], jnp.dtype], jax.Array]
+Initializer = Callable[[jax.Array, tuple[int, ...], DTypeLike], jax.Array]
 RectifierName = Literal["exp", "softplus", "relu", "identity"]
 
 
@@ -128,7 +129,7 @@ def principled_icnn_init(
   def weights_init(
       rng: jax.Array,
       shape: tuple[int, ...],
-      dtype: jnp.dtype = None
+      dtype: DTypeLike | None = None
   ) -> jax.Array:
     w = nnx.initializers.normal(stddev=w_log_var ** 0.5)(rng, shape, dtype)
     w = jnp.exp(w_log_mean + w)
@@ -137,7 +138,7 @@ def principled_icnn_init(
   def biases_init(
       rng: jax.Array,
       shape: tuple[int, ...],
-      dtype: jnp.dtype = None
+      dtype: DTypeLike | None = None
   ) -> jax.Array:
     return nnx.initializers.constant(b_mean)(rng, shape, dtype)
 

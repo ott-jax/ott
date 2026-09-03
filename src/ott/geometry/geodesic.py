@@ -19,6 +19,7 @@ import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
+from jax.typing import DTypeLike
 from scipy.special import ive
 
 from ott import utils
@@ -291,7 +292,7 @@ def expm_multiply(
 
 
 def compute_chebychev_coeff_all(
-    eigval: float, tau: float, K: int, dtype: np.dtype
+    eigval: float, tau: float, K: int, dtype: DTypeLike
 ) -> jax.Array:
   """Jax wrapper to compute the K+1 Chebychev coefficients."""
   result_shape_dtype = jax.ShapeDtypeStruct(

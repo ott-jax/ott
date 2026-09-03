@@ -18,6 +18,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr
 import jax.tree_util as jtu
+from jax.typing import ArrayLike, DTypeLike
 
 from ott.geometry import costs, pointcloud
 
@@ -49,11 +50,11 @@ class SemidiscretePointCloud:
 
   def __init__(
       self,
-      sampler: Callable[[jax.Array, tuple[int, ...], jnp.dtype | None],
+      sampler: Callable[[jax.Array, tuple[int, ...], DTypeLike | None],
                         jax.Array],
       y: jax.Array,
       cost_fn: costs.CostFn | None = None,
-      epsilon: float | jax.Array | None = None,
+      epsilon: ArrayLike | None = None,
       relative_epsilon: Literal["mean", "std"] | None = None,
       scale_cost: float
       | Literal["mean", "max_norm", "max_bound", "max_cost", "median"] = 1.0,
