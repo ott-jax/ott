@@ -155,16 +155,12 @@ class TestMatrixSquareRoot:
             atol=1e-2
         )
 
-  # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu()
   def test_solve_bartels_stewart(self, sylvester: Sylvester):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=sylvester.a[0], b=sylvester.b[0], c=sylvester.c[0]
     )
     np.testing.assert_allclose(sylvester.x[0], x, atol=1e-5)
 
-  # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu()
   def test_solve_bartels_stewart_batch(self, sylvester: Sylvester):
     x = matrix_square_root.solve_sylvester_bartels_stewart(
         a=sylvester.a, b=sylvester.b, c=sylvester.c
@@ -181,8 +177,6 @@ class TestMatrixSquareRoot:
     )
     np.testing.assert_allclose(sylvester.x, x[0, 0], atol=1e-4)
 
-  # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu()
   @pytest.mark.fast.with_args(
       "fn,n_tests,dim,epsilon,atol,rtol",
       [(lambda x: matrix_square_root.sqrtm(x)[0], 3, 3, 1e-6, 1e-6, 1e-6),

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61", "setuptools-scm[toml]>=6.2"]
+requires = ["setuptools>=64", "setuptools-scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -13,11 +13,10 @@ authors = [
     {name = "OTT team", email = "optimal.transport.tools@gmail.com"}
 ]
 dependencies = [
-    "jax>=0.4.0",
+    "jax>=0.8.0",
     "jaxopt>=0.8",
     "lineax>=0.0.7",
     "numpy>=1.20.0",
-    "typing_extensions; python_version <= '3.9'",
     "optax>=0.2.4",
 ]
 keywords = [
@@ -44,11 +43,10 @@ classifiers = [
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 
 [project.urls]
@@ -60,12 +58,10 @@ Changelog = "https://github.com/ott-jax/ott/releases"
 [project.optional-dependencies]
 neural = [
     "flax>=0.11.0",
-    "optax>=0.2.4",
     "diffrax>=0.4.1",
 ]
 dev = [
-    "pre-commit>=2.16.0",
-    "tox>=4",
+    "pre-commit>=3.0.0",
 ]
 test = [
     "pytest",
@@ -77,7 +73,7 @@ test = [
     "networkx>=2.5",
     "scikit-learn>=1.0",
     "tqdm",
-    "tslearn>=0.5; python_version < '3.13'",
+    "tslearn>=0.5",
     "matplotlib",
 ]
 docs = [
@@ -99,7 +95,7 @@ include-package-data = true
 
 [tool.black]
 line-length = 80
-target-version = ["py39"]
+target-version = ["py311"]
 include = '\.ipynb$'
 
 [tool.isort]
@@ -120,7 +116,6 @@ testpaths = [
     "tests",
 ]
 markers = [
-    "cpu: Mark tests as CPU only.",
     "fast: Mark tests as fast.",
 ]
 
@@ -181,89 +176,6 @@ max_line_length = 80
 # Parser "myst_parser.sphinx_" not found. No module named 'myst_parser'.
 ignore_path = ["docs/**/_autosummary", "docs/contributing.rst"]
 
-[tool.tox]
-legacy_tox_ini = """
-[tox]
-min_version = 4.0
-env_list = lint-code,py{3.11,3.12,3.13},py3.12-jax-default
-skip_missing_interpreters = true
-
-[testenv]
-extras =
-    test
-    # neural requires flax>=0.11.0 (NNX API, Python>=3.11)
-    py{3.11,3.12,3.13}: neural
-pass_env = CUDA_*,PYTEST_*,CI
-commands_pre =
-    gpu: python -I -m pip install "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-    jax-latest: python -I -m pip install 'git+https://github.com/google/jax@main'
-commands =
-    python -m pytest {tty:--color=yes} -n auto --strict-rng {posargs: \
-      --cov={env_site_packages_dir}{/}ott --cov-config={tox_root}{/}pyproject.toml \
-      --no-cov-on-fail --cov-report=xml --cov-report=term-missing:skip-covered}
-
-[testenv:lint-code]
-description = Lint the code.
-deps = pre-commit>=3.0.0
-skip_install = true
-commands =
-    pre-commit run --all-files --show-diff-on-failure
-
-[testenv:lint-docs]
-description = Lint the documentation.
-deps =
-extras = docs,neural
-ignore_errors = true
-allowlist_externals = make
-pass_env = PYENCHANT_LIBRARY_PATH
-set_env = SPHINXOPTS = -W -q --keep-going
-changedir = {tox_root}{/}docs
-commands =
-    make linkcheck {posargs}
-    make spelling {posargs}
-
-[testenv:build-docs]
-description = Build the documentation.
-use_develop = true
-deps =
-extras = docs,neural
-allowlist_externals = make
-changedir = {tox_root}{/}docs
-commands =
-    make html {posargs}
-commands_post =
-    python -c 'import pathlib; print("Documentation is under:", pathlib.Path("{tox_root}") / "docs" / "_build" / "html" / "index.html")'
-
-[testenv:clean-docs]
-description = Remove the documentation.
-deps =
-skip_install = true
-changedir = {tox_root}{/}docs
-allowlist_externals = make
-commands =
-    make clean
-
-[testenv:build-package]
-description = Build the package.
-deps =
-    build
-    twine
-commands =
-    python -m build --sdist --wheel --outdir {tox_root}{/}dist{/} {posargs:}
-    twine check {tox_root}{/}dist{/}*
-commands_post =
-    python -c 'import pathlib; print(f"Package is under:", pathlib.Path("{tox_root}") / "dist")'
-
-[testenv:format-references]
-description = Format references.bib.
-skip_install = true
-allowlist_externals = biber
-commands = biber --tool --output_file={tox_root}{/}docs{/}references.bib --nolog \
-    --output_align --output_indent=2 --output_fieldcase=lower \
-    --output_legacy_dates --output-field-replace=journaltitle:journal,thesis:phdthesis,institution:school \
-    {tox_root}{/}docs{/}references.bib
-"""
-
 [tool.ruff]
 exclude = [
     ".git",
@@ -273,7 +185,7 @@ exclude = [
     "dist"
 ]
 line-length = 80
-target-version = "py38"  # TODO(michalk8): use py39 and fix the type hints
+target-version = "py38"  # TODO(michalk8): bump to py311, see #XXX
 
 [tool.ruff.lint]
 ignore = [

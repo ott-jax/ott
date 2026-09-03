@@ -13,40 +13,61 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: ${{ matrix.lint-kind }}
+  lint-code:
+    name: code
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        lint-kind: [code, docs]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Set up Python 3.12
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: '3.12'
 
     - name: Cache pre-commit
-      uses: actions/cache@v4
-      if: ${{ matrix.lint-kind == 'code' }}
+      uses: actions/cache@v5
       with:
         path: ~/.cache/pre-commit
         key: pre-commit-${{ env.pythonLocation }}-${{ hashFiles('**/.pre-commit-config.yaml') }}
 
-    - name: Install dependencies
+    - name: Install pre-commit
       run: |
         python -m pip install --upgrade pip
-        python -m pip install tox
+        python -m pip install "pre-commit>=3.0.0"
+
+    - name: Lint code
+      run: pre-commit run --all-files --show-diff-on-failure
+
+  lint-docs:
+    name: docs
+    runs-on: ubuntu-latest
+    env:
+      SPHINXOPTS: -W -q --keep-going
+
+    steps:
+    - uses: actions/checkout@v5
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.12'
+        cache: pip
 
     - name: Install PyEnchant
-      if: ${{ matrix.lint-kind == 'docs' }}
       run: |
         sudo apt-get update -y
         sudo apt-get install libenchant-2-dev
         python -m pip install pyenchant
 
-    - name: Lint ${{ matrix.lint-kind }}
+    - name: Install dependencies
       run: |
-        tox -e lint-${{ matrix.lint-kind }}
+        python -m pip install --upgrade pip
+        python -m pip install -e ".[docs,neural]"
+
+    - name: Lint docs
+      # `||` keeps `set -e` from aborting, so both checks always run
+      run: |
+        linkcheck=0
+        spelling=0
+        make -C docs linkcheck || linkcheck=$?
+        make -C docs spelling || spelling=$?
+        exit $(( linkcheck || spelling ))

@@ -22,15 +22,11 @@ from typing import (
     List,
     NamedTuple,
     Optional,
+    ParamSpec,
     Tuple,
     TypeVar,
     Union,
 )
-
-try:
-  from typing import ParamSpec
-except ImportError:
-  from typing_extensions import ParamSpec
 
 import jax
 import jax._src.interpreters.batching as batching
