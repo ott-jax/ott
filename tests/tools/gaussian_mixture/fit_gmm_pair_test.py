@@ -44,8 +44,6 @@ def samples(
 
 class TestFitGmmPair:
 
-  # requires Schur decomposition, which jax does not implement on GPU
-  @pytest.mark.cpu()
   @pytest.mark.fast.with_args(
       balanced=[False, True], weighted=[False, True], only_fast=0
   )

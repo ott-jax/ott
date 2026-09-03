@@ -20,23 +20,27 @@ git commit --no-verify -m "<SOME_COMMIT_MESSAGE>"
 ```
 
 ## Running tests
-In order to run tests, we utilize [tox](https://tox.wiki/):
+Tests are run with [pytest](https://docs.pytest.org/), which requires the `test`
+and `neural` extras: `pip install -e '.[test,neural]'`.
 ```shell
-tox run  # run linter and all tests on all available Python versions
-tox run -- -m fast  # run linter and fast tests
-tox -e py3.11 -- -k "test_euclidean_point_cloud"  # run tests matching the expression on Python3.11
-tox -e py3.12 -- --memray  # test also memory on Python3.12
+python -m pytest -n auto  # run all tests, distributed over the available cores
+python -m pytest -m fast  # run only the fast tests
+python -m pytest -k "test_euclidean_point_cloud"  # run tests matching the expression
+python -m pytest --memray  # also check memory
+python -m pytest --strict-rng  # fail if a PRNG key is consumed twice
 ```
-Alternatively, tests can be also run using the [pytest](https://docs.pytest.org/):
+The linter is run separately, via [pre-commit](https://pre-commit.com/):
 ```shell
-python -m pytest
+pre-commit run --all-files
 ```
-This requires the `'[test]'` extra requirements to be installed as `pip install -e.'[test]'`.
 
 ## Documentation
-From the root of the repository, run:
+Building the documentation requires the `docs` and `neural` extras:
+`pip install -e '.[docs,neural]'`. From the root of the repository, run:
 ```shell
-tox -e clean-docs,build-docs,lint-docs  # remove, build and lint the documentation
+make -C docs clean  # remove the built documentation
+make -C docs html  # build the documentation
+make -C docs linkcheck spelling  # lint the documentation
 ```
 Installing `PyEnchant` is required to run spellchecker, please refer to the
 [installation instructions](https://pyenchant.github.io/pyenchant/install.html). On macOS Silicon, it may be necessary
@@ -45,9 +49,10 @@ to also set `PYENCHANT_LIBRARY_PATH` environment variable, as, e.g.,
 be added to one of the files in [docs/spelling](https://github.com/ott-jax/ott/tree/main/docs/spelling).
 
 ## Building the package
-The package can be built using:
+The package can be built using [build](https://build.pypa.io/):
 ```shell
-tox -e build-package
+python -m build --sdist --wheel --outdir dist/
+twine check dist/*
 ```
 Afterwards, the built package will be located under `dist/`.
 
