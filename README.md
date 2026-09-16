@@ -3,10 +3,10 @@
 # Optimal Transport Tools (OTT)
 [![Downloads](https://static.pepy.tech/personalized-badge/ott-jax?period=total&units=INTERNATIONAL_SYSTEM&left_color=GREY&right_color=BLUE&left_text=downloads)](https://pepy.tech/projects/ott-jax)
 [![Tests](https://img.shields.io/github/actions/workflow/status/ott-jax/ott/tests.yml?branch=main)](https://github.com/ott-jax/ott/actions/workflows/tests.yml)
-[![Docs](https://img.shields.io/readthedocs/ott-jax/latest)](https://ott-jax.readthedocs.io/en/latest/)
+[![Docs](https://img.shields.io/readthedocs/ott-jax/latest)](https://ott-jax.readthedocs.io)
 [![Coverage](https://img.shields.io/codecov/c/github/ott-jax/ott/main)](https://app.codecov.io/gh/ott-jax/ott)
 
-**See the [full documentation](https://ott-jax.readthedocs.io/en/latest/).**
+**See the [full documentation](https://ott-jax.readthedocs.io).**
 
 ## What is OTT-JAX?
 A ``JAX`` powered library to solve a wide variety of problems leveraging optimal transport theory, at scale and on accelerators.
@@ -79,7 +79,7 @@ plot.Plot()(out)
 The call to `solve(prob)` above works out the optimal transport solution. The `out` object contains a transport matrix
 (here of size $12\times 14$) that quantifies the association strength between each point of the first point cloud, to one or
 more points from the second, as illustrated in the plot below. We provide more flexibility to define custom cost
-functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io/en/latest/). The last command displays the transport matrix by using a `Plot` object.
+functions, objectives, and solvers, as detailed in the [full documentation](https://ott-jax.readthedocs.io). The last command displays the transport matrix by using a `Plot` object.
 
 ![obtained coupling](https://raw.githubusercontent.com/ott-jax/ott/main/docs/_static/images/coupling.png)
 
