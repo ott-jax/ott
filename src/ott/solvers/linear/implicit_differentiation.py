@@ -43,12 +43,12 @@ class ImplicitDiff:
     solver: Callable to compute the solution to a linear problem. The callable
       expects a linear function, a vector, optionally another linear function
       that implements the transpose of that function, and a boolean flag to
-      specify symmetry. This solver is by default one of :class:`lineax.CG` or
-      :class:`lineax.NormalCG` solvers, if the package can be imported, as
-      described in :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
+      specify symmetry. This solver is by default a conjugate gradient solver,
+      as described in
+      :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
       The :mod:`jax` alternative is described in
       :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
-      Note that `lineax` solvers handle better poorly conditioned problems,
+      Note that the CG solver handles better poorly conditioned problems,
       which arise typically when differentiating the solutions of balanced OT
       problems (when ``tau_a==tau_b==1.0``). Relying on
       :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
@@ -141,7 +141,7 @@ class ImplicitDiff:
     block.
 
     These linear systems are solved using the user-defined ``solver``, using
-    by default :mod:`lineax` solvers when available, or falling back on
+    by default the conjugate gradient solver, or falling back on
     :mod:`jax` when not.
 
     Args:
