@@ -70,6 +70,24 @@ class TestSinkhornGrid:
         out_mat.reg_ot_cost, out_grid.reg_ot_cost, rtol=1e-5, atol=1e-5
     )
 
+  @pytest.mark.parametrize("grid_size", [(2,), (2, 2), (2, 3)])
+  def test_primal_cost_grid_with_two_points(self, grid_size):
+    # slices with 2 points are not converted to low-rank point clouds (#669)
+    epsilon = 0.1
+    geometry_grid = grid.Grid(grid_size=grid_size, epsilon=epsilon)
+    xs = np.meshgrid(*[np.linspace(0, 1, n) for n in grid_size], indexing="ij")
+    xyz = jnp.stack([jnp.array(x.ravel()) for x in xs], axis=1)
+    geometry_mat = pointcloud.PointCloud(xyz, xyz, epsilon=epsilon)
+    n = geometry_mat.shape[0]
+    a = jnp.ones(n) / n
+    b = jnp.arange(1.0, n + 1.0) / jnp.sum(jnp.arange(1.0, n + 1.0))
+
+    out_mat = linear.solve(geometry_mat, a=a, b=b)
+    out_grid = linear.solve(geometry_grid, a=a, b=b)
+    np.testing.assert_allclose(
+        out_mat.primal_cost, out_grid.primal_cost, rtol=1e-5, atol=1e-5
+    )
+
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=1)
   def test_apply_transport_grid(self, rng: jax.Array, lse_mode: bool):
     grid_size = (5, 6, 7)

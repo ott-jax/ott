@@ -325,9 +325,9 @@ class TestCostMatrixFactorization:
     assert geom_lr.cost_rank == rank
     # self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
-  def test_conversion_grid(self):
+  @pytest.mark.parametrize("ns", [[6, 7, 11], [2], [2, 3], [3, 2, 2]])
+  def test_conversion_grid(self, ns):
     """Test conversion from Grid to LRCGeometry."""
-    ns = [6, 7, 11]
     xs = [jr.normal(jr.key(i), (n,)) for i, n in enumerate(ns)]
     geom = grid.Grid(xs)
 
