@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Iterable, Tuple
+from collections.abc import Iterable
 
 import jax
 import jax.random as jr
@@ -22,8 +22,8 @@ from ott.neural.data import ot_dataloader
 
 
 def _get_dataset(
-    rng: jax.Array, shape: Tuple[int, ...]
-) -> Iterable[Tuple[jax.Array, jax.Array]]:
+    rng: jax.Array, shape: tuple[int, ...]
+) -> Iterable[tuple[jax.Array, jax.Array]]:
   while True:
     rng, rng_x0, rng_x1 = jr.split(rng, 3)
     x0 = jr.normal(rng_x0, shape)

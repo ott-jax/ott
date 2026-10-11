@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple
 
 import pytest
 
@@ -29,7 +28,7 @@ from ott.solvers.linear import semidiscrete
 
 
 def _solve_semidiscrete(
-    rng: jax.Array, *, shape: Tuple[int, ...], epsilon: float
+    rng: jax.Array, *, shape: tuple[int, ...], epsilon: float
 ) -> semidiscrete.SemidiscreteOutput:
   rng_data, rng_solve = jr.split(rng, 2)
   y = jr.normal(rng_data, shape)
@@ -116,7 +115,7 @@ class TestSemidiscreteDataloader:
     assert tgt.shape == (batch_size, d)
 
   @pytest.mark.parametrize("epsilon", [0.0, 1e-2, None])
-  def test_sharding(self, rng: jax.Array, epsilon: Optional[float]):
+  def test_sharding(self, rng: jax.Array, epsilon: float | None):
     m, d = 11, 4
     batch_size = 11
     rng_solve, rng_dl = jr.split(rng, 2)

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 
@@ -82,9 +82,7 @@ class TestUnivariate:
 
     @jax.jit
     @functools.partial(jax.vmap, in_axes=[1, 1, None, None])
-    def sliced_sinkhorn(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
-    ):
+    def sliced_sinkhorn(x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array):
       geom = pointcloud.PointCloud(
           x[:, None], y[:, None], cost_fn=cost_fn, epsilon=1e-4
       )
@@ -166,7 +164,7 @@ class TestUnivariate:
   ):
 
     def univ_dist(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
+        x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array
     ) -> float:
       geom = pointcloud.PointCloud(x[:, None], y[:, None])
       prob = linear_problem.LinearProblem(geom, a=a, b=b)

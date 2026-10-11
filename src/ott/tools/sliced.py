@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional, Tuple
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -23,15 +23,15 @@ from ott.solvers.linear import univariate
 
 __all__ = ["random_proj_sphere", "sliced_wasserstein"]
 
-Projector = Callable[[jax.Array, jnp.ndarray], jnp.ndarray]
+Projector = Callable[[jax.Array, jax.Array], jax.Array]
 
 
 def random_proj_sphere(
     rng: jax.Array,
-    x: jnp.ndarray,
+    x: jax.Array,
     *,
     n_proj: int = 1000,
-) -> jnp.ndarray:
+) -> jax.Array:
   """Project data on directions sampled randomly from sphere.
 
   Args:
@@ -50,17 +50,17 @@ def random_proj_sphere(
 
 
 def sliced_wasserstein(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    a: Optional[jnp.ndarray] = None,
-    b: Optional[jnp.ndarray] = None,
-    cost_fn: Optional[costs.CostFn] = None,
-    proj_fn: Optional[Projector] = None,
-    weights: Optional[jnp.ndarray] = None,
+    x: jax.Array,
+    y: jax.Array,
+    a: jax.Array | None = None,
+    b: jax.Array | None = None,
+    cost_fn: costs.CostFn | None = None,
+    proj_fn: Projector | None = None,
+    weights: jax.Array | None = None,
     return_transport: bool = False,
     return_dual_variables: bool = False,
-    rng: Optional[jax.Array] = None,
-) -> Tuple[jnp.ndarray, univariate.UnivariateOutput]:
+    rng: jax.Array | None = None,
+) -> tuple[jax.Array, univariate.UnivariateOutput]:
   r"""Compute the Sliced Wasserstein distance between two weighted point clouds.
 
   Follows the approach outlined in :cite:`rabin:12` to compute a proxy for OT

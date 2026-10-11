@@ -14,7 +14,6 @@
 import pytest
 
 import jax
-import jax.numpy as jnp
 import jax.random as jr
 import jax.test_util
 
@@ -22,7 +21,7 @@ from ott.tools.gaussian_mixture import fit_gmm, gaussian_mixture
 
 
 @pytest.fixture(scope="module")
-def samples(gmm_reference: gaussian_mixture.GaussianMixture) -> jnp.ndarray:
+def samples(gmm_reference: gaussian_mixture.GaussianMixture) -> jax.Array:
   """Points drawn from the reference mixture."""
   return gmm_reference.sample(rng=jr.key(0), size=2000)
 
@@ -30,7 +29,7 @@ def samples(gmm_reference: gaussian_mixture.GaussianMixture) -> jnp.ndarray:
 @pytest.mark.fast()
 class TestFitGmm:
 
-  def test_integration(self, rng: jax.Array, samples: jnp.ndarray):
+  def test_integration(self, rng: jax.Array, samples: jax.Array):
     # dumb integration test that makes sure nothing crashes
 
     # Fit a GMM to the samples

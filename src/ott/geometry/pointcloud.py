@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Literal, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -53,12 +54,12 @@ class PointCloud(geometry.Geometry):
 
   def __init__(
       self,
-      x: jnp.ndarray,
-      y: Optional[jnp.ndarray] = None,
-      cost_fn: Optional[costs.CostFn] = None,
-      batch_size: Optional[int] = None,
-      scale_cost: Union[float, Literal["mean", "max_norm", "max_bound",
-                                       "max_cost", "median"]] = 1.0,
+      x: jax.Array,
+      y: jax.Array | None = None,
+      cost_fn: costs.CostFn | None = None,
+      batch_size: int | None = None,
+      scale_cost: float
+      | Literal["mean", "max_norm", "max_bound", "max_cost", "median"] = 1.0,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -73,17 +74,17 @@ class PointCloud(geometry.Geometry):
 
   def apply_lse_kernel(  # noqa: D102
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
       eps: float,
-      vec: Optional[jnp.ndarray] = None,
+      vec: jax.Array | None = None,
       axis: int = 0
-  ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  ) -> tuple[jax.Array, jax.Array]:
     if not self.is_online:
       return super().apply_lse_kernel(f, g, eps, vec, axis)
 
-    def apply(x: jnp.ndarray, y: jnp.ndarray, f: jnp.ndarray,
-              g: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+    def apply(x: jax.Array, y: jax.Array, f: jax.Array,
+              g: jax.Array) -> tuple[jax.Array, jax.Array]:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
       cost = cost.squeeze(1 - axis)
@@ -104,16 +105,16 @@ class PointCloud(geometry.Geometry):
 
   def apply_kernel(  # noqa: D102
       self,
-      vec: jnp.ndarray,
-      eps: Optional[float] = None,
+      vec: jax.Array,
+      eps: float | None = None,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     if eps is None:
       eps = self.epsilon
     if not self.is_online:
       return super().apply_kernel(vec, eps, axis)
 
-    def apply(x: jnp.ndarray, y: jnp.ndarray, vec: jnp.ndarray) -> jnp.ndarray:
+    def apply(x: jax.Array, y: jax.Array, vec: jax.Array) -> jax.Array:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * inv_scale_cost
       cost = cost.squeeze(1 - axis)
@@ -128,14 +129,14 @@ class PointCloud(geometry.Geometry):
 
   def _apply_cost_to_vec(
       self,
-      vec: jnp.ndarray,
+      vec: jax.Array,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jax.Array], jax.Array] | None = None,
       is_linear: bool = False,
-      scale_cost: Optional[float] = None,
-  ) -> jnp.ndarray:
+      scale_cost: float | None = None,
+  ) -> jax.Array:
 
-    def apply(x: jnp.ndarray, y: jnp.ndarray, arr: jnp.ndarray) -> jnp.ndarray:
+    def apply(x: jax.Array, y: jax.Array, arr: jax.Array) -> jax.Array:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y) * scale_cost
       cost = cost.squeeze(1 - axis)
@@ -169,11 +170,11 @@ class PointCloud(geometry.Geometry):
 
   def _apply_sqeucl_cost(
       self,
-      vec: jnp.ndarray,
+      vec: jax.Array,
       scale_cost: float,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
-  ) -> jnp.ndarray:
+      fn: Callable[[jax.Array], jax.Array] | None = None,
+  ) -> jax.Array:
     assert vec.ndim == 1, vec.shape
     assert self.is_squared_euclidean, "Cost matrix is not a squared Euclidean."
     x, y = (self.x, self.y) if axis == 0 else (self.y, self.x)
@@ -187,7 +188,7 @@ class PointCloud(geometry.Geometry):
 
   def _compute_summary_online(
       self, summary: Literal["mean", "max_cost"]
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Compute mean or max of cost matrix online, i.e. without instantiating it.
 
     Args:
@@ -197,7 +198,7 @@ class PointCloud(geometry.Geometry):
       summary statistics
     """
 
-    def compute_max(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+    def compute_max(x: jax.Array, y: jax.Array) -> jax.Array:
       x, y = jnp.atleast_2d(x), jnp.atleast_2d(y)
       cost = self.cost_fn.all_pairs(x, y)
       return jnp.max(jnp.abs(cost))
@@ -218,18 +219,18 @@ class PointCloud(geometry.Geometry):
         f"Scaling method {summary} does not exist for online mode."
     )
 
-  def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
+  def barycenter(self, weights: jax.Array) -> jax.Array:
     """Compute barycenter of points in self.x using weights."""
     return self.cost_fn.barycenter(self.x, weights)[0]
 
   @classmethod
   def prepare_divergences(
       cls,
-      x: jnp.ndarray,
-      y: jnp.ndarray,
+      x: jax.Array,
+      y: jax.Array,
       static_b: bool = False,
       **kwargs: Any
-  ) -> Tuple["PointCloud", ...]:
+  ) -> tuple["PointCloud", ...]:
     """Instantiate the geometries used for a divergence computation."""
     couples = [(x, y), (x, x)]
     if not static_b:
@@ -267,7 +268,7 @@ class PointCloud(geometry.Geometry):
       self,
       scale: float = 1.0,
       **kwargs: Any,
-  ) -> Union[low_rank.LRCGeometry, "PointCloud"]:
+  ) -> "low_rank.LRCGeometry | PointCloud":
     r"""Convert point cloud to low-rank geometry.
 
     Args:
@@ -332,15 +333,15 @@ class PointCloud(geometry.Geometry):
     )
 
   @property
-  def cost_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+  def cost_matrix(self) -> jax.Array | None:  # noqa: D102
     return self.inv_scale_cost * self._unscaled_cost_matrix
 
   @property
-  def _unscaled_cost_matrix(self) -> jnp.ndarray:
+  def _unscaled_cost_matrix(self) -> jax.Array:
     return self.cost_fn.all_pairs(self.x, self.y)
 
   @property
-  def inv_scale_cost(self) -> jnp.ndarray:  # noqa: D102
+  def inv_scale_cost(self) -> jax.Array:  # noqa: D102
     if self._scale_cost == "max_cost":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
@@ -384,8 +385,8 @@ class PointCloud(geometry.Geometry):
 
   def subset(  # noqa: D102
       self,
-      row_ixs: Optional[jnp.ndarray] = None,
-      col_ixs: Optional[jnp.ndarray] = None,
+      row_ixs: jax.Array | None = None,
+      col_ixs: jax.Array | None = None,
   ) -> "PointCloud":
     (x, y, *rest), aux_data = self.tree_flatten()
     if row_ixs is not None:
@@ -395,11 +396,11 @@ class PointCloud(geometry.Geometry):
     return type(self).tree_unflatten(aux_data, (x, y, *rest))
 
   @property
-  def kernel_matrix(self) -> Optional[jnp.ndarray]:  # noqa: D102
+  def kernel_matrix(self) -> jax.Array | None:  # noqa: D102
     return jnp.exp(-self.cost_matrix / self.epsilon)
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self.x.shape[0], self.y.shape[0]
 
   @property
@@ -435,7 +436,7 @@ class PointCloud(geometry.Geometry):
     return self.x.shape[1]
 
   @property
-  def batch_size(self) -> Optional[int]:
+  def batch_size(self) -> int | None:
     """Batch size for online mode."""
     if self._batch_size is None:
       return None
@@ -448,7 +449,7 @@ class PointCloud(geometry.Geometry):
     return self.batch_size is not None
 
   @property
-  def diag_cost(self) -> jnp.ndarray:
+  def diag_cost(self) -> jax.Array:
     """Diagonal of the cost matrix."""
     assert self.is_square, "Cost matrix must be square to compute diagonal."
     return jax.vmap(self.cost_fn, in_axes=(0, 0))(self.x, self.y)

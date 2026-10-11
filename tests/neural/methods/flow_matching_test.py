@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Dict, Literal, Optional, Tuple, Union
+from typing import Literal
 
 import pytest
 
@@ -32,10 +32,10 @@ from ott.neural.networks.velocity_field import ema, mlp, unet
 def _prepare_batch(
     rng: jax.Array,
     *,
-    shape: Tuple[int, ...],
-    num_classes: Optional[int] = None,
+    shape: tuple[int, ...],
+    num_classes: int | None = None,
     x0_stddev: float = 1.0,
-) -> Dict[Literal["t", "x_t", "v_t", "cond", "x0", "x1"], jax.Array]:
+) -> dict[Literal["t", "x_t", "v_t", "cond", "x0", "x1"], jax.Array]:
   rng_t, rng_x0, rng_x1, rng_cond = jr.split(rng, 4)
   batch_size, *_ = shape
   x0 = jr.normal(rng_x0, shape) * x0_stddev
@@ -92,7 +92,7 @@ class TestFlowMatching:
 
   @pytest.mark.parametrize(("num_steps", "reverse"), [(None, False), (4, True)])
   def test_evaluate_vf(
-      self, rng: jax.Array, num_steps: Optional[int], reverse: bool
+      self, rng: jax.Array, num_steps: int | None, reverse: bool
   ):
     batch_size, dim = 2, 3
     batch = _prepare_batch(rng, shape=(batch_size, dim))
@@ -114,9 +114,7 @@ class TestFlowMatching:
     assert sol.ys.shape == (batch_size, 1, dim)
 
   @pytest.mark.parametrize("num_steps", [None, 3])
-  def test_evaluate_vf_save_extra(
-      self, rng: jax.Array, num_steps: Optional[int]
-  ):
+  def test_evaluate_vf_save_extra(self, rng: jax.Array, num_steps: int | None):
     batch_size, dim = 5, 3
     ode_max_steps, vel_save_steps = 16, 4
     batch = _prepare_batch(rng, shape=(batch_size, dim))
@@ -145,8 +143,7 @@ class TestFlowMatching:
   @pytest.mark.parametrize("drop_last_velocity", [None, False, True])
   @pytest.mark.parametrize("ts", [3, tuple(jnp.linspace(0.0, 1.0, 5).tolist())])
   def test_curvature(
-      self, rng: jax.Array, ts: Union[int, jax.Array],
-      drop_last_velocity: Optional[bool]
+      self, rng: jax.Array, ts: int | jax.Array, drop_last_velocity: bool | None
   ):
     dim = 4
     batch = _prepare_batch(rng, shape=(1, dim))

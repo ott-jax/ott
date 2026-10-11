@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -22,9 +23,9 @@ __all__ = ["legendre"]
 
 
 def legendre(
-    fun: Callable[[jnp.ndarray], jnp.ndarray],
+    fun: Callable[[jax.Array], jax.Array],
     **kwargs: Any,
-) -> Callable[[jnp.ndarray, Optional[jnp.ndarray], Any], jnp.ndarray]:
+) -> Callable[[jax.Array, jax.Array | None, Any], jax.Array]:
   """Legendre (Fenchel) transform of a function.
 
   The solution is computed numerically using L-BFGS.
@@ -42,8 +43,8 @@ def legendre(
   """
 
   def fun_star(
-      x: jnp.ndarray,
-      x_init: Optional[jnp.ndarray] = None,
+      x: jax.Array,
+      x_init: jax.Array | None = None,
   ) -> float:
     """Runs optimization to compute the Legendre transform of ``fun`` at ``x``.
 
@@ -57,7 +58,7 @@ def legendre(
     """
     x_init = x if x_init is None else x_init
 
-    def mod_fun(z: jnp.ndarray) -> float:
+    def mod_fun(z: jax.Array) -> float:
       """Conjugate maximizes <x,z> - fun(z), here minimize fun(z) - <x,z>."""
       return fun(z) - jnp.dot(x, z)
 

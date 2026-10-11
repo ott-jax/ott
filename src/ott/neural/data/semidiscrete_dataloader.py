@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Optional, Tuple, Union
 
 import jax
 import jax.numpy as jnp
@@ -57,11 +56,11 @@ class SemidiscreteDataloader:
   rng: jax.Array
   sd_out: semidiscrete.SemidiscreteOutput
   batch_size: int
-  epsilon: Optional[float] = None
-  subset_size_threshold: Optional[int] = None
-  subset_size: Optional[int] = None
+  epsilon: float | None = None
+  subset_size_threshold: int | None = None
+  subset_size: int | None = None
   return_indices: bool = False
-  out_shardings: Optional[jax.sharding.Sharding] = None
+  out_shardings: jax.sharding.Sharding | None = None
 
   def __post_init__(self) -> None:
     _, m = self.sd_out.geom.shape
@@ -75,7 +74,7 @@ class SemidiscreteDataloader:
       assert 0 < self.subset_size < m, \
         f"Subset size must be in (0, {m}), got {self.subset_size}."
 
-    self._rng_it: Optional[jax.Array] = None
+    self._rng_it: jax.Array | None = None
     self._sample_fn = jax.jit(
         _sample,
         out_shardings=self.out_shardings,
@@ -95,8 +94,7 @@ class SemidiscreteDataloader:
 
   def __next__(
       self
-  ) -> Union[Tuple[jax.Array, jax.Array], Tuple[jax.Array, jax.Array,
-                                                jax.Array]]:
+  ) -> tuple[jax.Array, jax.Array] | tuple[jax.Array, jax.Array, jax.Array]:
     """Sample from the source distribution and match it with the data.
 
     Returns:
@@ -120,11 +118,11 @@ def _sample(
     rng: jax.Array,
     out: semidiscrete.SemidiscreteOutput,
     batch_size: int,
-    epsilon: Optional[float],
-    subset_size_threshold: Optional[int],
+    epsilon: float | None,
+    subset_size_threshold: int | None,
     subset_size: int,
     return_indices: bool,
-) -> Union[Tuple[jax.Array, jax.Array], Tuple[jax.Array, jax.Array, jax.Array]]:
+) -> tuple[jax.Array, jax.Array] | tuple[jax.Array, jax.Array, jax.Array]:
   rng_sample, rng_tmat = jr.split(rng, 2)
   out_sampled = out.sample(rng_sample, batch_size, epsilon=epsilon)
 
@@ -148,7 +146,7 @@ def _sample_from_coupling(
     rng: jax.Array,
     coupling: jax.Array,
     *,
-    subset_size_threshold: Optional[int],
+    subset_size_threshold: int | None,
     subset_size: int,
     axis: int,
 ) -> jax.Array:

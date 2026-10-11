@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Tuple
 
 import pytest
 
@@ -29,7 +28,7 @@ from ott.tools import soft_sort
 class TestSoftSort:
 
   @pytest.mark.parametrize("shape", [(20,), (20, 1)])
-  def test_sort_one_array(self, rng: jax.Array, shape: Tuple[int, ...]):
+  def test_sort_one_array(self, rng: jax.Array, shape: tuple[int, ...]):
     x = jr.uniform(rng, shape)
     xs = soft_sort.sort(x, axis=0)
 
@@ -112,7 +111,7 @@ class TestSoftSort:
 
     # Check passing custom sampler, must be still symmetric / centered on {.5}^d
     # Check passing custom epsilon also works.
-    def ball_sampler(k: jax.Array, s: Tuple[int, int]) -> jnp.ndarray:
+    def ball_sampler(k: jax.Array, s: tuple[int, int]) -> jax.Array:
       return 0.5 * (jr.ball(k, d=s[1], p=4, shape=(s[0],)) + 1.0)
 
     def mv_c_q(inputs, num_target_samples, rng, epsilon):
@@ -288,7 +287,7 @@ class TestSoftSort:
     z = jr.uniform(rngs[0], (b, n))
     random_dir = jr.normal(rngs[1], (b,)) / b
 
-    def loss_fn(logits: jnp.ndarray) -> float:
+    def loss_fn(logits: jax.Array) -> float:
       im_d = None
       if implicit:
         # Ridge parameters are only used when using JAX's CG.

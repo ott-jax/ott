@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 import lineax as lx
 
@@ -37,7 +36,7 @@ class TestProximalOperator:
       rng: jax.Array,
       tau: float,
       reg: regularizers.ProximalOperator,
-      lam: Optional[float],
+      lam: float | None,
   ):
     tol = 1e-5
     x = jr.normal(rng, (32, self.D))
@@ -115,7 +114,7 @@ class TestQuadratic:
       is_factor: bool,
   ):
 
-    def loss(reg: regularizers.ProximalOperator, x: jnp.ndarray) -> float:
+    def loss(reg: regularizers.ProximalOperator, x: jax.Array) -> float:
       return jnp.mean(jax.vmap(reg)(x))
 
     def test_properties(reg: regularizers.ProximalOperator) -> None:

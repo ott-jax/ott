@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import Literal
 
 import pytest
 
@@ -93,7 +93,7 @@ class TestLRCGeometry:
       rng: jax.Array,
       kernel: Literal["gaussian", "arccos"],
       std: float,
-      n: Optional[int],
+      n: int | None,
   ):
     rng, rng1, rng2 = jr.split(rng, 3)
     x = jr.normal(rng1, (83, 5))

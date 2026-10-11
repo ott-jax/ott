@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -39,7 +39,7 @@ class SemidiscreteLinearProblem:
   def __init__(
       self,
       geom: semidiscrete_pointcloud.SemidiscretePointCloud,
-      b: Optional[jax.Array] = None,
+      b: jax.Array | None = None,
       tau_b: float = 1.0,
   ):
     assert tau_b == 1.0, "Unbalanced semidiscrete problem is not supported."
@@ -52,7 +52,7 @@ class SemidiscreteLinearProblem:
       rng: jax.Array,
       num_samples: int,
       *,
-      epsilon: Optional[float] = None,
+      epsilon: float | None = None,
   ) -> linear_problem.LinearProblem:
     """Sample a linear OT problem.
 
@@ -75,7 +75,7 @@ class SemidiscreteLinearProblem:
       self,
       g: jax.Array,
       *,
-      epsilon: Optional[float] = None
+      epsilon: float | None = None
   ) -> Callable[[jax.Array], jax.Array]:
     r"""Get potential function from a dual vector using the :term:`c-transform`.
 
@@ -92,7 +92,7 @@ class SemidiscreteLinearProblem:
     return prob.potential_fn_from_dual_vec(g, epsilon=epsilon, axis=1)
 
   @property
-  def b(self) -> jnp.ndarray:
+  def b(self) -> jax.Array:
     """Second marginal."""
     if self._b is not None:
       return self._b

@@ -14,7 +14,6 @@
 import functools
 import io
 import sys
-from typing import Optional
 
 import pytest
 
@@ -509,9 +508,7 @@ class TestSinkhorn:
     assert out.primal_cost > 0.0
 
   @pytest.mark.fast.with_args(cost_fn=[None, costs.SqPNorm(1.6)], only_fast=0)
-  def test_primal_cost_grid(
-      self, rng: jax.Array, cost_fn: Optional[costs.CostFn]
-  ):
+  def test_primal_cost_grid(self, rng: jax.Array, cost_fn: costs.CostFn | None):
     """Test computation of primal / costs for Grids."""
     rng_a, rng_b = jr.split(rng)
     ns = [6, 7, 11]
@@ -679,7 +676,7 @@ class TestSinkhorn:
     ]
 
   @pytest.mark.parametrize("dtype", [jnp.float16, jnp.bfloat16])
-  def test_sinkhorn_dtype(self, clouds: _utils.PointClouds, dtype: jnp.ndarray):
+  def test_sinkhorn_dtype(self, clouds: _utils.PointClouds, dtype: jax.Array):
     x = clouds.x.astype(dtype)
     y = clouds.y.astype(dtype)
     geom = pointcloud.PointCloud(x, y, epsilon=jnp.array(1e-1, dtype=dtype))

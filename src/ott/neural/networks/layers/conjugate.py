@@ -12,8 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-from typing import Callable, Literal, NamedTuple, Optional
+from collections.abc import Callable
+from typing import Literal, NamedTuple
 
+import jax
 import jax.numpy as jnp
 from jaxopt import LBFGS
 
@@ -36,7 +38,7 @@ class ConjugateResults(NamedTuple):
     num_iter: the number of iterations taken by the solver
   """
   val: float
-  grad: jnp.ndarray
+  grad: jax.Array
   num_iter: int
 
 
@@ -50,9 +52,9 @@ class FenchelConjugateSolver(abc.ABC):
   @abc.abstractmethod
   def solve(
       self,
-      f: Callable[[jnp.ndarray], jnp.ndarray],
-      y: jnp.ndarray,
-      x_init: Optional[jnp.ndarray] = None
+      f: Callable[[jax.Array], jax.Array],
+      y: jax.Array,
+      x_init: jax.Array | None = None
   ) -> ConjugateResults:
     """Solve for the conjugate.
 
@@ -90,9 +92,9 @@ class FenchelConjugateLBFGS(FenchelConjugateSolver):
 
   def solve(  # noqa: D102
       self,
-      f: Callable[[jnp.ndarray], jnp.ndarray],
-      y: jnp.ndarray,
-      x_init: Optional[jnp.array] = None
+      f: Callable[[jax.Array], jax.Array],
+      y: jax.Array,
+      x_init: jnp.array | None = None
   ) -> ConjugateResults:
     assert y.ndim
 
