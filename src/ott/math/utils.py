@@ -98,13 +98,16 @@ def norm(
 def norm_jvp(ord, axis, keepdims, primals, tangents):
   """Custom_jvp for norm, that returns 0.0 when evaluated at 0."""
   x, = primals
-  x_is_zero = jnp.all(jnp.logical_not(x))
+  x_is_zero = jnp.all(jnp.logical_not(x), axis=axis, keepdims=True)
   clean_x = jnp.where(x_is_zero, jnp.ones_like(x), x)
-  primals, tangents = jax.jvp(
+  _, tangents = jax.jvp(
       functools.partial(jnp.linalg.norm, ord=ord, axis=axis, keepdims=keepdims),
       (clean_x,), tangents
   )
-  return primals, jnp.where(x_is_zero, 0.0, tangents)
+  primal_out = norm(x, ord=ord, axis=axis, keepdims=keepdims)
+  if not keepdims:
+    x_is_zero = jnp.squeeze(x_is_zero, axis=axis)
+  return primal_out, jnp.where(x_is_zero, 0.0, tangents)
 
 
 # TODO(michalk8): add axis argument

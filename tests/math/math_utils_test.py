@@ -25,6 +25,34 @@ from ott.math import utils as mu
 
 class TestNorm:
 
+  @pytest.mark.fast()
+  @pytest.mark.parametrize("kind", ["zero", "rows", "columns", "matrices"])
+  @pytest.mark.parametrize("keepdims", [False, True])
+  @pytest.mark.parametrize("jit", [False, True])
+  def test_zero_slice_jvp(self, kind, keepdims, jit):
+    x = jnp.array([[0.0, 0.0], [3.0, 4.0]])
+    expected_grad = jnp.array([[0.0, 0.0], [0.6, 0.8]])
+    axis = 1
+    if kind == "zero":
+      x, expected_grad, axis = jnp.zeros(3), jnp.zeros(3), None
+    elif kind == "columns":
+      x, expected_grad, axis = x.T, expected_grad.T, 0
+    elif kind == "matrices":
+      x = jnp.stack([jnp.zeros((2, 2)), jnp.array([[3.0, 4.0], [0.0, 0.0]])])
+      expected_grad = x / 5.0
+      axis = (1, 2)
+    fun = lambda x: mu.norm(x, axis=axis, keepdims=keepdims)
+    if jit:
+      fun = jax.jit(fun)
+    value, tangent = jax.jvp(fun, (x,), (jnp.ones_like(x),))
+    expected_value = jnp.linalg.norm(x, axis=axis, keepdims=keepdims)
+    expected_tangent = expected_grad.sum(axis=axis, keepdims=keepdims)
+    np.testing.assert_allclose(value, expected_value, rtol=1e-6)
+    np.testing.assert_allclose(tangent, expected_tangent, rtol=1e-6)
+    np.testing.assert_allclose(
+        jax.grad(lambda x: fun(x).sum())(x), expected_grad, rtol=1e-6
+    )
+
   @pytest.mark.parametrize("ord", [1.1, 2.0, jnp.inf])
   def test_norm(
       self,
