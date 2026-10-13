@@ -95,7 +95,7 @@ class KMeansOutput(NamedTuple):
     error = jnp.nanmin(jnp.where(mask, jnp.nan, errs))
 
     assignment_same = jnp.all(state.prev_assignment == state.assignment)
-    tol_satisfied = jnp.logical_or(jnp.any(mask), (errs[-2] - errs[-1]) <= tol)
+    tol_satisfied = state.center_shift <= tol
     converged = jnp.logical_or(assignment_same, tol_satisfied)
 
     return cls(
