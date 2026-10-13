@@ -64,14 +64,17 @@ def transport_for_sort(
         f"Shape ({shape}) not supported. The input should be one-dimensional."
     )
 
-  x = jnp.expand_dims(jnp.squeeze(inputs), axis=1)
+  x = jnp.reshape(inputs, (-1, 1))
   if squashing_fun is None:
-    squashing_fun = lambda z: jax.nn.sigmoid((z - jnp.mean(z)) /
-                                             (jnp.std(z) + 1e-10))
+    if x.shape[0] == 1:
+      squashing_fun = lambda z: jnp.full_like(z, 0.5)
+    else:
+      squashing_fun = lambda z: jax.nn.sigmoid((z - jnp.mean(z)) /
+                                               (jnp.std(z) + 1e-10))
   x = squashing_fun(x)
 
-  a = jnp.squeeze(weights)
-  b = jnp.squeeze(target_weights)
+  a = None if weights is None else jnp.reshape(weights, (-1,))
+  b = None if target_weights is None else jnp.reshape(target_weights, (-1,))
   num_targets = inputs.shape[0] if b is None else b.shape[0]
   y = jnp.linspace(0.0, 1.0, num_targets)[:, jnp.newaxis]
 
