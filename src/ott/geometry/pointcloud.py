@@ -45,9 +45,10 @@ class PointCloud(geometry.Geometry):
       The online computation is particularly useful for big point clouds
       whose cost matrix does not fit in memory.
     scale_cost: option to rescale the cost matrix. Implemented scalings are
-      'median', 'mean', 'max_cost', 'max_norm' and 'max_bound'.
+      'median', 'mean', 'std', 'max_cost', 'max_norm' and 'max_bound'.
       Alternatively, a float factor can be given to rescale the cost such
-      that ``cost_matrix /= scale_cost``.
+      that ``cost_matrix /= scale_cost``. ``'std'`` is not implemented when
+      ``batch_size`` is set.
     kwargs: keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
@@ -58,7 +59,7 @@ class PointCloud(geometry.Geometry):
       cost_fn: Optional[costs.CostFn] = None,
       batch_size: Optional[int] = None,
       scale_cost: Union[float, Literal["mean", "max_norm", "max_bound",
-                                       "max_cost", "median"]] = 1.0,
+                                       "max_cost", "median", "std"]] = 1.0,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -378,6 +379,13 @@ class PointCloud(geometry.Geometry):
           "the cost matrix when the cost is not squared euclidean or dotp "
           "is not implemented."
       )
+    if self._scale_cost == "std":
+      if self.is_online:
+        raise NotImplementedError(
+            "Using the standard deviation as scaling factor for "
+            "the cost matrix with the online mode is not implemented."
+        )
+      return 1.0 / jnp.std(self._unscaled_cost_matrix)
     if jnp.isscalar(self._scale_cost):
       return 1.0 / self._scale_cost
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
