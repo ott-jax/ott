@@ -76,6 +76,37 @@ class TestCostFn:
 @pytest.mark.fast()
 class TestBuresBarycenter:
 
+  @pytest.mark.parametrize("d", [2, 4, 8])
+  @pytest.mark.parametrize("cond", [1e2, 1e3])
+  def test_bures_cost_matches_closed_form(
+      self, rng: jax.Array, d: int, cond: float
+  ):
+
+    def random_cov(rng: jax.Array) -> jnp.ndarray:
+      q, _ = jnp.linalg.qr(jr.normal(rng, (d, d)))
+      return (q * jnp.geomspace(1.0, 1.0 / cond, d)) @ q.T
+
+    def psd_sqrt(m: jnp.ndarray) -> jnp.ndarray:
+      w, v = jnp.linalg.eigh(m)
+      return (v * jnp.sqrt(jnp.clip(w, 0.0))) @ v.T
+
+    rngs = jr.split(rng, 4)
+    m1, m2 = jr.normal(rngs[0], (d,)), jr.normal(rngs[1], (d,))
+    cov1, cov2 = random_cov(rngs[2]), random_cov(rngs[3])
+    sq1 = psd_sqrt(cov1)
+    expected = jnp.sum(
+        (m1 - m2) ** 2
+    ) + jnp.trace(cov1 + cov2 - 2.0 * psd_sqrt(sq1 @ cov2 @ sq1))
+
+    x = costs.mean_and_cov_to_x(m1, cov1, d)
+    y = costs.mean_and_cov_to_x(m2, cov2, d)
+    actual = costs.Bures(d)(x, y)
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+
+    # the precision of the square roots can be set through `sqrtm_kw`
+    actual = costs.Bures(d, sqrtm_kw={"threshold": 1e-8})(x, y)
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+
   def test_bures(self):
     d = 3
     r = jnp.array([1.2036, 0.2825, 0.013])
