@@ -122,6 +122,43 @@ class TestUnivariate:
     )
 
   @pytest.mark.fast()
+  @pytest.mark.parametrize("cost_fn", [costs.SqEuclidean(), costs.PNormP(1.5)])
+  @pytest.mark.parametrize(
+      "univariate_fn",
+      [
+          functools.partial(univariate.quantile_solver, return_transport=True),
+          univariate.north_west_solver,
+      ],
+      ids=["quant", "north-west"],
+  )
+  def test_transport_matrices(
+      self, clouds: _utils.PointClouds, cost_fn: costs.TICost,
+      univariate_fn: Callable[[linear_problem.LinearProblem],
+                              univariate.UnivariateOutput]
+  ):
+    prob = clouds.problem(cost_fn=cost_fn)
+    out = univariate_fn(prob)
+    matrices = out.transport_matrices.todense()
+
+    for d in range(clouds.x.shape[1]):
+      geom = pointcloud.PointCloud(
+          clouds.x[:, d:d + 1], clouds.y[:, d:d + 1], cost_fn=cost_fn
+      )
+      # the clouds are not sorted, so this checks the indexing of the pairs
+      np.testing.assert_allclose(
+          matrices[d].sum(1), clouds.a, rtol=1e-5, atol=1e-5
+      )
+      np.testing.assert_allclose(
+          matrices[d].sum(0), clouds.b, rtol=1e-5, atol=1e-5
+      )
+      np.testing.assert_allclose(
+          jnp.sum(matrices[d] * geom.cost_matrix),
+          out.ot_costs[d],
+          rtol=1e-5,
+          atol=1e-5
+      )
+
+  @pytest.mark.fast()
   def test_cdf_distance_and_scipy(
       self, clouds: _utils.PointClouds, rng: jax.Array
   ):
