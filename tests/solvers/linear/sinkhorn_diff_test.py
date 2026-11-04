@@ -37,6 +37,46 @@ def clouds() -> _utils.PointClouds:
 class TestSinkhornImplicit:
   """Check implicit and autodiff match for Sinkhorn."""
 
+  @pytest.mark.parametrize("lse_mode", [True, False])
+  @pytest.mark.parametrize("shape", [(1, 1), (2, 3), (3, 2)])
+  def test_custom_solver(
+      self, enable_x64, lse_mode: bool, shape: Tuple[int, int]
+  ):
+    called = []
+
+    def dense_solver(lin, b, lin_t, symmetric, *, marker):
+      assert marker == 7
+      called.append(True)
+      matrix = jax.vmap(lin)(jnp.eye(b.size, dtype=b.dtype)).T
+      return jnp.linalg.solve(matrix, b)
+
+    epsilon, tau_a, tau_b = 0.7, 0.6, 0.75
+    weight_f, weight_g = 1.3, -0.4
+    implicit_diff = implicit_lib.ImplicitDiff(
+        solver=dense_solver, solver_kwargs={"marker": 7}
+    )
+    solver = sinkhorn.Sinkhorn(
+        lse_mode=lse_mode,
+        threshold=1e-11,
+        inner_iterations=5,
+        max_iterations=1000,
+        implicit_diff=implicit_diff
+    )
+
+    def loss(cost):
+      geom = geometry.Geometry(jnp.full(shape, cost), epsilon=epsilon)
+      prob = linear_problem.LinearProblem(geom, tau_a=tau_a, tau_b=tau_b)
+      out = solver(prob)
+      return weight_f * jnp.mean(out.f) + weight_g * jnp.mean(out.g)
+
+    rho_a = epsilon * tau_a / (1 - tau_a)
+    rho_b = epsilon * tau_b / (1 - tau_b)
+    # A shared cost shift changes mean potentials by rho / (eps + rho_a + rho_b)
+    expected = (weight_f * rho_a + weight_g * rho_b) / (epsilon + rho_a + rho_b)
+    actual = jax.jit(jax.grad(loss))(jnp.array(0.4))
+    np.testing.assert_allclose(actual, expected, rtol=1e-7, atol=1e-9)
+    assert called
+
   @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
                            [(True, 1e-4, True), (False, 1e-6, False)])
   def test_implicit_differentiation_versus_autodiff(

@@ -154,7 +154,8 @@ class ImplicitDiff:
     Returns:
       A tuple of two vectors, of the same size as ``gr``.
     """
-    if self.solver is None:
+    solver = self.solver
+    if solver is None:
       solver = lineax_implicit.solve_lineax
     solver_kwargs = {} if self.solver_kwargs is None else self.solver_kwargs
     geom = ot_prob.geom
