@@ -330,3 +330,48 @@ class TestSqKOverlap:
     np.testing.assert_allclose(
         l2.prox(x), sq_kovp.prox(x), rtol=1e-5, atol=1e-5
     )
+
+  @pytest.mark.parametrize("tau", [0.3, 1.0, 2.0])
+  @pytest.mark.parametrize(("d", "k"), [(6, 2), (6, 3), (8, 5)])
+  def test_prox_is_minimiser(self, rng: jax.Array, d: int, k: int, tau: float):
+    rng_x, rng_dx = jr.split(rng)
+    reg = regularizers.SqKOverlap(k=k)
+    obj = lambda y, x: reg(y) + jnp.sum((y - x) ** 2) / (2.0 * tau)
+
+    for x in jr.normal(rng_x, (8, d)) * 2.0:
+      prox = reg.prox(x, tau)
+      # the objective is strongly convex: the prox must beat all other points
+      dys = jr.normal(rng_dx, (256, d)) * jnp.logspace(-3, 0, 256)[:, None]
+      others = jax.vmap(obj, in_axes=(0, None))(prox + dys, x)
+      assert jnp.all(others >= obj(prox, x) - 1e-9)
+
+
+class TestSTVS:
+
+  @pytest.mark.parametrize("tau", [0.25, 1.0, 1.9, 2.5, 6.0])
+  @pytest.mark.parametrize("gamma", [0.3, 1.0, 2.5])
+  def test_prox_is_minimiser(self, gamma: float, tau: float):
+    reg = regularizers.STVS(gamma)
+    v = jnp.linspace(-10.0, 10.0, 81)
+    prox = reg.prox(v, tau)
+
+    # f is separable, so compare with a brute-force minimisation per entry
+    grid = jnp.linspace(-12.0, 12.0, 240_001)
+    f_grid = reg._elementwise(grid)
+    obj = lambda y, x: reg._elementwise(y) + (y - x) ** 2 / (2.0 * tau)
+    obj_min = jax.vmap(
+        lambda x: jnp.min(f_grid + (grid - x) ** 2 / (2.0 * tau))
+    )(
+        v
+    )
+
+    np.testing.assert_array_less(
+        obj(prox, v), obj_min + 1e-5 * (1.0 + jnp.abs(obj_min))
+    )
+
+  def test_prox_soft_thresholding(self):
+    # for tau = 1 the prox is v - gamma^2 / v for |v| > gamma, else 0
+    gamma, v = 1.5, jnp.array([-4.0, -1.0, 0.0, 0.5, 2.0, 7.0])
+    expected = jnp.where(jnp.abs(v) <= gamma, 0.0, v - gamma ** 2 / v)
+    actual = regularizers.STVS(gamma).prox(v, 1.0)
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
