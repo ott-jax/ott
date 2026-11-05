@@ -310,10 +310,9 @@ class PointCloud(geometry.Geometry):
     return low_rank.LRCGeometry(
         cost_1=cost_1,
         cost_2=cost_2,
-        scale_factor=scale,
+        scale_factor=scale * self.inv_scale_cost,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
-        scale_cost=self._scale_cost,
     )
 
   def _dotp_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
@@ -323,10 +322,9 @@ class PointCloud(geometry.Geometry):
     return low_rank.LRCGeometry(
         cost_1=-self.x,
         cost_2=self.y,
-        scale_factor=scale,
+        scale_factor=scale * self.inv_scale_cost,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
-        scale_cost=self._scale_cost,
     )
 
   @property

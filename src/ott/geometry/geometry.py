@@ -674,11 +674,13 @@ class Geometry:
     from ott.geometry import low_rank
     assert rank >= 0, f"Rank must be non-negative, got {rank}."
     n, m = self.shape
+    # factorize the unscaled cost, the scaling is applied to the factors below
+    geom = self.set_scale_cost(1.0)
 
     if rank == 0 or rank >= min(n, m):
       # TODO(marcocuturi): add hermitian=self.is_symmetric, currently bugging.
       u, s, vh = jnp.linalg.svd(
-          self.cost_matrix,
+          geom.cost_matrix,
           full_matrices=False,
           compute_uv=True,
       )
@@ -693,14 +695,14 @@ class Geometry:
       i_star = jax.random.randint(rng1, shape=(), minval=0, maxval=n)
       j_star = jax.random.randint(rng2, shape=(), minval=0, maxval=m)
 
-      ci_star = self.subset(row_ixs=i_star).cost_matrix.ravel() ** 2  # (m,)
-      cj_star = self.subset(col_ixs=j_star).cost_matrix.ravel() ** 2  # (n,)
+      ci_star = geom.subset(row_ixs=i_star).cost_matrix.ravel() ** 2  # (m,)
+      cj_star = geom.subset(col_ixs=j_star).cost_matrix.ravel() ** 2  # (n,)
 
       p_row = cj_star + ci_star[j_star] + jnp.mean(ci_star)  # (n,)
       p_row /= jnp.sum(p_row)
       row_ixs = jax.random.choice(rng3, n, shape=(n_subset,), p=p_row)
       # (n_subset, m)
-      s = self.subset(row_ixs=row_ixs).cost_matrix
+      s = geom.subset(row_ixs=row_ixs).cost_matrix
       s /= jnp.sqrt(n_subset * p_row[row_ixs][:, None])
 
       p_col = jnp.sum(s ** 2, axis=0)  # (m,)
@@ -721,7 +723,7 @@ class Geometry:
       col_ixs = jax.random.choice(rng5, m, shape=(n_subset,))  # (n_subset,)
 
       # (n, n_subset)
-      A_trans = self.subset(col_ixs=col_ixs).cost_matrix * inv_scale
+      A_trans = geom.subset(col_ixs=col_ixs).cost_matrix * inv_scale
       B = (U[col_ixs, :] @ v * inv_scale)  # (n_subset, k)
       M = jnp.linalg.inv(B.T @ B)  # (k, k)
       V = jnp.linalg.multi_dot([A_trans, B, M.T, v.T])  # (n, k)
@@ -733,8 +735,7 @@ class Geometry:
         cost_2=cost_2,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
-        scale_cost=self._scale_cost,
-        scale_factor=scale,
+        scale_factor=scale * self.inv_scale_cost,
     )
 
   def subset(

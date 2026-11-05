@@ -63,10 +63,6 @@ class TestLRGeometry:
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, scale_cost=scale_cost)
     geom_lr = geom.to_LRCGeometry()
 
-    assert geom._scale_cost == geom_lr._scale_cost
-    np.testing.assert_allclose(
-        geom.inv_scale_cost, geom_lr.inv_scale_cost, rtol=1e-6, atol=1e-6
-    )
     mat_rngs = iter(jr.split(rngs[2], 4))
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
