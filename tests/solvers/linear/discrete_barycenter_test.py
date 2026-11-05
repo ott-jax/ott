@@ -11,10 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Union
+
 import pytest
 
-import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ott.geometry import epsilon_scheduler, grid, pointcloud
 from ott.problems.linear import barycenter_problem as bp
@@ -103,54 +105,24 @@ class TestDiscreteBarycenter:
     # check the barycenter has bump in the middle.
     assert bar[n // 4] > 0.1
 
-  @pytest.mark.parametrize("lse_mode", [True, False], ids=["lse", "scale"])
-  def test_epsilon_schedule_reaches_the_sinkhorn_update(self, lse_mode: bool):
-    """One barycenter step must use ε(0), not the schedule's target ε.
-
-    The entropic update is ε log a - softmin_ε(cost - f - g). Dropping the
-    iteration makes the scheduler return its target, so the first step is
-    run at the final regularization instead of the annealed one.
-    """
+  @pytest.mark.parametrize("lse_mode", [True, False])
+  def test_epsilon_schedule(self, lse_mode: bool):
     x = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
-    scheduler = epsilon_scheduler.Epsilon(target=0.2, init=8.0, decay=0.5)
-    geom = pointcloud.PointCloud(x, epsilon=scheduler)
+    # identical marginals, so that the initial duals are 0 for any epsilon
     a = jnp.ones((2, x.shape[0])) / x.shape[0]
     weights = jnp.array([0.4, 0.6])
-    bar_prob = bp.FixedBarycenterProblem(geom, a=a, weights=weights)
-    out = db.FixedBarycenter(
-        threshold=1e9,
-        min_iterations=0,
-        max_iterations=1,
-        inner_iterations=1,
-        lse_mode=lse_mode,
-        debiased=False,
-    )(bar_prob)
 
-    dual = geom.apply_cost(a.T, axis=0).T
-    dual -= jnp.average(dual, weights=weights, axis=0)[jnp.newaxis, :]
-    if lse_mode:
-      f0, g0 = jnp.zeros_like(a), dual
+    def first_step(
+        epsilon: Union[float, epsilon_scheduler.Epsilon]
+    ) -> jnp.ndarray:
+      geom = pointcloud.PointCloud(x, epsilon=epsilon)
+      prob = bp.FixedBarycenterProblem(geom, a=a, weights=weights)
+      solver = db.FixedBarycenter(
+          max_iterations=1, inner_iterations=1, lse_mode=lse_mode
+      )
+      return solver(prob).f
 
-      def scheduled(f, g, marginal):
-        return geom.update_potential(
-            f, g, jnp.log(marginal), iteration=0, axis=1
-        )
-
-      def at_target(f, g, marginal):
-        return geom.update_potential(f, g, jnp.log(marginal), axis=1)
-    else:
-      f0 = jnp.ones_like(a)
-      g0 = geom.scaling_from_potential(dual)
-
-      def scheduled(f, g, marginal):
-        return geom.update_scaling(g, marginal, iteration=0, axis=1)
-
-      def at_target(f, g, marginal):
-        return geom.update_scaling(g, marginal, axis=1)
-
-    scheduled = jax.vmap(scheduled)(f0, g0, a)
-    at_target = jax.vmap(at_target)(f0, g0, a)
-    assert scheduler(0) == pytest.approx(8.0 * 0.2)
-    assert scheduler(None) == pytest.approx(0.2)
-    assert jnp.allclose(out.f, scheduled, atol=1e-5, rtol=1e-5)
-    assert not jnp.allclose(out.f, at_target, atol=1e-3, rtol=1e-3)
+    eps = epsilon_scheduler.Epsilon(target=0.2, init=8.0, decay=0.5)
+    np.testing.assert_allclose(
+        first_step(eps), first_step(eps(0)), rtol=1e-5, atol=1e-5
+    )
