@@ -233,16 +233,22 @@ class Rank2Initializer(LRInitializer):
     marginal = a if which == "q" else b
     n, r = marginal.shape[0], self.rank
 
+    # ignore zero weights, otherwise `lambda_1 = 0` and the factors reduce to
+    # the product coupling, which is a fixed point of the low-rank solver
     lambda_1 = jnp.min(
-        jnp.array([jnp.min(a), jnp.min(init_g),
-                   jnp.min(b)])
+        jnp.array([
+            jnp.min(a, where=a > 0, initial=jnp.inf),
+            jnp.min(init_g),
+            jnp.min(b, where=b > 0, initial=jnp.inf),
+        ])
     ) * 0.5
 
     g1 = jnp.arange(1, r + 1)
     g1 /= g1.astype(float).sum()
     g2 = (init_g - lambda_1 * g1) / (1.0 - lambda_1)
 
-    x = jnp.arange(1, n + 1)
+    # keep the factor supported where the marginal is
+    x = jnp.where(marginal > 0, jnp.arange(1, n + 1), 0)
     x /= x.astype(float).sum()
     y = (marginal - lambda_1 * x) / (1.0 - lambda_1)
 

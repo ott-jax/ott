@@ -16,11 +16,13 @@ import pytest
 import jax
 import jax.numpy as jnp
 import jax.random as jr
+import numpy as np
 
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn_lr
+from tests import _utils
 
 
 class TestLRInitializers:
@@ -39,6 +41,21 @@ class TestLRInitializers:
 
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
+
+  @pytest.mark.fast()
+  def test_rank2_with_zero_weights(self, rng: jax.Array):
+    # zero weights must not collapse the factors to the product coupling
+    rank = 6
+    clouds = _utils.random_clouds(rng, zero_a=(0,), zero_b=(3,))
+    prob = clouds.problem()
+
+    q, r, g = initializers_lr.Rank2Initializer(rank)(prob)
+
+    for factor, marginal in ((q, clouds.a), (r, clouds.b)):
+      assert jnp.linalg.matrix_rank(factor) == 2
+      assert jnp.all(factor >= 0.0)
+      np.testing.assert_allclose(factor.sum(1), marginal, rtol=1e-6, atol=1e-6)
+      np.testing.assert_allclose(factor.sum(0), g, rtol=1e-6, atol=1e-6)
 
   def test_better_initialization_helps(self, rng: jax.Array):
     n, d, rank = 81, 15, 3
