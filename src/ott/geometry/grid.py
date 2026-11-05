@@ -355,8 +355,10 @@ class Grid(geometry.Geometry):
 
   def to_LRCGeometry(
       self,
+      rank: int = 0,
+      tol: float = 1e-2,
+      rng: Optional[jax.Array] = None,
       scale: float = 1.0,
-      **kwargs: Any,
   ) -> low_rank.LRCGeometry:
     """Converts grid to low-rank geometry.
 
@@ -367,16 +369,19 @@ class Grid(geometry.Geometry):
     factorized if each of these cost matrices can be factorized, which we do
     by forcing a conversion to a low rank geometry object.
 
+    The conversion is exact, so ``rank``, ``tol`` and ``rng`` are ignored.
+
     Args:
+      rank: Ignored.
+      tol: Ignored.
+      rng: Ignored.
       scale: Value used to rescale the factors of the low-rank geometry.
         Useful when this geometry is used in the linear term of fused GW.
-      kwargs: Keyword arguments, such as ``rank``, to
-        :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
-        geometries on each slice are not low-rank.
 
     Returns:
       :class:`~ott.geometry.low_rank.LRCGeometry` object.
     """
+    del rank, tol, rng
     cost_1, cost_2 = [], []
     for dimension, geom in enumerate(self.geometries):
       # An overall low-rank conversion of the cost matrix on a grid, to an
@@ -389,7 +394,7 @@ class Grid(geometry.Geometry):
       # factorization for the entire cost matrix. To get such an exact
       # decomposition, the parameter `rank` is set to `0`, triggering a full
       # singular value decomposition if needed.
-      geom = geom.to_LRCGeometry(rank=0, scale=scale, **kwargs)
+      geom = geom.to_LRCGeometry(rank=0)
       c_1, c_2 = geom.cost_1, geom.cost_2
       l, r = self.grid_size[:dimension], self.grid_size[dimension + 1:]
       l = int(np.prod(np.array(l)))
