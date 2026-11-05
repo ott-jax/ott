@@ -13,17 +13,8 @@
 # limitations under the License.
 import collections
 import functools
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Iterator,
-    Literal,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Callable, Iterator, Sequence
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -42,15 +33,15 @@ __all__ = ["monge_gap", "monge_gap_from_samples", "MongeGapEstimator"]
 
 
 def monge_gap(
-    map_fn: Callable[[jnp.ndarray], jnp.ndarray],
-    reference_points: jnp.ndarray,
-    cost_fn: Optional[costs.CostFn] = None,
-    epsilon: Optional[float] = None,
-    relative_epsilon: Optional[Literal["mean", "std"]] = None,
-    scale_cost: Union[float, Literal["mean", "max_cost", "median"]] = 1.0,
+    map_fn: Callable[[jax.Array], jax.Array],
+    reference_points: jax.Array,
+    cost_fn: costs.CostFn | None = None,
+    epsilon: float | None = None,
+    relative_epsilon: Literal["mean", "std"] | None = None,
+    scale_cost: float | Literal["mean", "max_cost", "median"] = 1.0,
     return_output: bool = False,
     **kwargs: Any
-) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
+) -> float | tuple[float, sinkhorn.SinkhornOutput]:
   r"""Monge gap regularizer :cite:`uscidda:23`.
 
   For a cost function :math:`c` and empirical reference measure
@@ -107,15 +98,15 @@ def monge_gap(
 
 
 def monge_gap_from_samples(
-    source: jnp.ndarray,
-    target: jnp.ndarray,
-    cost_fn: Optional[costs.CostFn] = None,
-    epsilon: Optional[float] = None,
-    relative_epsilon: Optional[Literal["mean", "std"]] = None,
-    scale_cost: Union[float, Literal["mean", "max_cost", "median"]] = 1.0,
+    source: jax.Array,
+    target: jax.Array,
+    cost_fn: costs.CostFn | None = None,
+    epsilon: float | None = None,
+    relative_epsilon: Literal["mean", "std"] | None = None,
+    scale_cost: float | Literal["mean", "max_cost", "median"] = 1.0,
     return_output: bool = False,
     **kwargs: Any
-) -> Union[float, Tuple[float, sinkhorn.SinkhornOutput]]:
+) -> float | tuple[float, sinkhorn.SinkhornOutput]:
   r"""Monge gap, instantiated in terms of samples before / after applying map.
 
   .. math::
@@ -209,16 +200,16 @@ class MongeGapEstimator:
       self,
       dim_data: int,
       model: potentials.BasePotential,
-      optimizer: Optional[optax.OptState] = None,
-      fitting_loss: Optional[Callable[[jnp.ndarray, jnp.ndarray],
-                                      Tuple[float, Optional[Any]]]] = None,
-      regularizer: Optional[Callable[[jnp.ndarray, jnp.ndarray],
-                                     Tuple[float, Optional[Any]]]] = None,
-      regularizer_strength: Union[float, Sequence[float]] = 1.0,
+      optimizer: optax.OptState | None = None,
+      fitting_loss: Callable[[jax.Array, jax.Array], tuple[float, Any | None]]
+      | None = None,
+      regularizer: Callable[[jax.Array, jax.Array], tuple[float, Any | None]]
+      | None = None,
+      regularizer_strength: float | Sequence[float] = 1.0,
       num_train_iters: int = 10_000,
       logging: bool = False,
       valid_freq: int = 500,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
   ):
     self._fitting_loss = fitting_loss
     self._regularizer = regularizer
@@ -257,7 +248,7 @@ class MongeGapEstimator:
     self.step_fn = self._get_step_fn()
 
   @property
-  def regularizer(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
+  def regularizer(self) -> Callable[[jax.Array, jax.Array], float]:
     """Regularizer added to the fitting loss.
 
     Can be, e.g. the
@@ -271,7 +262,7 @@ class MongeGapEstimator:
     return lambda *_, **__: (0.0, None)
 
   @property
-  def fitting_loss(self) -> Callable[[jnp.ndarray, jnp.ndarray], float]:
+  def fitting_loss(self) -> Callable[[jax.Array, jax.Array], float]:
     """Fitting loss to fit the marginal constraint.
 
     Can be, e.g. :func:`~ott.tools.sinkhorn_divergence.sinkdiv`.
@@ -284,9 +275,9 @@ class MongeGapEstimator:
 
   @staticmethod
   def _generate_batch(
-      loader_source: Iterator[jnp.ndarray],
-      loader_target: Iterator[jnp.ndarray],
-  ) -> Dict[str, jnp.ndarray]:
+      loader_source: Iterator[jax.Array],
+      loader_target: Iterator[jax.Array],
+  ) -> dict[str, jax.Array]:
     """Generate batches a batch of samples.
 
     ``loader_source`` and ``loader_target`` can be training or
@@ -299,11 +290,11 @@ class MongeGapEstimator:
 
   def train_map_estimator(
       self,
-      trainloader_source: Iterator[jnp.ndarray],
-      trainloader_target: Iterator[jnp.ndarray],
-      validloader_source: Iterator[jnp.ndarray],
-      validloader_target: Iterator[jnp.ndarray],
-  ) -> Tuple[train_state.TrainState, Dict[str, Any]]:
+      trainloader_source: Iterator[jax.Array],
+      trainloader_target: Iterator[jax.Array],
+      validloader_source: Iterator[jax.Array],
+      validloader_target: Iterator[jax.Array],
+  ) -> tuple[train_state.TrainState, dict[str, Any]]:
     """Training loop."""
     # define logs
     logs = collections.defaultdict(lambda: collections.defaultdict(list))
@@ -361,8 +352,8 @@ class MongeGapEstimator:
 
     def loss_fn(
         params: frozen_dict.FrozenDict, apply_fn: Callable,
-        batch: Dict[str, jnp.ndarray], step: int
-    ) -> Tuple[float, Dict[str, float]]:
+        batch: dict[str, jax.Array], step: int
+    ) -> tuple[float, dict[str, float]]:
       """Loss function."""
       # map samples with the fitted map
       mapped_samples = apply_fn({"params": params}, batch["source"])
@@ -392,11 +383,11 @@ class MongeGapEstimator:
     @functools.partial(jax.jit, static_argnums=3)
     def step_fn(
         state_neural_net: train_state.TrainState,
-        train_batch: Dict[str, jnp.ndarray],
-        valid_batch: Optional[Dict[str, jnp.ndarray]] = None,
+        train_batch: dict[str, jax.Array],
+        valid_batch: dict[str, jax.Array] | None = None,
         is_logging_step: bool = False,
         step: int = 0
-    ) -> Tuple[train_state.TrainState, Dict[str, float]]:
+    ) -> tuple[train_state.TrainState, dict[str, float]]:
       """One step function."""
       # compute loss and gradients
       grad_fn = jax.value_and_grad(loss_fn, argnums=0, has_aux=True)

@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Dict, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import Any
 
 import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import jax.tree_util as jtu
 import numpy as np
+from jax.typing import DTypeLike
 from scipy.special import ive
 
 from ott import utils
@@ -26,7 +28,7 @@ from ott.math import utils as mu
 
 __all__ = ["Geodesic"]
 
-Array_g = Union[jnp.ndarray, jesp.BCOO]
+Array_g = jax.Array | jesp.BCOO
 
 
 @jtu.register_pytree_node_class
@@ -53,8 +55,8 @@ class Geodesic(geometry.Geometry):
   def __init__(
       self,
       scaled_laplacian: Array_g,
-      eigval: jnp.ndarray,
-      chebyshev_coeffs: jnp.ndarray,
+      eigval: jax.Array,
+      chebyshev_coeffs: jax.Array,
       t: float = 1e-3,
       **kwargs: Any
   ):
@@ -68,12 +70,12 @@ class Geodesic(geometry.Geometry):
   def from_graph(
       cls,
       G: Array_g,
-      t: Optional[float] = 1e-3,
-      eigval: Optional[jnp.ndarray] = None,
+      t: float | None = 1e-3,
+      eigval: jax.Array | None = None,
       order: int = 100,
       directed: bool = False,
       normalize: bool = False,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
       **kwargs: Any
   ) -> "Geodesic":
     r"""Construct a Geodesic geometry from an adjacency matrix.
@@ -135,10 +137,10 @@ class Geodesic(geometry.Geometry):
 
   def apply_kernel(
       self,
-      vec: jnp.ndarray,
-      eps: Optional[float] = None,
+      vec: jax.Array,
+      eps: float | None = None,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     r"""Apply :attr:`kernel_matrix` on a positive vector.
 
     Args:
@@ -154,7 +156,7 @@ class Geodesic(geometry.Geometry):
     )
 
   @property
-  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def kernel_matrix(self) -> jax.Array:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
     return jax.lax.cond(
@@ -163,12 +165,12 @@ class Geodesic(geometry.Geometry):
     )
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def cost_matrix(self) -> jax.Array:  # noqa: D102
     # Calculate the cost matrix using the formula (5) from the main reference
     return -4.0 * self.t * mu.safe_log(self.kernel_matrix)
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self.scaled_laplacian.shape
 
   @property
@@ -179,32 +181,30 @@ class Geodesic(geometry.Geometry):
   def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.scaled_laplacian.dtype
 
-  def transport_from_potentials(
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
+  def transport_from_potentials(self, f: jax.Array, g: jax.Array) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
   def apply_transport_from_potentials(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
-      vec: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
+      vec: jax.Array,
       axis: int = 0
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
   def marginal_from_potentials(
       self,
-      f: jnp.ndarray,
-      g: jnp.ndarray,
+      f: jax.Array,
+      g: jax.Array,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return [
         self.scaled_laplacian,
         self.eigval,
@@ -214,19 +214,17 @@ class Geodesic(geometry.Geometry):
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "Geodesic":
     return cls(*children, **aux_data)
 
 
-def normalize_laplacian(laplacian: Array_g, degree: jnp.ndarray) -> Array_g:
+def normalize_laplacian(laplacian: Array_g, degree: jax.Array) -> Array_g:
   inv_sqrt_deg = jnp.where(degree > 0.0, 1.0 / jnp.sqrt(degree), 0.0)
   return inv_sqrt_deg[:, None] * laplacian * inv_sqrt_deg[None, :]
 
 
-def compute_dense_laplacian(
-    G: jnp.ndarray, normalize: bool = False
-) -> jnp.ndarray:
+def compute_dense_laplacian(G: jax.Array, normalize: bool = False) -> jax.Array:
   degree = jnp.sum(G, axis=1)
   laplacian = jnp.diag(degree) - G
   if normalize:
@@ -253,7 +251,7 @@ def compute_sparse_laplacian(
 
 
 def compute_largest_eigenvalue(
-    laplacian_matrix: jnp.ndarray,
+    laplacian_matrix: jax.Array,
     rng: jax.Array,
 ) -> float:
   # Compute the largest eigenvalue of the Laplacian matrix.
@@ -274,8 +272,8 @@ def compute_largest_eigenvalue(
 
 
 def expm_multiply(
-    L: Array_g, X: jnp.ndarray, coeff: jnp.ndarray, eigval: float
-) -> jnp.ndarray:
+    L: Array_g, X: jax.Array, coeff: jax.Array, eigval: float
+) -> jax.Array:
 
   def body(carry, c):
     T0, T1, Y = carry
@@ -294,8 +292,8 @@ def expm_multiply(
 
 
 def compute_chebychev_coeff_all(
-    eigval: float, tau: float, K: int, dtype: np.dtype
-) -> jnp.ndarray:
+    eigval: float, tau: float, K: int, dtype: DTypeLike
+) -> jax.Array:
   """Jax wrapper to compute the K+1 Chebychev coefficients."""
   result_shape_dtype = jax.ShapeDtypeStruct(
       shape=(K + 1,),

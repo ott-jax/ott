@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import TYPE_CHECKING, Any, Dict, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any, Union
 
 import jax
 import jax.numpy as jnp
@@ -33,7 +34,7 @@ class WassersteinSolver:
 
   def __init__(
       self,
-      linear_solver: Union["sinkhorn.Sinkhorn", "sinkhorn_lr.LRSinkhorn"],
+      linear_solver: sinkhorn.Sinkhorn | sinkhorn_lr.LRSinkhorn,
       threshold: float = 1e-3,
       min_iterations: int = 5,
       max_iterations: int = 50,
@@ -55,7 +56,7 @@ class WassersteinSolver:
     """Whether the solver is low-rank."""
     return isinstance(self.linear_solver, sinkhorn_lr.LRSinkhorn)
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return ([self.linear_solver, self.threshold], {
         "min_iterations": self.min_iterations,
         "max_iterations": self.max_iterations,
@@ -64,7 +65,7 @@ class WassersteinSolver:
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "WassersteinSolver":
     return cls(*children, **aux_data)
 

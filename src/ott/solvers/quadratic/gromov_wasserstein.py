@@ -11,17 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    Literal,
-    NamedTuple,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Callable, Sequence
+from typing import Any, Literal, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -37,10 +28,10 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
 __all__ = ["GromovWasserstein", "GWOutput"]
 
-LinearOutput = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
+LinearOutput = sinkhorn.SinkhornOutput | sinkhorn_lr.LRSinkhornOutput
 
 ProgressCallbackFn = Callable[
-    [Tuple[np.ndarray, np.ndarray, np.ndarray, "GWState"]], None]
+    [tuple[np.ndarray, np.ndarray, np.ndarray, "GWState"]], None]
 
 
 class GWOutput(NamedTuple):
@@ -60,12 +51,12 @@ class GWOutput(NamedTuple):
     old_transport_mass: Holds total mass of transport at previous iteration.
   """
 
-  costs: Optional[jnp.ndarray] = None
-  linear_convergence: Optional[jnp.ndarray] = None
+  costs: jax.Array | None = None
+  linear_convergence: jax.Array | None = None
   converged: bool = False
-  errors: Optional[jnp.ndarray] = None
-  linear_state: Optional[LinearOutput] = None
-  geom: Optional[geometry.Geometry] = None
+  errors: jax.Array | None = None
+  linear_state: LinearOutput | None = None
+  geom: geometry.Geometry | None = None
   # Intermediate values.
   old_transport_mass: float = 1.0
 
@@ -74,11 +65,11 @@ class GWOutput(NamedTuple):
     return self._replace(**kwargs)
 
   @property
-  def matrix(self) -> jnp.ndarray:
+  def matrix(self) -> jax.Array:
     """Transport matrix."""
     return self._rescale_factor * self.linear_state.matrix
 
-  def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply(self, inputs: jax.Array, axis: int = 0) -> jax.Array:
     """Apply the transport to an array; axis=1 for its transpose."""
     return self._rescale_factor * self.linear_state.apply(inputs, axis=axis)
 
@@ -117,12 +108,12 @@ class GWState(NamedTuple):
       at each iteration.
   """
 
-  costs: jnp.ndarray
-  linear_convergence: jnp.ndarray
+  costs: jax.Array
+  linear_convergence: jax.Array
   linear_state: LinearOutput
   linear_pb: linear_problem.LinearProblem
   old_transport_mass: float
-  errors: Optional[jnp.ndarray] = None
+  errors: jax.Array | None = None
 
   def set(self, **kwargs: Any) -> "GWState":
     """Return a copy of self, possibly with overwrites."""
@@ -180,10 +171,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
       self,
       linear_solver: sinkhorn.Sinkhorn,
       epsilon: float = 1.0,
-      relative_epsilon: Optional[Literal["mean", "std"]] = None,
-      initializer: Optional[quad_initializers.BaseQuadraticInitializer] = None,
+      relative_epsilon: Literal["mean", "std"] | None = None,
+      initializer: quad_initializers.BaseQuadraticInitializer | None = None,
       warm_start: bool = False,
-      progress_fn: Optional[ProgressCallbackFn] = None,
+      progress_fn: ProgressCallbackFn | None = None,
       **kwargs: Any
   ):
     super().__init__(linear_solver, **kwargs)
@@ -197,7 +188,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
   def __call__(
       self,
       prob: quadratic_problem.QuadraticProblem,
-      init: Optional[linear_problem.LinearProblem] = None,
+      init: linear_problem.LinearProblem | None = None,
       **kwargs: Any,
   ) -> GWOutput:
     """Run the Gromov-Wasserstein solver.
@@ -293,7 +284,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         old_transport_mass=state.old_transport_mass
     )
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
     aux_data["epsilon"] = self.epsilon
     aux_data["relative_epsilon"] = self.relative_epsilon
@@ -304,7 +295,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   @classmethod
   def tree_unflatten(  # noqa: D102
-      cls, aux_data: Dict[str, Any], children: Sequence[Any]
+      cls, aux_data: dict[str, Any], children: Sequence[Any]
   ) -> "GromovWasserstein":
     linear_solver, threshold = children
     return cls(linear_solver, threshold=threshold, **aux_data)

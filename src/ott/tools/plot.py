@@ -11,17 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    Literal,
-    Optional,
-    Sequence,
-    Tuple,
-    Union,
-)
+from collections.abc import Callable, Sequence
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -40,8 +31,10 @@ from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein
 
 # TODO(michalk8): make sure all outputs conform to a unified transport interface
-Transport = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput,
-                  gromov_wasserstein.GWOutput]
+Transport = (
+    sinkhorn.SinkhornOutput | sinkhorn_lr.LRSinkhornOutput
+    | gromov_wasserstein.GWOutput
+)
 
 __all__ = ["Plot", "PlotMM", "transport_animation"]
 
@@ -77,17 +70,17 @@ class Plot:
 
   def __init__(
       self,
-      fig: Optional["plt.Figure"] = None,
-      ax: Optional["plt.Axes"] = None,
+      fig: plt.Figure | None = None,
+      ax: plt.Axes | None = None,
       threshold: float = -1.0,
       scale: int = 200,
       show_lines: bool = True,
       cmap: str = "cool",
       scale_alpha_by_coupling: bool = False,
       alpha: float = 0.7,
-      title: Optional[str] = None,
-      xlim: Optional[List[float]] = None,
-      ylim: Optional[List[float]] = None,
+      title: str | None = None,
+      xlim: list[float] | None = None,
+      ylim: list[float] | None = None,
   ):
     if ax is None and fig is None:
       fig, ax = plt.subplots()
@@ -154,7 +147,7 @@ class Plot:
 
     return result
 
-  def __call__(self, ot: Transport) -> List[plt.Artist]:
+  def __call__(self, ot: Transport) -> list[plt.Artist]:
     """Plot couplings in 2-D, using PCA if data is higher dimensional."""
     x, y, sx, sy = self._scatter(ot)
     self._points_x = self.ax.scatter(
@@ -192,9 +185,7 @@ class Plot:
 
     return [self._points_x, self._points_y] + self._lines
 
-  def update(self,
-             ot: Transport,
-             title: Optional[str] = None) -> List[plt.Artist]:
+  def update(self, ot: Transport, title: str | None = None) -> list[plt.Artist]:
     """Update a plot with a transport instance."""
     x, y, _, _ = self._scatter(ot)
     self._points_x.set_offsets(x)
@@ -238,7 +229,7 @@ class Plot:
   def animate(
       self,
       transports: Sequence[Transport],
-      titles: Optional[Sequence[str]] = None,
+      titles: Sequence[str] | None = None,
       frame_rate: float = 10.0
   ) -> animation.FuncAnimation:
     """Make an animation from several transports."""
@@ -282,13 +273,13 @@ class PlotMM(Plot):
 
   def __init__(
       self,
-      fig: Optional[plt.Figure] = None,
-      ax: Optional[plt.Axes] = None,
+      fig: plt.Figure | None = None,
+      ax: plt.Axes | None = None,
       fix_axes_lim: bool = False,
-      cmap: Union[str, mcolors.Colormap] = "cividis_r",
+      cmap: str | mcolors.Colormap = "cividis_r",
       markers: str = "svopxdh",
       alpha: float = 0.6,
-      title: Optional[str] = None,
+      title: str | None = None,
   ):
     if isinstance(cmap, str):
       cmap = plt.colormaps[cmap]
@@ -298,11 +289,9 @@ class PlotMM(Plot):
     self._markers = markers
     self._fix_axes_lim = fix_axes_lim
 
-  def __call__(
-      self,
-      ot: mmsinkhorn.MMSinkhornOutput,
-      top_k: Optional[int] = None
-  ) -> List["plt.Artist"]:
+  def __call__(self,
+               ot: mmsinkhorn.MMSinkhornOutput,
+               top_k: int | None = None) -> list["plt.Artist"]:
     """Plot 2-D couplings. does not support higher dimensional."""
     assert ot.n_marginals <= len(self._markers), "Not enough markers to plot."
     self._points = []
@@ -352,9 +341,9 @@ class PlotMM(Plot):
   def update(
       self,
       ot: mmsinkhorn.MMSinkhornOutput,
-      title: Optional[str] = None,
-      top_k: Optional[int] = None,
-  ) -> List[plt.Artist]:
+      title: str | None = None,
+      top_k: int | None = None,
+  ) -> list[plt.Artist]:
     """Update a plot with a transport instance."""
     n0 = max(ot.shape)
     top_k = n0 if top_k is None else top_k
@@ -390,9 +379,9 @@ class PlotMM(Plot):
   def animate(
       self,
       transports: Sequence[mmsinkhorn.MMSinkhornOutput],
-      titles: Optional[Sequence[str]] = None,
+      titles: Sequence[str] | None = None,
       frame_rate: float = 10.0,
-      top_k: Optional[int] = None,
+      top_k: int | None = None,
   ) -> animation.FuncAnimation:
     """Make an animation from several transports."""
     ot, *_ = transports
@@ -417,7 +406,7 @@ def get_plotkwargs(
     small_size: int = 50,
     mid_size: int = 60,
     size_multiplier: float = 1.2
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
   r"""Generate marker styling specifications for transport visualization.
 
   This utility function creates a dictionary of matplotlib styling parameters
@@ -555,20 +544,19 @@ def transport_animation(
     static_tgt_points: jax.Array,
     *,
     n_grid: int = 0,
-    velocity_field: Optional[Callable[[jax.Array, jax.Array],
-                                      jax.Array]] = None,
-    dynamic_src_points: Optional[jax.Array] = None,
-    num_ifm_interpolants: Union[int, Literal["all"]] = 0,
+    velocity_field: Callable[[jax.Array, jax.Array], jax.Array] | None = None,
+    dynamic_src_points: jax.Array | None = None,
+    num_ifm_interpolants: int | Literal["all"] = 0,
     plot_ifm_arrows: bool = False,
-    title: Optional[str] = None,
-    figsize: Tuple[int, int] = (8, 6),
-    xlimits: Optional[Tuple[float, float]] = None,
-    ylimits: Optional[Tuple[float, float]] = None,
+    title: str | None = None,
+    figsize: tuple[int, int] = (8, 6),
+    xlimits: tuple[float, float] | None = None,
+    ylimits: tuple[float, float] | None = None,
     padding: float = 0.1,
     interval: int = 300,
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
     darkmode: bool = False
-) -> Union[plt.Figure, animation.FuncAnimation]:
+) -> plt.Figure | animation.FuncAnimation:
   r"""Create animated visualizations of optimal transport and flow matching.
 
   This function generates animations illustrating various aspects of optimal
@@ -837,7 +825,7 @@ def ccworder(A: jax.Array) -> jax.Array:
   return jnp.argsort(jnp.arctan2(A[:, 1], A[:, 0]))
 
 
-def bidimensional(x: jax.Array, y: jax.Array) -> Tuple[jax.Array, jax.Array]:
+def bidimensional(x: jax.Array, y: jax.Array) -> tuple[jax.Array, jax.Array]:
   """Apply PCA to reduce to bi-dimensional data."""
   if x.shape[1] < 3:
     return x, y

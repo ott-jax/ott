@@ -13,7 +13,7 @@
 # limitations under the License.
 """Input convex neural networks and KeyNet (vector-output variant)."""
 
-from typing import Callable, Optional, Sequence, Tuple, Union
+from collections.abc import Callable, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -39,9 +39,9 @@ def _get_act_alpha(act_fn: Callable) -> float:
 
 
 def _normalize_wx_inject(
-    wx_inject: Union[bool, Tuple[bool, ...], int],
+    wx_inject: bool | tuple[bool, ...] | int,
     num_layers: int,
-) -> Tuple[bool, ...]:
+) -> tuple[bool, ...]:
   """Convert wx_inject specification to a boolean tuple.
 
   Args:
@@ -127,7 +127,7 @@ class ICNN(nnx.Module):
       output_dim: int = 1,
       rectifier_fn: Callable[[jax.Array], jax.Array] = jax.nn.softplus,
       act_fn: Callable[[jax.Array], jax.Array] = jax.nn.relu,
-      wx_inject: Union[bool, Tuple[bool, ...], int] = True,
+      wx_inject: bool | tuple[bool, ...] | int = True,
       use_bias: bool = True,
       use_softmax: bool = False,
       use_sinkhorn: bool = False,
@@ -323,15 +323,15 @@ class KeyNet(nnx.Module):
       dim_hidden: Sequence[int],
       *,
       input_dim: int,
-      output_dim: Optional[int] = None,
-      num_outputs: Optional[int] = None,
+      output_dim: int | None = None,
+      num_outputs: int | None = None,
       resnet: bool = False,
       act_fn: Callable[[jax.Array], jax.Array] = jax.nn.relu,
-      wx_inject: Union[bool, Tuple[bool, ...], int] = True,
+      wx_inject: bool | tuple[bool, ...] | int = True,
       use_bias: bool = True,
       kernel_init: nnx.initializers.Initializer = DEFAULT_KERNEL_INIT,
       bias_init: nnx.initializers.Initializer = DEFAULT_BIAS_INIT,
-      final_layer_scale: Optional[float] = None,
+      final_layer_scale: float | None = None,
       rngs: nnx.Rngs,
   ):
     super().__init__()

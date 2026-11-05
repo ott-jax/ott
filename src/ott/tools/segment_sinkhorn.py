@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any
 
-import jax.numpy as jnp
+import jax
 
 from ott.geometry import costs, pointcloud, segment
 from ott.problems.linear import linear_problem
@@ -22,21 +23,21 @@ from ott.solvers.linear import sinkhorn
 
 
 def segment_sinkhorn(
-    x: jnp.ndarray,
-    y: jnp.ndarray,
-    num_segments: Optional[int] = None,
-    max_measure_size: Optional[int] = None,
-    cost_fn: Optional[costs.CostFn] = None,
-    segment_ids_x: Optional[jnp.ndarray] = None,
-    segment_ids_y: Optional[jnp.ndarray] = None,
+    x: jax.Array,
+    y: jax.Array,
+    num_segments: int | None = None,
+    max_measure_size: int | None = None,
+    cost_fn: costs.CostFn | None = None,
+    segment_ids_x: jax.Array | None = None,
+    segment_ids_y: jax.Array | None = None,
     indices_are_sorted: bool = False,
-    num_per_segment_x: Optional[Tuple[int, ...]] = None,
-    num_per_segment_y: Optional[Tuple[int, ...]] = None,
-    weights_x: Optional[jnp.ndarray] = None,
-    weights_y: Optional[jnp.ndarray] = None,
+    num_per_segment_x: tuple[int, ...] | None = None,
+    num_per_segment_y: tuple[int, ...] | None = None,
+    weights_x: jax.Array | None = None,
+    weights_y: jax.Array | None = None,
     sinkhorn_kwargs: Mapping[str, Any] = MappingProxyType({}),
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Compute regularized OT cost between subsets of vectors in ``x`` and ``y``.
 
   Helper function designed to compute Sinkhorn regularized OT cost between
@@ -104,11 +105,11 @@ def segment_sinkhorn(
     padding_vector = cost_fn._padder(dim=dim)
 
   def eval_fn(
-      padded_x: jnp.ndarray,
-      padded_y: jnp.ndarray,
-      padded_weight_x: jnp.ndarray,
-      padded_weight_y: jnp.ndarray,
-  ) -> jnp.ndarray:
+      padded_x: jax.Array,
+      padded_y: jax.Array,
+      padded_weight_x: jax.Array,
+      padded_weight_y: jax.Array,
+  ) -> jax.Array:
     geom = pointcloud.PointCloud(
         padded_x,
         padded_y,

@@ -13,6 +13,7 @@
 # limitations under the License.
 import pytest
 
+import chex
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -142,7 +143,7 @@ class TestGaussian:
     children, aux_data = jtu.tree_flatten(g)
     g_new = jtu.tree_unflatten(aux_data, children)
 
-    assert g == g_new
+    chex.assert_trees_all_equal(g, g_new)
 
   def test_pytree_mapping(self, rng: jax.Array):
     g = gaussian.Gaussian.from_random(rng, n_dimensions=3)

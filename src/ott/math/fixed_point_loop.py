@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -118,7 +119,7 @@ def fixpoint_iter_fwd(
   """
   force_scan = min_iterations == max_iterations
   compute_error_flags = jnp.arange(inner_iterations) == inner_iterations - 1
-  states = jax.tree_util.tree_map(
+  states = jax.tree.map(
       lambda x: jnp.zeros(
           (max_iterations // inner_iterations + 1,) + jnp.shape(x),
           dtype=jax.dtypes.result_type(x)
@@ -136,7 +137,7 @@ def fixpoint_iter_fwd(
 
   def unrolled_body_fn(iteration_states_state):
     iteration, states, state = iteration_states_state
-    states = jax.tree_util.tree_map(
+    states = jax.tree.map(
         lambda states, state: jax.lax.dynamic_update_index_in_dim(
             states, state, iteration // inner_iterations, 0
         ), states, state
@@ -177,9 +178,9 @@ def fixpoint_iter_bwd(
   force_scan = (min_iterations == max_iterations)
   constants, iteration, states = res
   # The tree may contain some python floats
-  g_constants = jax.tree_util.tree_map(
+  g_constants = jax.tree.map(
       lambda x: jnp.zeros_like(x, dtype=x.dtype)
-      if isinstance(x, (np.ndarray, jnp.ndarray)) else 0, constants
+      if isinstance(x, (np.ndarray, jax.Array)) else 0, constants
   )
 
   def bwd_cond_fn(iteration_g_gconst):
@@ -203,16 +204,12 @@ def fixpoint_iter_bwd(
 
   def unrolled_body_fn(iteration_g_gconst):
     iteration, g, g_constants = iteration_g_gconst
-    state = jax.tree_util.tree_map(
-        lambda x: x[iteration // inner_iterations], states
-    )
+    state = jax.tree.map(lambda x: x[iteration // inner_iterations], states)
     _, pullback = jax.vjp(
         unrolled_body_fn_no_errors, iteration, constants, state
     )
     _, gi_constants, g_state = pullback(g)
-    g_constants = jax.tree_util.tree_map(
-        lambda x, y: x + y, g_constants, gi_constants
-    )
+    g_constants = jax.tree.map(lambda x, y: x + y, g_constants, gi_constants)
     out = (iteration - inner_iterations, g_state, g_constants)
     return (out, None) if force_scan else out
 

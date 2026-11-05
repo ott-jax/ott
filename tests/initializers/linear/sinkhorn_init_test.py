@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
 
 import pytest
 
@@ -31,7 +30,7 @@ def create_sorting_problem(
     rng: jax.Array,
     n: int,
     epsilon: float = 1e-2,
-    batch_size: Optional[int] = None
+    batch_size: int | None = None
 ) -> linear_problem.LinearProblem:
   # define ot problem
   x_init = jnp.array([-1.0, 0.0, 0.22])

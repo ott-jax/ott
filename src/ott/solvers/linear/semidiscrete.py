@@ -13,7 +13,8 @@
 # limitations under the License.
 import dataclasses
 import math
-from typing import TYPE_CHECKING, Any, Callable, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.experimental.sparse as jesp
@@ -87,8 +88,8 @@ class HardAssignmentOutput:
   """
   ot_prob: linear_problem.LinearProblem
   paired_indices: jax.Array
-  f: Optional[jax.Array] = None
-  g: Optional[jax.Array] = None
+  f: jax.Array | None = None
+  g: jax.Array | None = None
 
   @property
   def matrix(self) -> jesp.BCOO:
@@ -138,18 +139,18 @@ class SemidiscreteOutput:
   """
   g: jax.Array
   prob: sdlp.SemidiscreteLinearProblem
-  it: Optional[int] = None
-  losses: Optional[jax.Array] = None
-  errors: Optional[jax.Array] = None
-  converged: Optional[bool] = None
+  it: int | None = None
+  losses: jax.Array | None = None
+  errors: jax.Array | None = None
+  converged: bool | None = None
 
   def sample(
       self,
       rng: jax.Array,
       num_samples: int,
       *,
-      epsilon: Optional[float] = None,
-  ) -> Union[sinkhorn.SinkhornOutput, HardAssignmentOutput]:
+      epsilon: float | None = None,
+  ) -> sinkhorn.SinkhornOutput | HardAssignmentOutput:
     """Sample a point cloud and compute the OT solution.
 
     Args:
@@ -190,7 +191,7 @@ class SemidiscreteOutput:
     )
 
   def to_dual_potentials(
-      self, epsilon: Optional[float] = None
+      self, epsilon: float | None = None
   ) -> potentials.DualPotentials:
     """Compute the dual potential function :math:`f`.
 
@@ -303,19 +304,19 @@ class SemidiscreteSolver:
   batch_size: int
   optimizer: optax.GradientTransformation
   error_eval_every: int = 1000
-  error_batch_size: Optional[int] = None
+  error_batch_size: int | None = None
   error_num_repeats: int = 16
   threshold: float = 1e-3
   potential_ema: float = 0.99
   epsilon_scheduler: Callable[[jax.Array, jax.Array],
                               jax.Array] = constant_epsilon_scheduler
-  callback: Optional[Callable[[SemidiscreteState], None]] = None
+  callback: Callable[[SemidiscreteState], None] | None = None
 
   def __call__(
       self,
       rng: jax.Array,
       prob: sdlp.SemidiscreteLinearProblem,
-      g_init: Optional[jax.Array] = None,
+      g_init: jax.Array | None = None,
   ) -> SemidiscreteOutput:
     """Run the semidiscrete solver.
 
@@ -409,7 +410,7 @@ class SemidiscreteSolver:
       prob: sdlp.SemidiscreteLinearProblem,
       *,
       compute_error: bool = False,
-      rng_error: Optional[jax.Array] = None,
+      rng_error: jax.Array | None = None,
   ) -> SemidiscreteState:
     """Perform one optimization step.
 
@@ -497,7 +498,7 @@ def _semidiscrete_loss(
 def _semidiscrete_loss_fwd(
     g: jax.Array,
     prob: linear_problem.LinearProblem,
-) -> Tuple[jax.Array, Tuple[jax.Array, linear_problem.LinearProblem]]:
+) -> tuple[jax.Array, tuple[jax.Array, linear_problem.LinearProblem]]:
   f, z = prob._c_transform(g, axis=1)
   # we assume uniform weights for `prob.a`
   return -(jnp.mean(f) + jnp.dot(g, prob.b)), (z, prob)
@@ -506,7 +507,7 @@ def _semidiscrete_loss_fwd(
 def _semidiscrete_loss_bwd(
     res: jax.Array,
     g: jax.Array,
-) -> Tuple[jax.Array, None]:
+) -> tuple[jax.Array, None]:
 
   def soft_grad(z: jax.Array) -> jax.Array:
     if prob._b is None:  # uniform weights
@@ -553,7 +554,7 @@ def _marginal_chi2_error(
     batch_size: int,
 ) -> jax.Array:
 
-  def compute_chi2(matrix: Union[jax.Array, jesp.BCOO]) -> jax.Array:
+  def compute_chi2(matrix: jax.Array | jesp.BCOO) -> jax.Array:
     """Compute chi2 metric.
 
     Implements Eq. 3.5  in https://arxiv.org/pdf/2509.25519v1,
@@ -577,7 +578,7 @@ def _marginal_chi2_error(
     out = jnp.sum(out / prob.b) / (batch_size * (batch_size - 1.0))
     return out - 1.0
 
-  def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
+  def body(chi2_err_avg: jax.Array, it: jax.Array) -> tuple[jax.Array, None]:
     rng_it = jr.fold_in(rng, it)
     matrix = out.sample(rng_it, batch_size).matrix
     chi2 = compute_chi2(matrix)

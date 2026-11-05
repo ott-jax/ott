@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Dict, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -74,10 +75,9 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       geom: geometry.Geometry,
       meta_model: nn.Module,
-      opt: Optional[optax.GradientTransformation
-                   ] = optax.adam(learning_rate=1e-3),  # noqa: B008
-      rng: Optional[jax.Array] = None,
-      state: Optional[train_state.TrainState] = None,
+      opt: optax.GradientTransformation | None = optax.adam(1e-3),  # noqa: B008
+      rng: jax.Array | None = None,
+      state: train_state.TrainState | None = None,
   ):
     self.geom = geom
     self.opt = opt
@@ -99,8 +99,8 @@ class MetaInitializer(initializers.DefaultInitializer):
     self.update_impl = self._get_update_fn()
 
   def update(
-      self, state: train_state.TrainState, a: jnp.ndarray, b: jnp.ndarray
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, train_state.TrainState]:
+      self, state: train_state.TrainState, a: jax.Array, b: jax.Array
+  ) -> tuple[jax.Array, jax.Array, train_state.TrainState]:
     r"""Update the meta model with the dual objective.
 
     The goal is for the model to match the optimal duals, i.e.,
@@ -138,8 +138,8 @@ class MetaInitializer(initializers.DefaultInitializer):
       self,
       ot_prob: linear_problem.LinearProblem,
       lse_mode: bool,
-      rng: Optional[jax.Array] = None,
-  ) -> jnp.ndarray:
+      rng: jax.Array | None = None,
+  ) -> jax.Array:
     del rng
     # Detect if the problem is batched.
     assert ot_prob.a.ndim in (1, 2)
@@ -190,9 +190,9 @@ class MetaInitializer(initializers.DefaultInitializer):
     return update
 
   def _compute_f(
-      self, a: jnp.ndarray, b: jnp.ndarray,
-      params: frozen_dict.FrozenDict[str, jnp.ndarray]
-  ) -> jnp.ndarray:
+      self, a: jax.Array, b: jax.Array,
+      params: frozen_dict.FrozenDict[str, jax.Array]
+  ) -> jax.Array:
     r"""Predict the optimal :math:`f` potential.
 
     Args:
@@ -206,7 +206,7 @@ class MetaInitializer(initializers.DefaultInitializer):
     return self.meta_model.apply({"params": params},
                                  jnp.concatenate([a, b], axis=-1))
 
-  def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
+  def tree_flatten(self) -> tuple[Sequence[Any], dict[str, Any]]:  # noqa: D102
     return [self.geom, self.meta_model, self.opt], {
         "rng": self.rng,
         "state": self.state

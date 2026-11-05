@@ -13,7 +13,8 @@
 # limitations under the License.
 import dataclasses
 import functools
-from typing import Any, Iterable, Iterator, Literal, Optional, Tuple
+from collections.abc import Iterable, Iterator
+from typing import Any, Literal
 
 import jax
 import jax.random as jr
@@ -49,14 +50,14 @@ class LinearOTDataloader:
     shardings: Input and output shardings for the source and target arrays.
   """
   rng: jax.Array
-  dataset: Iterable[Tuple[jax.Array, jax.Array]]
-  epsilon: Optional[float] = None
-  relative_epsilon: Optional[Literal["mean", "std"]] = None
-  cost_fn: Optional[costs.CostFn] = None
+  dataset: Iterable[tuple[jax.Array, jax.Array]]
+  epsilon: float | None = None
+  relative_epsilon: Literal["mean", "std"] | None = None
+  cost_fn: costs.CostFn | None = None
   threshold: float = 1e-3
   max_iterations: int = 2000
   replace: bool = True
-  shardings: Optional[jax.sharding.Sharding] = None
+  shardings: jax.sharding.Sharding | None = None
 
   def __post_init__(self) -> None:
     self._align_fn = jax.jit(
@@ -69,8 +70,8 @@ class LinearOTDataloader:
         in_shardings=(None, self.shardings, self.shardings),
         out_shardings=(self.shardings, self.shardings),
     )
-    self._data_it: Optional[Iterator[Tuple[jax.Array, jax.Array]]] = None
-    self._rng_it: Optional[jax.Array] = None
+    self._data_it: Iterator[tuple[jax.Array, jax.Array]] | None = None
+    self._rng_it: jax.Array | None = None
 
   def __iter__(self) -> "LinearOTDataloader":
     """Return self."""
@@ -78,7 +79,7 @@ class LinearOTDataloader:
     self._rng_it = self.rng
     return self
 
-  def __next__(self) -> Tuple[jax.Array, jax.Array]:
+  def __next__(self) -> tuple[jax.Array, jax.Array]:
     """Align source and target samples in a batch.
 
     Returns:
@@ -104,11 +105,11 @@ def _align(
     x: jax.Array,
     y: jax.Array,
     cost_fn: costs.CostFn,
-    epsilon: Optional[float],
-    relative_epsilon: Optional[Literal["mean", "std"]],
+    epsilon: float | None,
+    relative_epsilon: Literal["mean", "std"] | None,
     replace: bool,
     **kwargs: Any,
-) -> Tuple[jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array]:
   geom = pointcloud.PointCloud(
       x,
       y,

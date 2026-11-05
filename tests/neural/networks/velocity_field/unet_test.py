@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple
 
 import pytest
 
@@ -27,9 +26,9 @@ from ott.neural.networks.velocity_field import unet
 def _prepare_inputs(
     rng: jax.Array,
     *,
-    shape: Tuple[int, ...],
-    num_classes: Optional[int] = None,
-) -> Tuple[jax.Array, jax.Array, Optional[jax.Array]]:
+    shape: tuple[int, ...],
+    num_classes: int | None = None,
+) -> tuple[jax.Array, jax.Array, jax.Array | None]:
   rng_t, rng_x, rng_cond = jr.split(rng, 3)
   batch_size, *_ = shape
   t = jr.uniform(rng_t, (batch_size,))

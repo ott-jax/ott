@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple
 
 import pytest
 
@@ -46,7 +45,7 @@ class TestSemidiscretePointCloud:
     assert pc.shape == (num_samples, m)
 
   @pytest.mark.parametrize("epsilon", [0.0, None, 1e-2])
-  def epsilon(self, rng: jax.Array, epsilon: Optional[float]):
+  def epsilon(self, rng: jax.Array, epsilon: float | None):
     n, d = 32, 5
     y = jr.normal(rng, (n, d))
 
@@ -79,9 +78,7 @@ class TestSemidiscretePointCloud:
   @pytest.mark.parametrize(("epsilon", "dtype"), [(0.0, jnp.float16),
                                                   (None, jnp.bfloat16),
                                                   (0.2, jnp.float32)])
-  def test_dtype(
-      self, rng: jax.Array, epsilon: Optional[float], dtype: jnp.dtype
-  ):
+  def test_dtype(self, rng: jax.Array, epsilon: float | None, dtype: jnp.dtype):
     rng_data, rng_sample = jr.split(rng, 2)
     m, d = 15, 1
     y = jr.normal(rng_data, (m, d), dtype=dtype)
@@ -99,7 +96,7 @@ class TestSemidiscretePointCloud:
     @jax.jit
     def sample(
         geom: sdpc.SemidiscretePointCloud
-    ) -> Tuple[sdpc.SemidiscretePointCloud, pointcloud.PointCloud, jax.Array]:
+    ) -> tuple[sdpc.SemidiscretePointCloud, pointcloud.PointCloud, jax.Array]:
       pc = geom.sample(rng_sample, 32)
       return geom, pc, geom.epsilon
 

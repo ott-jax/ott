@@ -13,6 +13,7 @@
 # limitations under the License.
 import pytest
 
+import chex
 import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
@@ -67,7 +68,7 @@ class TestProbabilities:
     children, aux_data = jtu.tree_flatten(pp)
     pp_new = jtu.tree_unflatten(aux_data, children)
     np.testing.assert_array_equal(pp.params, pp_new.params)
-    assert pp == pp_new
+    chex.assert_trees_all_equal(pp, pp_new)
 
   def test_pytree_mapping(self):
     probs = jnp.array([0.1, 0.2, 0.3, 0.4])

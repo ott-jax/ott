@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple, Union
 
 import pytest
 
@@ -36,7 +35,7 @@ class TestQuadraticProblem:
   @pytest.mark.parametrize("rank", [-1, 5, (1, 2, 3), (2, 3, 5)])
   def test_quad_to_low_rank(
       self, clouds: _utils.QuadClouds, rng: jax.Array, as_pc: bool,
-      rank: Union[int, Tuple[int, ...]]
+      rank: int | tuple[int, ...]
   ):
     n, m, d1, d2, d = 100, 120, 4, 6, 10
     rng1, rng2, rng3, rng4 = jr.split(rng, 4)
@@ -158,8 +157,8 @@ class TestGromovWasserstein:
   def test_gradient_marginals_gw(self, clouds: _utils.QuadClouds, jit: bool):
     """Test gradient w.r.t. probability weights."""
 
-    def reg_gw(a: jnp.ndarray, b: jnp.ndarray,
-               implicit: bool) -> Tuple[float, Tuple[jnp.ndarray, jnp.ndarray]]:
+    def reg_gw(a: jax.Array, b: jax.Array,
+               implicit: bool) -> tuple[float, tuple[jax.Array, jax.Array]]:
       prob = quadratic_problem.QuadraticProblem(geom_x, geom_y, a=a, b=b)
       implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
       linear_solver = sinkhorn.Sinkhorn(
@@ -251,8 +250,7 @@ class TestGromovWasserstein:
     """Test gradient w.r.t. the geometries."""
 
     def reg_gw(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
-        implicit: bool
+        x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array, implicit: bool
     ) -> float:
       if is_cost:
         geom_x = geometry.Geometry(cost_matrix=x)
@@ -414,7 +412,7 @@ class TestGromovWasserstein:
   def test_relative_epsilon(
       self,
       rng: jax.Array,
-      scale_cost: Union[float, str],
+      scale_cost: float | str,
   ):
     eps = 1e-2
     rng1, rng2 = jr.split(rng, 2)
@@ -523,7 +521,7 @@ class TestGromovWasserstein:
   @pytest.mark.parametrize("grad", [False, True])
   def test_gw_progress_fn(self, clouds: _utils.QuadClouds, grad: bool):
 
-    def callback(x: jnp.ndarray, y: jnp.ndarray):
+    def callback(x: jax.Array, y: jax.Array):
       geom_xx = pointcloud.PointCloud(x)
       geom_yy = pointcloud.PointCloud(y)
       prob = quadratic_problem.QuadraticProblem(geom_xx, geom_yy)

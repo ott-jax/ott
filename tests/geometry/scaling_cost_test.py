@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Optional, Union
 
 import pytest
 
@@ -31,16 +30,16 @@ EPS = 5e-2
 @dataclasses.dataclass(frozen=True)
 class ScaleCostData:
   """Inputs shared by every scale-cost test."""
-  x: jnp.ndarray  # (n, dim)
-  y: jnp.ndarray  # (m, dim)
-  a: jnp.ndarray  # (n,), deliberately not normalized
-  b: jnp.ndarray  # (m,), deliberately not normalized
-  vec: jnp.ndarray  # (m,)
-  cost1: jnp.ndarray  # (n, 2), low-rank cost factor
-  cost2: jnp.ndarray  # (m, 2), low-rank cost factor
+  x: jax.Array  # (n, dim)
+  y: jax.Array  # (m, dim)
+  a: jax.Array  # (n,), deliberately not normalized
+  b: jax.Array  # (m,), deliberately not normalized
+  vec: jax.Array  # (m,)
+  cost1: jax.Array  # (n, 2), low-rank cost factor
+  cost2: jax.Array  # (m, 2), low-rank cost factor
 
   @property
-  def cost(self) -> jnp.ndarray:
+  def cost(self) -> jax.Array:
     """Squared Euclidean cost matrix between :attr:`x` and :attr:`y`."""
     return ((self.x[:, None, :] - self.y[None, :, :]) ** 2).sum(-1)
 
@@ -69,14 +68,13 @@ class TestScaleCost:
       only_fast=[0, -3],
   )
   def test_scale_cost_pointcloud(
-      self, data: ScaleCostData, scale: Union[str, float],
-      batch_size: Optional[int]
+      self, data: ScaleCostData, scale: str | float, batch_size: int | None
   ):
     """Test various scale cost options for pointcloud."""
 
     def apply_sinkhorn(
-        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
-        scale_cost: Union[str, float]
+        x: jax.Array, y: jax.Array, a: jax.Array, b: jax.Array,
+        scale_cost: str | float
     ):
       geom = pointcloud.PointCloud(x, y, epsilon=EPS, scale_cost=scale_cost)
       prob = linear_problem.LinearProblem(geom, a, b)
@@ -112,7 +110,7 @@ class TestScaleCost:
       "scale", ["mean", "max_cost", "max_norm", "max_bound", 100.0]
   )
   def test_online_matches_offline_pointcloud(
-      self, data: ScaleCostData, scale: Union[str, float]
+      self, data: ScaleCostData, scale: str | float
   ):
     """Tests that the scale factors for online matches the ones without."""
     geom0 = pointcloud.PointCloud(
@@ -138,14 +136,11 @@ class TestScaleCost:
   @pytest.mark.fast.with_args(
       "scale", ["median", "mean", "max_cost", 100.0], only_fast=1
   )
-  def test_scale_cost_geometry(
-      self, data: ScaleCostData, scale: Union[str, float]
-  ):
+  def test_scale_cost_geometry(self, data: ScaleCostData, scale: str | float):
     """Test various scale cost options for geometry."""
 
     def apply_sinkhorn(
-        cost: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
-        scale_cost: Union[str, float]
+        cost: jax.Array, a: jax.Array, b: jax.Array, scale_cost: str | float
     ):
       geom = geometry.Geometry(cost, epsilon=EPS, scale_cost=scale_cost)
       prob = linear_problem.LinearProblem(geom, a, b)
@@ -177,9 +172,7 @@ class TestScaleCost:
   @pytest.mark.fast.with_args(
       "scale", ["mean", "max_bound", "max_cost", 100.0], only_fast=2
   )
-  def test_scale_cost_low_rank(
-      self, data: ScaleCostData, scale: Union[str, float]
-  ):
+  def test_scale_cost_low_rank(self, data: ScaleCostData, scale: str | float):
     """Test various scale cost options for low rank."""
 
     def apply_sinkhorn(cost1, cost2, scale_cost):

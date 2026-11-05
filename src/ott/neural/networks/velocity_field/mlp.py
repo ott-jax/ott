@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Any, Callable, Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import jax
 from jax import numpy as jnp
@@ -42,7 +43,7 @@ class MLP(nnx.Module):
       hidden_dims: Sequence[int] = (),
       cond_dim: int = 0,
       act_fn: Callable[[jax.Array], jax.Array] = nnx.silu,
-      time_enc_num_freqs: Optional[int] = None,
+      time_enc_num_freqs: int | None = None,
       dropout_rate: float = 0.0,
       rngs: nnx.Rngs,
       **kwargs: Any,
@@ -77,9 +78,9 @@ class MLP(nnx.Module):
       self,
       t: jax.Array,
       x: jax.Array,
-      cond: Optional[jax.Array] = None,
+      cond: jax.Array | None = None,
       *,
-      rngs: Optional[nnx.Rngs] = None,
+      rngs: nnx.Rngs | None = None,
   ) -> jax.Array:
     """Compute the velocity.
 
@@ -116,7 +117,7 @@ class Block(nnx.Module):
     self.dropout = nnx.Dropout(dropout_rate)
 
   def __call__(
-      self, x: jax.Array, *, rngs: Optional[nnx.Rngs] = None
+      self, x: jax.Array, *, rngs: nnx.Rngs | None = None
   ) -> jax.Array:
     return self.dropout(self.act_fn(self.lin(x)), rngs=rngs)
 

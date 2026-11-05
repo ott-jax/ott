@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Literal, Optional, Tuple, Union
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -27,17 +27,17 @@ __all__ = [
     "uniform_sampler",
 ]
 
-ScaleCost_t = Union[float, Literal["mean", "max_cost", "median"]]
+ScaleCost_t = float | Literal["mean", "max_cost", "median"]
 
 
 def match_linear(
-    x: jnp.ndarray,
-    y: Optional[jnp.ndarray],
-    cost_fn: Optional[costs.CostFn] = None,
-    epsilon: Optional[float] = None,
+    x: jax.Array,
+    y: jax.Array | None,
+    cost_fn: costs.CostFn | None = None,
+    epsilon: float | None = None,
     scale_cost: ScaleCost_t = 1.0,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Compute solution to a linear OT problem.
 
   Args:
@@ -59,14 +59,14 @@ def match_linear(
 
 
 def match_quadratic(
-    xx: jnp.ndarray,
-    yy: jnp.ndarray,
-    x: Optional[jnp.ndarray] = None,
-    y: Optional[jnp.ndarray] = None,
+    xx: jax.Array,
+    yy: jax.Array,
+    x: jax.Array | None = None,
+    y: jax.Array | None = None,
     scale_cost: ScaleCost_t = 1.0,
-    cost_fn: Optional[costs.CostFn] = None,
+    cost_fn: costs.CostFn | None = None,
     **kwargs: Any
-) -> jnp.ndarray:
+) -> jax.Array:
   """Compute solution to a quadratic OT problem.
 
   Args:
@@ -95,7 +95,7 @@ def match_quadratic(
 
 
 def sample_joint(rng: jax.Array,
-                 tmat: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
+                 tmat: jax.Array) -> tuple[jax.Array, jax.Array]:
   """Sample jointly from a transport matrix.
 
   Args:
@@ -117,10 +117,10 @@ def sample_joint(rng: jax.Array,
 
 def sample_conditional(
     rng: jax.Array,
-    tmat: jnp.ndarray,
+    tmat: jax.Array,
     *,
     k: int = 1,
-) -> Tuple[jnp.ndarray, jnp.ndarray]:
+) -> tuple[jax.Array, jax.Array]:
   """Sample conditionally from a transport matrix.
 
   Args:
@@ -154,8 +154,8 @@ def uniform_sampler(
     num_samples: int,
     low: float = 0.0,
     high: float = 1.0,
-    offset: Optional[float] = None
-) -> jnp.ndarray:
+    offset: float | None = None
+) -> jax.Array:
   r"""Sample from a uniform distribution.
 
   Sample :math:`t` from a uniform distribution :math:`[low, high]`.

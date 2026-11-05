@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any, Callable, Literal, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any, Literal
 
 import jax
 import jax.numpy as jnp
@@ -48,11 +49,11 @@ class LRCGeometry(geometry.Geometry):
 
   def __init__(
       self,
-      cost_1: jnp.ndarray,
-      cost_2: jnp.ndarray,
+      cost_1: jax.Array,
+      cost_2: jax.Array,
       bias: float = 0.0,
       scale_factor: float = 1.0,
-      scale_cost: Union[float, Literal["mean", "max_bound", "max_cost"]] = 1.0,
+      scale_cost: float | Literal["mean", "max_bound", "max_cost"] = 1.0,
       **kwargs: Any,
   ):
     super().__init__(**kwargs)
@@ -63,13 +64,13 @@ class LRCGeometry(geometry.Geometry):
     self._scale_cost = scale_cost
 
   @property
-  def cost_1(self) -> jnp.ndarray:
+  def cost_1(self) -> jax.Array:
     """First factor of the :attr:`cost_matrix`."""
     scale_factor = jnp.sqrt(self._scale_factor * self.inv_scale_cost)
     return scale_factor * self._cost_1
 
   @property
-  def cost_2(self) -> jnp.ndarray:
+  def cost_2(self) -> jax.Array:
     """Second factor of the :attr:`cost_matrix`."""
     scale_factor = jnp.sqrt(self._scale_factor * self.inv_scale_cost)
     return scale_factor * self._cost_2
@@ -84,12 +85,12 @@ class LRCGeometry(geometry.Geometry):
     return self._cost_1.shape[1]
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:
+  def cost_matrix(self) -> jax.Array:
     """Materialize the cost matrix."""
     return jnp.matmul(self.cost_1, self.cost_2.T) + self.bias
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self._cost_1.shape[0], self._cost_2.shape[0]
 
   @property
@@ -98,7 +99,7 @@ class LRCGeometry(geometry.Geometry):
     return (n == m) and jnp.all(self._cost_1 == self._cost_2)
 
   @property
-  def inv_scale_cost(self) -> jnp.ndarray:  # noqa: D102
+  def inv_scale_cost(self) -> jax.Array:  # noqa: D102
     if self._scale_cost == "max_bound":
       x_norm = self._cost_1[:, 0].max()
       y_norm = self._cost_2[:, 1].max()
@@ -117,12 +118,12 @@ class LRCGeometry(geometry.Geometry):
     raise ValueError(f"Scaling {self._scale_cost} not implemented.")
 
   @property
-  def diag_cost(self) -> jnp.ndarray:
+  def diag_cost(self) -> jax.Array:
     """Diagonal of the cost matrix."""
     assert self.is_square, "Diagonal cost only available for square geometries."
     return jnp.sum(self._cost_1 * self._cost_2, axis=-1)
 
-  def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+  def apply_square_cost(self, arr: jax.Array, axis: int = 0) -> jax.Array:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""
     (n, m), r = self.shape, self.cost_rank
     # When applying square of a LRCGeometry, one can either elementwise square
@@ -140,15 +141,15 @@ class LRCGeometry(geometry.Geometry):
 
   def _apply_cost_to_vec(
       self,
-      vec: jnp.ndarray,
+      vec: jax.Array,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
+      fn: Callable[[jax.Array], jax.Array] | None = None,
       is_linear: bool = False,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     """Apply [num_a, num_b] fn(cost) (or transpose) to vector.
 
     Args:
-      vec: jnp.ndarray [num_a,] ([num_b,] if axis=1) vector
+      vec: jax.Array [num_a,] ([num_b,] if axis=1) vector
       axis: axis on which the reduction is done.
       fn: function optionally applied to cost matrix element-wise, before the
         doc product
@@ -156,7 +157,7 @@ class LRCGeometry(geometry.Geometry):
         implementation.
 
     Returns:
-      A jnp.ndarray corresponding to cost x vector
+      A jax.Array corresponding to cost x vector
     """
     if fn is None or is_linear:
       return self._apply_cost_to_vec_fast(vec, axis, fn=fn)
@@ -164,10 +165,10 @@ class LRCGeometry(geometry.Geometry):
 
   def _apply_cost_to_vec_fast(
       self,
-      vec: jnp.ndarray,
+      vec: jax.Array,
       axis: int = 0,
-      fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]] = None,
-  ) -> jnp.ndarray:
+      fn: Callable[[jax.Array], jax.Array] | None = None,
+  ) -> jax.Array:
     c1, c2 = (self.cost_1,
               self.cost_2) if axis == 1 else (self.cost_2, self.cost_1)
     bias = self.bias
@@ -177,7 +178,7 @@ class LRCGeometry(geometry.Geometry):
     return out + bias * jnp.sum(vec) * jnp.ones_like(out)
 
   @property
-  def _max_cost_matrix(self) -> jnp.ndarray:
+  def _max_cost_matrix(self) -> jax.Array:
     fn = utils.batched_vmap(
         lambda c1, c2: jnp.max(c1 @ c2.T), batch_size=1024, in_axes=(0, None)
     )
@@ -187,7 +188,7 @@ class LRCGeometry(geometry.Geometry):
       self,
       rank: int = 0,
       tol: float = 1e-2,
-      rng: Optional[jax.Array] = None,
+      rng: jax.Array | None = None,
       scale: float = 1.0,
   ) -> "LRCGeometry":
     """Return self."""
@@ -256,9 +257,9 @@ class LRKGeometry(geometry.Geometry):
 
   def __init__(
       self,
-      k1: jnp.ndarray,
-      k2: jnp.ndarray,
-      epsilon: Optional[float] = None,
+      k1: jax.Array,
+      k2: jax.Array,
+      epsilon: float | None = None,
       **kwargs: Any
   ):
     super().__init__(epsilon=epsilon, relative_epsilon=None, **kwargs)
@@ -268,14 +269,14 @@ class LRKGeometry(geometry.Geometry):
   @classmethod
   def from_pointcloud(
       cls,
-      x: jnp.ndarray,
-      y: jnp.ndarray,
+      x: jax.Array,
+      y: jax.Array,
       *,
       kernel: Literal["gaussian", "arccos"],
       rank: int = 100,
       std: float = 1.0,
       n: int = 1,
-      rng: Optional[jax.Array] = None
+      rng: jax.Array | None = None
   ) -> "LRKGeometry":
     r"""Low-rank kernel approximation :cite:`scetbon:20`.
 
@@ -316,20 +317,20 @@ class LRKGeometry(geometry.Geometry):
 
   def apply_kernel(  # noqa: D102
       self,
-      vec: jnp.ndarray,
-      eps: Optional[float] = None,
+      vec: jax.Array,
+      eps: float | None = None,
       axis: int = 0,
-  ) -> jnp.ndarray:
+  ) -> jax.Array:
     if axis == 0:
       return self.k2 @ (self.k1.T @ vec)
     return self.k1 @ (self.k2.T @ vec)
 
   @property
-  def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def kernel_matrix(self) -> jax.Array:  # noqa: D102
     return self.k1 @ self.k2.T
 
   @property
-  def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+  def cost_matrix(self) -> jax.Array:  # noqa: D102
     eps = jnp.finfo(self.dtype).tiny
     return -self.epsilon * jnp.log(self.kernel_matrix + eps)
 
@@ -338,16 +339,14 @@ class LRKGeometry(geometry.Geometry):
     return self.k1.shape[1]
 
   @property
-  def shape(self) -> Tuple[int, int]:  # noqa: D102
+  def shape(self) -> tuple[int, int]:  # noqa: D102
     return self.k1.shape[0], self.k2.shape[0]
 
   @property
   def dtype(self) -> jnp.dtype:  # noqa: D102
     return self.k1.dtype
 
-  def transport_from_potentials(
-      self, f: jnp.ndarray, g: jnp.ndarray
-  ) -> jnp.ndarray:
+  def transport_from_potentials(self, f: jax.Array, g: jax.Array) -> jax.Array:
     """Not implemented."""
     raise ValueError("Not implemented.")
 
@@ -361,11 +360,11 @@ class LRKGeometry(geometry.Geometry):
 
 def _gaussian_kernel(
     rng: jax.Array,
-    x: jnp.ndarray,
+    x: jax.Array,
     n_features: int,
     eps: float,
-    R: jnp.ndarray,
-) -> jnp.ndarray:
+    R: jax.Array,
+) -> jax.Array:
   _, d = x.shape
   cost_fn = costs.SqEuclidean()
 
@@ -385,12 +384,12 @@ def _gaussian_kernel(
 
 def _arccos_kernel(
     rng: jax.Array,
-    x: jnp.ndarray,
+    x: jax.Array,
     n_features: int,
     n: int,
     std: float = 1.0,
     kappa: float = 1e-6,
-) -> jnp.ndarray:
+) -> jax.Array:
   n_points, d = x.shape
   c = jnp.sqrt(2) * (std ** (d / 2))
 

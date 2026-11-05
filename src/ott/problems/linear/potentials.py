@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import jax
 import jax.numpy as jnp
@@ -45,11 +46,11 @@ class DualPotentials:
     g: The second dual potential function.
     cost_fn: The cost function used to solve the OT problem.
   """
-  f: Optional[PotentialFn]
-  g: Optional[PotentialFn]
+  f: PotentialFn | None
+  g: PotentialFn | None
   cost_fn: costs.CostFn
 
-  def transport(self, vec: jnp.ndarray, forward: bool = True) -> jnp.ndarray:
+  def transport(self, vec: jax.Array, forward: bool = True) -> jax.Array:
     r"""Transport ``vec`` according to Gangbo-McCann Brenier :cite:`brenier:91`.
 
     Uses Proposition 1.15 from :cite:`santambrogio:15` to compute an OT map when
@@ -83,7 +84,7 @@ class DualPotentials:
       return twist_op(vec, self._grad_f(vec), False)
     return twist_op(vec, self._grad_g(vec), True)
 
-  def distance(self, src: jnp.ndarray, tgt: jnp.ndarray) -> float:
+  def distance(self, src: jax.Array, tgt: jax.Array) -> float:
     r"""Evaluate Wasserstein distance between samples using dual potentials.
 
     This uses direct estimation of potentials against measures when dual
@@ -102,27 +103,27 @@ class DualPotentials:
     return jnp.mean(f(src)) + jnp.mean(g(tgt))
 
   @property
-  def _grad_f(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  def _grad_f(self) -> Callable[[jax.Array], jax.Array]:
     """Vectorized gradient of the potential function :attr:`f`."""
     assert self.f is not None, "The `f` potential is not computed."
     return jax.vmap(jax.grad(self.f, argnums=0))
 
   @property
-  def _grad_g(self) -> Callable[[jnp.ndarray], jnp.ndarray]:
+  def _grad_g(self) -> Callable[[jax.Array], jax.Array]:
     """Vectorized gradient of the potential function :attr:`g`."""
     assert self.g is not None, "The `g` potential is not computed."
     return jax.vmap(jax.grad(self.g, argnums=0))
 
   def plot_ot_map(
       self,
-      source: jnp.ndarray,
-      target: jnp.ndarray,
-      samples: Optional[jnp.ndarray] = None,
+      source: jax.Array,
+      target: jax.Array,
+      samples: jax.Array | None = None,
       forward: bool = True,
-      ax: Optional["plt.Axes"] = None,
-      scatter_kwargs: Optional[Dict[str, Any]] = None,
-      legend_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple["plt.Figure", "plt.Axes"]:
+      ax: "plt.Axes | None" = None,
+      scatter_kwargs: dict[str, Any] | None = None,
+      legend_kwargs: dict[str, Any] | None = None,
+  ) -> tuple["plt.Figure", "plt.Axes"]:
     """Plot data and learned optimal transport map.
 
     Args:
@@ -211,12 +212,12 @@ class DualPotentials:
       forward: bool = True,
       quantile: float = 0.05,
       kantorovich: bool = True,
-      ax: Optional["mpl.axes.Axes"] = None,
-      x_bounds: Tuple[float, float] = (-6, 6),
-      y_bounds: Tuple[float, float] = (-6, 6),
+      ax: "mpl.axes.Axes | None" = None,
+      x_bounds: tuple[float, float] = (-6, 6),
+      y_bounds: tuple[float, float] = (-6, 6),
       num_grid: int = 50,
-      contourf_kwargs: Optional[Dict[str, Any]] = None,
-  ) -> Tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
+      contourf_kwargs: dict[str, Any] | None = None,
+  ) -> tuple["mpl.figure.Figure", "mpl.axes.Axes"]:
     r"""Plot the potential.
 
     Args:

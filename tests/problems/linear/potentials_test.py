@@ -242,11 +242,11 @@ class TestDualPotentials:
       self, rng: jax.Array, reg: regularizers.ProximalOperator
   ):
 
-    def proj(matrix: jnp.ndarray) -> jnp.ndarray:
+    def proj(matrix: jax.Array) -> jax.Array:
       u, _, v_h = jnp.linalg.svd(matrix, full_matrices=False)
       return u.dot(v_h)
 
-    def create_cost(A: jnp.ndarray) -> costs.RegTICost:
+    def create_cost(A: jax.Array) -> costs.RegTICost:
       A = lx.MatrixLinearOperator(A)
       orth = regularizers.Orthogonal(reg, A=A)
       return costs.RegTICost(orth, lam=1.0)

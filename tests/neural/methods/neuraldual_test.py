@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Sequence, Tuple
+from collections.abc import Sequence
 
 import pytest
 
@@ -25,12 +25,12 @@ from ott.neural.methods import neuraldual
 from ott.neural.networks import icnn, potentials
 from ott.neural.networks.layers import conjugate
 
-ModelPair_t = Tuple[nnx.Module, nnx.Module]
-DatasetPair_t = Tuple[datasets.Dataset, datasets.Dataset]
+ModelPair_t = tuple[nnx.Module, nnx.Module]
+DatasetPair_t = tuple[datasets.Dataset, datasets.Dataset]
 
 
 @pytest.fixture(params=[("simple", "circle")])
-def ds(rng: jax.Array, request: Tuple[str, str]) -> DatasetPair_t:
+def ds(rng: jax.Array, request: tuple[str, str]) -> DatasetPair_t:
   train_dataset, valid_dataset, _ = datasets.create_gaussian_mixture_samplers(
       request.param[0],
       request.param[1],
@@ -76,7 +76,7 @@ class TestNeuralDual:
       neural_models: ModelPair_t,
       back_and_forth: bool,
       amortization_loss: str,
-      conjugate_solver: Optional[conjugate.FenchelConjugateSolver],
+      conjugate_solver: conjugate.FenchelConjugateSolver | None,
   ):
     """Tests convergence of learning the Kantorovich dual using ICNNs."""
 

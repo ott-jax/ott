@@ -15,7 +15,6 @@
 import pytest
 
 import jax
-import jax.numpy as jnp
 
 from flax import linen as nn
 
@@ -30,7 +29,7 @@ class MetaMLP(nn.Module):
   num_hidden_layers: int = 3
 
   @nn.compact
-  def __call__(self, z: jnp.ndarray) -> jnp.ndarray:
+  def __call__(self, z: jax.Array) -> jax.Array:
     for _ in range(self.num_hidden_layers):
       z = nn.relu(nn.Dense(self.num_hidden_units)(z))
     return nn.Dense(self.potential_size)(z)

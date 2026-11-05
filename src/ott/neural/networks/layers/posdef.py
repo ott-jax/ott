@@ -13,7 +13,7 @@
 # limitations under the License.
 """Positive-weight dense layer for input convex neural networks."""
 
-from typing import Callable, Optional
+from collections.abc import Callable
 
 import jax
 import jax.numpy as jnp
@@ -80,8 +80,7 @@ class PositiveDense(nnx.Module):
       in_features: int,
       out_features: int,
       *,
-      rectifier_fn: Optional[Callable[[jax.Array],
-                                      jax.Array]] = jax.nn.softplus,
+      rectifier_fn: Callable[[jax.Array], jax.Array] | None = jax.nn.softplus,
       use_softmax: bool = False,
       use_sinkhorn: bool = False,
       use_bias: bool = True,
