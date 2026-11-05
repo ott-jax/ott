@@ -172,6 +172,7 @@ softmax
 softplus
 stateful
 sublinear
+submodular
 submodule
 submodules
 suboptimal
