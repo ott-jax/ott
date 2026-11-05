@@ -190,9 +190,19 @@ class LRCGeometry(geometry.Geometry):
       rng: Optional[jax.Array] = None,
       scale: float = 1.0,
   ) -> "LRCGeometry":
-    """Return self."""
-    del rank, tol, rng, scale
-    return self
+    """Return self, rescaled by ``scale``."""
+    del rank, tol, rng
+    if isinstance(scale, (int, float)) and scale == 1.0:
+      return self
+    scale = scale * self.inv_scale_cost
+    return LRCGeometry(
+        cost_1=self._cost_1,
+        cost_2=self._cost_2,
+        bias=scale * self._bias,
+        scale_factor=scale * self._scale_factor,
+        epsilon=self._epsilon_init,
+        relative_epsilon=self._relative_epsilon,
+    )
 
   @property
   def can_LRC(self):  # noqa: D102
