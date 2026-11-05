@@ -28,6 +28,23 @@ from ott.tools import soft_sort
 
 class TestSoftSort:
 
+  @pytest.mark.fast()
+  @pytest.mark.parametrize("shape", [(1,), (3, 1)])
+  def test_sort_singleton_axis(self, shape: Tuple[int, ...]):
+    x = jnp.arange(np.prod(shape), dtype=float).reshape(shape) + 2.0
+    sort_fn = lambda x: soft_sort.sort(x, axis=-1)
+    np.testing.assert_allclose(sort_fn(x), x, rtol=1e-6)
+    np.testing.assert_allclose(
+        jax.grad(lambda x: sort_fn(x).sum())(x), 1.0, rtol=1e-6
+    )
+
+  @pytest.mark.fast()
+  def test_single_target_quantization(self):
+    x = jnp.array([1.0, 2.0, 6.0])
+    np.testing.assert_allclose(
+        soft_sort.quantize(x, num_levels=1), 3.0, rtol=1e-4
+    )
+
   @pytest.mark.parametrize("shape", [(20,), (20, 1)])
   def test_sort_one_array(self, rng: jax.Array, shape: Tuple[int, ...]):
     x = jr.uniform(rng, shape)
