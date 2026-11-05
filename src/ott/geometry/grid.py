@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 import itertools
 from typing import Any, Callable, List, NoReturn, Optional, Sequence, Tuple
 
@@ -18,8 +19,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from ott import utils
 from ott.geometry import costs, geometry, low_rank, pointcloud
-from ott.math import utils
+from ott.math import utils as mu
 
 __all__ = ["Grid"]
 
@@ -200,12 +202,12 @@ class Grid(geometry.Geometry):
 
     if vec is not None:
       vec = jnp.transpose(vec, indices)
-      softmax_res, softmax_sgn = utils.logsumexp(
+      softmax_res, softmax_sgn = mu.logsumexp(
           centered_cost, b=vec, axis=1, return_sign=True
       )
       return eps * jnp.transpose(softmax_res,
                                  indices), jnp.transpose(softmax_sgn, indices)
-    softmax_res = eps * utils.logsumexp(centered_cost, axis=1)
+    softmax_res = eps * mu.logsumexp(centered_cost, axis=1)
     return jnp.transpose(softmax_res, indices), None
 
   def _apply_cost_to_vec(
@@ -237,13 +239,15 @@ class Grid(geometry.Geometry):
       axis: axis 0 if applying transpose costs, 1 if using the original cost.
       fn: function optionally applied to cost matrix element-wise, before the
         dot product.
-      is_linear: TODO.
+      is_linear: Whether ``fn`` is linear.
 
     Returns:
       A jnp.ndarray corresponding to cost x matrix
     """
-    # TODO(michalk8):
-    del fn, is_linear
+    if fn is not None and is_linear:
+      return fn(self._apply_cost_to_vec(vec, axis=axis))
+    if fn is not None:
+      return self._apply_fn_cost_to_vec(vec, axis=axis, fn=fn)
     vec = jnp.reshape(vec, self.grid_size)
     accum_vec = jnp.zeros_like(vec)
     indices = list(range(1, self.grid_dimension))
@@ -259,6 +263,29 @@ class Grid(geometry.Geometry):
           keepdims=True
       ).transpose(ind)
     return accum_vec.ravel()
+
+  def _apply_fn_cost_to_vec(
+      self,
+      vec: jnp.ndarray,
+      axis: int,
+      fn: Callable[[jnp.ndarray], jnp.ndarray],
+  ) -> jnp.ndarray:
+    """Apply ``fn(cost)`` to a vector, computing the cost row by row."""
+    cost_matrices = [
+        geom.cost_matrix.T if axis == 0 else geom.cost_matrix
+        for geom in self.geometries
+    ]
+    vec = jnp.reshape(vec, self.grid_size)
+
+    def apply_row(ix: jnp.ndarray) -> jnp.ndarray:
+      # a row of the cost is the outer sum of the rows of the slices' costs
+      ixs = jnp.unravel_index(ix, self.grid_size)
+      rows = [cost[i] for cost, i in zip(cost_matrices, ixs, strict=True)]
+      return jnp.vdot(fn(functools.reduce(jnp.add.outer, rows)), vec)
+
+    batch_size = max(1, 2 ** 22 // vec.size)  # ~4M cost entries per batch
+    apply_rows = utils.batched_vmap(apply_row, batch_size=batch_size)
+    return apply_rows(jnp.arange(vec.size))
 
   def apply_kernel(
       self,
