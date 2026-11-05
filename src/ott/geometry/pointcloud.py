@@ -431,6 +431,8 @@ class PointCloud(geometry.Geometry):
   @property
   def _check_LRC_dim(self):
     (n, m), d = self.shape, self.x.shape[1]
+    # the squared Euclidean factors have 2 more columns than the points
+    d += 2 * self.is_squared_euclidean
     return n * m > (n + m) * d
 
   @property
