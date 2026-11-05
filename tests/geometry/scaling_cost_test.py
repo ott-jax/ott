@@ -213,6 +213,29 @@ class TestScaleCost:
     if scale == "max_cost":
       np.testing.assert_allclose(1.0, geom.cost_matrix.max(), rtol=1e-4)
 
+  @pytest.mark.fast()
+  def test_std_scale_cost_pointcloud(self, data: ScaleCostData):
+    """``scale_cost='std'`` divides the point-cloud cost by its std."""
+    pc = pointcloud.PointCloud(
+        data.x, data.x, epsilon=None, relative_epsilon=None, scale_cost="std"
+    )
+    np.testing.assert_allclose(jnp.std(pc.cost_matrix), 1.0, rtol=1e-5)
+
+  @pytest.mark.fast()
+  def test_std_scale_cost_geometry(self, data: ScaleCostData):
+    """``scale_cost='std'`` divides a geometry cost matrix by its std."""
+    geom = geometry.Geometry(data.cost, epsilon=EPS, scale_cost="std")
+    np.testing.assert_allclose(jnp.std(geom.cost_matrix), 1.0, rtol=1e-5)
+
+  @pytest.mark.fast()
+  def test_std_scale_cost_online_not_implemented(self, data: ScaleCostData):
+    """Online point clouds do not materialize a matrix to estimate std."""
+    pc = pointcloud.PointCloud(
+        data.x, data.y, epsilon=EPS, scale_cost="std", batch_size=4
+    )
+    with pytest.raises(NotImplementedError, match="standard deviation"):
+      _ = pc.inv_scale_cost
+
   def test_max_scale_cost_low_rank_large_array(self, rng: jax.Array):
     """Test max_cost options for large matrices."""
 
