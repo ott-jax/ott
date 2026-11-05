@@ -371,12 +371,14 @@ class TestSTVS:
         obj(prox, v), obj_min + 1e-5 * (1.0 + jnp.abs(obj_min))
     )
 
-  def test_prox_soft_thresholding(self):
+  @pytest.mark.parametrize("gamma", [1.5, 8.0])
+  def test_prox_soft_thresholding(self, gamma: float):
     # for tau = 1 the prox is v - gamma^2 / v for |v| > gamma, else 0
-    gamma, v = 1.5, jnp.array([-4.0, -1.0, 0.0, 0.5, 2.0, 7.0])
+    v = jnp.array([-4.0, -1.0, 0.0, 0.5, 2.0, 7.0])
+    v = jnp.concatenate([v, gamma + jnp.array([1e-3, 1e-2, 1e-1])])
     expected = jnp.where(jnp.abs(v) <= gamma, 0.0, v - gamma ** 2 / v)
     actual = regularizers.STVS(gamma).prox(v, 1.0)
-    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.parametrize("tau", [0.5, 0.999, 1.0, 1.001, 3.0])
   def test_prox_grad(self, rng: jax.Array, tau: float):

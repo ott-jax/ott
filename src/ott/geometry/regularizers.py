@@ -424,6 +424,8 @@ class STVS(ProximalOperator):
     cands = jnp.where(jnp.isfinite(cands) & (cands >= 0.0), cands, 0.0)
     obj = self._elementwise(cands) + (cands - av) ** 2 / (2.0 * tau)
     best = jnp.take_along_axis(cands, jnp.argmin(obj, axis=0)[None], axis=0)[0]
+    # for tau <= 2 the objective is convex, so 0 is optimal iff |v| <= tau gamma
+    best = jnp.where(tau <= 2.0, jnp.where(av <= tau * gamma, 0.0, y2), best)
     return jnp.sign(v) * best
 
   def tree_flatten(self):  # noqa: D102
