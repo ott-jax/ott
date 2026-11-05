@@ -412,14 +412,15 @@ class STVS(ProximalOperator):
     gamma = self.gamma
     av = jnp.abs(v)
     a = 1.0 - 0.5 * tau
-    sq = jnp.sqrt(jnp.maximum(0.25 * av ** 2 + (1.0 - tau) * gamma ** 2, 0.0))
-    den = a * av + tau * sq
-    # the root that stays finite at tau = 1, written without cancellation
-    y1 = (av ** 2 - (tau * gamma) ** 2) / jnp.where(den == 0.0, 1.0, den)
+    disc = 0.25 * av ** 2 + (1.0 - tau) * gamma ** 2
+    # double `where` to avoid NaN gradients of `sqrt` at 0
+    sq = jnp.where(disc > 0.0, jnp.sqrt(jnp.where(disc > 0.0, disc, 1.0)), 0.0)
+    # the roots, written without cancellation
+    q = a * av + jnp.where(a >= 0.0, 1.0, -1.0) * tau * sq
     one_minus_tau = jnp.where(tau == 1.0, 1.0, 1.0 - tau)
-    y2 = (a * av + tau * sq) / one_minus_tau
-    y3 = (a * av - tau * sq) / one_minus_tau
-    cands = jnp.stack([jnp.zeros_like(av), y1, y2, y3])
+    y1 = jnp.where(tau == 1.0, -1.0, q / one_minus_tau)
+    y2 = (av ** 2 - (tau * gamma) ** 2) / jnp.where(q == 0.0, 1.0, q)
+    cands = jnp.stack([jnp.zeros_like(av), y1, y2])
     cands = jnp.where(jnp.isfinite(cands) & (cands >= 0.0), cands, 0.0)
     obj = self._elementwise(cands) + (cands - av) ** 2 / (2.0 * tau)
     best = jnp.take_along_axis(cands, jnp.argmin(obj, axis=0)[None], axis=0)[0]
