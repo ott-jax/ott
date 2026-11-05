@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Callable, Optional
+
 import pytest
 
 import jax
@@ -120,7 +122,14 @@ class TestSinkhornGrid:
     np.testing.assert_array_equal(jnp.isnan(mat_transport_t_vec_a), False)
 
   @pytest.mark.fast()
-  def test_apply_cost(self, rng: jax.Array):
+  @pytest.mark.parametrize(("fn", "is_linear"), [(None, False),
+                                                 (lambda c: 2.0 * c, True),
+                                                 (lambda c: c ** 2, False)],
+                           ids=["none", "linear", "square"])
+  def test_apply_cost(
+      self, rng: jax.Array, fn: Optional[Callable[[jnp.ndarray], jnp.ndarray]],
+      is_linear: bool
+  ):
     grid_size = (5, 6, 7)
 
     geom_grid = grid.Grid(grid_size=grid_size, epsilon=0.1)
@@ -133,16 +142,19 @@ class TestSinkhornGrid:
     geom_mat = pointcloud.PointCloud(xyz, xyz, epsilon=0.1)
 
     vec = jr.uniform(rng, grid_size).ravel()
+    cost_matrix = geom_mat.cost_matrix
+    if fn is not None:
+      cost_matrix = fn(cost_matrix)
     np.testing.assert_allclose(
-        geom_mat.apply_cost(vec),
-        geom_grid.apply_cost(vec),
+        geom_mat.apply_cost(vec, fn=fn, is_linear=is_linear),
+        geom_grid.apply_cost(vec, fn=fn, is_linear=is_linear),
         rtol=1e-4,
         atol=1e-4
     )
 
     np.testing.assert_allclose(
-        geom_grid.apply_cost(vec),
-        np.dot(geom_mat.cost_matrix.T, vec),
+        geom_grid.apply_cost(vec, fn=fn, is_linear=is_linear),
+        np.dot(cost_matrix.T, vec),
         rtol=1e-4,
         atol=1e-4
     )
