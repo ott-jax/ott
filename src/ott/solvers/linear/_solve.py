@@ -84,7 +84,9 @@ def solve_univariate(
 
   Args:
     geom: Geometry containing two :math:`d`-dimensional point clouds and
-      a ground :class:`translation-invariant cost <ott.geometry.costs.TICost>`.
+      a ground :class:`translation-invariant cost <ott.geometry.costs.TICost>`
+      :math:`c(x, y) = h(x - y)`. The function :math:`h` must be convex,
+      otherwise the solution is not necessarily optimal.
     a: The first marginal. If :obj:`None`, it will be uniform.
     b: The second marginal. If :obj:`None`, it will be uniform.
     return_transport: Whether to also return the mapped pairs used to compute
