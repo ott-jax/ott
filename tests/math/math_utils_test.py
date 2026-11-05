@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+from typing import Optional
 
 import pytest
 
@@ -24,6 +25,26 @@ from ott.math import utils as mu
 
 
 class TestNorm:
+
+  @pytest.mark.fast()
+  @pytest.mark.parametrize("keepdims", [False, True])
+  @pytest.mark.parametrize("axis", [None, 1])
+  def test_zero_slice_jvp(self, axis: Optional[int], keepdims: bool):
+    if axis is None:
+      x, expected_grad = jnp.zeros(3), jnp.zeros(3)
+    else:
+      x = jnp.array([[0.0, 0.0], [3.0, 4.0]])
+      expected_grad = jnp.array([[0.0, 0.0], [0.6, 0.8]])
+    fun = lambda x: mu.norm(x, axis=axis, keepdims=keepdims)
+
+    value, tangent = jax.jvp(fun, (x,), (jnp.ones_like(x),))
+    expected_value = jnp.linalg.norm(x, axis=axis, keepdims=keepdims)
+    expected_tangent = expected_grad.sum(axis=axis, keepdims=keepdims)
+    np.testing.assert_allclose(value, expected_value, rtol=1e-6)
+    np.testing.assert_allclose(tangent, expected_tangent, rtol=1e-6)
+    np.testing.assert_allclose(
+        jax.grad(lambda x: fun(x).sum())(x), expected_grad, rtol=1e-6
+    )
 
   @pytest.mark.parametrize("ord", [1.1, 2.0, jnp.inf])
   def test_norm(

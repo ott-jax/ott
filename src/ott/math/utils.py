@@ -46,7 +46,6 @@ def safe_log(  # noqa: D103
   return jnp.where(x > 0.0, jnp.log(x), jnp.log(eps))
 
 
-@functools.partial(jax.custom_jvp, nondiff_argnames=("ord", "axis", "keepdims"))
 @functools.partial(jax.jit, static_argnames=("ord", "axis", "keepdims"))
 def norm(
     x: jnp.ndarray,
@@ -91,20 +90,12 @@ def norm(
   Returns:
     float or ndarray, Norm of the matrix or vector(s).
   """
-  return jnp.linalg.norm(x, ord=ord, axis=axis, keepdims=keepdims)
-
-
-@norm.defjvp
-def norm_jvp(ord, axis, keepdims, primals, tangents):
-  """Custom_jvp for norm, that returns 0.0 when evaluated at 0."""
-  x, = primals
-  x_is_zero = jnp.all(jnp.logical_not(x))
-  clean_x = jnp.where(x_is_zero, jnp.ones_like(x), x)
-  primals, tangents = jax.jvp(
-      functools.partial(jnp.linalg.norm, ord=ord, axis=axis, keepdims=keepdims),
-      (clean_x,), tangents
+  is_zero = jnp.all(x == 0.0, axis=axis, keepdims=True)
+  out = jnp.linalg.norm(
+      jnp.where(is_zero, 1.0, x), ord=ord, axis=axis, keepdims=True
   )
-  return primals, jnp.where(x_is_zero, 0.0, tangents)
+  out = jnp.where(is_zero, 0.0, out)
+  return out if keepdims else jnp.squeeze(out, axis=axis)
 
 
 # TODO(michalk8): add axis argument
