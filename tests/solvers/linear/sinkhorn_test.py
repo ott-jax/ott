@@ -27,7 +27,14 @@ import numpy as np
 import scipy as sp
 
 from ott import utils
-from ott.geometry import costs, epsilon_scheduler, geometry, grid, pointcloud
+from ott.geometry import (
+    costs,
+    epsilon_scheduler,
+    geometry,
+    grid,
+    low_rank,
+    pointcloud,
+)
 from ott.problems.linear import linear_problem
 from ott.solvers import linear
 from ott.solvers.linear import acceleration, sinkhorn
@@ -53,6 +60,18 @@ class TestSinkhorn:
       out = linear.solve(g)
       np.testing.assert_array_less(.99, jnp.sum(out.diag))
       np.testing.assert_array_less(jnp.sum(out.diag), 1.0)
+
+  def test_primal_cost_low_rank_bias(self, clouds: _utils.PointClouds):
+    geom = pointcloud.PointCloud(clouds.x, clouds.y).to_LRCGeometry()
+    geom = low_rank.LRCGeometry(geom.cost_1, geom.cost_2, bias=5.0)
+    out = linear.solve(geom, a=clouds.a, b=clouds.b)
+
+    np.testing.assert_allclose(
+        out.primal_cost,
+        jnp.sum(out.matrix * geom.cost_matrix),
+        rtol=1e-5,
+        atol=1e-5
+    )
 
   def test_SqEucl_matches_hungarian(
       self, clouds: _utils.PointClouds, rng: jax.Array
