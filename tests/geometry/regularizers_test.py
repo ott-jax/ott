@@ -331,6 +331,7 @@ class TestSqKOverlap:
         l2.prox(x), sq_kovp.prox(x), rtol=1e-5, atol=1e-5
     )
 
+  @pytest.mark.usefixtures("enable_x64")
   @pytest.mark.parametrize("tau", [0.3, 1.0, 2.0])
   @pytest.mark.parametrize(("d", "k"), [(6, 2), (6, 3), (8, 5)])
   def test_prox_is_minimiser(self, rng: jax.Array, d: int, k: int, tau: float):
@@ -339,9 +340,10 @@ class TestSqKOverlap:
     obj = lambda y, x: reg(y) + jnp.sum((y - x) ** 2) / (2.0 * tau)
 
     for x in jr.normal(rng_x, (8, d)) * 2.0:
+      rng_dx, rng_i = jr.split(rng_dx)
       prox = reg.prox(x, tau)
       # the objective is strongly convex: the prox must beat all other points
-      dys = jr.normal(rng_dx, (256, d)) * jnp.logspace(-3, 0, 256)[:, None]
+      dys = jr.normal(rng_i, (256, d)) * jnp.logspace(-3, 0, 256)[:, None]
       others = jax.vmap(obj, in_axes=(0, None))(prox + dys, x)
       assert jnp.all(others >= obj(prox, x) - 1e-9)
 
@@ -375,3 +377,21 @@ class TestSTVS:
     expected = jnp.where(jnp.abs(v) <= gamma, 0.0, v - gamma ** 2 / v)
     actual = regularizers.STVS(gamma).prox(v, 1.0)
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+  @pytest.mark.parametrize("tau", [0.5, 0.999, 1.0, 1.001, 3.0])
+  def test_prox_grad(self, rng: jax.Array, tau: float):
+    reg = regularizers.STVS(gamma=1.0)
+    v = jr.normal(rng, (64,)) * 3.0
+    y = reg.prox(v, tau)
+
+    grad_fn = jax.vmap(jax.grad(reg.prox, argnums=(0, 1)), in_axes=(0, None))
+    grad_v, grad_tau = grad_fn(v, tau)
+
+    # implicit differentiation of the optimality condition y - v + tau f'(y) = 0
+    df = jax.vmap(jax.grad(reg._elementwise))(y)
+    d2f = jax.vmap(jax.grad(jax.grad(reg._elementwise)))(y)
+    expected_v = jnp.where(y != 0.0, 1.0 / (1.0 + tau * d2f), 0.0)
+    expected_tau = jnp.where(y != 0.0, -df / (1.0 + tau * d2f), 0.0)
+
+    np.testing.assert_allclose(grad_v, expected_v, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(grad_tau, expected_tau, rtol=1e-4, atol=1e-4)
