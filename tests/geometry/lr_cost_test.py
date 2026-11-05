@@ -220,12 +220,7 @@ class TestLRGeometry:
     geom_pc = pointcloud.PointCloud(x, y)
     geom_lr = geom_pc.to_LRCGeometry(scale=scale)
 
-    if n * m > (n + m) * rank:
-      assert isinstance(geom_lr, low_rank.LRCGeometry)
-    else:
-      # TODO(michalk8): scale is currently ignored by design,
-      # will be changed in the future
-      assert geom_lr is geom_pc
+    assert isinstance(geom_lr, low_rank.LRCGeometry)
 
 
 class TestCostMatrixFactorization:

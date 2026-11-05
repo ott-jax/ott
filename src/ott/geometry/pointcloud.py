@@ -266,35 +266,32 @@ class PointCloud(geometry.Geometry):
 
   def to_LRCGeometry(
       self,
+      rank: int = 0,
+      tol: float = 1e-2,
+      rng: Optional[jax.Array] = None,
       scale: float = 1.0,
-      **kwargs: Any,
-  ) -> Union[low_rank.LRCGeometry, "PointCloud"]:
+  ) -> low_rank.LRCGeometry:
     r"""Convert point cloud to low-rank geometry.
 
+    The squared Euclidean and the negative dot-product costs are factorized
+    exactly, ignoring ``rank``, ``tol`` and ``rng``. Other costs are factorized
+    using :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`.
+
     Args:
+      rank: Target rank of the :attr:`cost_matrix`.
+      tol: Tolerance of the error.
+      rng: The PRNG key used for the factorization.
       scale: Value used to rescale the factors of the low-rank geometry.
         Useful when this geometry is used in the linear term of fused GW.
-      kwargs: Keyword arguments, such as ``rank``, to
-        :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
-        the point cloud does not have squared Euclidean cost.
 
     Returns:
-      Returns the unmodified point cloud if :math:`n m \ge (n + m) d`, where
-      :math:`n, m` is the shape and :math:`d` is the dimension of the point
-      cloud with squared Euclidean cost.
-      Otherwise, returns the re-scaled low-rank geometry.
+      Low-rank geometry.
     """
     if self.is_squared_euclidean:
-      if self._check_LRC_dim:
-        return self._sqeucl_to_lr(scale)
-      # we don't update the `scale_factor` because in GW, the linear cost
-      # is first materialized and then scaled by `fused_penalty` afterwards
-      return self
+      return self._sqeucl_to_lr(scale)
     if self.is_neg_dotp:
-      if self._check_LRC_dim:
-        return self._dotp_to_lr(scale)
-      return self
-    return super().to_LRCGeometry(scale=scale, **kwargs)
+      return self._dotp_to_lr(scale)
+    return super().to_LRCGeometry(rank=rank, tol=tol, rng=rng, scale=scale)
 
   def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
     assert self.is_squared_euclidean, "Geometry must be squared Euclidean."
