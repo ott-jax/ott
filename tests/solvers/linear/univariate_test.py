@@ -271,10 +271,11 @@ class TestUnivariate:
         out.ot_costs, out.dual_costs, atol=1e-2, rtol=1e-2
     )
 
-    # check dual variables are feasible on locations that matter
-    # (with positive weights).
-    mask = (a > 0)[:, None] * (b > 0)[None, :]
-    min_val = jnp.min(
-        mask[None] * (geom.cost_matrix - f[:, :, None] - g[:, None, :])
-    )
+    @functools.partial(jax.vmap, in_axes=[1, 1])
+    def cost_matrix(x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+      geom = pointcloud.PointCloud(x[:, None], y[:, None], cost_fn=cost_fn)
+      return geom.cost_matrix
+
+    # check dual variables are feasible, in each slice
+    min_val = jnp.min(cost_matrix(x, y) - f[:, :, None] - g[:, None, :])
     np.testing.assert_allclose(min_val, 0, atol=1e-5)

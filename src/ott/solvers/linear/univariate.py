@@ -96,7 +96,7 @@ def uniform_solver(
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      of shapes ``[n, d]`` and ``[n, d]`` and a ground cost.
+      of shapes ``[n, d]`` and ``[n, d]`` and a submodular ground cost.
       The ``[n,]`` sized probability weights are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
       and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
@@ -149,7 +149,7 @@ def quantile_solver(
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      of shapes ``[n, d]`` and ``[m, d]`` and a ground cost.
+      of shapes ``[n, d]`` and ``[m, d]`` and a submodular ground cost.
       The ``[n,]`` and ``[m,]`` sized probability weights vectors are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
       and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
@@ -228,7 +228,7 @@ def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
 
   Args:
     prob: Problem with two :class:`point clouds <ott.geometry.pointcloud.PointCloud>`
-      of shapes ``[n, d]`` and ``[m, d]`` and a ground cost.
+      of shapes ``[n, d]`` and ``[m, d]`` and a submodular ground cost.
       The ``[n,]`` and ``[m,]`` sized probability weights are stored
       in attributes :attr:`~ott.problems.linear.linear_problem.LinearProblem.a`
       and :attr:`~ott.problems.linear.linear_problem.LinearProblem.b`.
@@ -266,8 +266,11 @@ def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
 
   def body_fun(ix: int, state: State) -> State:
     i, j = state.paired_indices[0, ix], state.paired_indices[1, ix]
+    # stay in bounds, so that all dual variables are set
+    move_down = jnp.logical_or(state.a[i] < state.b[j], j == m - 1)
+    move_down = jnp.logical_and(move_down, i < n - 1)
     state, min_ab, next_ixs = jax.lax.cond(
-        state.a[i] < state.b[j], dual_a_update, dual_b_update, state, i, j
+        move_down, dual_a_update, dual_b_update, state, i, j
     )
 
     pi = state.paired_indices.at[:, ix + 1].set(next_ixs)
