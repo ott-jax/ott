@@ -694,11 +694,9 @@ class Bures(CostFn):
     mean_x, cov_x = x_to_means_and_covs(x, self._dimension)
     mean_y, cov_y = x_to_means_and_covs(y, self._dimension)
     mean_dot_prod = jnp.vdot(mean_x, mean_y)
-    sq_x = matrix_square_root.sqrtm(cov_x, self._dimension, **self._sqrtm_kw)[0]
+    sq_x = matrix_square_root.sqrtm(cov_x, **self._sqrtm_kw)[0]
     sq_x_y_sq_x = jnp.matmul(sq_x, jnp.matmul(cov_y, sq_x))
-    sq__sq_x_y_sq_x = matrix_square_root.sqrtm(
-        sq_x_y_sq_x, self._dimension, **self._sqrtm_kw
-    )[0]
+    sq__sq_x_y_sq_x = matrix_square_root.sqrtm(sq_x_y_sq_x, **self._sqrtm_kw)[0]
     cross_term = -2.0 * (
         mean_dot_prod + jnp.trace(sq__sq_x_y_sq_x, axis1=-2, axis2=-1)
     )
