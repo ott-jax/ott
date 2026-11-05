@@ -305,10 +305,14 @@ def north_west_solver(prob: linear_problem.LinearProblem) -> UnivariateOutput:
 
     p_final = jnp.maximum(state.a[-1], state.b[-1])
     mass_paired_indices = state.mass_paired_indices.at[-1].set(p_final)
+    # the pairs refer to the sorted points, map them back to the inputs
+    paired_indices = jnp.stack([
+        i_x[state.paired_indices[0]], i_y[state.paired_indices[1]]
+    ])
 
     return (
         ot_cost,
-        state.paired_indices,
+        paired_indices,
         mass_paired_indices,
         # restore the original order
         state.dual_a[jnp.argsort(i_x)],

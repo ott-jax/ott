@@ -155,6 +155,7 @@ linkcheck_ignore = [
     "https://doi.org/10.3390/a13090212",
     "https://doi.org/10.3390/a14050143",
     "https://www.mdpi.com/1999-4893/13/9/212",
+    "https://hal.sorbonne-universite.fr/hal-01517477",
 ]
 linkcheck_report_timeouts_as_broken = False
 

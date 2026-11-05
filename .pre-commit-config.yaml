@@ -30,7 +30,7 @@ repos:
   - id: isort
     name: isort
 - repo: https://github.com/google/yapf
-  rev: v0.40.2
+  rev: v0.43.0
   hooks:
   - id: yapf
     additional_dependencies: [toml]
