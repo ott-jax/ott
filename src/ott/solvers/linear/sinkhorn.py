@@ -410,10 +410,10 @@ class SinkhornOutput(NamedTuple):
       the transportation cost at :math:`C`, i.e. :math:`\langle P, C \rangle`.
     """
     # TODO(cuturi): handle online mode for non Euclidean pointcloud geometries.
-    # TODO(michalk8): handle SqEucl point cloud is not converted to LRCGeom
     if other_geom.can_LRC:
       geom = other_geom.to_LRCGeometry()
-      return jnp.sum(self.apply(geom.cost_1.T) * geom.cost_2.T)
+      cost = jnp.sum(self.apply(geom.cost_1.T) * geom.cost_2.T)
+      return cost + geom.bias * self.transport_mass
     return jnp.sum(self.matrix * other_geom.cost_matrix)
 
   @property
