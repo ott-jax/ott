@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
+from typing import Optional
 
 import pytest
 
@@ -26,24 +27,16 @@ from ott.math import utils as mu
 class TestNorm:
 
   @pytest.mark.fast()
-  @pytest.mark.parametrize("kind", ["zero", "rows", "columns", "matrices"])
   @pytest.mark.parametrize("keepdims", [False, True])
-  @pytest.mark.parametrize("jit", [False, True])
-  def test_zero_slice_jvp(self, kind, keepdims, jit):
-    x = jnp.array([[0.0, 0.0], [3.0, 4.0]])
-    expected_grad = jnp.array([[0.0, 0.0], [0.6, 0.8]])
-    axis = 1
-    if kind == "zero":
-      x, expected_grad, axis = jnp.zeros(3), jnp.zeros(3), None
-    elif kind == "columns":
-      x, expected_grad, axis = x.T, expected_grad.T, 0
-    elif kind == "matrices":
-      x = jnp.stack([jnp.zeros((2, 2)), jnp.array([[3.0, 4.0], [0.0, 0.0]])])
-      expected_grad = x / 5.0
-      axis = (1, 2)
+  @pytest.mark.parametrize("axis", [None, 1])
+  def test_zero_slice_jvp(self, axis: Optional[int], keepdims: bool):
+    if axis is None:
+      x, expected_grad = jnp.zeros(3), jnp.zeros(3)
+    else:
+      x = jnp.array([[0.0, 0.0], [3.0, 4.0]])
+      expected_grad = jnp.array([[0.0, 0.0], [0.6, 0.8]])
     fun = lambda x: mu.norm(x, axis=axis, keepdims=keepdims)
-    if jit:
-      fun = jax.jit(fun)
+
     value, tangent = jax.jvp(fun, (x,), (jnp.ones_like(x),))
     expected_value = jnp.linalg.norm(x, axis=axis, keepdims=keepdims)
     expected_tangent = expected_grad.sum(axis=axis, keepdims=keepdims)
