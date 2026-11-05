@@ -389,8 +389,13 @@ class Grid(geometry.Geometry):
       # factorization for the entire cost matrix. To get such an exact
       # decomposition, the parameter `rank` is set to `0`, triggering a full
       # singular value decomposition if needed.
-      geom = geom.to_LRCGeometry(rank=0, scale=scale, **kwargs)
-      c_1, c_2 = geom.cost_1, geom.cost_2
+      lr_geom = geom.to_LRCGeometry(rank=0, scale=scale, **kwargs)
+      if not isinstance(lr_geom, low_rank.LRCGeometry):
+        # A point cloud returns itself when its low-rank factors would not be
+        # smaller than its cost matrix (e.g., a slice with 2 points), but the
+        # factors of every slice are needed here, so use an exact SVD.
+        lr_geom = geometry.Geometry.to_LRCGeometry(geom, rank=0, scale=scale)
+      c_1, c_2 = lr_geom.cost_1, lr_geom.cost_2
       l, r = self.grid_size[:dimension], self.grid_size[dimension + 1:]
       l = int(np.prod(np.array(l)))
       r = int(np.prod(np.array(r)))
