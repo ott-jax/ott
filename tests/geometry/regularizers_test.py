@@ -330,3 +330,70 @@ class TestSqKOverlap:
     np.testing.assert_allclose(
         l2.prox(x), sq_kovp.prox(x), rtol=1e-5, atol=1e-5
     )
+
+  @pytest.mark.parametrize("tau", [0.3, 1.0, 2.0])
+  @pytest.mark.parametrize(("d", "k"), [(6, 2), (6, 3), (8, 5)])
+  def test_prox_is_minimiser(self, rng: jax.Array, d: int, k: int, tau: float):
+    reg = regularizers.SqKOverlap(k=k)
+    x = jr.normal(rng, (8, d)) * 2.0
+    p = jax.vmap(reg.prox, in_axes=(0, None))(x, tau)
+    u = (x - p) / tau
+
+    # Fenchel-Young equality f(p) + f^*(u) = <p, u> holds iff p = prox(x),
+    # where f^*(u) is half the sum of the k largest u_i^2
+    f = jax.vmap(reg)(p)
+    f_conj = 0.5 * jnp.sum(jax.lax.top_k(u ** 2, k)[0], axis=-1)
+    np.testing.assert_allclose(
+        f + f_conj, jnp.sum(p * u, axis=-1), rtol=1e-5, atol=1e-5
+    )
+
+
+class TestSTVS:
+
+  @pytest.mark.parametrize("tau", [0.25, 1.0, 1.9, 2.5, 6.0])
+  @pytest.mark.parametrize("gamma", [0.3, 1.0, 2.5])
+  def test_prox_is_minimiser(self, gamma: float, tau: float):
+    reg = regularizers.STVS(gamma)
+    v = jnp.linspace(-10.0, 10.0, 81)
+    prox = reg.prox(v, tau)
+
+    # f is separable, so compare with a brute-force minimisation per entry
+    grid = jnp.linspace(-12.0, 12.0, 240_001)
+    f_grid = reg._elementwise(grid)
+    obj = lambda y, x: reg._elementwise(y) + (y - x) ** 2 / (2.0 * tau)
+    obj_min = jax.vmap(
+        lambda x: jnp.min(f_grid + (grid - x) ** 2 / (2.0 * tau))
+    )(
+        v
+    )
+
+    np.testing.assert_array_less(
+        obj(prox, v), obj_min + 1e-5 * (1.0 + jnp.abs(obj_min))
+    )
+
+  @pytest.mark.parametrize("gamma", [1.5, 8.0])
+  def test_prox_soft_thresholding(self, gamma: float):
+    # for tau = 1 the prox is v - gamma^2 / v for |v| > gamma, else 0
+    v = jnp.array([-4.0, -1.0, 0.0, 0.5, 2.0, 7.0])
+    v = jnp.concatenate([v, gamma + jnp.array([1e-3, 1e-2, 1e-1])])
+    expected = jnp.where(jnp.abs(v) <= gamma, 0.0, v - gamma ** 2 / v)
+    actual = regularizers.STVS(gamma).prox(v, 1.0)
+    np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+
+  @pytest.mark.parametrize("tau", [0.5, 0.999, 1.0, 1.001, 3.0])
+  def test_prox_grad(self, rng: jax.Array, tau: float):
+    reg = regularizers.STVS(gamma=1.0)
+    v = jr.normal(rng, (64,)) * 3.0
+    y = reg.prox(v, tau)
+
+    grad_fn = jax.vmap(jax.grad(reg.prox, argnums=(0, 1)), in_axes=(0, None))
+    grad_v, grad_tau = grad_fn(v, tau)
+
+    # implicit differentiation of the optimality condition y - v + tau f'(y) = 0
+    df = jax.vmap(jax.grad(reg._elementwise))(y)
+    d2f = jax.vmap(jax.grad(jax.grad(reg._elementwise)))(y)
+    expected_v = jnp.where(y != 0.0, 1.0 / (1.0 + tau * d2f), 0.0)
+    expected_tau = jnp.where(y != 0.0, -df / (1.0 + tau * d2f), 0.0)
+
+    np.testing.assert_allclose(grad_v, expected_v, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(grad_tau, expected_tau, rtol=1e-4, atol=1e-4)

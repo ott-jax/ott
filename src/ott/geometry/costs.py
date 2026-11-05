@@ -438,7 +438,9 @@ class RegTICost(TICost):
       return out
 
     def fwd(z: jnp.ndarray) -> Tuple[float, jnp.ndarray]:
-      q = self.regularizer.prox(z)
+      # argmax_q <q, z> - rho / 2 ||q||^2 - lam reg(q)
+      #   = prox_{(lam / rho) reg}(z / rho)
+      q = self.regularizer.prox(z / self.rho, 1.0 / self.rho)
       return jnp.dot(q, z) - self.h(q), q
 
     def bwd(q: jnp.ndarray, g: jnp.ndarray) -> Tuple[jnp.ndarray]:

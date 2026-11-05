@@ -262,13 +262,17 @@ class TestRegTICost:
 
   @pytest.mark.parametrize("d", [5, 31, 77])
   @pytest.mark.parametrize(
-      "cost_fn",
-      [
+      "cost_fn", [
           costs.RegTICost(regularizers.L1(), lam=8.0),
           costs.RegTICost(regularizers.SqL2(), lam=13.0),
-          # lam must be 1.0
           costs.RegTICost(regularizers.STVS(8.0), lam=1.0),
           costs.RegTICost(regularizers.STVS(13.0), lam=1.0),
+          costs.RegTICost(regularizers.STVS(0.5), lam=1.5),
+          costs.RegTICost(regularizers.STVS(2.0), lam=0.3),
+          costs.RegTICost(regularizers.L1(), lam=2.0, rho=2.5),
+          costs.RegTICost(regularizers.SqL2(), lam=0.7, rho=0.4),
+          costs.RegTICost(regularizers.STVS(1.0), lam=3.0, rho=2.0),
+          costs.RegTICost(regularizers.SqKOverlap(3), lam=1.5, rho=2.0),
       ]
   )
   def test_reg_legendre(
@@ -278,8 +282,16 @@ class TestRegTICost:
       d: int,
   ):
     expected = jr.normal(rng, (d,))
-    actual = jax.grad(cost_fn.h_legendre)(jax.grad(cost_fn.h)(expected))
+    z = jax.grad(cost_fn.h)(expected)
+    actual = jax.grad(cost_fn.h_legendre)(z)
     np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
+    # Fenchel-Young equality: h(x) + h^*(grad h(x)) = <x, grad h(x)>
+    np.testing.assert_allclose(
+        cost_fn.h(expected) + cost_fn.h_legendre(z),
+        jnp.dot(expected, z),
+        rtol=1e-4,
+        atol=1e-4
+    )
 
   @pytest.mark.parametrize("lam", [1e-1, 0.5, 1.25])
   def test_h_transform_x_init(self, rng: jax.Array, lam: float):

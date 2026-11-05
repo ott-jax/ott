@@ -394,14 +394,39 @@ class STVS(ProximalOperator):
     self.gamma = gamma
 
   def __call__(self, x: jnp.ndarray) -> float:  # noqa: D102
+    return jnp.sum(self._elementwise(x))
+
+  def _elementwise(self, x: jnp.ndarray) -> jnp.ndarray:
     # Lemma 2.1 of `schreck:15`
     u = jnp.arcsinh(jnp.abs(x) / (2.0 * self.gamma))
     y = u - 0.5 * jnp.exp(-2.0 * u)
-    return self.gamma ** 2 * jnp.sum(y + 0.5)  # make positive
+    return self.gamma ** 2 * (y + 0.5)  # make positive
 
   def prox(self, v: jnp.ndarray, tau: float = 1.0) -> jnp.ndarray:  # noqa: D102
-    s = (tau * self.gamma) ** 2
-    return jnp.where(v ** 2 <= s, 0.0, v - s / jnp.where(v == 0.0, 1.0, v))
+    # For y > 0, f'(y) = sqrt(gamma^2 + y^2 / 4) - y / 2. Squaring the
+    # stationarity condition y - |v| + tau f'(y) = 0 gives the quadratic
+    #   (1 - tau) y^2 - (2 - tau) |v| y + v^2 - (tau gamma)^2 = 0.
+    # The minimiser is 0 (the kink of f) or one of its roots. The objective
+    # is not convex for tau > 2, so take the candidate with the smallest
+    # objective. For tau = 1 this is v - gamma^2 / v for |v| > gamma.
+    gamma = self.gamma
+    av = jnp.abs(v)
+    a = 1.0 - 0.5 * tau
+    disc = 0.25 * av ** 2 + (1.0 - tau) * gamma ** 2
+    # double `where` to avoid NaN gradients of `sqrt` at 0
+    sq = jnp.where(disc > 0.0, jnp.sqrt(jnp.where(disc > 0.0, disc, 1.0)), 0.0)
+    # the roots, written without cancellation
+    q = a * av + jnp.where(a >= 0.0, 1.0, -1.0) * tau * sq
+    one_minus_tau = jnp.where(tau == 1.0, 1.0, 1.0 - tau)
+    y1 = jnp.where(tau == 1.0, -1.0, q / one_minus_tau)
+    y2 = (av ** 2 - (tau * gamma) ** 2) / jnp.where(q == 0.0, 1.0, q)
+    cands = jnp.stack([jnp.zeros_like(av), y1, y2])
+    cands = jnp.where(jnp.isfinite(cands) & (cands >= 0.0), cands, 0.0)
+    obj = self._elementwise(cands) + (cands - av) ** 2 / (2.0 * tau)
+    best = jnp.take_along_axis(cands, jnp.argmin(obj, axis=0)[None], axis=0)[0]
+    # for tau <= 2 the objective is convex, so 0 is optimal iff |v| <= tau gamma
+    best = jnp.where(tau <= 2.0, jnp.where(av <= tau * gamma, 0.0, y2), best)
+    return jnp.sign(v) * best
 
   def tree_flatten(self):  # noqa: D102
     return (self.gamma,), {}
@@ -462,7 +487,7 @@ class SqKOverlap(ProximalOperator):
         res = jnp.sum(z * ((i <= ixs) & (ixs < l)))
         res /= l - k + (beta + 1) * r + beta + 1
 
-        cond1_left = jnp.logical_or(i == 0, (z[i - 1] / beta + 1) > res)
+        cond1_left = jnp.logical_or(i == 0, (z[i - 1] / (beta + 1)) > res)
         cond1_right = res >= (z[i] / (beta + 1))
         cond1 = jnp.logical_and(cond1_left, cond1_right)
 
