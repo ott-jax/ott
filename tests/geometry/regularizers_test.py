@@ -331,21 +331,21 @@ class TestSqKOverlap:
         l2.prox(x), sq_kovp.prox(x), rtol=1e-5, atol=1e-5
     )
 
-  @pytest.mark.usefixtures("enable_x64")
   @pytest.mark.parametrize("tau", [0.3, 1.0, 2.0])
   @pytest.mark.parametrize(("d", "k"), [(6, 2), (6, 3), (8, 5)])
   def test_prox_is_minimiser(self, rng: jax.Array, d: int, k: int, tau: float):
-    rng_x, rng_dx = jr.split(rng)
     reg = regularizers.SqKOverlap(k=k)
-    obj = lambda y, x: reg(y) + jnp.sum((y - x) ** 2) / (2.0 * tau)
+    x = jr.normal(rng, (8, d)) * 2.0
+    p = jax.vmap(reg.prox, in_axes=(0, None))(x, tau)
+    u = (x - p) / tau
 
-    for x in jr.normal(rng_x, (8, d)) * 2.0:
-      rng_dx, rng_i = jr.split(rng_dx)
-      prox = reg.prox(x, tau)
-      # the objective is strongly convex: the prox must beat all other points
-      dys = jr.normal(rng_i, (256, d)) * jnp.logspace(-3, 0, 256)[:, None]
-      others = jax.vmap(obj, in_axes=(0, None))(prox + dys, x)
-      assert jnp.all(others >= obj(prox, x) - 1e-9)
+    # Fenchel-Young equality f(p) + f^*(u) = <p, u> holds iff p = prox(x),
+    # where f^*(u) is half the sum of the k largest u_i^2
+    f = jax.vmap(reg)(p)
+    f_conj = 0.5 * jnp.sum(jax.lax.top_k(u ** 2, k)[0], axis=-1)
+    np.testing.assert_allclose(
+        f + f_conj, jnp.sum(p * u, axis=-1), rtol=1e-5, atol=1e-5
+    )
 
 
 class TestSTVS:
