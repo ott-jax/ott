@@ -24,7 +24,7 @@ import numpy as np
 from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import lineax_implicit, sinkhorn
 from tests import _utils
 
 
@@ -36,6 +36,33 @@ def clouds() -> _utils.PointClouds:
 
 class TestSinkhornImplicit:
   """Check implicit and autodiff match for Sinkhorn."""
+
+  def test_custom_solver(self, clouds: _utils.PointClouds):
+    solver_kwargs = {"ridge_kernel": 1e-6}
+    calls = []
+
+    def custom_solver(*args, **kwargs):
+      calls.append(kwargs)
+      return lineax_implicit.solve_lineax(*args, **kwargs)
+
+    def loss(x: jnp.ndarray, implicit_diff: implicit_lib.ImplicitDiff) -> float:
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=1e-1)
+      prob = linear_problem.LinearProblem(geom, clouds.a, clouds.b)
+      solver = sinkhorn.Sinkhorn(implicit_diff=implicit_diff, use_danskin=False)
+      return solver(prob).reg_ot_cost
+
+    custom = implicit_lib.ImplicitDiff(
+        solver=custom_solver, solver_kwargs=solver_kwargs
+    )
+    default = implicit_lib.ImplicitDiff(solver_kwargs=solver_kwargs)
+
+    np.testing.assert_allclose(
+        jax.grad(loss)(clouds.x, custom),
+        jax.grad(loss)(clouds.x, default),
+        rtol=1e-6,
+        atol=1e-6
+    )
+    assert calls == [solver_kwargs]
 
   @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
                            [(True, 1e-4, True), (False, 1e-6, False)])
