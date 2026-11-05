@@ -121,6 +121,31 @@ class TestKmeansPlusPlus:
 class TestKmeans:
 
   @pytest.mark.fast()
+  @pytest.mark.parametrize("max_iterations", [1, 2, 3, 10])
+  @pytest.mark.parametrize("force_scan", [False, True])
+  def test_convergence_at_iteration_limit(self, max_iterations, force_scan):
+    x = jnp.array([[0.0], [1.0], [4.0], [5.0], [10.0]])
+    init = lambda *_: jnp.array([[0.0], [1.0]])
+    result = k_means.k_means(
+        x,
+        2,
+        init=init,
+        n_init=1,
+        min_iterations=max_iterations if force_scan else 0,
+        max_iterations=max_iterations
+    )
+    # One Lloyd update leaves centers at 0 and 5; the next moves both.
+    expected_centers = [[0.0], [5.0]] if max_iterations == 1 else [[0.5],
+                                                                   [19 / 3]]
+    np.testing.assert_allclose(result.centroids, expected_centers)
+    assert bool(result.converged) == (max_iterations >= 3)
+    expected_assignment, expected_error = compute_assignment(
+        x, result.centroids
+    )
+    np.testing.assert_array_equal(result.assignment, expected_assignment)
+    np.testing.assert_allclose(result.error, expected_error)
+
+  @pytest.mark.fast()
   @pytest.mark.parametrize("k", [1, 6])
   def test_k_means_output(self, rng: jax.Array, k: int):
     max_iter, ndim = 10, 4
