@@ -104,10 +104,17 @@ class TestGraph:
         atol=1e-2
     )
 
-  def test_backward_euler_approximates_heat_kernel(self):
+  @pytest.mark.parametrize(
+      "numerical_scheme", ["backward_euler", "crank_nicolson"]
+  )
+  def test_approximates_heat_kernel(
+      self, numerical_scheme: Literal["backward_euler", "crank_nicolson"]
+  ):
     t, n_steps = 0.1, 1000
     G = _graphs.random_graph(20, p=0.5)
-    geom = graph.Graph.from_graph(G, t=t, n_steps=n_steps)
+    geom = graph.Graph.from_graph(
+        G, t=t, n_steps=n_steps, numerical_scheme=numerical_scheme
+    )
 
     expected = jsp.linalg.expm(-t / 4.0 * geom.laplacian)
     actual = geom.apply_kernel(jnp.eye(G.shape[0]))

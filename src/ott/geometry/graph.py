@@ -207,7 +207,7 @@ class Graph(geometry.Geometry):
     if self.numerical_scheme == "backward_euler":
       return self.t / (4.0 * self.n_steps)
     if self.numerical_scheme == "crank_nicolson":
-      return self.t / (2.0 * self.n_steps)
+      return self.t / (8.0 * self.n_steps)
     raise NotImplementedError(
         f"Numerical scheme `{self.numerical_scheme}` is not implemented."
     )
