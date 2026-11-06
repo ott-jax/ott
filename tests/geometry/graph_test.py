@@ -69,11 +69,8 @@ class TestGraph:
     )
 
   def test_tree_flatten(self):
-    G = _graphs.random_graph(20, p=0.5)
-    geom = graph.Graph.from_graph(G, relative_epsilon="std", scale_cost=2.0)
-
+    geom = graph.Graph(jnp.eye(3), relative_epsilon="std", scale_cost=2.0)
     geom = jax.tree.map(lambda x: x, geom)
-
     assert geom._relative_epsilon == "std"
     assert geom._scale_cost == 2.0
 

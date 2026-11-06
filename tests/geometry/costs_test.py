@@ -74,7 +74,6 @@ class TestCostFn:
 
   def test_cosine_tree_flatten(self):
     cost_fn = jax.tree.map(lambda x: x, costs.Cosine(ridge=0.5))
-
     assert cost_fn._ridge == 0.5
 
 

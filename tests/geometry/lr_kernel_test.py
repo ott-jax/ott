@@ -60,15 +60,11 @@ class TestLRCGeometry:
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
-  def test_tree_flatten(self, rng: jax.Array):
-    rng1, rng2 = jr.split(rng, 2)
-    k1 = jr.uniform(rng1, (7, 3))
-    k2 = jr.uniform(rng2, (5, 3))
-    geom = low_rank.LRKGeometry(k1, k2, epsilon=1.0, scale_cost=2.0)
-
-    geom = jax.tree.map(lambda x: x, geom)
-
-    assert geom._scale_cost == 2.0
+  def test_tree_flatten(self):
+    geom = low_rank.LRKGeometry(
+        jnp.ones((2, 1)), jnp.ones((3, 1)), scale_cost=2.0
+    )
+    assert jax.tree.map(lambda x: x, geom)._scale_cost == 2.0
 
   @pytest.mark.parametrize("n", [0, 1, 2])
   def test_arccos_j_function(self, rng: jax.Array, n: int):

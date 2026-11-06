@@ -84,13 +84,10 @@ class TestGeodesic:
     np.testing.assert_array_less(0, cost_matrix)
 
   def test_tree_flatten(self):
-    G = _graphs.random_graph(20, p=0.5)
-    geom = geodesic.Geodesic.from_graph(
-        G, relative_epsilon="std", scale_cost=2.0
+    geom = geodesic.Geodesic(
+        jnp.eye(3), 2.0, jnp.ones(3), relative_epsilon="std", scale_cost=2.0
     )
-
     geom = jax.tree.map(lambda x: x, geom)
-
     assert geom._relative_epsilon == "std"
     assert geom._scale_cost == 2.0
 
