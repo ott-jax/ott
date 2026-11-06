@@ -189,24 +189,27 @@ class Grid(geometry.Geometry):
     if axis == 0:
       f, g = g, f
 
-    for dimension in range(self.grid_dimension):
-      g, vec = self._apply_lse_kernel_one_dimension(dimension, f, g, eps, vec)
+    for dimension, cost in enumerate(self._cost_matrices(axis)):
+      g, vec = self._apply_lse_kernel_one_dimension(
+          dimension, cost, f, g, eps, vec
+      )
       g -= jnp.where(jnp.isfinite(f), f, 0)
 
     if vec is None:
       vec = jnp.array(1.0)
     return g.ravel(), vec.ravel()
 
-  def _apply_lse_kernel_one_dimension(self, dimension, f, g, eps, vec=None):
+  def _apply_lse_kernel_one_dimension(
+      self, dimension, cost, f, g, eps, vec=None
+  ):
     """Permute axis & apply the kernel on a single slice."""
     indices = np.arange(self.grid_dimension)
     indices[dimension], indices[0] = 0, dimension
     f, g = jnp.transpose(f, indices), jnp.transpose(g, indices)
+    expand_axes = tuple(range(2, 1 + self.grid_dimension))
     centered_cost = (
-        f[:, jnp.newaxis, ...] + g[jnp.newaxis, ...] - jnp.expand_dims(
-            self.geometries[dimension].cost_matrix,
-            axis=tuple(range(2, 1 + self.grid_dimension))
-        )
+        f[:, jnp.newaxis, ...] + g[jnp.newaxis, ...] -
+        jnp.expand_dims(cost, axis=expand_axes)
     ) / eps
 
     if vec is not None:
