@@ -602,6 +602,14 @@ class Cosine(CostFn):
   def _padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
 
+  def tree_flatten(self):  # noqa: D102
+    return (), (self._ridge,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(*aux_data)
+
 
 @jtu.register_pytree_node_class
 class Arccos(CostFn):

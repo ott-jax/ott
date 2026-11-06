@@ -264,6 +264,8 @@ class Graph(geometry.Geometry):
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
         "tol": self.tol,
+        "relative_epsilon": self._relative_epsilon,
+        "scale_cost": self._scale_cost,
     }
 
   @classmethod

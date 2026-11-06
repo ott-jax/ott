@@ -206,7 +206,10 @@ class Geodesic(geometry.Geometry):
         self.eigval,
         self.chebyshev_coeffs,
         self.t,
-    ], {}
+    ], {
+        "relative_epsilon": self._relative_epsilon,
+        "scale_cost": self._scale_cost,
+    }
 
   @classmethod
   def tree_unflatten(  # noqa: D102

@@ -376,7 +376,9 @@ class LRKGeometry(geometry.Geometry):
     return type(self).tree_unflatten(aux_data, (k1, k2, *rest))
 
   def tree_flatten(self):  # noqa: D102
-    return [self.k1, self.k2, self._epsilon_init], {}
+    return [self.k1, self.k2, self._epsilon_init], {
+        "scale_cost": self._scale_cost
+    }
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
