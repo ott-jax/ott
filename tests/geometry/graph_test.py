@@ -22,6 +22,7 @@ import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import jax.random as jr
+import jax.scipy as jsp
 import numpy as np
 
 from ott.geometry import geometry, graph
@@ -92,12 +93,22 @@ class TestGraph:
         atol=1e-2
     )
 
+  def test_backward_euler_approximates_heat_kernel(self):
+    t, n_steps = 0.1, 1000
+    G = _graphs.random_graph(20, p=0.5)
+    geom = graph.Graph.from_graph(G, t=t, n_steps=n_steps)
+
+    expected = jsp.linalg.expm(-t / 4.0 * geom.laplacian)
+    actual = geom.apply_kernel(jnp.eye(G.shape[0]))
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-2, atol=1e-3)
+
   @pytest.mark.fast.with_args(
       n_steps=[50, 100, 200],
       t=[1e-4, 1e-5],
       only_fast=0,
   )
-  def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
+  def test_cost_is_symmetric(self, t: Optional[float], n_steps: int):
     tol = 5 * t
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
     G = jnp.asarray(G.toarray())
@@ -115,8 +126,7 @@ class TestGraph:
     cn_cost = -t * jnp.log(cn_geom.apply_kernel(eye) + eps)
 
     np.testing.assert_allclose(cn_cost, cn_cost.T, rtol=tol, atol=tol)
-    with pytest.raises(AssertionError):
-      np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
+    np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):

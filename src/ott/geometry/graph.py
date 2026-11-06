@@ -157,7 +157,7 @@ class Graph(geometry.Geometry):
         # as CSR/CSC/COO matrices don't support adding a diagonal matrix now:
         # b' = (2 * I - M) @ b = (2 * I - (I + c * L)) @ b = (I - c * L) @ b
         b = b - scaled_lap @ b
-      return b, jsp.linalg.solve_triangular(L, b, lower=True)
+      return b, jsp.linalg.cho_solve((L, True), b)
 
     # eps we cannot use since it would require a re-solve
     # axis we can ignore since the matrix is symmetric
