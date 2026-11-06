@@ -353,7 +353,7 @@ class Grid(geometry.Geometry):
     vec = jnp.reshape(vec, self.grid_size)
     indices = list(range(1, self.grid_dimension))
     for dimension, geom in enumerate(self.geometries):
-      kernel = geom.kernel_matrix
+      kernel = geom.kernel_matrix.T if axis == 1 else geom.kernel_matrix
       kernel = kernel if eps is None else kernel ** (self.epsilon / eps)
       ind = indices.copy()
       ind.insert(dimension, 0)
