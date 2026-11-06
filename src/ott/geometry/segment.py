@@ -103,10 +103,7 @@ def segment_point_cloud(
 
   max_measure_size = min(max_measure_size, num)
   if a is None:
-    a = jnp.array(
-        (1.0 /
-         num_per_segment).repeat(num_per_segment, total_repeat_length=num)
-    )
+    a = (1.0 / num_per_segment)[segment_ids]
 
   if padding_vector is None:
     padding_vector = jnp.zeros((1, dim))
