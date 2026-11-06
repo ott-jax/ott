@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple
+from typing import Literal, Optional, Tuple
 
 import pytest
 
@@ -44,6 +44,22 @@ class TestSemidiscretePointCloud:
 
     assert isinstance(pc, pointcloud.PointCloud), type(pc)
     assert pc.shape == (num_samples, m)
+
+  @pytest.mark.parametrize("relative_epsilon", ["mean", "std"])
+  def test_sample_relative_epsilon(
+      self, rng: jax.Array, relative_epsilon: Literal["mean", "std"]
+  ):
+    rng_data, rng_sample = jr.split(rng, 2)
+    y = jr.normal(rng_data, (16, 3))
+    geom = sdpc.SemidiscretePointCloud(
+        jr.normal, y=y, epsilon=0.1, relative_epsilon=relative_epsilon
+    )
+
+    pc = geom.sample(rng_sample, 32)
+    np.testing.assert_allclose(pc.epsilon, geom.epsilon, rtol=1e-5, atol=0.0)
+
+    pc = geom.sample(rng_sample, 32, epsilon=0.5)
+    np.testing.assert_allclose(pc.epsilon, 0.5, rtol=1e-5, atol=0.0)
 
   @pytest.mark.parametrize("epsilon", [0.0, None, 1e-2])
   def epsilon(self, rng: jax.Array, epsilon: Optional[float]):

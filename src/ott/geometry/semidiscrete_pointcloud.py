@@ -102,14 +102,17 @@ class SemidiscretePointCloud:
     return self._from_samples(x, epsilon)
 
   def _from_samples(
-      self, x: jax.Array, epsilon: jax.Array
+      self,
+      x: jax.Array,
+      epsilon: jax.Array,
+      relative_epsilon: Optional[Literal["mean", "std"]] = None,
   ) -> pointcloud.PointCloud:
     return pointcloud.PointCloud(
         x,
         self.y,
         cost_fn=self.cost_fn,
         epsilon=epsilon,
-        relative_epsilon=self._relative_epsilon,
+        relative_epsilon=relative_epsilon,
         scale_cost=self._scale_cost,
     )
 
@@ -121,7 +124,7 @@ class SemidiscretePointCloud:
     rng = jr.key(self._relative_epsilon_seed)
     shape = (self._relative_epsilon_num_samples, *self.y.shape[1:])
     x = self.sampler(rng, shape, self.dtype)
-    geom = self._from_samples(x, self._epsilon)
+    geom = self._from_samples(x, self._epsilon, self._relative_epsilon)
     return jnp.array(geom.epsilon, dtype=self.dtype)
 
   @property
