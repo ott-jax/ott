@@ -641,7 +641,7 @@ class Geometry:
     """Instantiate 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
     nones = [None, None, None]
-    cost_matrices = kwargs.pop("cost_matrix", args)
+    cost_matrices = kwargs.pop("cost_matrix", args or None)
     kernel_matrices = kwargs.pop("kernel_matrix", nones)
     cost_matrices = cost_matrices if cost_matrices is not None else nones
     return tuple(
