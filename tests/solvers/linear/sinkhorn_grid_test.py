@@ -122,6 +122,22 @@ class TestSinkhornGrid:
     np.testing.assert_array_equal(jnp.isnan(mat_transport_t_vec_a), False)
 
   @pytest.mark.fast()
+  def test_apply_square_cost(self, rng: jax.Array):
+    grid_size = (5, 6, 7)
+    geom_grid = grid.Grid(grid_size=grid_size)
+    xs = np.meshgrid(*[np.linspace(0, 1, n) for n in grid_size], indexing="ij")
+    xyz = jnp.stack([jnp.array(x.ravel()) for x in xs], axis=1)
+    geom_mat = pointcloud.PointCloud(xyz)
+
+    arr = jr.uniform(rng, (geom_grid.shape[0], 2))
+    np.testing.assert_allclose(
+        geom_grid.apply_square_cost(arr),
+        geom_mat.apply_square_cost(arr),
+        rtol=1e-4,
+        atol=1e-4
+    )
+
+  @pytest.mark.fast()
   @pytest.mark.parametrize(("fn", "is_linear"), [(None, False),
                                                  (lambda c: 2.0 * c, True),
                                                  (lambda c: c ** 2, False)],

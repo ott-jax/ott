@@ -13,7 +13,16 @@
 # limitations under the License.
 import functools
 import itertools
-from typing import Any, Callable, List, NoReturn, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    NoReturn,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 import jax
 import jax.numpy as jnp
@@ -286,6 +295,47 @@ class Grid(geometry.Geometry):
     batch_size = max(1, 2 ** 22 // vec.size)  # ~4M cost entries per batch
     apply_rows = utils.batched_vmap(apply_row, batch_size=batch_size)
     return apply_rows(jnp.arange(vec.size))
+
+  def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Apply elementwise-square of cost matrix to array (vector or matrix).
+
+    The square of the cost, a sum of Kronecker products, is again a sum of
+    Kronecker products, of the squared costs of the slices and of the products
+    of the costs of pairs of slices.
+
+    Args:
+      arr: array.
+      axis: axis of the array on which the cost matrix should be applied.
+
+    Returns:
+      An array of the same shape as ``arr``.
+    """
+    cost_matrices = [
+        geom.cost_matrix.T if axis == 0 else geom.cost_matrix
+        for geom in self.geometries
+    ]
+    terms = [{d: cost ** 2} for d, cost in enumerate(cost_matrices)]
+    for d, e in itertools.combinations(range(self.grid_dimension), 2):
+      terms.append({d: cost_matrices[d], e: 2.0 * cost_matrices[e]})
+
+    def apply(vec: jnp.ndarray) -> jnp.ndarray:
+      return sum(self._apply_kronecker_to_vec(vec, term) for term in terms)
+
+    if arr.ndim == 1:
+      return apply(arr)
+    return jax.vmap(apply, in_axes=1, out_axes=1)(arr)
+
+  def _apply_kronecker_to_vec(
+      self, vec: jnp.ndarray, matrices: Dict[int, jnp.ndarray]
+  ) -> jnp.ndarray:
+    """Apply a Kronecker product of ``matrices`` and of matrices of 1's."""
+    vec = jnp.reshape(vec, self.grid_size)
+    for d in range(self.grid_dimension):
+      if d in matrices:
+        vec = jnp.moveaxis(jnp.tensordot(matrices[d], vec, axes=(1, d)), 0, d)
+      else:
+        vec = jnp.sum(vec, axis=d, keepdims=True)
+    return jnp.broadcast_to(vec, self.grid_size).ravel()
 
   def apply_kernel(
       self,
