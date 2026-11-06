@@ -745,7 +745,7 @@ class Bures(CostFn):
     def cond_fn(iteration: int, constants: Tuple[Any, ...], state) -> bool:
       del constants
       _, diffs = state
-      return diffs[iteration // inner_iterations] > tolerance
+      return diffs[iteration // inner_iterations - 1] > tolerance
 
     def body_fn(
         iteration: int, constants: Tuple[Any, ...],

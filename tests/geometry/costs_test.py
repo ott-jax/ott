@@ -149,6 +149,23 @@ class TestBuresBarycenter:
     # Check right output size of difference vectors
     np.testing.assert_equal(diffs.shape[0], max_iterations // inner_iterations)
 
+  def test_bures_barycenter_stops_at_tolerance(self, rng: jax.Array):
+    d, k, tolerance = 3, 4, 1e-6
+    rngs = jr.split(rng, 2)
+    means = jr.normal(rngs[0], (k, d))
+    a = jr.normal(rngs[1], (k, d, d))
+    covs = a @ a.transpose(0, 2, 1) + 0.1 * jnp.eye(d)
+    xs = jnp.concatenate([means, covs.reshape(k, -1)], axis=1)
+    weights = jnp.full((k,), 1.0 / k)
+
+    _, diffs = costs.Bures(d).barycenter(
+        weights, xs, tolerance=tolerance, inner_iterations=1
+    )
+    diffs = diffs[diffs > -1]
+
+    np.testing.assert_array_less(tolerance, diffs[:-1])
+    np.testing.assert_array_less(diffs[-1], tolerance)
+
 
 class TestTICost:
 
