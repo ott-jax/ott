@@ -96,13 +96,19 @@ class Geometry:
   def cost_matrix(self) -> jnp.ndarray:
     """Cost matrix, recomputed from kernel if only kernel was specified."""
     if self._cost_matrix is None:
-      # If no epsilon was passed on to the geometry, then assume it is one by
-      # default.
-      eps = jnp.finfo(self._kernel_matrix.dtype).tiny
-      cost = -jnp.log(self._kernel_matrix + eps)
-      cost *= self.inv_scale_cost
-      return cost if self._epsilon_init is None else self.epsilon * cost
+      return self.epsilon * self._kernel_cost
     return self._cost_matrix * self.inv_scale_cost
+
+  @property
+  def _kernel_cost(self) -> jnp.ndarray:
+    eps = jnp.finfo(self._kernel_matrix.dtype).tiny
+    return -jnp.log(self._kernel_matrix + eps) * self.inv_scale_cost
+
+  @property
+  def _epsilon_geom(self) -> "Geometry":
+    if self._cost_matrix is None and self._kernel_matrix is not None:
+      return Geometry(cost_matrix=self._kernel_cost)
+    return self
 
   @property
   def median_cost_matrix(self) -> float:
@@ -154,13 +160,13 @@ class Geometry:
       if self._epsilon_init is not None:
         return eps_scheduler.Epsilon(self._epsilon_init)
       multiplier = eps_scheduler.DEFAULT_EPSILON_SCALE
-      scale = jax.lax.stop_gradient(self.std_cost_matrix)
+      scale = jax.lax.stop_gradient(self._epsilon_geom.std_cost_matrix)
       return eps_scheduler.Epsilon(target=multiplier * scale)
 
     if self._relative_epsilon == "std":
-      scale = jax.lax.stop_gradient(self.std_cost_matrix)
+      scale = jax.lax.stop_gradient(self._epsilon_geom.std_cost_matrix)
     elif self._relative_epsilon == "mean":
-      scale = jax.lax.stop_gradient(self.mean_cost_matrix)
+      scale = jax.lax.stop_gradient(self._epsilon_geom.mean_cost_matrix)
     else:
       raise ValueError(f"Invalid relative epsilon: {self._relative_epsilon}.")
 
@@ -219,6 +225,8 @@ class Geometry:
   @property
   def inv_scale_cost(self) -> jnp.ndarray:
     """Compute and return inverse of scaling factor for cost matrix."""
+    if isinstance(self._scale_cost, str) and self._cost_matrix is None:
+      raise ValueError(f"Scaling `{self._scale_cost}` requires a cost matrix.")
     if self._scale_cost == "max_cost":
       return 1.0 / jnp.max(self._cost_matrix)
     if self._scale_cost == "mean":
