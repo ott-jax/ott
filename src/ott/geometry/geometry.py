@@ -228,7 +228,7 @@ class Geometry:
     if isinstance(self._scale_cost, str) and self._cost_matrix is None:
       raise ValueError(f"Scaling `{self._scale_cost}` requires a cost matrix.")
     if self._scale_cost == "max_cost":
-      return 1.0 / jnp.max(self._cost_matrix)
+      return 1.0 / jnp.max(jnp.abs(self._cost_matrix))
     if self._scale_cost == "mean":
       return 1.0 / jnp.mean(self._cost_matrix)
     if self._scale_cost == "median":
