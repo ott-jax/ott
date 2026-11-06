@@ -423,13 +423,9 @@ class PointCloud(geometry.Geometry):
     return isinstance(self.cost_fn, costs.NegDotProduct)
 
   @property
-  def can_LRC(self):  # noqa: D102
-    return (
-        self.is_squared_euclidean or self.is_neg_dotp
-    ) and self._check_LRC_dim
-
-  @property
-  def _check_LRC_dim(self):
+  def can_LRC(self) -> bool:  # noqa: D102
+    if not (self.is_squared_euclidean or self.is_neg_dotp):
+      return False
     (n, m), d = self.shape, self.x.shape[1]
     # the squared Euclidean factors have 2 more columns than the points
     d += 2 * self.is_squared_euclidean
