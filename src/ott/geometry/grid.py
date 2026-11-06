@@ -189,9 +189,9 @@ class Grid(geometry.Geometry):
     if axis == 0:
       f, g = g, f
 
-    for dimension, cost in enumerate(self._cost_matrices(axis)):
+    for dimension, cost in enumerate(self._cost_matrices(axis=axis)):
       g, vec = self._apply_lse_kernel_one_dimension(
-          dimension, cost, f, g, eps, vec
+          dimension=dimension, cost=cost, f=f, g=g, eps=eps, vec=vec
       )
       g -= jnp.where(jnp.isfinite(f), f, 0)
 
@@ -261,8 +261,8 @@ class Grid(geometry.Geometry):
     if fn is not None:
       return self._apply_fn_cost_to_vec(vec, axis=axis, fn=fn)
     return sum(
-        self._apply_kronecker_to_vec(vec, {d: cost})
-        for d, cost in enumerate(self._cost_matrices(axis))
+        self._apply_kronecker_to_vec(vec, matrices={d: cost})
+        for d, cost in enumerate(self._cost_matrices(axis=axis))
     )
 
   def _apply_fn_cost_to_vec(
@@ -272,7 +272,7 @@ class Grid(geometry.Geometry):
       fn: Callable[[jnp.ndarray], jnp.ndarray],
   ) -> jnp.ndarray:
     """Apply ``fn(cost)`` to a vector, computing the cost row by row."""
-    cost_matrices = self._cost_matrices(axis)
+    cost_matrices = self._cost_matrices(axis=axis)
     vec = jnp.reshape(vec, self.grid_size)
 
     def apply_row(ix: jnp.ndarray) -> jnp.ndarray:
@@ -299,13 +299,15 @@ class Grid(geometry.Geometry):
     Returns:
       An array of the same shape as ``arr``.
     """
-    cost_matrices = self._cost_matrices(axis)
+    cost_matrices = self._cost_matrices(axis=axis)
     terms = [{d: cost ** 2} for d, cost in enumerate(cost_matrices)]
     for d, e in itertools.combinations(range(self.grid_dimension), 2):
       terms.append({d: cost_matrices[d], e: 2.0 * cost_matrices[e]})
 
     def apply(vec: jnp.ndarray) -> jnp.ndarray:
-      return sum(self._apply_kronecker_to_vec(vec, term) for term in terms)
+      return sum(
+          self._apply_kronecker_to_vec(vec, matrices=term) for term in terms
+      )
 
     if arr.ndim == 1:
       return apply(arr)
