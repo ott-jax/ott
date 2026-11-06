@@ -210,6 +210,18 @@ class LRCGeometry(geometry.Geometry):
         scale_cost=1.0,
     )
 
+  def subset(  # noqa: D102
+      self,
+      row_ixs: Optional[jnp.ndarray] = None,
+      col_ixs: Optional[jnp.ndarray] = None,
+  ) -> "LRCGeometry":
+    (cost_1, cost_2, *rest), aux_data = self.tree_flatten()
+    if row_ixs is not None:
+      cost_1 = cost_1[jnp.atleast_1d(row_ixs)]
+    if col_ixs is not None:
+      cost_2 = cost_2[jnp.atleast_1d(col_ixs)]
+    return type(self).tree_unflatten(aux_data, (cost_1, cost_2, *rest))
+
   @property
   def dtype(self) -> jnp.dtype:  # noqa: D102
     return self._cost_1.dtype
@@ -350,6 +362,18 @@ class LRKGeometry(geometry.Geometry):
   ) -> jnp.ndarray:
     """Not implemented."""
     raise ValueError("Not implemented.")
+
+  def subset(  # noqa: D102
+      self,
+      row_ixs: Optional[jnp.ndarray] = None,
+      col_ixs: Optional[jnp.ndarray] = None,
+  ) -> "LRKGeometry":
+    (k1, k2, *rest), aux_data = self.tree_flatten()
+    if row_ixs is not None:
+      k1 = k1[jnp.atleast_1d(row_ixs)]
+    if col_ixs is not None:
+      k2 = k2[jnp.atleast_1d(col_ixs)]
+    return type(self).tree_unflatten(aux_data, (k1, k2, *rest))
 
   def tree_flatten(self):  # noqa: D102
     return [self.k1, self.k2, self._epsilon_init], {}

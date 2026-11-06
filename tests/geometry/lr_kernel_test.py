@@ -1,4 +1,4 @@
-from typing import Literal, Optional
+from typing import List, Literal, Optional
 
 import pytest
 
@@ -34,6 +34,31 @@ class TestLRCGeometry:
       assert geom.rank == rank + 1
     np.testing.assert_array_equal(geom.k1 >= 0.0, True)
     np.testing.assert_array_equal(geom.k2 >= 0.0, True)
+
+  @pytest.mark.parametrize(("row_ixs", "col_ixs"), [
+      ([0, 3], None),
+      (None, [1, 2, 4]),
+      ([0, 3], [1, 2, 4]),
+  ])
+  def test_subset(
+      self, rng: jax.Array, row_ixs: Optional[List[int]],
+      col_ixs: Optional[List[int]]
+  ):
+    rng1, rng2 = jr.split(rng, 2)
+    k1 = jr.uniform(rng1, (7, 3))
+    k2 = jr.uniform(rng2, (5, 3))
+    geom = low_rank.LRKGeometry(k1, k2, epsilon=1.0)
+
+    expected = geom.kernel_matrix
+    if row_ixs is not None:
+      row_ixs = jnp.asarray(row_ixs)
+      expected = expected[row_ixs]
+    if col_ixs is not None:
+      col_ixs = jnp.asarray(col_ixs)
+      expected = expected[:, col_ixs]
+    actual = geom.subset(row_ixs=row_ixs, col_ixs=col_ixs).kernel_matrix
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
 
   @pytest.mark.parametrize("n", [0, 1, 2])
   def test_arccos_j_function(self, rng: jax.Array, n: int):
