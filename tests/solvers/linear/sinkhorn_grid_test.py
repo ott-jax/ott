@@ -20,10 +20,17 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
-from ott.geometry import grid, pointcloud
+from ott.geometry import costs, geometry, grid, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers import linear
 from ott.solvers.linear import sinkhorn
+
+
+@jax.tree_util.register_pytree_node_class
+class AsymmetricCost(costs.CostFn):
+
+  def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
+    return jnp.sum((x - y) ** 2 + x)
 
 
 class TestSinkhornGrid:
@@ -120,6 +127,47 @@ class TestSinkhornGrid:
         mat_transport_vec_b, grid_transport_vec_b, rtol=1e-5, atol=1e-5
     )
     np.testing.assert_array_equal(jnp.isnan(mat_transport_t_vec_a), False)
+
+  @pytest.mark.fast()
+  @pytest.mark.parametrize("axis", [0, 1])
+  @pytest.mark.parametrize(
+      "op", [
+          "cost", "linear_cost", "fn_square_cost", "square_cost", "kernel",
+          "lse_kernel"
+      ]
+  )
+  def test_apply_asymmetric_cost(self, rng: jax.Array, op: str, axis: int):
+    grid_size = (3, 4)
+    geom_grid = grid.Grid(
+        grid_size=grid_size, cost_fns=[AsymmetricCost()], epsilon=1.0
+    )
+    xs = np.meshgrid(*[np.linspace(0, 1, n) for n in grid_size], indexing="ij")
+    xy = jnp.stack([jnp.array(x.ravel()) for x in xs], axis=1)
+    geom_pc = pointcloud.PointCloud(xy, cost_fn=AsymmetricCost())
+    geom_mat = geometry.Geometry(geom_pc.cost_matrix, epsilon=1.0)
+
+    rng_vec, rng_f, rng_g = jr.split(rng, 3)
+    n = geom_grid.shape[0]
+    vec = jr.uniform(rng_vec, (n,))
+    f, g = jr.normal(rng_f, (n,)), jr.normal(rng_g, (n,))
+
+    def apply(geom: geometry.Geometry) -> jnp.ndarray:
+      if op == "cost":
+        return geom.apply_cost(vec, axis=axis)
+      if op == "linear_cost":
+        fn = lambda c: 2.0 * c
+        return geom.apply_cost(vec, axis=axis, fn=fn, is_linear=True)
+      if op == "fn_square_cost":
+        return geom.apply_cost(vec, axis=axis, fn=lambda c: c ** 2)
+      if op == "square_cost":
+        return geom.apply_square_cost(vec, axis=axis)
+      if op == "kernel":
+        return geom.apply_kernel(vec, axis=axis)
+      return geom.apply_lse_kernel(f, g, 1.0, axis=axis)[0]
+
+    np.testing.assert_allclose(
+        apply(geom_grid), apply(geom_mat), rtol=1e-4, atol=1e-4
+    )
 
   @pytest.mark.fast()
   def test_apply_square_cost(self, rng: jax.Array):
