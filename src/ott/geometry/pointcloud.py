@@ -266,35 +266,32 @@ class PointCloud(geometry.Geometry):
 
   def to_LRCGeometry(
       self,
+      rank: int = 0,
+      tol: float = 1e-2,
+      rng: Optional[jax.Array] = None,
       scale: float = 1.0,
-      **kwargs: Any,
-  ) -> Union[low_rank.LRCGeometry, "PointCloud"]:
+  ) -> low_rank.LRCGeometry:
     r"""Convert point cloud to low-rank geometry.
 
+    The squared Euclidean and the negative dot-product costs are factorized
+    exactly, ignoring ``rank``, ``tol`` and ``rng``. Other costs are factorized
+    using :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry`.
+
     Args:
+      rank: Target rank of the :attr:`cost_matrix`.
+      tol: Tolerance of the error.
+      rng: The PRNG key used for the factorization.
       scale: Value used to rescale the factors of the low-rank geometry.
         Useful when this geometry is used in the linear term of fused GW.
-      kwargs: Keyword arguments, such as ``rank``, to
-        :meth:`~ott.geometry.geometry.Geometry.to_LRCGeometry` used when
-        the point cloud does not have squared Euclidean cost.
 
     Returns:
-      Returns the unmodified point cloud if :math:`n m \ge (n + m) d`, where
-      :math:`n, m` is the shape and :math:`d` is the dimension of the point
-      cloud with squared Euclidean cost.
-      Otherwise, returns the re-scaled low-rank geometry.
+      Low-rank geometry.
     """
     if self.is_squared_euclidean:
-      if self._check_LRC_dim:
-        return self._sqeucl_to_lr(scale)
-      # we don't update the `scale_factor` because in GW, the linear cost
-      # is first materialized and then scaled by `fused_penalty` afterwards
-      return self
+      return self._sqeucl_to_lr(scale)
     if self.is_neg_dotp:
-      if self._check_LRC_dim:
-        return self._dotp_to_lr(scale)
-      return self
-    return super().to_LRCGeometry(scale=scale, **kwargs)
+      return self._dotp_to_lr(scale)
+    return super().to_LRCGeometry(rank=rank, tol=tol, rng=rng, scale=scale)
 
   def _sqeucl_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
     assert self.is_squared_euclidean, "Geometry must be squared Euclidean."
@@ -313,10 +310,9 @@ class PointCloud(geometry.Geometry):
     return low_rank.LRCGeometry(
         cost_1=cost_1,
         cost_2=cost_2,
-        scale_factor=scale,
+        scale_factor=scale * self.inv_scale_cost,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
-        scale_cost=self._scale_cost,
     )
 
   def _dotp_to_lr(self, scale: float = 1.0) -> low_rank.LRCGeometry:
@@ -326,10 +322,9 @@ class PointCloud(geometry.Geometry):
     return low_rank.LRCGeometry(
         cost_1=-self.x,
         cost_2=self.y,
-        scale_factor=scale,
+        scale_factor=scale * self.inv_scale_cost,
         epsilon=self._epsilon_init,
         relative_epsilon=self._relative_epsilon,
-        scale_cost=self._scale_cost,
     )
 
   @property
@@ -428,14 +423,12 @@ class PointCloud(geometry.Geometry):
     return isinstance(self.cost_fn, costs.NegDotProduct)
 
   @property
-  def can_LRC(self):  # noqa: D102
-    return (
-        self.is_squared_euclidean or self.is_neg_dotp
-    ) and self._check_LRC_dim
-
-  @property
-  def _check_LRC_dim(self):
+  def can_LRC(self) -> bool:  # noqa: D102
+    if not (self.is_squared_euclidean or self.is_neg_dotp):
+      return False
     (n, m), d = self.shape, self.x.shape[1]
+    # the squared Euclidean factors have 2 more columns than the points
+    d += 2 * self.is_squared_euclidean
     return n * m > (n + m) * d
 
   @property

@@ -92,6 +92,13 @@ class TestQuadraticProblem:
         assert lr_prob._is_low_rank_convertible
         assert lr_prob.to_low_rank() is lr_prob
 
+  def test_to_low_rank_small_point_clouds(self, rng: jax.Array):
+    geom = pointcloud.PointCloud(jr.normal(rng, (5, 10)))
+    prob = quadratic_problem.QuadraticProblem(geom, geom)
+
+    assert not prob._is_low_rank_convertible
+    assert prob.to_low_rank().is_low_rank
+
   def test_gw_implicit_conversion_mixed_input(self, rng: jax.Array):
     n, m, d1, d2 = 13, 77, 3, 4
     rng1, rng2 = jr.split(rng, 2)

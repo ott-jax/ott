@@ -63,10 +63,6 @@ class TestLRGeometry:
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn, scale_cost=scale_cost)
     geom_lr = geom.to_LRCGeometry()
 
-    assert geom._scale_cost == geom_lr._scale_cost
-    np.testing.assert_allclose(
-        geom.inv_scale_cost, geom_lr.inv_scale_cost, rtol=1e-6, atol=1e-6
-    )
     mat_rngs = iter(jr.split(rngs[2], 4))
     for dim, axis in ((m, 1), (n, 0)):
       for mat_shape in ((dim, 2), (dim,)):
@@ -155,13 +151,15 @@ class TestLRGeometry:
       np.testing.assert_allclose(
           geom.apply_cost(mat, axis=axis),
           geom_lr.apply_cost(mat, axis=axis),
-          rtol=1e-3
+          rtol=1e-4,
+          atol=1e-4
       )
       vec = jr.normal(next(draw), (dim,))
       np.testing.assert_allclose(
           geom.apply_cost(vec, axis=axis),
           geom_lr.apply_cost(vec, axis=axis),
-          rtol=1e-3
+          rtol=1e-4,
+          atol=1e-4
       )
 
   @pytest.mark.parametrize(("scale", "scale_cost", "epsilon"),
@@ -220,12 +218,7 @@ class TestLRGeometry:
     geom_pc = pointcloud.PointCloud(x, y)
     geom_lr = geom_pc.to_LRCGeometry(scale=scale)
 
-    if n * m > (n + m) * rank:
-      assert isinstance(geom_lr, low_rank.LRCGeometry)
-    else:
-      # TODO(michalk8): scale is currently ignored by design,
-      # will be changed in the future
-      assert geom_lr is geom_pc
+    assert isinstance(geom_lr, low_rank.LRCGeometry)
 
 
 class TestCostMatrixFactorization:
@@ -254,17 +247,15 @@ class TestCostMatrixFactorization:
     rng1, rng2, rng3 = jr.split(rng, 3)
     x = jr.normal(rng1, shape=(370, 3))
     y = jr.normal(rng2, shape=(460, 3))
-    geom = geometry.Geometry(cost_matrix=x @ y.T)
+    # the bound holds for distance matrices
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.Euclidean())
+    geom = geometry.Geometry(cost_matrix=geom.cost_matrix)
 
     geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol, rng=rng3)
 
     np.testing.assert_array_equal(geom.shape, geom_lr.shape)
     assert geom_lr.cost_rank == rank
-
-    if rank == 2 and tol == 1e-2:
-      pytest.xfail("assert 171666.83 <= 154635.98")
-    else:
-      self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
+    self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
   @pytest.mark.fast.with_args(
       "batch_size,scale_cost", [(None, "mean"), (32, "max_cost"), (None, 1.0)],
@@ -323,21 +314,63 @@ class TestCostMatrixFactorization:
 
     np.testing.assert_array_equal(geom.shape, geom_lr.shape)
     assert geom_lr.cost_rank == rank
-    # self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
-  def test_conversion_grid(self):
+  @pytest.mark.parametrize("ns", [[6, 7, 11], [2], [1, 3], [3, 2, 2]])
+  def test_conversion_grid(self, ns):
     """Test conversion from Grid to LRCGeometry."""
-    ns = [6, 7, 11]
     xs = [jr.normal(jr.key(i), (n,)) for i, n in enumerate(ns)]
     geom = grid.Grid(xs)
 
     # Recovering cost matrix by applying it to columns of identity matrix.
     cost_matrix = geom.apply_cost(jnp.eye(geom.shape[0]))
     # Recovering cost matrix using LRC conversion
-    grid_lrc = geom.to_LRCGeometry()
+    grid_lrc = geom.to_LRCGeometry(rank=0, scale=2.0)
     cost_matrix_lrc = grid_lrc.cost_1 @ grid_lrc.cost_2.T
     np.testing.assert_allclose(
-        cost_matrix, cost_matrix_lrc, rtol=1e-5, atol=1e-5
+        2.0 * cost_matrix, cost_matrix_lrc, rtol=1e-5, atol=1e-5
+    )
+
+  @pytest.mark.parametrize(
+      "kind", [
+          "sqeucl", "sqeucl_small", "sqeucl_1d", "svd", "median", "max_norm",
+          "std", "dense", "low_rank"
+      ]
+  )
+  def test_to_LRCGeometry(self, rng: jax.Array, kind: str):
+    rng_x, rng_y = jr.split(rng)
+    x, y = jr.normal(rng_x, (13, 3)), jr.normal(rng_y, (11, 3))
+    pc = pointcloud.PointCloud
+    geom = {
+        "sqeucl": pc(x, y),
+        "sqeucl_small": pc(x[:2], y[:2]),
+        "sqeucl_1d": pc(x[:2, :1], y[:2, :1]),
+        "svd": pc(x, y, cost_fn=costs.Euclidean(), scale_cost=2.0),
+        "median": pc(x, y, scale_cost="median"),
+        "max_norm": pc(x, y, scale_cost="max_norm"),
+        "std": pc(x, y, scale_cost="std"),
+        "dense": geometry.Geometry(pc(x, y).cost_matrix, scale_cost=2.0),
+        "low_rank": pc(x, y).to_LRCGeometry(),
+    }[kind]
+
+    geom_lr = geom.to_LRCGeometry(rank=0, scale=2.0)
+
+    assert isinstance(geom_lr, low_rank.LRCGeometry)
+    np.testing.assert_allclose(
+        geom_lr.cost_matrix, 2.0 * geom.cost_matrix, rtol=1e-5, atol=1e-5
+    )
+
+  @pytest.mark.parametrize("scale_cost", [4.0, "mean"])
+  def test_to_LRCGeometry_sublinear(
+      self, rng: jax.Array, scale_cost: Union[float, str]
+  ):
+    rng_x, rng_lr = jr.split(rng)
+    x = jr.normal(rng_x, (200, 3)) + 3.0
+    geom = geometry.Geometry(x @ x.T, scale_cost=scale_cost)
+
+    geom_lr = geom.to_LRCGeometry(rank=3, rng=rng_lr, scale=2.0)
+
+    np.testing.assert_allclose(
+        geom_lr.cost_matrix, 2.0 * geom.cost_matrix, rtol=1e-4, atol=1e-4
     )
 
   def test_full_to_lrc_geometry(self, rng: jax.Array):

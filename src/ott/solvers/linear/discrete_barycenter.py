@@ -148,9 +148,8 @@ def _discrete_barycenter(
 
   if lse_mode:
     parallel_update = jax.vmap(
-        lambda f, g, marginal, iteration: geom.update_potential(
-            f, g, jnp.log(marginal), iteration=iteration, axis=1
-        ),
+        lambda f, g, marginal, iteration: geom.
+        update_potential(f, g, jnp.log(marginal), iteration=iteration, axis=1),
         in_axes=[0, 0, 0, None]
     )
     parallel_apply = jax.vmap(
@@ -160,9 +159,8 @@ def _discrete_barycenter(
     )
   else:
     parallel_update = jax.vmap(
-        lambda f, g, marginal, iteration: geom.update_scaling(
-            g, marginal, iteration=iteration, axis=1
-        ),
+        lambda f, g, marginal, iteration: geom.
+        update_scaling(g, marginal, iteration=iteration, axis=1),
         in_axes=[0, 0, 0, None]
     )
     parallel_apply = jax.vmap(

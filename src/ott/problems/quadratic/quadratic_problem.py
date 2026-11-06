@@ -357,7 +357,8 @@ class QuadraticProblem:
 
     def convertible(geom: geometry.Geometry) -> bool:
       return isinstance(geom, low_rank.LRCGeometry) or (
-          isinstance(geom, pointcloud.PointCloud) and geom.is_squared_euclidean
+          isinstance(geom, pointcloud.PointCloud) and
+          geom.is_squared_euclidean and geom.can_LRC
       )
 
     if self.is_low_rank:
