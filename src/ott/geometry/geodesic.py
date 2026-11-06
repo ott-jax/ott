@@ -116,17 +116,13 @@ class Geodesic(geometry.Geometry):
     if eigval is None:
       eigval = compute_largest_eigenvalue(laplacian, rng)
 
-    scaled_laplacian, eigval = jax.lax.cond((eigval > 2.0), lambda l:
-                                            (2.0 * l / eigval, 2.0), lambda l:
-                                            (l, eigval), laplacian)
-
     # compute the coeffs of the Chebyshev pols approx using Bessel funcs
     chebyshev_coeffs = compute_chebychev_coeff_all(
         0.5 * eigval, t, order, laplacian.dtype
     )
 
     return cls(
-        scaled_laplacian=scaled_laplacian,
+        scaled_laplacian=laplacian,
         eigval=eigval,
         chebyshev_coeffs=chebyshev_coeffs,
         t=t,

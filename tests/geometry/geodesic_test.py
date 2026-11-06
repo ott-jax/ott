@@ -157,11 +157,6 @@ class TestGeodesic:
     )
 
     expected = laplacian(G)
-    eigenvalues = jnp.linalg.eigvals(expected)
-    eigval = jnp.max(eigenvalues)
-    # rescale the laplacian
-    expected = 2 * expected / eigval if eigval > 2 else expected
-
     actual = geom.scaled_laplacian
 
     np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
@@ -243,11 +238,23 @@ class TestGeodesic:
     if is_sparse:
       G = jesp.BCOO.fromdense(G)
     geom = geodesic.Geodesic.from_graph(
-        G, t=t, order=order, normalize=normalize
+        G, t=t, order=order if normalize else 10 * order, normalize=normalize
     )
     approx = geom.apply_kernel(jnp.eye(G.shape[0]))
 
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)
+
+  @pytest.mark.parametrize("is_sparse", [True, False])
+  def test_heat_kernel_unnormalized_laplacian(self, is_sparse: bool):
+    t = 0.1
+    G = _graphs.random_graph(20, p=0.5)
+    exact = exact_heat_kernel(G, t=t)
+    if is_sparse:
+      G = jesp.BCOO.fromdense(G)
+    geom = geodesic.Geodesic.from_graph(G, t=t)
+    approx = geom.apply_kernel(jnp.eye(G.shape[0]))
+
+    np.testing.assert_allclose(approx, exact, rtol=1e-3, atol=1e-4)
 
   @pytest.mark.limit_memory("150 MB")
   def test_sparse_geo_memory(self, rng: jax.Array):
