@@ -257,21 +257,10 @@ class Grid(geometry.Geometry):
       return fn(self._apply_cost_to_vec(vec, axis=axis))
     if fn is not None:
       return self._apply_fn_cost_to_vec(vec, axis=axis, fn=fn)
-    vec = jnp.reshape(vec, self.grid_size)
-    accum_vec = jnp.zeros_like(vec)
-    indices = list(range(1, self.grid_dimension))
-    for dimension, geom in enumerate(self.geometries):
-      cost = geom.cost_matrix
-      ind = indices.copy()
-      ind.insert(dimension, 0)
-      if axis == 0:
-        cost = cost.T
-      accum_vec += jnp.sum(
-          jnp.tensordot(cost, vec, axes=([0], [dimension])),
-          axis=indices,
-          keepdims=True
-      ).transpose(ind)
-    return accum_vec.ravel()
+    return sum(
+        self._apply_kronecker_to_vec(vec, {d: cost})
+        for d, cost in enumerate(self._cost_matrices(axis))
+    )
 
   def _apply_fn_cost_to_vec(
       self,
@@ -280,10 +269,7 @@ class Grid(geometry.Geometry):
       fn: Callable[[jnp.ndarray], jnp.ndarray],
   ) -> jnp.ndarray:
     """Apply ``fn(cost)`` to a vector, computing the cost row by row."""
-    cost_matrices = [
-        geom.cost_matrix.T if axis == 0 else geom.cost_matrix
-        for geom in self.geometries
-    ]
+    cost_matrices = self._cost_matrices(axis)
     vec = jnp.reshape(vec, self.grid_size)
 
     def apply_row(ix: jnp.ndarray) -> jnp.ndarray:
@@ -310,10 +296,7 @@ class Grid(geometry.Geometry):
     Returns:
       An array of the same shape as ``arr``.
     """
-    cost_matrices = [
-        geom.cost_matrix.T if axis == 0 else geom.cost_matrix
-        for geom in self.geometries
-    ]
+    cost_matrices = self._cost_matrices(axis)
     terms = [{d: cost ** 2} for d, cost in enumerate(cost_matrices)]
     for d, e in itertools.combinations(range(self.grid_dimension), 2):
       terms.append({d: cost_matrices[d], e: 2.0 * cost_matrices[e]})
@@ -324,6 +307,13 @@ class Grid(geometry.Geometry):
     if arr.ndim == 1:
       return apply(arr)
     return jax.vmap(apply, in_axes=1, out_axes=1)(arr)
+
+  def _cost_matrices(self, axis: int) -> List[jnp.ndarray]:
+    """Cost matrices of the slices, transposed if ``axis = 0``."""
+    return [
+        geom.cost_matrix.T if axis == 0 else geom.cost_matrix
+        for geom in self.geometries
+    ]
 
   def _apply_kronecker_to_vec(
       self, vec: jnp.ndarray, matrices: Dict[int, jnp.ndarray]
