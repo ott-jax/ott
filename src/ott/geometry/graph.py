@@ -57,7 +57,7 @@ class Graph(geometry.Geometry):
       tol: float = -1.0,
       **kwargs: Any
   ):
-    super().__init__(epsilon=1.0, **kwargs)
+    super().__init__(epsilon=t, **kwargs)
     self.laplacian = laplacian
     self.t = t
     self.n_steps = n_steps
@@ -199,7 +199,7 @@ class Graph(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
-    return -self.t * mu.safe_log(self.kernel_matrix)
+    return -self.epsilon * mu.safe_log(self.kernel_matrix)
 
   @property
   def _scale(self) -> float:

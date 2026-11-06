@@ -58,7 +58,7 @@ class Geodesic(geometry.Geometry):
       t: float = 1e-3,
       **kwargs: Any
   ):
-    super().__init__(epsilon=1.0, **kwargs)
+    super().__init__(epsilon=4.0 * t, **kwargs)
     self.scaled_laplacian = scaled_laplacian
     self.eigval = eigval
     self.chebyshev_coeffs = chebyshev_coeffs
@@ -165,7 +165,7 @@ class Geodesic(geometry.Geometry):
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
     # Calculate the cost matrix using the formula (5) from the main reference
-    return -4.0 * self.t * mu.safe_log(self.kernel_matrix)
+    return -self.epsilon * mu.safe_log(self.kernel_matrix)
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102

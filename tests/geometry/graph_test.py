@@ -57,6 +57,17 @@ class TestGraph:
     np.testing.assert_allclose(vec0, vec_direct0, rtol=tol, atol=tol)
     np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
 
+  def test_cost_matches_kernel(self):
+    G = _graphs.random_graph(20, p=0.5)
+    geom = graph.Graph.from_graph(G, t=0.5)
+
+    np.testing.assert_allclose(
+        jnp.exp(-geom.cost_matrix / geom.epsilon),
+        geom.kernel_matrix,
+        rtol=1e-5,
+        atol=1e-5
+    )
+
   def test_automatic_t(self):
     G = _graphs.random_graph(38, return_laplacian=False)
     geom = graph.Graph.from_graph(G, t=None)
@@ -196,10 +207,10 @@ class TestGraph:
     assert gt_out.converged
     assert graph_out.converged
     np.testing.assert_allclose(
-        graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol
+        graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol * eps
     )
-    np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol)
-    np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol)
+    np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol * eps)
+    np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol * eps)
 
     for axis in [0, 1]:
       y_gt = gt_out.apply(x, axis=axis, lse_mode=False)
