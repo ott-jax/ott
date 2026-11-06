@@ -151,13 +151,15 @@ class TestLRGeometry:
       np.testing.assert_allclose(
           geom.apply_cost(mat, axis=axis),
           geom_lr.apply_cost(mat, axis=axis),
-          rtol=1e-3
+          rtol=1e-4,
+          atol=1e-4
       )
       vec = jr.normal(next(draw), (dim,))
       np.testing.assert_allclose(
           geom.apply_cost(vec, axis=axis),
           geom_lr.apply_cost(vec, axis=axis),
-          rtol=1e-3
+          rtol=1e-4,
+          atol=1e-4
       )
 
   @pytest.mark.parametrize(("scale", "scale_cost", "epsilon"),
@@ -245,17 +247,15 @@ class TestCostMatrixFactorization:
     rng1, rng2, rng3 = jr.split(rng, 3)
     x = jr.normal(rng1, shape=(370, 3))
     y = jr.normal(rng2, shape=(460, 3))
-    geom = geometry.Geometry(cost_matrix=x @ y.T)
+    # the bound holds for distance matrices
+    geom = pointcloud.PointCloud(x, y, cost_fn=costs.Euclidean())
+    geom = geometry.Geometry(cost_matrix=geom.cost_matrix)
 
     geom_lr = geom.to_LRCGeometry(rank=rank, tol=tol, rng=rng3)
 
     np.testing.assert_array_equal(geom.shape, geom_lr.shape)
     assert geom_lr.cost_rank == rank
-
-    if rank == 2 and tol == 1e-2:
-      pytest.xfail("assert 171666.83 <= 154635.98")
-    else:
-      self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
+    self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
   @pytest.mark.fast.with_args(
       "batch_size,scale_cost", [(None, "mean"), (32, "max_cost"), (None, 1.0)],
@@ -314,7 +314,6 @@ class TestCostMatrixFactorization:
 
     np.testing.assert_array_equal(geom.shape, geom_lr.shape)
     assert geom_lr.cost_rank == rank
-    # self.assert_upper_bound(geom, geom_lr, rank=rank, tol=tol)
 
   @pytest.mark.parametrize("ns", [[6, 7, 11], [2], [1, 3], [3, 2, 2]])
   def test_conversion_grid(self, ns):
