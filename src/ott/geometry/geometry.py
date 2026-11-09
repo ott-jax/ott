@@ -147,7 +147,7 @@ class Geometry:
     Either provided by user or recomputed from :attr:`cost_matrix`.
     """
     if self._kernel_matrix is None:
-      return jnp.exp(-self._cost_matrix * self.inv_scale_cost / self.epsilon)
+      return jnp.exp(-self.cost_matrix / self.epsilon)
     return self._kernel_matrix ** self.inv_scale_cost
 
   @property
