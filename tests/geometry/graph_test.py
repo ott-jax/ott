@@ -46,8 +46,6 @@ class TestGraph:
     vec_direct0 = geom.kernel_matrix.T @ x
     vec_direct1 = geom.kernel_matrix @ x
 
-    # we symmetrize the kernel explicitly when materializing it, because
-    # numerical error arise  for small `t` and `backward_euler`
     np.testing.assert_array_equal(kernel, kernel.T)
     np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0.0, True)
     # internally, the axis is ignored because the kernel is symmetric

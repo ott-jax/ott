@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import Any, Dict, Literal, Optional, Sequence, Tuple
 
-import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import jax.tree_util as jtu
@@ -190,12 +189,7 @@ class Graph(geometry.Geometry):
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
-    # Symmetrize the kernel if needed. Numerical imprecision
-    # happens when `numerical_scheme='backward_euler'` and small `t`
-    return jax.lax.cond(
-        jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
-        lambda x: (x + x.T) / 2.0, kernel
-    )
+    return (kernel + kernel.T) / 2.0
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102

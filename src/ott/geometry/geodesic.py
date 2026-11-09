@@ -153,10 +153,7 @@ class Geodesic(geometry.Geometry):
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
-    return jax.lax.cond(
-        jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
-        lambda x: (x + x.T) / 2.0, kernel
-    )
+    return (kernel + kernel.T) / 2.0
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
