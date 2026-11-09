@@ -342,8 +342,16 @@ class LRKGeometry(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+    return self.epsilon * self._kernel_cost
+
+  @property
+  def _kernel_cost(self) -> jnp.ndarray:
     eps = jnp.finfo(self.dtype).tiny
-    return -self.epsilon * jnp.log(self.kernel_matrix + eps)
+    return -jnp.log(self.kernel_matrix + eps)
+
+  @property
+  def _epsilon_geom(self) -> geometry.Geometry:
+    return geometry.Geometry(cost_matrix=self._kernel_cost)
 
   @property
   def rank(self) -> int:  # noqa: D102

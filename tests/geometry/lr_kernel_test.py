@@ -7,7 +7,7 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
-from ott.geometry import costs, low_rank, pointcloud
+from ott.geometry import costs, epsilon_scheduler, low_rank, pointcloud
 from ott.solvers import linear
 
 
@@ -59,6 +59,16 @@ class TestLRCGeometry:
     actual = geom.subset(row_ixs=row_ixs, col_ixs=col_ixs).kernel_matrix
 
     np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+  def test_default_epsilon(self, rng: jax.Array):
+    rng1, rng2 = jr.split(rng, 2)
+    k1 = jr.uniform(rng1, (7, 3))
+    k2 = jr.uniform(rng2, (5, 3))
+    geom = low_rank.LRKGeometry(k1, k2)
+
+    std = jnp.std(-jnp.log(geom.kernel_matrix))
+    expected = epsilon_scheduler.DEFAULT_EPSILON_SCALE * std
+    np.testing.assert_allclose(geom.epsilon, expected, rtol=1e-5, atol=1e-5)
 
   def test_tree_flatten(self):
     geom = low_rank.LRKGeometry(
