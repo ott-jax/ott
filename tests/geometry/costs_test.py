@@ -72,6 +72,11 @@ class TestCostFn:
             atol=1e-5,
         )
 
+  def test_cosine_grad_at_zero(self):
+    y = jnp.ones(3)
+    grad = jax.grad(costs.Cosine(ridge=1.0))(jnp.zeros(3), y)
+    np.testing.assert_allclose(grad, -y, rtol=1e-6)
+
   def test_cosine_tree_flatten(self):
     cost_fn = jax.tree.map(lambda x: x, costs.Cosine(ridge=0.5))
     assert cost_fn._ridge == 0.5

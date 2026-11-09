@@ -593,8 +593,8 @@ class Cosine(CostFn):
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
-    x_norm = jnp.linalg.norm(x, axis=-1)
-    y_norm = jnp.linalg.norm(y, axis=-1)
+    x_norm = mu.norm(x, axis=-1)
+    y_norm = mu.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
     return 1.0 - cosine_similarity
 
