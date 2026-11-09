@@ -43,7 +43,6 @@ class Graph(geometry.Geometry):
     tol: Relative tolerance with respect to the Hilbert metric, see
       :cite:`peyre:19`, Remark 4.12. Used when iteratively updating scalings.
       If negative, this option is ignored and only ``n_steps`` is used.
-    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -54,9 +53,8 @@ class Graph(geometry.Geometry):
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
       tol: float = -1.0,
-      **kwargs: Any
   ):
-    super().__init__(epsilon=t, **kwargs)
+    super().__init__(epsilon=t)
     self.laplacian = laplacian
     self.t = t
     self.n_steps = n_steps
@@ -258,8 +256,6 @@ class Graph(geometry.Geometry):
         "n_steps": self.n_steps,
         "numerical_scheme": self.numerical_scheme,
         "tol": self.tol,
-        "relative_epsilon": self._relative_epsilon,
-        "scale_cost": self._scale_cost,
     }
 
   @classmethod

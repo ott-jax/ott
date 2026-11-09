@@ -70,12 +70,6 @@ class TestLRCGeometry:
     expected = epsilon_scheduler.DEFAULT_EPSILON_SCALE * std
     np.testing.assert_allclose(geom.epsilon, expected, rtol=1e-5, atol=1e-5)
 
-  def test_tree_flatten(self):
-    geom = low_rank.LRKGeometry(
-        jnp.ones((2, 1)), jnp.ones((3, 1)), scale_cost=2.0
-    )
-    assert jax.tree.map(lambda x: x, geom)._scale_cost == 2.0
-
   @pytest.mark.parametrize("n", [0, 1, 2])
   def test_arccos_j_function(self, rng: jax.Array, n: int):
 

@@ -47,7 +47,6 @@ class Geodesic(geometry.Geometry):
     eigval: The largest eigenvalue of the Laplacian.
     chebyshev_coeffs: Coefficients of the Chebyshev polynomials.
     t: Time parameter for the heat kernel.
-    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -56,9 +55,8 @@ class Geodesic(geometry.Geometry):
       eigval: jnp.ndarray,
       chebyshev_coeffs: jnp.ndarray,
       t: float = 1e-3,
-      **kwargs: Any
   ):
-    super().__init__(epsilon=4.0 * t, **kwargs)
+    super().__init__(epsilon=4.0 * t)
     self.scaled_laplacian = scaled_laplacian
     self.eigval = eigval
     self.chebyshev_coeffs = chebyshev_coeffs
@@ -203,10 +201,7 @@ class Geodesic(geometry.Geometry):
         self.eigval,
         self.chebyshev_coeffs,
         self.t,
-    ], {
-        "relative_epsilon": self._relative_epsilon,
-        "scale_cost": self._scale_cost,
-    }
+    ], {}
 
   @classmethod
   def tree_unflatten(  # noqa: D102

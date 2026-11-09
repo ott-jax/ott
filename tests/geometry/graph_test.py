@@ -66,12 +66,6 @@ class TestGraph:
         atol=1e-5
     )
 
-  def test_tree_flatten(self):
-    geom = graph.Graph(jnp.eye(3), relative_epsilon="std", scale_cost=2.0)
-    geom = jax.tree.map(lambda x: x, geom)
-    assert geom._relative_epsilon == "std"
-    assert geom._scale_cost == 2.0
-
   def test_automatic_t(self):
     G = _graphs.random_graph(38, return_laplacian=False)
     geom = graph.Graph.from_graph(G, t=None)

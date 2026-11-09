@@ -263,7 +263,6 @@ class LRKGeometry(geometry.Geometry):
     k1: Array of shape ``[num_a, r]`` with positive features.
     k2: Array of shape ``[num_b, r]`` with positive features.
     epsilon: Epsilon regularization.
-    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -271,9 +270,8 @@ class LRKGeometry(geometry.Geometry):
       k1: jnp.ndarray,
       k2: jnp.ndarray,
       epsilon: Optional[float] = None,
-      **kwargs: Any
   ):
-    super().__init__(epsilon=epsilon, relative_epsilon=None, **kwargs)
+    super().__init__(epsilon=epsilon)
     self.k1 = k1
     self.k2 = k2
 
@@ -384,9 +382,7 @@ class LRKGeometry(geometry.Geometry):
     return type(self).tree_unflatten(aux_data, (k1, k2, *rest))
 
   def tree_flatten(self):  # noqa: D102
-    return [self.k1, self.k2, self._epsilon_init], {
-        "scale_cost": self._scale_cost
-    }
+    return [self.k1, self.k2, self._epsilon_init], {}
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
