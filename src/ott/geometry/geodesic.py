@@ -40,10 +40,11 @@ class Geodesic(geometry.Geometry):
   Approximates the heat kernel using
   `Chebyshev polynomials <https://en.wikipedia.org/wiki/Chebyshev_polynomials>`_
   of the first kind of max order ``order``, which for small ``t``
-  approximates the geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
+  approximates the geodesic exponential kernel
+  :math:`e^{\frac{-d(x, y)^2}{4t}}`.
 
   Args:
-    scaled_laplacian: The Laplacian scaled by the largest eigenvalue.
+    scaled_laplacian: The graph Laplacian.
     eigval: The largest eigenvalue of the Laplacian.
     chebyshev_coeffs: Coefficients of the Chebyshev polynomials.
     t: Time parameter for the heat kernel.

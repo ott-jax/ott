@@ -62,7 +62,7 @@ class TestSemidiscretePointCloud:
     np.testing.assert_allclose(pc.epsilon, 0.5, rtol=1e-5, atol=0.0)
 
   @pytest.mark.parametrize("epsilon", [0.0, None, 1e-2])
-  def epsilon(self, rng: jax.Array, epsilon: Optional[float]):
+  def test_epsilon(self, rng: jax.Array, epsilon: Optional[float]):
     n, d = 32, 5
     y = jr.normal(rng, (n, d))
 
