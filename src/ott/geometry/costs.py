@@ -636,8 +636,8 @@ class Arccos(CostFn):
     self._ridge = ridge
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
-    x_norm = jnp.linalg.norm(x, axis=-1)
-    y_norm = jnp.linalg.norm(y, axis=-1)
+    x_norm = mu.norm(x, axis=-1)
+    y_norm = mu.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
     theta = jnp.arccos(cosine_similarity)
 

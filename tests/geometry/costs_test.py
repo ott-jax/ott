@@ -77,6 +77,11 @@ class TestCostFn:
     grad = jax.grad(costs.Cosine(ridge=1.0))(jnp.zeros(3), y)
     np.testing.assert_allclose(grad, -y, rtol=1e-6)
 
+  @pytest.mark.parametrize("n", [0, 1, 2])
+  def test_arccos_grad_at_zero(self, n: int):
+    grad = jax.grad(costs.Arccos(n))(jnp.zeros(3), jnp.ones(3))
+    np.testing.assert_array_equal(jnp.isfinite(grad), True)
+
   def test_cosine_tree_flatten(self):
     cost_fn = jax.tree.map(lambda x: x, costs.Cosine(ridge=0.5))
     assert cost_fn._ridge == 0.5
