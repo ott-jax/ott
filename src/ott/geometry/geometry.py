@@ -328,7 +328,7 @@ class Geometry:
     if eps is None:
       kernel = self.kernel_matrix
     else:
-      kernel = self.kernel_matrix ** (self.epsilon / eps)
+      kernel = jnp.exp(-self.cost_matrix / eps)
     kernel = kernel if axis == 1 else kernel.T
 
     return jnp.dot(kernel, vec)

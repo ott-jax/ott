@@ -52,6 +52,21 @@ class TestCostMeanStd:
 
 
 @pytest.mark.fast()
+class TestApplyKernel:
+
+  def test_apply_kernel_eps(self, rng: jax.Array):
+    cost = jr.uniform(rng, (4, 5), maxval=10.0)
+    vec = jnp.ones(5)
+    geom = geometry.Geometry(cost_matrix=cost, epsilon=1e-2)
+
+    actual = geom.apply_kernel(vec, eps=1.0, axis=1)
+
+    np.testing.assert_allclose(
+        actual, jnp.exp(-geom.cost_matrix) @ vec, rtol=1e-5
+    )
+
+
+@pytest.mark.fast()
 class TestKernelGeometry:
 
   @pytest.mark.parametrize(("epsilon", "relative_epsilon"), [
