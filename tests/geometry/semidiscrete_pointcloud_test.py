@@ -49,16 +49,16 @@ class TestSemidiscretePointCloud:
   def test_sample_relative_epsilon(
       self, rng: jax.Array, relative_epsilon: Literal["mean", "std"]
   ):
-    rng_data, rng_sample = jr.split(rng, 2)
+    rng_data, rng_sample1, rng_sample2 = jr.split(rng, 3)
     y = jr.normal(rng_data, (16, 3))
     geom = sdpc.SemidiscretePointCloud(
         jr.normal, y=y, epsilon=0.1, relative_epsilon=relative_epsilon
     )
 
-    pc = geom.sample(rng_sample, 32)
+    pc = geom.sample(rng_sample1, 32)
     np.testing.assert_allclose(pc.epsilon, geom.epsilon, rtol=1e-5, atol=0.0)
 
-    pc = geom.sample(rng_sample, 32, epsilon=0.5)
+    pc = geom.sample(rng_sample2, 32, epsilon=0.5)
     np.testing.assert_allclose(pc.epsilon, 0.5, rtol=1e-5, atol=0.0)
 
   @pytest.mark.parametrize("epsilon", [0.0, None, 1e-2])
