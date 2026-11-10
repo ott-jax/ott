@@ -472,8 +472,9 @@ class SemidiscreteSolver:
       self, state: SemidiscreteState, prob: sdlp.SemidiscreteLinearProblem
   ) -> SemidiscreteOutput:
     it = state.it
-    leq_thr = state.errors[it // self.error_eval_every] <= self.threshold
-    finite_loss = jnp.isfinite(state.losses[it])
+    err = jnp.abs(state.errors[it // self.error_eval_every - 1])
+    leq_thr = err <= self.threshold
+    finite_loss = jnp.isfinite(state.losses[it - 1])
     return SemidiscreteOutput(
         g=state.g_ema,
         prob=prob,

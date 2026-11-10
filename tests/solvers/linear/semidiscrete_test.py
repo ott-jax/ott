@@ -230,6 +230,25 @@ class TestSemidiscreteSolver:
     )
     np.testing.assert_array_equal(jnp.isfinite(out.losses), True)
 
+  @pytest.mark.parametrize("epsilon", [0.0, 1e-1])
+  def test_converged_early_stop(self, rng: jax.Array, epsilon: float):
+    rng_y, rng_solver = jr.split(rng, 2)
+    y = jr.normal(rng_y, (8, 2))
+    geom = sdpc.SemidiscretePointCloud(jr.normal, y, epsilon=epsilon)
+    prob = sdlp.SemidiscreteLinearProblem(geom)
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=100,
+        batch_size=16,
+        error_eval_every=10,
+        threshold=10.0,
+        optimizer=optax.sgd(1e-2),
+    )
+
+    out = solver(rng_solver, prob)
+
+    assert out.it == 10
+    assert out.converged
+
   @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
                                               (35, None)])
   def test_output(self, rng: jax.Array, n: int, epsilon: Optional[float]):
