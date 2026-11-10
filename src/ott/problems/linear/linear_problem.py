@@ -150,6 +150,8 @@ class LinearProblem:
 
     assert axis in (0, 1), axis
     epsilon = self.geom.epsilon if epsilon is None else epsilon
+    scale = 1.0 / self.geom.inv_scale_cost
+    fg, epsilon = scale * fg, scale * epsilon
     return g_potential if axis == 0 else f_potential
 
   def _c_transform(

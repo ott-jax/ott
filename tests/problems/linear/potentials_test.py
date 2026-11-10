@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Union
+
 import pytest
 
 import jax
@@ -51,13 +53,19 @@ class TestDualPotentials:
     rel_error = jnp.abs(expected_dist - actual_dist) / expected_dist
     assert rel_error < 2 * eps
 
-  def test_entropic_map_non_uniform_weights(self, rng: jax.Array):
+  @pytest.mark.parametrize(
+      "scale_cost",
+      [1.0, 2.0, "mean", "median", "std", "max_cost", "max_norm", "max_bound"]
+  )
+  def test_entropic_map_non_uniform_weights(
+      self, rng: jax.Array, scale_cost: Union[float, str]
+  ):
     rngs = jr.split(rng, 4)
     x = jr.normal(rngs[0], (13, 2))
     y = jr.normal(rngs[1], (17, 2)) + 1.0
     a = jr.uniform(rngs[2], (13,)) + 0.1
     b = jr.uniform(rngs[3], (17,)) + 0.1
-    geom = pointcloud.PointCloud(x, y, epsilon=0.5)
+    geom = pointcloud.PointCloud(x, y, epsilon=0.5, scale_cost=scale_cost)
     prob = linear_problem.LinearProblem(geom, a=a / a.sum(), b=b / b.sum())
     out = sinkhorn.Sinkhorn()(prob)
 

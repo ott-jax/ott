@@ -142,6 +142,14 @@ class SemidiscretePointCloud:
     """The data type."""
     return self.y.dtype
 
+  @property
+  def inv_scale_cost(self) -> jax.Array:
+    """Inverse of the cost scaling, estimated like :attr:`epsilon`."""
+    rng = jr.key(self._relative_epsilon_seed)
+    shape = (self._relative_epsilon_num_samples, *self.y.shape[1:])
+    x = self.sampler(rng, shape, self.dtype)
+    return self._from_samples(x, self._epsilon).inv_scale_cost
+
   def tree_flatten(self):  # noqa: D102
     return (self.y, self.cost_fn), (
         self.sampler, {
