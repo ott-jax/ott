@@ -286,6 +286,26 @@ class TestSinkhorn:
     np.testing.assert_array_equal(errors[:first], jnp.inf)
     assert errors[first] > 0
 
+  @pytest.mark.parametrize(("errors", "converged"), [
+      ([0.5, 1e-4, -1.0, -1.0], True),
+      ([0.5, jnp.inf, -1.0, -1.0], False),
+      ([-1.0, -1.0, -1.0, -1.0], False),
+      ([0.5, 0.4, 0.3, 0.2], False),
+  ])
+  def test_converged(
+      self, clouds: _utils.PointClouds, errors: list, converged: bool
+  ):
+    prob = linear_problem.LinearProblem(clouds.geom())
+    n, m = prob.geom.shape
+    state = sinkhorn.SinkhornState(
+        potentials=(jnp.zeros(n), jnp.zeros(m)),
+        errors=jnp.asarray(errors)[:, None],
+    )
+
+    out = sinkhorn.Sinkhorn(threshold=1e-3).output_from_state(prob, state)
+
+    assert out.converged == converged
+
   @pytest.mark.fast()
   def test_euclidean_point_cloud_scan_loop(self, clouds: _utils.PointClouds):
     """Testing the scan loop behavior."""

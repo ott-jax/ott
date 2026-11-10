@@ -1010,19 +1010,10 @@ class Sinkhorn:
     if self.recenter_potentials:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
-    # By convention, the algorithm is said to have converged if the algorithm
-    # has not nan'ed during iterations (notice some errors might be infinite,
-    # this convention is used when the error is not recomputed), and if the
-    # last recorded error is lower than the threshold. Note that this will be
-    # the case if either the algorithm terminated earlier (in which case the
-    # last state.errors[-1] = -1 by convention) or if the algorithm carried out
-    # the maximal number of iterations and its last recorded error (at -1
-    # position) is lower than the threshold.
-
-    converged = jnp.logical_and(
-        jnp.logical_not(jnp.any(jnp.isnan(state.errors))), state.errors[-1]
-        < self.threshold
-    )[0]
+    errors = state.errors[:, 0]
+    last = jnp.sum(errors != -1) - 1
+    err = errors[jnp.maximum(last, 0)]
+    converged = (last >= 0) & jnp.isfinite(err) & (err < self.threshold)
 
     return SinkhornOutput((f, g),
                           errors=state.errors[:, 0],
