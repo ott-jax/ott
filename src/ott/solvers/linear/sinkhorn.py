@@ -749,6 +749,11 @@ class Sinkhorn:
     self.implicit_diff = implicit_diff
 
     if momentum is not None:
+      if 0 < momentum.start < 2 * self.inner_iterations:
+        raise ValueError(
+            f"Momentum start must be 0 or at least `2 * inner_iterations="
+            f"{2 * self.inner_iterations}`, found {momentum.start}."
+        )
       self.momentum = acceleration.Momentum(
           momentum.start, momentum.error_threshold, momentum.value,
           self.inner_iterations

@@ -133,12 +133,18 @@ class TestSinkhorn:
         lse_out.primal_cost, ker_out.primal_cost, rtol=1e-5, atol=1e-5
     )
 
+  def test_momentum_start_too_early(self):
+    with pytest.raises(ValueError, match=r"Momentum start must be 0"):
+      sinkhorn.Sinkhorn(
+          inner_iterations=10, momentum=acceleration.Momentum(start=5)
+      )
+
   @pytest.mark.fast.with_args(
       "lse_mode,mom_value,mom_start,inner_iterations,norm_error,cost_fn",
       [(True, 1.0, 29, 10, 1, costs.SqEuclidean()),
        (False, 1.0, 30, 10, 1, costs.SqPNorm(p=2.2)),
        (True, 1.0, 60, 1, 2, costs.Euclidean()),
-       (True, 1.0, 12, 24, 4, costs.SqPNorm(p=1.0))],
+       (True, 1.0, 48, 24, 4, costs.SqPNorm(p=1.0))],
       ids=["lse-Leh-mom", "scal-Leh-mom", "lse-Leh-1", "lse-Leh-24"],
       only_fast=[0, -1],
   )
