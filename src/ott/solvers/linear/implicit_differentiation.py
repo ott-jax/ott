@@ -170,35 +170,37 @@ class ImplicitDiff:
       symmetric = self.symmetric
 
     derivative = jax.vmap(jax.grad(precond_fun))
+    supp_a, supp_b = ot_prob.a > 0.0, ot_prob.b > 0.0
+    marg_a = jnp.where(supp_a, marginal_a(f, g), 1.0)
+    marg_b = jnp.where(supp_b, marginal_b(f, g), 1.0)
+    deriv_a = jnp.where(supp_a, derivative(marg_a), 0.0)
+    deriv_b = jnp.where(supp_b, derivative(marg_b), 0.0)
+    gr = jnp.where(supp_a, gr[0], 0.0), jnp.where(supp_b, gr[1], 0.0)
 
     n, m = geom.shape
     # pylint: disable=g-long-lambda
-    vjp_fg = lambda z: app_transport(
-        f, g, z * derivative(marginal_b(f, g)), axis=1
-    ) / geom.epsilon
-    vjp_gf = lambda z: app_transport(
-        f, g, z * derivative(marginal_a(f, g)), axis=0
-    ) / geom.epsilon
+    vjp_fg = lambda z: app_transport(f, g, z * deriv_b, axis=1) / geom.epsilon
+    vjp_gf = lambda z: app_transport(f, g, z * deriv_a, axis=0) / geom.epsilon
 
     if not symmetric:
       vjp_fgt = lambda z: app_transport(
           f, g, z, axis=0
-      ) * derivative(marginal_b(f, g)) / geom.epsilon
+      ) * deriv_b / geom.epsilon
       vjp_gft = lambda z: app_transport(
           f, g, z, axis=1
-      ) * derivative(marginal_a(f, g)) / geom.epsilon
+      ) * deriv_a / geom.epsilon
 
-    diag_hess_a = (
-        marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
-        uf.diag_jacobian_of_marginal_fit(
+    diag_hess_a = jnp.where(
+        supp_a,
+        marg_a * deriv_a / geom.epsilon + uf.diag_jacobian_of_marginal_fit(
             ot_prob.a, f, ot_prob.tau_a, geom.epsilon, derivative
-        )
+        ), 1.0
     )
-    diag_hess_b = (
-        marginal_b(f, g) * derivative(marginal_b(f, g)) / geom.epsilon +
-        uf.diag_jacobian_of_marginal_fit(
+    diag_hess_b = jnp.where(
+        supp_b,
+        marg_b * deriv_b / geom.epsilon + uf.diag_jacobian_of_marginal_fit(
             ot_prob.b, g, ot_prob.tau_b, geom.epsilon, derivative
-        )
+        ), 1.0
     )
     n, m = geom.shape
     # TODO(cuturi) consider materializing linear operator schur if size allows.
@@ -263,14 +265,15 @@ class ImplicitDiff:
     else:
       precond_fun = self.precondition_fun
 
-    result_a = jnp.where(
-        prob.a > 0,
-        precond_fun(marginal_a(f, g)) - precond_fun(grad_a), 0.0
-    )
-    result_b = jnp.where(
-        prob.b > 0,
-        precond_fun(marginal_b(f, g)) - precond_fun(grad_b), 0.0
-    )
+    def residual(
+        marginal: jnp.ndarray, grad: jnp.ndarray, supp: jnp.ndarray
+    ) -> jnp.ndarray:
+      marginal = jnp.where(supp, marginal, 1.0)
+      grad = jnp.where(supp, grad, 1.0)
+      return jnp.where(supp, precond_fun(marginal) - precond_fun(grad), 0.0)
+
+    result_a = residual(marginal_a(f, g), grad_a, prob.a > 0.0)
+    result_b = residual(marginal_b(f, g), grad_b, prob.b > 0.0)
     return jnp.concatenate((result_a, result_b))
 
   def gradient(

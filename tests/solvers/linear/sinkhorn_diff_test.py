@@ -61,6 +61,22 @@ class TestSinkhornImplicit:
         grad(clouds.x, 1e-5) / 1e-5, grad(clouds.x, 1.0), rtol=1e-3, atol=1e-3
     )
 
+  def test_implicit_zero_weights(self, rng: jax.Array):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+
+    def loss(
+        x: jnp.ndarray, implicit_diff: Optional[implicit_lib.ImplicitDiff]
+    ) -> float:
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+      solver = sinkhorn.Sinkhorn(threshold=1e-5, implicit_diff=implicit_diff)
+      return solver(prob).primal_cost
+
+    implicit = jax.grad(loss)(clouds.x, implicit_lib.ImplicitDiff())
+    unrolled = jax.grad(loss)(clouds.x, None)
+
+    np.testing.assert_allclose(implicit, unrolled, rtol=1e-2, atol=1e-2)
+
   def test_custom_solver(self, clouds: _utils.PointClouds):
     solver_kwargs = {"ridge_kernel": 1e-6}
     calls = []
