@@ -249,6 +249,30 @@ class TestSemidiscreteSolver:
     assert out.it == 10
     assert out.converged
 
+  @pytest.mark.parametrize(("num_iterations", "error_eval_every"), [
+      (15, 10),
+      (5, 1000),
+  ])
+  def test_num_iterations(
+      self, rng: jax.Array, num_iterations: int, error_eval_every: int
+  ):
+    rng_y, rng_solver = jr.split(rng, 2)
+    y = jr.normal(rng_y, (8, 2))
+    geom = sdpc.SemidiscretePointCloud(jr.normal, y, epsilon=1e-1)
+    prob = sdlp.SemidiscreteLinearProblem(geom)
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=num_iterations,
+        batch_size=16,
+        error_eval_every=error_eval_every,
+        threshold=0.0,
+        optimizer=optax.sgd(1e-2),
+    )
+
+    out = solver(rng_solver, prob)
+
+    assert out.it == num_iterations
+    assert jnp.isfinite(out.errors[-1])
+
   @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
                                               (35, None)])
   def test_output(self, rng: jax.Array, n: int, epsilon: Optional[float]):

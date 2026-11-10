@@ -335,7 +335,7 @@ class SemidiscreteSolver:
         state: SemidiscreteState,
     ) -> bool:
       loss = state.losses[it - 1]
-      err = jnp.abs(state.errors[it // self.error_eval_every - 1])
+      err = jnp.abs(state.errors[(it - 1) // self.error_eval_every])
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
       target_eps_not_reached = ~jnp.isclose(state.epsilon, prob.epsilon)
@@ -354,13 +354,18 @@ class SemidiscreteSolver:
         state: SemidiscreteState,
         compute_error: bool,
     ) -> SemidiscreteState:
-      return self.step(
-          jr.fold_in(rng, it),
-          state=state,
-          prob=prob,
-          compute_error=compute_error,
-          # we evaluate the error using the same samples
-          rng_error=rng_error,
+      return jax.lax.cond(
+          it < self.num_iterations,
+          lambda state: self.step(
+              jr.fold_in(rng, it),
+              state=state,
+              prob=prob,
+              compute_error=compute_error | (it == self.num_iterations - 1),
+              # we evaluate the error using the same samples
+              rng_error=rng_error,
+          ),
+          lambda state: state,
+          state,
       )
 
     _, m = prob.geom.shape
@@ -472,7 +477,7 @@ class SemidiscreteSolver:
       self, state: SemidiscreteState, prob: sdlp.SemidiscreteLinearProblem
   ) -> SemidiscreteOutput:
     it = state.it
-    err = jnp.abs(state.errors[it // self.error_eval_every - 1])
+    err = jnp.abs(state.errors[(it - 1) // self.error_eval_every])
     leq_thr = err <= self.threshold
     finite_loss = jnp.isfinite(state.losses[it - 1])
     return SemidiscreteOutput(
