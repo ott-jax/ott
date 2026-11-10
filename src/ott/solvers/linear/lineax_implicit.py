@@ -24,7 +24,7 @@ def _cg(
     b: jnp.ndarray,
     *,
     rtol: float = 1e-6,
-    atol: float = 0.0,
+    atol: float = 1e-6,
     maxiter: Optional[int] = None,
 ) -> jnp.ndarray:
   """Conjugate gradient solver using jax.lax.while_loop."""
@@ -87,7 +87,7 @@ def solve_lineax(
     kwargs: arguments passed to the CG solver (rtol, atol, maxiter).
   """
   kwargs.setdefault("rtol", 1e-6)
-  kwargs.setdefault("atol", 0.0)
+  kwargs.setdefault("atol", 1e-6)
 
   if ridge_kernel > 0.0 or ridge_identity > 0.0:
     lin_reg = lambda x: lin(x) + ridge_kernel * jnp.sum(x) + ridge_identity * x

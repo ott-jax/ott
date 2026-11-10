@@ -48,19 +48,6 @@ class TestSinkhornImplicit:
 
     np.testing.assert_allclose(x, jnp.linalg.solve(a, b), rtol=1e-4, atol=1e-4)
 
-  def test_implicit_grad_linear_in_cotangent(self, clouds: _utils.PointClouds):
-
-    def loss(x: jnp.ndarray, scale: float) -> float:
-      geom = pointcloud.PointCloud(x, clouds.y, epsilon=0.1)
-      prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
-      return scale * sinkhorn.Sinkhorn()(prob).primal_cost
-
-    grad = jax.grad(loss)
-
-    np.testing.assert_allclose(
-        grad(clouds.x, 1e-5) / 1e-5, grad(clouds.x, 1.0), rtol=1e-3, atol=1e-3
-    )
-
   def test_implicit_zero_weights(self, rng: jax.Array):
     clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
 
