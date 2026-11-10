@@ -218,7 +218,8 @@ def fixpoint_iter_bwd(
 
   if force_scan:
     (_, g_state, g_constants), _ = jax.lax.scan(
-        lambda carry, x: unrolled_body_fn(carry), (0, g, g_constants),
+        lambda carry, x: unrolled_body_fn(carry),
+        (iteration - inner_iterations, g, g_constants),
         None,
         length=max_iterations // inner_iterations
     )
