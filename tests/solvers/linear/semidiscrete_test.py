@@ -303,6 +303,26 @@ class TestSemidiscreteSolver:
     with pytest.raises(AssertionError, match=r"Error batch size must be > 1"):
       solver(rng_solver, prob)
 
+  def test_potential_ema(self, rng: jax.Array):
+    rng_prob, rng_solver = jr.split(rng, 2)
+    prob = _random_problem(rng_prob, m=8, d=2, epsilon=1e-1)
+    g_init = jnp.ones(8)
+
+    def solve(potential_ema: float) -> jnp.ndarray:
+      solver = semidiscrete.SemidiscreteSolver(
+          num_iterations=1,
+          batch_size=16,
+          optimizer=optax.sgd(1e-1),
+          potential_ema=potential_ema,
+      )
+      return solver(rng_solver, prob, g_init=g_init).g
+
+    g_1 = solve(0.0)
+
+    np.testing.assert_allclose(
+        solve(0.9), 0.9 * g_init + 0.1 * g_1, rtol=1e-5, atol=1e-5
+    )
+
   @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
                                               (35, None)])
   def test_output(self, rng: jax.Array, n: int, epsilon: Optional[float]):

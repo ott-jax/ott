@@ -279,7 +279,7 @@ def constant_epsilon_scheduler(
 @jtu.register_static
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class SemidiscreteSolver:
-  """Semidiscrete optimal transport solver.
+  r"""Semidiscrete optimal transport solver.
 
   Args:
     num_iterations: Number of iterations.
@@ -292,7 +292,9 @@ class SemidiscreteSolver:
     error_num_repeats: Number of repeats used to estimate
       the marginal chi-squared error, set to sixteen by default.
     threshold: Convergence threshold for the marginal chi-squared error.
-    potential_ema: Exponential moving average of the dual potential.
+    potential_ema: Exponential moving average of the dual potential,
+      :math:`\bar{g} \leftarrow \alpha \bar{g} + (1 - \alpha) g`, where
+      :math:`\alpha` is ``potential_ema``.
     epsilon_scheduler: Epsilon scheduler along the iterations with a signature
       ``(step, target_epsilon) -> epsilon``.
       By default, :func:`constant_epsilon_scheduler` is used.
@@ -444,7 +446,9 @@ class SemidiscreteSolver:
         grads, state.opt_state, g_old, value=loss
     )
     g_new = optax.apply_updates(g_old, updates)
-    g_ema = optax.incremental_update(g_new, state.g_ema, self.potential_ema)
+    g_ema = optax.incremental_update(
+        g_new, state.g_ema, 1.0 - self.potential_ema
+    )
 
     # fmt: off
     error = jax.lax.cond(
