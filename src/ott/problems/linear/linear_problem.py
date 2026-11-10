@@ -120,6 +120,10 @@ class LinearProblem:
     Args:
       fg: Potential vector :math:`\mathbb{f}` if ``axis = 0``
         else :math:`\mathbb{g}` of shape ``[n,]`` or ``[m,]``, respectively.
+        The marginal weights are assumed to be absorbed into the potentials,
+        as in :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`, i.e., the
+        coupling is :math:`\exp((\mathbb{f} \oplus \mathbb{g} - C) /
+        \varepsilon)`.
       epsilon: Epsilon regularization. If :obj:`None`, use in the :attr:`geom`.
       axis: If ``axis = 0``, return the :math:`g`-potential function, otherwise
         return the :math:`f`-potential function.
@@ -131,14 +135,16 @@ class LinearProblem:
     def f_potential(x: jax.Array) -> jax.Array:
       x, y = jnp.atleast_2d(x), self.geom.y
       geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
-      prob = LinearProblem(geom, b=self.b)
+      support = (self.b > 0.0).astype(self.b.dtype)
+      prob = LinearProblem(geom, b=support)
       f, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
       return f.squeeze(0)
 
     def g_potential(y: jax.Array) -> jax.Array:
       x, y = self.geom.x, jnp.atleast_2d(y)
       geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
-      prob = LinearProblem(geom, a=self.a)
+      support = (self.a > 0.0).astype(self.a.dtype)
+      prob = LinearProblem(geom, a=support)
       g, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
       return g.squeeze(0)
 

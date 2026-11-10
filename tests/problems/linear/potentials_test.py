@@ -259,6 +259,36 @@ class TestDualPotentials:
       with pytest.raises(AssertionError):
         np.testing.assert_allclose(div_ref, div_points, rtol=1e-1, atol=1e-1)
 
+  def test_potentials_sinkhorn_divergence_duplicated_point(
+      self, rng: jax.Array
+  ):
+    rngs = jr.split(rng, 4)
+    x = jr.normal(rngs[0], (13, 2))
+    y = jr.normal(rngs[1], (17, 2)) + 1.0
+    x_test = jr.normal(rngs[2], (5, 2))
+    y_test = jr.normal(rngs[3], (5, 2)) + 1.0
+    b = jnp.ones(17).at[0].set(2.0) / 18.0
+    y_dup, b_dup = jnp.concatenate([y[:1], y]), jnp.ones(18) / 18.0
+
+    def transport(y: jnp.ndarray, b: jnp.ndarray) -> jnp.ndarray:
+      _, out = sinkhorn_divergence.sinkhorn_divergence(
+          pointcloud.PointCloud,
+          x,
+          y,
+          b=b,
+          epsilon=0.5,
+          solve_kwargs={"threshold": 1e-5}
+      )
+      dp = out.to_dual_potentials()
+      return jnp.concatenate([
+          dp.transport(x_test),
+          dp.transport(y_test, forward=False)
+      ])
+
+    np.testing.assert_allclose(
+        transport(y_dup, b_dup), transport(y, b), rtol=1e-3, atol=1e-3
+    )
+
   @pytest.mark.parametrize("reg", [regularizers.L1(), regularizers.SqL2()])
   def test_potentials_diff_param_costs(
       self, rng: jax.Array, reg: regularizers.ProximalOperator

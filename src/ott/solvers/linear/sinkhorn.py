@@ -491,12 +491,12 @@ class SinkhornOutput(NamedTuple):
     Returns:
       The dual potentials :math:`f` and :math:`g`.
     """
-    epsilon = self.geom.epsilon if epsilon is None else epsilon
-    a, b = self.ot_prob.a, self.ot_prob.b
-    f = self.f - epsilon * jnp.log(jnp.where(a > 0.0, a, 1.0))
-    g = self.g - epsilon * jnp.log(jnp.where(b > 0.0, b, 1.0))
-    f_fn = self.ot_prob.potential_fn_from_dual_vec(g, epsilon=epsilon, axis=1)
-    g_fn = self.ot_prob.potential_fn_from_dual_vec(f, epsilon=epsilon, axis=0)
+    f_fn = self.ot_prob.potential_fn_from_dual_vec(
+        self.g, epsilon=epsilon, axis=1
+    )
+    g_fn = self.ot_prob.potential_fn_from_dual_vec(
+        self.f, epsilon=epsilon, axis=0
+    )
     cost_fn = self.geom.cost_fn
     return potentials.DualPotentials(f_fn, g_fn, cost_fn=cost_fn)
 
