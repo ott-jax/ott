@@ -105,6 +105,23 @@ class TestDiscreteBarycenter:
     # check the barycenter has bump in the middle.
     assert bar[n // 4] > 0.1
 
+  def test_debiased_lse_matches_kernel(self):
+    x = jnp.linspace(0.0, 1.0, 20)[:, None]
+    a = jnp.stack([jnp.linspace(1.0, 2.0, 20), jnp.linspace(2.0, 1.0, 20)])
+    geom = pointcloud.PointCloud(x, epsilon=5e-2)
+    prob = bp.FixedBarycenterProblem(geom, a=a / a.sum(1, keepdims=True))
+
+    lse, kernel = (
+        db.FixedBarycenter(
+            lse_mode=lse_mode,
+            debiased=True,
+            min_iterations=500,
+            max_iterations=500
+        )(prob).histogram for lse_mode in (True, False)
+    )
+
+    np.testing.assert_allclose(lse, kernel, rtol=1e-3, atol=1e-5)
+
   @pytest.mark.parametrize("lse_mode", [True, False])
   def test_epsilon_schedule(self, lse_mode: bool):
     x = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])

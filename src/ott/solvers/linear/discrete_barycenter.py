@@ -209,7 +209,7 @@ def _discrete_barycenter(
         b += d
         d = 0.5 * (
             d + geom.update_potential(
-                jnp.zeros((num_a,)), d, b / eps, iteration=iteration, axis=0
+                d, jnp.zeros_like(d), b / eps, iteration=iteration, axis=0
             )
         )
       else:
