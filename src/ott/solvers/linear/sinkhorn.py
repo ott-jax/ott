@@ -914,7 +914,9 @@ class Sinkhorn:
     err = jax.lax.cond(
         jnp.logical_or(
             iteration == self.max_iterations - 1,
-            jnp.logical_and(compute_error, iteration >= self.min_iterations)
+            jnp.logical_and(
+                compute_error, iteration + 1 >= self.min_iterations
+            )
         ),
         lambda state, prob: state.solution_error(
             prob,

@@ -266,7 +266,10 @@ class TestSinkhorn:
     np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.fast()
-  def test_euclidean_point_cloud_min_iter(self, clouds: _utils.PointClouds):
+  @pytest.mark.parametrize("min_iterations", [30, 34])
+  def test_euclidean_point_cloud_min_iter(
+      self, clouds: _utils.PointClouds, min_iterations: int
+  ):
     """Testing the min_iterations parameter."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1)
@@ -275,14 +278,13 @@ class TestSinkhorn:
         a=clouds.a,
         b=clouds.b,
         threshold=threshold,
-        min_iterations=34,
+        min_iterations=min_iterations,
     ).errors
     err = errors[jnp.logical_and(errors > -1, jnp.isfinite(errors))][-1]
     assert threshold > err
-    assert errors[0] == jnp.inf
-    assert errors[1] == jnp.inf
-    assert errors[2] == jnp.inf
-    assert errors[3] > 0
+    first = -(-min_iterations // 10) - 1
+    np.testing.assert_array_equal(errors[:first], jnp.inf)
+    assert errors[first] > 0
 
   @pytest.mark.fast()
   def test_euclidean_point_cloud_scan_loop(self, clouds: _utils.PointClouds):
