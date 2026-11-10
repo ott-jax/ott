@@ -42,7 +42,8 @@ class AndersonAcceleration:
     xs_clean = jnp.nan_to_num(xs, nan=jnp.nan, posinf=jnp.inf, neginf=0.0)
     residuals = fxs_clean - xs_clean
     gram_matrix = jnp.matmul(residuals.T, residuals)
-    gram_matrix /= jnp.linalg.norm(gram_matrix)
+    norm = jnp.linalg.norm(gram_matrix)
+    gram_matrix /= jnp.where(norm > 0.0, norm, 1.0)
 
     # Solve linear system to obtain weights
     weights = jax.scipy.sparse.linalg.cg(

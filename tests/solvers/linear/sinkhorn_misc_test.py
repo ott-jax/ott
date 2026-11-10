@@ -33,6 +33,14 @@ from tests import _utils
 class TestSinkhornAnderson:
   """Tests for Anderson acceleration."""
 
+  def test_extrapolation_zero_residuals(self):
+    xs = jnp.arange(6.0).reshape(3, 2)
+    anderson = acceleration.AndersonAcceleration(memory=2)
+
+    actual = anderson.extrapolation(xs, xs)
+
+    np.testing.assert_allclose(actual, xs.mean(axis=1), rtol=1e-6)
+
   @pytest.mark.usefixtures("enable_x64")
   @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("anderson", [True, False])
