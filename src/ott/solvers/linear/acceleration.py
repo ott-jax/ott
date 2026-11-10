@@ -46,8 +46,9 @@ class AndersonAcceleration:
 
     # Solve linear system to obtain weights
     weights = jax.scipy.sparse.linalg.cg(
-        gram_matrix + self.ridge_identity * jnp.eye(xs.shape[1]),
-        jnp.ones(xs.shape[1])
+        gram_matrix +
+        self.ridge_identity * jnp.eye(xs.shape[1], dtype=xs.dtype),
+        jnp.ones(xs.shape[1], dtype=xs.dtype)
     )[0]
     weights /= jnp.sum(weights)
 
@@ -112,7 +113,7 @@ class AndersonAcceleration:
       self, pb, state: "sinkhorn.SinkhornState"
   ) -> "sinkhorn.SinkhornState":
     """Initialize log matrix used in Anderson acceleration with *NaN* values."""
-    fus = jnp.ones((pb.geom.shape[0], self.memory)) * jnp.nan
+    fus = jnp.full((pb.geom.shape[0], self.memory), jnp.nan, dtype=pb.dtype)
     return state.set(old_fus=fus, old_mapped_fus=fus)
 
   def update_history(
@@ -146,7 +147,8 @@ class Momentum:
         jnp.logical_and(
             iteration >= self.start, state.errors[idx - 1, -1]
             < self.error_threshold
-        ), lambda state: self.lehmann(state), lambda state: self.value, state
+        ), lambda state: self.lehmann(state),
+        lambda state: jnp.asarray(self.value, dtype=state.errors.dtype), state
     )
 
   def lehmann(self, state: "sinkhorn.SinkhornState") -> float:
