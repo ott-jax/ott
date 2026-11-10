@@ -157,15 +157,16 @@ class LinearProblem:
     def _soft_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
       cost = self.geom.cost_matrix
       z = (fg - cost) / epsilon
-      return -epsilon * math_utils.logsumexp(z, b=self.b, axis=axis), z
+      return -epsilon * math_utils.logsumexp(z, b=weights, axis=axis), z
 
     def _hard_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
       cost = self.geom.cost_matrix
       z = fg - cost
-      pos_weights = self.b[None, :] > 0.0
+      pos_weights = weights > 0.0
       return -jnp.max(z, initial=-jnp.inf, where=pos_weights, axis=axis), z
 
     assert axis in (0, 1), axis
+    weights = self.a[:, None] if axis == 0 else self.b[None, :]
     fg = jnp.expand_dims(fg, 1 - axis)
     epsilon = self.geom.epsilon if epsilon is None else epsilon
     return jax.lax.cond(epsilon > 0.0, _soft_c_transform, _hard_c_transform, fg)

@@ -51,6 +51,30 @@ class TestDualPotentials:
     rel_error = jnp.abs(expected_dist - actual_dist) / expected_dist
     assert rel_error < 2 * eps
 
+  def test_entropic_map_non_uniform_weights(self, rng: jax.Array):
+    rngs = jr.split(rng, 4)
+    x = jr.normal(rngs[0], (13, 2))
+    y = jr.normal(rngs[1], (17, 2)) + 1.0
+    a = jr.uniform(rngs[2], (13,)) + 0.1
+    b = jr.uniform(rngs[3], (17,)) + 0.1
+    geom = pointcloud.PointCloud(x, y, epsilon=0.5)
+    prob = linear_problem.LinearProblem(geom, a=a / a.sum(), b=b / b.sum())
+    out = sinkhorn.Sinkhorn()(prob)
+
+    p = out.matrix
+    dp = out.to_dual_potentials()
+
+    np.testing.assert_allclose(
+        dp.transport(x), (p @ y) / p.sum(1, keepdims=True),
+        rtol=1e-4,
+        atol=1e-4
+    )
+    np.testing.assert_allclose(
+        dp.transport(y, forward=False), (p.T @ x) / p.sum(0)[:, None],
+        rtol=1e-4,
+        atol=1e-4
+    )
+
   @pytest.mark.fast.with_args(forward=[False, True], only_fast=0)
   def test_entropic_potentials_displacement(
       self, rng: jax.Array, forward: bool
