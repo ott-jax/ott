@@ -308,8 +308,9 @@ class SinkhornOutput(NamedTuple):
       marginals, unbalanced regularizers, etc.
     threshold: convergence threshold used to control the termination of the
       algorithm.
-    converged: whether the output corresponds to a solution whose error is
-      below the convergence threshold.
+    converged: whether the stopping criterion was met, i.e. the last recorded
+      error is below ``threshold``. :obj:`False` if the solver diverged or
+      reached ``max_iterations`` above ``threshold``.
     inner_iterations: number of iterations that were run between two
       computations of errors.
   """
@@ -1010,10 +1011,8 @@ class Sinkhorn:
     if self.recenter_potentials:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
-    errors = state.errors[:, 0]
-    last = jnp.sum(errors != -1) - 1
-    err = errors[jnp.maximum(last, 0)]
-    converged = (last >= 0) & jnp.isfinite(err) & (err < self.threshold)
+    n_iters = self.inner_iterations * jnp.sum(state.errors[:, 0] != -1)
+    converged = self._converged(state, n_iters)
 
     return SinkhornOutput((f, g),
                           errors=state.errors[:, 0],
