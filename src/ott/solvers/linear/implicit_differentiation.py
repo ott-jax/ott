@@ -316,8 +316,9 @@ def solve_jax_cg(
     kwargs: arguments passed to :func:`~jax.scipy.sparse.linalg.cg`
   """
   op = lin if symmetric else lambda x: lin_t(lin(x))
+  rhs = b if symmetric else lin_t(b)
   if ridge_kernel > 0.0 or ridge_identity > 0.0:
     lin_reg = lambda x: op(x) + ridge_kernel * jnp.sum(x) + ridge_identity * x
   else:
     lin_reg = op
-  return jax.scipy.sparse.linalg.cg(lin_reg, b, **kwargs)[0]
+  return jax.scipy.sparse.linalg.cg(lin_reg, rhs, **kwargs)[0]

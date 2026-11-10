@@ -37,6 +37,17 @@ def clouds() -> _utils.PointClouds:
 class TestSinkhornImplicit:
   """Check implicit and autodiff match for Sinkhorn."""
 
+  def test_solve_jax_cg_non_symmetric(self, rng: jax.Array):
+    rng_a, rng_b = jr.split(rng, 2)
+    a = jr.normal(rng_a, (5, 5)) + 5.0 * jnp.eye(5)
+    b = jr.normal(rng_b, (5,))
+
+    x = implicit_lib.solve_jax_cg(
+        lambda x: a @ x, b, lin_t=lambda x: a.T @ x, symmetric=False
+    )
+
+    np.testing.assert_allclose(x, jnp.linalg.solve(a, b), rtol=1e-4, atol=1e-4)
+
   def test_custom_solver(self, clouds: _utils.PointClouds):
     solver_kwargs = {"ridge_kernel": 1e-6}
     calls = []
