@@ -124,6 +124,11 @@ class SinkhornState(NamedTuple):
     return self.potentials[1]
 
 
+def _positive_power(x: jnp.ndarray, p: float) -> jnp.ndarray:
+  positive = x > 0.0
+  return jnp.where(positive, jnp.where(positive, x, 1.0) ** p, 0.0)
+
+
 def solution_error(
     f_u: jnp.ndarray,
     g_v: jnp.ndarray,
@@ -864,16 +869,19 @@ class Sinkhorn:
     """Sinkhorn multiplicative update."""
     w = self.momentum.weight(state, iteration)
     old_gv = state.gv
-    new_gv = ot_prob.geom.update_scaling(
-        state.fu, ot_prob.b, iteration, axis=0
-    ) ** ot_prob.tau_b
+    new_gv = _positive_power(
+        ot_prob.geom.update_scaling(state.fu, ot_prob.b, iteration, axis=0),
+        ot_prob.tau_b
+    )
     gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
-    new_fu = ot_prob.geom.update_scaling(
-        old_gv if self.parallel_dual_updates else gv,
-        ot_prob.a,
-        iteration,
-        axis=1
-    ) ** ot_prob.tau_a
+    new_fu = _positive_power(
+        ot_prob.geom.update_scaling(
+            old_gv if self.parallel_dual_updates else gv,
+            ot_prob.a,
+            iteration,
+            axis=1
+        ), ot_prob.tau_a
+    )
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
     return state.set(potentials=(fu, gv))
 

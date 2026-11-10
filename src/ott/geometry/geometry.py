@@ -540,7 +540,11 @@ class Geometry:
     Returns:
       a vector of the same size.
     """
-    return self.epsilon * jnp.log(scaling)
+    positive = scaling > 0.0
+    return jnp.where(
+        positive, self.epsilon * jnp.log(jnp.where(positive, scaling, 1.0)),
+        -jnp.inf
+    )
 
   def scaling_from_potential(self, potential: jnp.ndarray) -> jnp.ndarray:
     """Compute scaling vector from dual potential.

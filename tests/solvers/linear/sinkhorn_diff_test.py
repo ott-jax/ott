@@ -64,6 +64,25 @@ class TestSinkhornImplicit:
 
     np.testing.assert_allclose(implicit, unrolled, rtol=1e-2, atol=1e-2)
 
+  @pytest.mark.parametrize("tau", [1.0, 0.9])
+  def test_kernel_unrolled_zero_weights(self, rng: jax.Array, tau: float):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+
+    def loss(x: jnp.ndarray, lse_mode: bool) -> float:
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(
+          geom, a=clouds.a, b=clouds.b, tau_a=tau, tau_b=tau
+      )
+      solver = sinkhorn.Sinkhorn(
+          lse_mode=lse_mode, implicit_diff=None, threshold=1e-5
+      )
+      return solver(prob).primal_cost
+
+    kernel = jax.grad(loss)(clouds.x, False)
+    lse = jax.grad(loss)(clouds.x, True)
+
+    np.testing.assert_allclose(kernel, lse, rtol=1e-2, atol=1e-2)
+
   def test_custom_solver(self, clouds: _utils.PointClouds):
     solver_kwargs = {"ridge_kernel": 1e-6}
     calls = []
