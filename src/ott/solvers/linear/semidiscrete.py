@@ -580,7 +580,8 @@ def _marginal_chi2_error(
     else:
       out = jnp.sum(matrix, axis=0) ** 2 - jnp.sum(matrix ** 2, axis=0)
 
-    out = jnp.sum(out / prob.b) / (batch_size * (batch_size - 1.0))
+    b = jnp.where(prob.b > 0.0, prob.b, 1.0)
+    out = jnp.sum(out / b) / (batch_size * (batch_size - 1.0))
     return out - 1.0
 
   def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
@@ -590,6 +591,7 @@ def _marginal_chi2_error(
     chi2_err_avg = chi2_err_avg + chi2 / num_iters
     return chi2_err_avg, None
 
+  assert batch_size > 1, f"Error batch size must be > 1, got {batch_size}."
   out = SemidiscreteOutput(g=g, prob=prob)
 
   chi2_err = jnp.zeros((), dtype=g.dtype)

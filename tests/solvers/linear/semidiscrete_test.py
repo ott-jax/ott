@@ -273,6 +273,36 @@ class TestSemidiscreteSolver:
     assert out.it == num_iterations
     assert jnp.isfinite(out.errors[-1])
 
+  @pytest.mark.parametrize("epsilon", [0.0, 1e-1])
+  def test_error_zero_weights(self, rng: jax.Array, epsilon: float):
+    rng_prob, rng_solver = jr.split(rng, 2)
+    prob = _random_problem(rng_prob, m=8, d=2, epsilon=epsilon)
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=20,
+        batch_size=16,
+        error_eval_every=10,
+        threshold=0.0,
+        optimizer=optax.sgd(1e-2),
+    )
+
+    out = solver(rng_solver, prob)
+
+    assert out.it == 20
+    np.testing.assert_array_equal(jnp.isfinite(out.errors), True)
+
+  def test_error_batch_size_one(self, rng: jax.Array):
+    rng_prob, rng_solver = jr.split(rng, 2)
+    prob = _random_problem(rng_prob, m=8, d=2, epsilon=1e-1)
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=10,
+        batch_size=16,
+        error_batch_size=1,
+        optimizer=optax.sgd(1e-2),
+    )
+
+    with pytest.raises(AssertionError, match=r"Error batch size must be > 1"):
+      solver(rng_solver, prob)
+
   @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
                                               (35, None)])
   def test_output(self, rng: jax.Array, n: int, epsilon: Optional[float]):
