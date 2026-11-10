@@ -259,11 +259,6 @@ class TICost(CostFn):
 
     return transport
 
-  def barycenter(self, weights: jnp.ndarray,
-                 xs: jnp.ndarray) -> Tuple[jnp.ndarray, Any]:
-    """Output barycenter of vectors."""
-    return jnp.average(xs, weights=weights, axis=0), None
-
 
 @jtu.register_pytree_node_class
 class SqPNorm(TICost):
