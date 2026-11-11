@@ -185,7 +185,8 @@ class RandomInitializer(LRInitializer):
   ) -> jnp.ndarray:
     del kwargs, init_g
     a = ot_prob.a
-    init_q = jnp.abs(jax.random.normal(rng, (a.shape[0], self.rank)))
+    init_q = jax.random.normal(rng, (a.shape[0], self.rank), dtype=a.dtype)
+    init_q = jnp.abs(init_q)
     return a[:, None] * (init_q / jnp.sum(init_q, axis=1, keepdims=True))
 
   def init_r(  # noqa: D102
@@ -198,7 +199,8 @@ class RandomInitializer(LRInitializer):
   ) -> jnp.ndarray:
     del kwargs, init_g
     b = ot_prob.b
-    init_r = jnp.abs(jax.random.normal(rng, (b.shape[0], self.rank)))
+    init_r = jax.random.normal(rng, (b.shape[0], self.rank), dtype=b.dtype)
+    init_r = jnp.abs(init_r)
     return b[:, None] * (init_r / jnp.sum(init_r, axis=1, keepdims=True))
 
   def init_g(  # noqa: D102
@@ -208,7 +210,8 @@ class RandomInitializer(LRInitializer):
       **kwargs: Any,
   ) -> jnp.ndarray:
     del kwargs
-    init_g = jnp.abs(jax.random.uniform(rng, (self.rank,))) + 1.0
+    init_g = jax.random.uniform(rng, (self.rank,), dtype=ot_prob.a.dtype)
+    init_g = jnp.abs(init_g) + 1.0
     return init_g / jnp.sum(init_g)
 
 
@@ -242,13 +245,13 @@ class Rank2Initializer(LRInitializer):
         ])
     ) * 0.5
 
-    g1 = jnp.arange(1, r + 1)
-    g1 /= g1.astype(float).sum()
+    g1 = jnp.arange(1, r + 1, dtype=init_g.dtype)
+    g1 /= g1.sum()
     g2 = (init_g - lambda_1 * g1) / (1.0 - lambda_1)
 
     # keep the factor supported where the marginal is
-    x = jnp.where(marginal > 0, jnp.arange(1, n + 1), 0)
-    x /= x.astype(float).sum()
+    x = jnp.where(marginal > 0, jnp.arange(1, n + 1, dtype=marginal.dtype), 0)
+    x /= x.sum()
     y = (marginal - lambda_1 * x) / (1.0 - lambda_1)
 
     return ((lambda_1 * x[:, None] @ g1.reshape(1, -1)) +
@@ -283,7 +286,7 @@ class Rank2Initializer(LRInitializer):
       **kwargs: Any,
   ) -> jnp.ndarray:
     del rng, kwargs
-    return jnp.ones((self.rank,)) / self.rank
+    return jnp.ones((self.rank,), dtype=ot_prob.a.dtype) / self.rank
 
 
 @jax.tree_util.register_pytree_node_class
@@ -399,7 +402,7 @@ class KMeansInitializer(LRInitializer):
       **kwargs: Any,
   ) -> jnp.ndarray:
     del rng, kwargs
-    return jnp.ones((self.rank,)) / self.rank
+    return jnp.ones((self.rank,), dtype=ot_prob.a.dtype) / self.rank
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     children, aux_data = super().tree_flatten()
@@ -477,14 +480,15 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
 
     def init_fn() -> GeneralizedKMeansInitializer.State:
       n = geom.shape[0]
-      factor = jnp.abs(jax.random.normal(rng, (n, self.rank))) + 1.0  # (n, r)
+      factor = jax.random.normal(rng, (n, self.rank), dtype=consts.g.dtype)
+      factor = jnp.abs(factor) + 1.0  # (n, r)
       factor *= consts.marginal[:, None] / jnp.sum(
           factor, axis=1, keepdims=True
       )
 
       return self.State(
           factor,
-          criterions=-jnp.ones(outer_iterations),
+          criterions=-jnp.ones(outer_iterations, dtype=factor.dtype),
           crossed_threshold=False
       )
 

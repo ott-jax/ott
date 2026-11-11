@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Type
+
 import pytest
 
 import jax
@@ -47,6 +49,25 @@ class TestLRInitializers:
     actual = jax.jit(lambda init: init)(initializer)
     assert actual.rank == 3
     assert actual._kwargs["gamma"] == 5.0
+
+  @pytest.mark.usefixtures("enable_x64")
+  @pytest.mark.parametrize(
+      "initializer_cls", [
+          initializers_lr.RandomInitializer,
+          initializers_lr.Rank2Initializer,
+          initializers_lr.KMeansInitializer,
+          initializers_lr.GeneralizedKMeansInitializer,
+      ]
+  )
+  def test_float32_with_x64(
+      self, rng: jax.Array, initializer_cls: Type[initializers_lr.LRInitializer]
+  ):
+    x = jr.normal(rng, (10, 2), dtype=jnp.float32)
+    prob = linear_problem.LinearProblem(pointcloud.PointCloud(x))
+
+    q, r, g = initializer_cls(rank=2)(prob, rng=rng)
+
+    assert q.dtype == r.dtype == g.dtype == jnp.float32
 
   @pytest.mark.fast()
   def test_rank2_with_zero_weights(self, rng: jax.Array):
