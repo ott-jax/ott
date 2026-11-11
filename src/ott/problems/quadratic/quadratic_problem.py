@@ -507,14 +507,18 @@ class QuadraticProblem:
   @property
   def a(self) -> jnp.ndarray:
     """First marginal."""
-    num_a = self.geom_xx.shape[0]
-    return jnp.ones((num_a,)) / num_a if self._a is None else self._a
+    if self._a is not None:
+      return self._a
+    n = self.geom_xx.shape[0]
+    return jnp.full((n,), fill_value=1.0 / n, dtype=self.geom_xx.dtype)
 
   @property
   def b(self) -> jnp.ndarray:
     """Second marginal."""
-    num_b = self.geom_yy.shape[0]
-    return jnp.ones((num_b,)) / num_b if self._b is None else self._b
+    if self._b is not None:
+      return self._b
+    m = self.geom_yy.shape[0]
+    return jnp.full((m,), fill_value=1.0 / m, dtype=self.geom_yy.dtype)
 
   @property
   def is_fused(self) -> bool:

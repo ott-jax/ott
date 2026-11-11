@@ -24,10 +24,12 @@ from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
 from ott.math import utils as mu
 from ott.problems.linear import linear_problem
+from ott.problems.quadratic import gw_barycenter as gwb
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
+from ott.solvers.quadratic import gw_barycenter as gwb_solver
 from tests import _utils
 
 
@@ -560,6 +562,27 @@ class TestGromovWasserstein:
 
     assert jnp.all(jnp.isfinite(grad_a_pad))
     np.testing.assert_allclose(grad_a_pad[:6], grad_a, rtol=1e-5, atol=1e-5)
+
+  @pytest.mark.usefixtures("enable_x64")
+  def test_float32_with_x64(self, rng: jax.Array):
+    y = jr.normal(rng, (2, 7, 2), dtype=jnp.float32)
+    b = jnp.full((2, 7), 1.0 / 7, dtype=jnp.float32)
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(y[0]), pointcloud.PointCloud(y[1])
+    )
+    bar_prob = gwb.GWBarycenterProblem(y=y, b=b, epsilon=1.0)
+    solver = gromov_wasserstein.GromovWasserstein(sinkhorn.Sinkhorn())
+    bar_solver = gwb_solver.GromovWassersteinBarycenter(
+        solver, max_iterations=5
+    )
+
+    out = solver(prob)
+    bar_out = bar_solver(bar_prob, bar_size=5)
+
+    for arr in (
+        out.matrix, out.costs, out.reg_gw_cost, bar_out.cost, bar_out.costs
+    ):
+      assert arr.dtype == jnp.float32
 
   @pytest.mark.fast()
   def test_gw_lr(self, rng: jax.Array):
