@@ -66,8 +66,8 @@ class TestDiscreteBarycenter:
 
     assert bar[(jnp.prod(size) - 1) // 2] > 0.7
     assert bar[(jnp.prod(size) - 1) // 2] < 1
-    err = errors[jnp.isfinite(errors)][-1]
-    assert threshold > err
+    err = errors[errors != -1][-1]
+    assert err < threshold
 
   @pytest.mark.parametrize(("lse_mode", "epsilon"), [(True, 1e-3),
                                                      (False, 1e-2)],
