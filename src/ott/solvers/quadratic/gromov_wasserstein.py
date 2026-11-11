@@ -203,7 +203,8 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     initializer: Quadratic initializer. If :obj:`None`, use
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`.
     warm_start: Whether to initialize Sinkhorn calls with the values
-      from the previous iteration.
+      from the previous iteration. Not supported for
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`.
     progress_fn: callback function which gets called during the
       Gromov-Wasserstein iterations, so the user can display the error at each
       iteration, e.g., using a progress bar.
@@ -229,6 +230,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     ) if initializer is None else initializer
     self.warm_start = warm_start
     self.progress_fn = progress_fn
+
+    if warm_start and isinstance(linear_solver, sinkhorn_lr.LRSinkhorn):
+      raise ValueError("Warm start is not supported for `LRSinkhorn`.")
 
   def __call__(
       self,

@@ -700,6 +700,12 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
+  def test_warm_start_lr_linear_solver(self):
+    with pytest.raises(ValueError, match=r"Warm start"):
+      gromov_wasserstein.GromovWasserstein(
+          sinkhorn_lr.LRSinkhorn(rank=2), warm_start=True
+      )
+
   def test_gw_lr_kl_loss(self, rng: jax.Array):
     rng_x, rng_y = jr.split(rng, 2)
     x, y = jr.uniform(rng_x, (10, 2)), jr.uniform(rng_y, (12, 3))
