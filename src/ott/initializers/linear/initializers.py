@@ -77,10 +77,6 @@ class SinkhornInitializer(abc.ABC):
 
     Args:
       ot_prob: Linear OT problem.
-      a: Initial potential/scaling f_u.
-        If ``None``, it will be initialized using :meth:`init_dual_a`.
-      b: Initial potential/scaling g_v.
-        If ``None``, it will be initialized using :meth:`init_dual_b`.
       lse_mode: Return potentials if ``True``, scalings if ``False``.
       rng: Random number generator for stochastic initializers.
 
@@ -175,9 +171,10 @@ class GaussianInitializer(DefaultInitializer):
 class SortingInitializer(DefaultInitializer):
   """Sorting initializer :cite:`thornton2022rethinking:22`.
 
-  Solve non-regularized OT problem via sorting, then compute potential through
-  iterated minimum on C-transform and use this potential to initialize
-  regularized potential.
+  Assume that the identity is the solution of the non-regularized OT problem,
+  e.g., for sorted 1-dimensional point clouds of the same size, then compute
+  potential through iterated minimum on C-transform and use this potential to
+  initialize regularized potential.
 
   Args:
     vectorized_update: Whether to use vectorized loop.

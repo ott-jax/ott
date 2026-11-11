@@ -294,15 +294,15 @@ class SinkhornOutput(NamedTuple):
     potentials: list of optimal dual variables, two vector of size
       ``ot.prob.shape[0]`` and ``ot.prob.shape[1]`` returned by Sinkhorn
     errors: vector or errors, along iterations. This vector is of size
-      ``max_iterations // inner_iterations`` where those were the parameters
-      passed on to the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
-      For each entry indexed at ``i``, ``errors[i]`` can be either a real
-      non-negative value (meaning the algorithm recorded that error at the
-      ``i * inner_iterations`` iteration), a ``jnp.inf`` value (meaning the
-      algorithm computed that iteration but did not compute its error, because,
-      for instance, ``i < min_iterations // inner_iterations``), or a ``-1``,
-      meaning that execution was terminated before that iteration, because the
-      criterion was found to be smaller than ``threshold``.
+      ``ceil(max_iterations / inner_iterations)`` where those were the
+      parameters passed on to the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`
+      solver. For each entry indexed at ``i``, ``errors[i]`` can be either a
+      real non-negative value (meaning the algorithm recorded that error after
+      ``(i + 1) * inner_iterations`` iterations), a ``jnp.inf`` value (meaning
+      the algorithm computed these iterations but did not compute their error,
+      because ``(i + 1) * inner_iterations < min_iterations``), or a ``-1``,
+      meaning that execution was terminated before these iterations, because
+      the algorithm converged or diverged.
     reg_ot_cost: the regularized optimal transport cost. By default this is
       the linear contribution + KL term. See
       :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`,
@@ -577,16 +577,17 @@ class Sinkhorn:
 
     In addition to standard Sinkhorn updates, the user can also use heavy-ball
     type updates using a ``momentum`` parameter in ]0,2[. We also implement a
-    strategy that tries to set that parameter adaptively at
-    ``chg_momentum_from`` iterations, as a function of progress in the error,
+    strategy that tries to set that parameter adaptively after
+    ``momentum.start`` iterations, as a function of progress in the error,
     as proposed in the literature.
 
     Another upgrade to the standard Sinkhorn updates provided to the users lies
-    in using Anderson acceleration. This can be parameterized by setting the
-    otherwise null ``anderson`` to a positive integer. When selected,the
-    algorithm will recompute, every ``refresh_anderson_frequency`` (set by
-    default to 1) an extrapolation of the most recently computed ``anderson``
-    iterates. When using that option, notice that differentiation (if required)
+    in using Anderson acceleration. This can be parameterized by passing an
+    :class:`~ott.solvers.linear.acceleration.AndersonAcceleration` instance as
+    ``anderson``. When selected, the algorithm will recompute, every
+    ``anderson.refresh_every`` iterations (set by default to 1), an
+    extrapolation of the ``anderson.memory`` most recently computed iterates.
+    When using that option, notice that differentiation (if required)
     can only be carried out using implicit differentiation, and that all
     momentum related parameters are ignored.
 
@@ -675,11 +676,12 @@ class Sinkhorn:
   Args:
     lse_mode: :obj:`True` for log-sum-exp computations, :obj:`False` for kernel
       multiplication.
-    threshold: tolerance used to stop the Sinkhorn iterations. This is
-      typically the deviation between a target marginal and the marginal of the
-      current primal solution when either or both ``tau_a`` and ``tau_b`` are
-      :math:`1.0` (balanced or semi-balanced problem), or the relative change
-      between two successive solutions in the unbalanced case.
+    threshold: tolerance used to stop the Sinkhorn iterations. For balanced
+      problems, this is the deviation between the target marginal ``b`` and
+      the marginal of the current primal solution. Otherwise, i.e., for
+      unbalanced or semi-balanced problems, or when using
+      ``parallel_dual_updates``, this is the norm of the gradient of the dual
+      objective w.r.t. the potentials.
     norm_error: power used to define the :math:`p`-norm used to quantify
       the magnitude of the gradients. This criterion is used to terminate the
       algorithm.
@@ -703,10 +705,10 @@ class Sinkhorn:
     parallel_dual_updates: updates potentials or scalings in parallel if
       :obj:`True`, sequentially (in Gauss-Seidel fashion) if :obj:`False`.
     recenter_potentials: Whether to re-center the dual potentials.
-      If the problem is balanced, the ``f`` potential is zero-centered for
-      numerical stability. Otherwise, use the approach of :cite:`sejourne:22`
-      to achieve faster convergence. Only used when ``lse_mode = True`` and
-      ``tau_a < 1`` and ``tau_b < 1``.
+      If the problem is balanced, the output ``f`` potential is zero-centered
+      for numerical stability. If ``tau_a < 1`` and ``tau_b < 1``, use the
+      approach of :cite:`sejourne:22` to achieve faster convergence, which is
+      applied during the iterations only when ``lse_mode = True``.
     use_danskin: when :obj:`True`, it is assumed the
       :term:`entropy-regularized optimal transport` cost
       is evaluated using :term:`dual Kantorovich potentials` that are frozen,
