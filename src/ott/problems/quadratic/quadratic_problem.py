@@ -290,8 +290,9 @@ class QuadraticProblem:
   ) -> linear_problem.LinearProblem:
     """Update linearization of GW problem by updating cost matrix.
 
-    If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``), the equation
-    follows eq. 6, p. 1 of :cite:`peyre:16`.
+    If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``), the cost is
+    the gradient of the GW objective, i.e., twice eq. 6, p. 1 of
+    :cite:`peyre:16`.
 
     If the problem is unbalanced (``tau_a < 1.0 or tau_b < 1.0``), two cases are
     possible, as explained in :meth:`init_linearization` above.
@@ -336,7 +337,11 @@ class QuadraticProblem:
     tmp = apply_cost(geom_xx, transport_matrix, axis=1, fn=h1)
     tmp = apply_cost(geom_yy, tmp.T, axis=1, fn=h2).T
 
-    cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
+    cost_matrix = marginal_cost.cost_matrix - tmp
+    if self.gw_unbalanced_correction and not self.is_balanced:
+      cost_matrix += unbalanced_correction
+    else:
+      cost_matrix *= 2.0
     cost_matrix += self.fused_penalty * rescale_factor * self._fused_cost_matrix
 
     geom = geometry.Geometry(

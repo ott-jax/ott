@@ -86,8 +86,9 @@ class BaseQuadraticInitializer(abc.ABC):
 class QuadraticInitializer(BaseQuadraticInitializer):
   r"""Initialize a linear problem locally around a selected coupling.
 
-  If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``),
-  the equation of the cost follows eq. 6, p. 1 of :cite:`peyre:16`.
+  If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``), the cost is
+  the gradient of the GW objective, i.e., twice eq. 6, p. 1 of
+  :cite:`peyre:16`.
 
   If the problem is unbalanced (``tau_a < 1`` or ``tau_b < 1``), there are two
   possible cases. A first possibility is to introduce a quadratic KL
@@ -96,7 +97,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   local cost matrix.
 
   Alternatively, it could be possible to leave the formulation of the
-  local cost unchanged, i.e. follow eq. 6, p. 1 of :cite:`peyre:16`
+  local cost unchanged, i.e. use the gradient as in the balanced case
   (``gw_unbalanced_correction = False``) and include the unbalanced terms
   at the level of the linear problem only.
 
@@ -160,7 +161,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       tmp = tmp1 @ self.init_coupling @ tmp2.T
 
     if quad_prob.is_balanced or not quad_prob.gw_unbalanced_correction:
-      cost_matrix = marginal_cost.cost_matrix - tmp
+      cost_matrix = 2.0 * (marginal_cost.cost_matrix - tmp)
     else:
       # initialize epsilon for Unbalanced GW according to Sejourne et. al (2021)
       init_transport = jnp.outer(quad_prob.a, quad_prob.b)

@@ -22,6 +22,7 @@ import numpy as np
 
 from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
+from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
@@ -328,6 +329,49 @@ class TestGromovWasserstein:
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-2, atol=1e-2
     )
 
+  @pytest.mark.parametrize("fused", [False, True])
+  def test_reg_gw_cost(self, rng: jax.Array, fused: bool):
+
+    def solve(a: jnp.ndarray) -> gromov_wasserstein.GWOutput:
+      prob = quadratic_problem.QuadraticProblem(
+          geometry.Geometry(cost_matrix=cx),
+          geometry.Geometry(cost_matrix=cy),
+          geom_xy if fused else None,
+          a=a,
+      )
+      return solver(prob)
+
+    rngs = jr.split(rng, 4)
+    x, y = jr.normal(rngs[0], (7, 2)), jr.normal(rngs[1], (8, 3))
+    cx = pointcloud.PointCloud(x).cost_matrix
+    cy = pointcloud.PointCloud(y).cost_matrix
+    geom_xy = pointcloud.PointCloud(
+        jr.normal(rngs[2], (7, 2)), jr.normal(rngs[3], (8, 2))
+    )
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(threshold=1e-6, max_iterations=5000),
+        epsilon=5.0,
+        threshold=1e-6,
+        min_iterations=20,
+        max_iterations=200,
+    )
+    a, h = jnp.full(7, 1.0 / 7), 1e-2
+    d = jnp.zeros(7).at[0].set(1.0).at[1].set(-1.0)
+
+    out = solve(a)
+    p, ab = out.matrix, jnp.outer(a, jnp.full(8, 1.0 / 8))
+    loss = (cx[:, None, :, None] - cy[None, :, None, :]) ** 2
+    quad = jnp.einsum("ijkl,ij,kl->", loss, p, p)
+    lin = jnp.vdot(geom_xy.cost_matrix, p) if fused else 0.0
+    grad = jnp.vdot(jax.grad(lambda a: solve(a).reg_gw_cost)(a), d)
+    grad_fd = (solve(a + h * d).reg_gw_cost -
+               solve(a - h * d).reg_gw_cost) / (2.0 * h)
+
+    np.testing.assert_allclose(
+        out.reg_gw_cost, quad + lin + 5.0 * mu.gen_kl(p, ab), rtol=1e-5
+    )
+    np.testing.assert_allclose(grad, grad_fd, rtol=1e-2)
+
   def test_gw_adaptive_threshold(self, clouds: _utils.QuadClouds):
     """Checking solution is improved with smaller threshold for convergence."""
     geom_x = pointcloud.PointCloud(clouds.x, clouds.x)
@@ -341,11 +385,12 @@ class TestGromovWasserstein:
       solver = gromov_wasserstein.GromovWasserstein(
           linear_solver, threshold=threshold, epsilon=1e-1
       )
+      out = solver(prob)
 
-      return solver(prob).reg_gw_cost
+      ab = jnp.outer(clouds.a, clouds.b)
+      return out.primal_cost + 1e-1 * mu.gen_kl(out.matrix, ab)
 
-    assert loss_thre(1e-1) >= loss_thre(1e-4)
-    assert loss_thre(1e-3) >= loss_thre(1e-5)
+    assert loss_thre(1e-1) > loss_thre(1e-5)
 
   @pytest.mark.usefixtures("enable_x64")
   def test_unbalanced_split_point(self, rng: jax.Array):
@@ -398,7 +443,7 @@ class TestGromovWasserstein:
     )
     ot_gwlr = solver(prob)
     linear_solver = sinkhorn.Sinkhorn()
-    solver = gromov_wasserstein.GromovWasserstein(linear_solver, epsilon=0.2)
+    solver = gromov_wasserstein.GromovWasserstein(linear_solver, epsilon=0.4)
     ot_gw = solver(prob)
 
     np.testing.assert_allclose(
@@ -499,6 +544,42 @@ class TestGromovWasserstein:
         out_no_corr.reg_gw_cost, out.reg_gw_cost, rtol=1e-6
     )
 
+  @pytest.mark.parametrize("fused_penalty", [1.0, 3.0])
+  def test_gw_lr_fused_costs(self, rng: jax.Array, fused_penalty: float):
+
+    def gw_cost(q: jnp.ndarray, r: jnp.ndarray, g: jnp.ndarray) -> float:
+      p = (q / g) @ r.T
+      quad = (cx ** 2 @ a) @ a + (cy ** 2 @ b) @ b
+      quad -= 2.0 * jnp.vdot(cx @ p @ cy, p)
+      return quad + fused_penalty * g.sum() * jnp.vdot(cxy, p)
+
+    rng_x, rng_y, rng_z = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    z = jr.normal(rng_z, (12, 2))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x),
+        pointcloud.PointCloud(y),
+        geom_xy=pointcloud.PointCloud(x, z),
+        fused_penalty=fused_penalty,
+    )
+    cx, cy = prob.geom_xx.cost_matrix, prob.geom_yy.cost_matrix
+    cxy, a, b = prob.geom_xy.cost_matrix, prob.a, prob.b
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2, gamma=1.0, gamma_rescale=False
+    )
+    q, r, g = solver.initializer(prob)
+    state = solver.init_state(prob, (q, r, g))
+
+    out = solver.output_from_state(prob, state)
+    costs = solver._get_costs(prob, state)[:3]
+    grads = jax.grad(gw_cost, argnums=(0, 1, 2))(q, r, g)
+
+    np.testing.assert_allclose(out.primal_cost, gw_cost(q, r, g), rtol=1e-4)
+    for arr, cost, grad in zip((q, r, g), costs, grads):
+      np.testing.assert_allclose(
+          jnp.log(arr) - cost, grad, rtol=1e-4, atol=1e-4
+      )
+
   @pytest.mark.parametrize("loss", ["sqeucl", "kl"])
   def test_gw_lr_loss_costs(self, rng: jax.Array, loss: str):
 
@@ -595,10 +676,10 @@ class TestGromovWasserstein:
     out = solver(prob)
 
     if scale_cost == 1.0:
-      assert out.reg_gw_cost < 34
+      assert out.reg_gw_cost < 37
       assert out.primal_cost < 32
     else:
-      assert out.reg_gw_cost < 0.23
+      assert out.reg_gw_cost < 0.25
       assert out.primal_cost < 0.22
 
   @pytest.mark.parametrize(("tau_a", "tau_b", "eps", "ti"),

@@ -47,8 +47,8 @@ class GWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
 
   Args:
-    costs: Holds the sequence of regularized GW costs seen through the outer
-      loop of the solver.
+    costs: Holds the sequence of regularized OT costs of the linearizations
+      seen through the outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
     converged: Convergence flag for the outer GW iterations.
@@ -58,6 +58,7 @@ class GWOutput(NamedTuple):
       linearization of GW.
     geom: The geometry underlying the local linearization.
     old_transport_mass: Holds total mass of transport at previous iteration.
+    ot_prob: The quadratic problem.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -68,6 +69,7 @@ class GWOutput(NamedTuple):
   geom: Optional[geometry.Geometry] = None
   # Intermediate values.
   old_transport_mass: float = 1.0
+  ot_prob: Optional[quadratic_problem.QuadraticProblem] = None
 
   def set(self, **kwargs: Any) -> "GWOutput":
     """Return a copy of self, possibly with overwrites."""
@@ -84,17 +86,34 @@ class GWOutput(NamedTuple):
 
   @property
   def reg_gw_cost(self) -> float:
-    """Regularized optimal transport cost of the linearization."""
-    return self.linear_state.reg_ot_cost
+    """Regularized GW cost.
+
+    That is, ``quadratic + fused_penalty * linear + epsilon * KL(P | ab^T)``.
+    """
+    return self.linear_state.reg_ot_cost - self._quad_cost
+
+  @property
+  def primal_cost(self) -> float:
+    """GW cost, i.e., ``quadratic + fused_penalty * linear``."""
+    primal_cost = self.linear_state.transport_cost_at_geom(other_geom=self.geom)
+    return primal_cost - self._quad_cost
+
+  @property
+  def _quad_cost(self) -> float:
+    prob = self.ot_prob
+    if prob.gw_unbalanced_correction and not prob.is_balanced:
+      return 0.0
+
+    # `self.geom` is the gradient `2 * quadratic + fused_penalty * linear`
+    quad_grad = self.geom.cost_matrix
+    if prob.is_fused:
+      quad_grad -= prob.fused_penalty * prob._fused_cost_matrix
+    transport = jax.lax.stop_gradient(self.linear_state.matrix)
+    return 0.5 * jnp.vdot(quad_grad, transport)
 
   @property
   def _rescale_factor(self) -> float:
     return jnp.sqrt(self.old_transport_mass / self.linear_state.transport_mass)
-
-  @property
-  def primal_cost(self) -> float:
-    """Return transport cost of current linear OT solution at geometry."""
-    return self.linear_state.transport_cost_at_geom(other_geom=self.geom)
 
   @property
   def n_iters(self) -> int:  # noqa: D102
@@ -105,8 +124,8 @@ class GWState(NamedTuple):
   """State of the Gromov-Wasserstein solver.
 
   Attributes:
-    costs: Holds the sequence of regularized GW costs seen through the outer
-      loop of the solver.
+    costs: Holds the sequence of regularized OT costs of the linearizations
+      seen through the outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
     linear_state: State used to solve and store solutions to the local
@@ -238,7 +257,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         jnp.nanmean(out.linear_convergence) == 1.0
     )
     return out.set(
-        linear_state=linear_state, geom=linearization.geom, converged=converged
+        linear_state=linear_state,
+        geom=linearization.geom,
+        converged=converged,
+        ot_prob=prob,
     )
 
   def init_state(

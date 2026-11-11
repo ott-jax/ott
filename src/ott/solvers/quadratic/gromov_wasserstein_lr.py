@@ -219,11 +219,9 @@ class LRGWOutput(NamedTuple):
     if not self.ot_prob.is_fused:
       return quad_cost
 
-    alpha = self.ot_prob.fused_penalty / (self.ot_prob.fused_penalty + 1.0)
     norm_g = jnp.linalg.norm(self.g, ord=1)
-
     lin_cost = self.cost_at_geom(self.ot_prob.geom_xy)
-    return alpha * norm_g * lin_cost + (1.0 - alpha) * quad_cost
+    return quad_cost + self.ot_prob.fused_penalty * norm_g * lin_cost
 
   @property
   def transport_mass(self) -> float:
@@ -376,7 +374,6 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     grad_g = -omega_quad / (g ** 2)
 
     if ot_prob.is_fused:
-      alpha = ot_prob.fused_penalty / (ot_prob.fused_penalty + 1.0)
       norm_g = jnp.linalg.norm(g, ord=1)
 
       tmp = ot_prob.geom_xy.apply_cost(r, axis=1)
@@ -386,9 +383,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       omega_lin = jnp.sum(q * tmp, axis=0)
       lin_grad_g = -omega_lin / (g ** 2) * norm_g + jnp.sum(q * tmp * inv_g)
 
-      grad_q = alpha * lin_grad_q + (1.0 - alpha) * grad_q
-      grad_r = alpha * lin_grad_r + (1.0 - alpha) * grad_r
-      grad_g = alpha * lin_grad_g + (1.0 - alpha) * grad_g
+      grad_q += ot_prob.fused_penalty * lin_grad_q
+      grad_r += ot_prob.fused_penalty * lin_grad_r
+      grad_g += ot_prob.fused_penalty * lin_grad_g
 
     grad_q += self.epsilon * log_q
     grad_r += self.epsilon * log_r
