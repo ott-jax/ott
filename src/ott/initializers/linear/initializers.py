@@ -323,32 +323,26 @@ class SubsampleInitializer(DefaultInitializer):
     rng = utils.default_prng_key(rng)
     rng_x, rng_y = jax.random.split(rng, 2)
 
-    x, y = ot_prob.geom.x, ot_prob.geom.y
+    n, m = ot_prob.geom.shape
     a, b = ot_prob.a, ot_prob.b
 
     # subsample
-    sub_x = jax.random.choice(
-        rng_x, a=x, shape=(self.subsample_n_x,), replace=True, p=a, axis=0
+    row_ixs = jax.random.choice(
+        rng_x, n, shape=(self.subsample_n_x,), replace=True, p=a
     )
-    sub_y = jax.random.choice(
-        rng_y, a=y, shape=(self.subsample_n_y,), replace=True, p=b, axis=0
+    col_ixs = jax.random.choice(
+        rng_y, m, shape=(self.subsample_n_y,), replace=True, p=b
     )
-
-    # create subsampled point cloud geometry
-    sub_geom = pointcloud.PointCloud(
-        sub_x,
-        sub_y,
-        epsilon=ot_prob.geom.epsilon,
-        scale_cost=ot_prob.geom._scale_cost,
-        cost_fn=ot_prob.geom.cost_fn
-    )
+    sub_geom = ot_prob.geom.subset(row_ixs, col_ixs)
 
     # run sinkhorn
     subsample_sink_out = linear.solve(sub_geom, **self.sinkhorn_kwargs)
 
     # interpolate potentials
     dual_potentials = subsample_sink_out.to_dual_potentials()
-    f_potential = jax.vmap(dual_potentials.f)(x)
+    f_potential = ot_prob.geom.inv_scale_cost * jax.vmap(dual_potentials.f)(
+        ot_prob.geom.x
+    )
 
     return f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
         f_potential

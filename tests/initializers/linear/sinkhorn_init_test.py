@@ -134,18 +134,26 @@ class TestSinkhornInitializers:
       gaus_init.init_fu(prob, lse_mode=True)
 
   @pytest.mark.parametrize("scale_cost", [2.0, "mean"])
-  def test_gauss_scale_cost(
-      self, rng: jax.Array, scale_cost: Union[float, str]
+  @pytest.mark.parametrize(
+      "initializer",
+      [linear_init.GaussianInitializer(),
+       linear_init.SubsampleInitializer(10)],
+      ids=["gaussian", "subsample"],
+  )
+  def test_scale_cost(
+      self,
+      rng: jax.Array,
+      scale_cost: Union[float, str],
+      initializer: linear_init.SinkhornInitializer,
   ):
-    prob = _problems.create_ot_problem(rng, 20, 25)
+    prob = _problems.create_ot_problem(rng, 20, 25, epsilon=None)
     geom = pointcloud.PointCloud(
         prob.geom.x, prob.geom.y, scale_cost=scale_cost
     )
     prob_scaled = linear_problem.LinearProblem(geom, a=prob.a, b=prob.b)
-    gaus_init = linear_init.GaussianInitializer()
 
-    f = gaus_init.init_fu(prob, lse_mode=True)
-    f_scaled = gaus_init.init_fu(prob_scaled, lse_mode=True)
+    f = initializer.init_fu(prob, lse_mode=True)
+    f_scaled = initializer.init_fu(prob_scaled, lse_mode=True)
 
     np.testing.assert_allclose(
         f_scaled, geom.inv_scale_cost * f, rtol=1e-4, atol=1e-4
