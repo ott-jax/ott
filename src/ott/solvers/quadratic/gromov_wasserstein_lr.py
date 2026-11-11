@@ -413,9 +413,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     eps_factor = 1.0 / (self.epsilon * gamma + 1.0)
     gamma *= eps_factor
 
-    c_q = -gamma * grad_q + eps_factor * log_q
-    c_r = -gamma * grad_r + eps_factor * log_r
-    c_g = -gamma * grad_g + eps_factor * log_g
+    c_q = -gamma * grad_q + log_q
+    c_r = -gamma * grad_r + log_r
+    c_g = -gamma * grad_g + log_g
 
     return c_q, c_r, c_g, gamma
 

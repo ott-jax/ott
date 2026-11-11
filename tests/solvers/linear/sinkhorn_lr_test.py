@@ -380,3 +380,22 @@ class TestLRSinkhorn:
         out.reg_ot_cost, out_ti.reg_ot_cost, rtol=1e-2, atol=1e-2
     )
     np.testing.assert_allclose(out.matrix, out_ti.matrix, rtol=1e-2, atol=1e-2)
+
+  @pytest.mark.parametrize("epsilon", [5e-2, 1e-1])
+  def test_epsilon_stationary_point(self, rng: jax.Array, epsilon: float):
+    prob = _utils.random_clouds(rng).problem()
+    solver = sinkhorn_lr.LRSinkhorn(rank=3, epsilon=epsilon, threshold=1e-7)
+
+    out = solver(prob)
+    grad_fn = jax.grad(sinkhorn_lr.compute_reg_ot_cost, argnums=(0, 1))
+    grads = grad_fn(
+        out.q, out.r, out.g, prob, epsilon=epsilon, use_danskin=False
+    )
+
+    assert out.converged
+    # at a stationary point, the gradients are sums of row and column duals
+    for grad in grads:
+      separable = (
+          grad.mean(axis=1, keepdims=True) + grad.mean(axis=0) - grad.mean()
+      )
+      np.testing.assert_allclose(grad, separable, rtol=1e-3, atol=1e-3)
