@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
 
@@ -132,6 +132,24 @@ class TestSinkhornInitializers:
 
     with pytest.raises(AssertionError, match=r"pointcloud"):
       gaus_init.init_fu(prob, lse_mode=True)
+
+  @pytest.mark.parametrize("scale_cost", [2.0, "mean"])
+  def test_gauss_scale_cost(
+      self, rng: jax.Array, scale_cost: Union[float, str]
+  ):
+    prob = _problems.create_ot_problem(rng, 20, 25)
+    geom = pointcloud.PointCloud(
+        prob.geom.x, prob.geom.y, scale_cost=scale_cost
+    )
+    prob_scaled = linear_problem.LinearProblem(geom, a=prob.a, b=prob.b)
+    gaus_init = linear_init.GaussianInitializer()
+
+    f = gaus_init.init_fu(prob, lse_mode=True)
+    f_scaled = gaus_init.init_fu(prob_scaled, lse_mode=True)
+
+    np.testing.assert_allclose(
+        f_scaled, geom.inv_scale_cost * f, rtol=1e-4, atol=1e-4
+    )
 
   @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize(

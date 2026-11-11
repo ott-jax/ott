@@ -162,7 +162,9 @@ class GaussianInitializer(DefaultInitializer):
     gaussian_a = gaussian.Gaussian.from_samples(x, weights=a)
     gaussian_b = gaussian.Gaussian.from_samples(y, weights=b)
     # Brenier potential for cost ||x-y||^2/2, multiply by two for ||x-y||^2
-    f_potential = 2 * gaussian_a.f_potential(dest=gaussian_b, points=x)
+    f_potential = 2 * ot_prob.geom.inv_scale_cost * gaussian_a.f_potential(
+        dest=gaussian_b, points=x
+    )
     f_potential = f_potential - jnp.mean(f_potential)
     return f_potential if lse_mode else ot_prob.geom.scaling_from_potential(
         f_potential
