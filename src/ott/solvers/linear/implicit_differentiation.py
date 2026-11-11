@@ -98,8 +98,9 @@ class ImplicitDiff:
 
     .. math::
 
-      E(K, \epsilon, a, b, f, g) :=- <a,\phi_a^{*}(-f)> - <b,
-      \phi_b^{*}(-g)> - \langle\exp^{f/\epsilon}, K \exp^{g/\epsilon}>
+      E(K, \epsilon, a, b, f, g) := - \langle a, \phi_a^{*}(-f) \rangle
+      - \langle b, \phi_b^{*}(-g) \rangle
+      - \epsilon \langle e^{f/\epsilon}, K e^{g/\epsilon} \rangle
 
     form the basis of the Sinkhorn algorithm. To differentiate optimal solutions
     to that problem, we exploit the fact that :math:`h(\nabla E = 0)` and
@@ -112,7 +113,7 @@ class ImplicitDiff:
     (:math:`E` is concave) and is structured as :math:`[A, B; B^T, D]`. More
     generally, for other functions :math:`h`, the Jacobian of these
     preconditioned
-    first order conditions is no longer symmetric, and
+    first order conditions is no longer symmetric in general, and
     has now a structure as :math:`[A, B; C, D]`. That system can
     be still inverted more generic solvers. By default, :math:`h = \epsilon
     \log`, as proposed in :cite:`cuturi:20a`.

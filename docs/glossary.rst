@@ -180,8 +180,8 @@ Glossary
           \phi_b^{*}(-g) \rangle - \varepsilon \left(\langle e^{f/\varepsilon},
           e^{-C/\varepsilon} e^{g/\varepsilon} \rangle -|a||b|\right)
 
-        where :math:`\phi_a(z) = \rho_a z(\log z - 1)` is a scaled entropy, and
-        :math:`\phi_a^{*}(z) = \rho_a e^{z/\varepsilon}`, its
+        where :math:`\phi_a(z) = \rho_a (z \log z - z + 1)` is a scaled
+        entropy, and :math:`\phi_a^{*}(z) = \rho_a (e^{z/\rho_a} - 1)`, its
         :term:`Legendre transform` :cite:`sejourne:19`.
 
         That problem can also be written, instead, using positive scaling
@@ -192,7 +192,7 @@ Glossary
 
           \max_{u, v >0} - \langle a,\phi_a^{*}(-\varepsilon\log u) \rangle
           - \langle b, \phi_b^{*}(-\varepsilon\log v) \rangle -
-          \langle u, K v \rangle
+          \varepsilon \left(\langle u, K v \rangle - |a||b|\right)
 
         Both of these problems can be written with a *primal* formulation, that
         solves the :term:`unbalanced` optimal transport problem with a variable
