@@ -153,6 +153,18 @@ class TestLRSinkhorn:
     )
 
   @pytest.mark.fast()
+  def test_diverged_after_min_iterations(self, clouds: _utils.PointClouds):
+    x = clouds.x.at[1, 0].set(jnp.nan)
+    geom = pointcloud.PointCloud(x, clouds.y)
+    prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+    solver = sinkhorn_lr.LRSinkhorn(
+        rank=2, min_iterations=10, inner_iterations=10
+    )
+
+    out = solver(prob)
+
+    assert out.n_iters == 20
+
   def test_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
     num_iterations = 37

@@ -772,8 +772,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         jnp.logical_not(jnp.isfinite(state.errors[it])),
         jnp.logical_not(jnp.isfinite(state.costs[it]))
     )
-    # `jnp.inf` is used if `it < self.min_iterations`
-    return jnp.logical_and(it >= self.min_iterations, is_not_finite)
+    # `jnp.inf` is used if `iteration <= self.min_iterations`
+    return jnp.logical_and(iteration > self.min_iterations, is_not_finite)
 
 
 def run(
