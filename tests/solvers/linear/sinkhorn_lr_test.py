@@ -259,6 +259,24 @@ class TestLRSinkhorn:
     for arr in (out.q, out.r, out.g, out.costs, out.errors, out.reg_ot_cost):
       assert arr.dtype == jnp.float32
 
+  def test_zero_weights_epsilon(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 2))
+    x_pad = jnp.concatenate([x, jnp.full((3, 2), 5.0)])
+    a_pad = jnp.concatenate([jnp.full(10, 0.1), jnp.zeros(3)])
+    prob = linear_problem.LinearProblem(pointcloud.PointCloud(x, y))
+    prob_pad = linear_problem.LinearProblem(
+        pointcloud.PointCloud(x_pad, y), a=a_pad
+    )
+    solver = sinkhorn_lr.LRSinkhorn(rank=2, epsilon=1e-1)
+    q, r, g = solver.initializer(prob)
+    q_pad = jnp.concatenate([q, jnp.zeros((3, 2))])
+
+    out = solver(prob, init=(q, r, g))
+    out_pad = solver(prob_pad, init=(q_pad, r, g))
+
+    np.testing.assert_allclose(out_pad.reg_ot_cost, out.reg_ot_cost, rtol=1e-5)
+
   def test_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
     num_iterations = 37

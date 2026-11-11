@@ -403,8 +403,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     grad_g += self.epsilon * log_g
 
     if self.gamma_rescale:
-      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
-      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
+      norm_q = jnp.max(jnp.abs(grad_q), where=q > 0.0, initial=0.0) ** 2
+      norm_r = jnp.max(jnp.abs(grad_r), where=r > 0.0, initial=0.0) ** 2
       norm_g = jnp.max(jnp.abs(grad_g)) ** 2
       gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
     else:
