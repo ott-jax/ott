@@ -443,6 +443,42 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_gw_lr_zero_weights_unrolled_grad(
+      self, rng: jax.Array, lse_mode: bool
+  ):
+
+    def loss(x: jnp.ndarray, n_pad: int) -> float:
+      x = jnp.concatenate([x, jnp.full((n_pad, 2), 5.0)])
+      a = jnp.concatenate([jnp.full(10, 0.1), jnp.zeros(n_pad)])
+      q_pad = jnp.concatenate([q, jnp.zeros((n_pad, 2))])
+      prob = quadratic_problem.QuadraticProblem(
+          pointcloud.PointCloud(x), pointcloud.PointCloud(y), a=a
+      )
+      return solver(prob, init=(q_pad, r, g)).reg_gw_cost
+
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2,
+        epsilon=1e-1,
+        lse_mode=lse_mode,
+        use_danskin=False,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=200,
+    )
+    q, r, g = solver.initializer(
+        quadratic_problem.QuadraticProblem(
+            pointcloud.PointCloud(x), pointcloud.PointCloud(y)
+        )
+    )
+
+    grad = jax.grad(loss)(x, 0)
+    grad_pad = jax.grad(loss)(x, 3)
+
+    np.testing.assert_allclose(grad_pad, grad, rtol=1e-5, atol=1e-5)
+
   @pytest.mark.parametrize("scale_cost", [1.0, "mean"])
   def test_relative_epsilon(
       self,

@@ -405,7 +405,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
-    n, m = ot_prob.geom.shape
+    n, m = c_q.shape[0], c_r.shape[0]
     loga, logb = mu.safe_log(ot_prob.a), mu.safe_log(ot_prob.b)
 
     h_old = h
@@ -515,7 +515,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     rank = self.rank
-    n, m = ot_prob.geom.shape
+    n, m = k_q.shape[0], k_r.shape[0]
 
     g_old = k_g
     v1_old = v2_old = jnp.ones(rank, dtype=k_q.dtype)

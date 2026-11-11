@@ -16,17 +16,15 @@ from typing import Any, Callable, Mapping, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import jax.scipy as jsp
 import numpy as np
 
 from ott import utils
 from ott.geometry import geometry, low_rank
 from ott.initializers.linear import initializers_lr
-from ott.math import fixed_point_loop
 from ott.math import unbalanced_functions as uf
 from ott.math import utils as mu
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.linear import lr_utils, sinkhorn
+from ott.solvers.linear import lr_utils, sinkhorn, sinkhorn_lr
 
 __all__ = ["LRGromovWasserstein", "LRGWOutput"]
 
@@ -96,11 +94,6 @@ def compute_reg_gw_cost(
   Returns:
     regularized OT cost, the (primal) transport cost of the low-rank solution.
   """
-
-  def ent(x: jnp.ndarray) -> float:
-    # generalized entropy
-    return jnp.sum(jsp.special.entr(x) + x)
-
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
@@ -117,7 +110,9 @@ def compute_reg_gw_cost(
       converged=False,
   )
 
-  cost = out.primal_cost - epsilon * (ent(q) + ent(r) + ent(g))
+  cost = out.primal_cost - epsilon * (
+      mu.gen_ent(q) + mu.gen_ent(r) + mu.gen_ent(g)
+  )
   if ot_prob.tau_a != 1.0:
     rho_a = uf.rho(1.0, ot_prob.tau_a)
     cost += rho_a * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
@@ -420,221 +415,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
     return c_q, c_r, c_g, gamma
 
-  # TODO(michalk8): move to `lr_utils` when refactoring this the future
-  def dykstra_update_lse(
-      self,
-      c_q: jnp.ndarray,
-      c_r: jnp.ndarray,
-      h: jnp.ndarray,
-      gamma: float,
-      ot_prob: quadratic_problem.QuadraticProblem,
-      min_entry_value: float = 1e-6,
-      tolerance: float = 1e-3,
-      min_iter: int = 0,
-      inner_iter: int = 10,
-      max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Run Dykstra's algorithm."""
-    # shortcuts for problem's definition.
-    r = self.rank
-    n, m = ot_prob.geom_xx.shape[0], ot_prob.geom_yy.shape[0]
-    loga, logb = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
-
-    h_old = h
-    g1_old = g2_old = jnp.zeros(r, dtype=c_q.dtype)
-    f1, f2 = jnp.zeros(n, dtype=c_q.dtype), jnp.zeros(m, dtype=c_q.dtype)
-
-    w_gi = w_gp = w_q = w_r = jnp.zeros(r, dtype=c_q.dtype)
-    err = jnp.array(jnp.inf, dtype=c_q.dtype)
-    state_inner = f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
-    constants = c_q, c_r, loga, logb
-
-    def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
-    ) -> bool:
-      del iteration, constants
-      *_, err = state_inner
-      return err > tolerance
-
-    def _softm(
-        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
-    ) -> jnp.ndarray:
-      return jsp.special.logsumexp(
-          gamma * (f[:, None] + g[None, :] - c), axis=axis
-      )
-
-    def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
-      # TODO(michalk8): in the future, use `NamedTuple`
-      f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
-      c_q, c_r, loga, logb = constants
-
-      # First Projection
-      f1 = jnp.where(
-          jnp.isfinite(loga),
-          (loga - _softm(f1, g1_old, c_q, axis=1)) / gamma + f1, loga
-      )
-      f2 = jnp.where(
-          jnp.isfinite(logb),
-          (logb - _softm(f2, g2_old, c_r, axis=1)) / gamma + f2, logb
-      )
-
-      h = h_old + w_gi
-      h = jnp.maximum(jnp.log(min_entry_value) / gamma, h)
-      w_gi += h_old - h
-      h_old = h
-
-      # Update couplings
-      g_q = _softm(f1, g1_old, c_q, axis=0)
-      g_r = _softm(f2, g2_old, c_r, axis=0)
-
-      # Second Projection
-      h = (1.0 / 3.0) * (h_old + w_gp + w_q + w_r)
-      h += g_q / (3.0 * gamma)
-      h += g_r / (3.0 * gamma)
-      g1 = h + g1_old - g_q / gamma
-      g2 = h + g2_old - g_r / gamma
-
-      w_q = w_q + g1_old - g1
-      w_r = w_r + g2_old - g2
-      w_gp = h_old + w_gp - h
-
-      q, r, _ = recompute_couplings(f1, g1, c_q, f2, g2, c_r, h, gamma)
-
-      g1_old = g1
-      g2_old = g2
-      h_old = h
-
-      err = jax.lax.cond(
-          jnp.logical_and(compute_error, iteration >= min_iter),
-          lambda: dykstra_solution_error(q, r, ot_prob, self.norm_error)[0],
-          lambda: err
-      )
-
-      return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
-
-    def recompute_couplings(
-        f1: jnp.ndarray,
-        g1: jnp.ndarray,
-        c_q: jnp.ndarray,
-        f2: jnp.ndarray,
-        g2: jnp.ndarray,
-        c_r: jnp.ndarray,
-        h: jnp.ndarray,
-        gamma: float,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-      q = jnp.exp(gamma * (f1[:, None] + g1[None, :] - c_q))
-      r = jnp.exp(gamma * (f2[:, None] + g2[None, :] - c_r))
-      g = jnp.exp(gamma * h)
-      return q, r, g
-
-    state_inner = fixed_point_loop.fixpoint_iter_backprop(
-        cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
-    )
-
-    f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
-    return recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old, gamma)
-
-  def dykstra_update_kernel(
-      self,
-      k_q: jnp.ndarray,
-      k_r: jnp.ndarray,
-      k_g: jnp.ndarray,
-      gamma: float,
-      ot_prob: quadratic_problem.QuadraticProblem,
-      min_entry_value: float = 1e-6,
-      tolerance: float = 1e-3,
-      min_iter: int = 0,
-      inner_iter: int = 10,
-      max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Run Dykstra's algorithm."""
-    # shortcuts for problem's definition.
-    del gamma
-    rank = self.rank
-    n, m = ot_prob.geom_xx.shape[0], ot_prob.geom_yy.shape[0]
-    a, b = ot_prob.a, ot_prob.b
-    supp_a, supp_b = a > 0, b > 0
-
-    g_old = k_g
-    v1_old = v2_old = jnp.ones(rank, dtype=k_q.dtype)
-    u1, u2 = jnp.ones(n, dtype=k_q.dtype), jnp.ones(m, dtype=k_q.dtype)
-
-    q_gi = q_gp = q_q = q_r = jnp.ones(rank, dtype=k_q.dtype)
-    err = jnp.array(jnp.inf, dtype=k_q.dtype)
-    state_inner = u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
-    constants = k_q, k_r, k_g, a, b
-
-    def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
-    ) -> bool:
-      del iteration, constants
-      *_, err = state_inner
-      return err > tolerance
-
-    def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
-      # TODO(michalk8): in the future, use `NamedTuple`
-      u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
-      k_q, k_r, k_g, a, b = constants
-
-      # First Projection
-      u1 = jnp.where(supp_a, a / jnp.dot(k_q, v1_old), 0.0)
-      u2 = jnp.where(supp_b, b / jnp.dot(k_r, v2_old), 0.0)
-      g = jnp.maximum(min_entry_value, g_old * q_gi)
-      q_gi = (g_old * q_gi) / g
-      g_old = g
-
-      # Second Projection
-      v1_trans = jnp.dot(k_q.T, u1)
-      v2_trans = jnp.dot(k_r.T, u2)
-      g = (g_old * q_gp * v1_old * q_q * v1_trans * v2_old * q_r *
-           v2_trans) ** (1 / 3)
-      v1 = g / v1_trans
-      v2 = g / v2_trans
-      q_gp = (g_old * q_gp) / g
-      q_q = (q_q * v1_old) / v1
-      q_r = (q_r * v2_old) / v2
-      v1_old = v1
-      v2_old = v2
-      g_old = g
-
-      # Compute Couplings
-      q, r, _ = recompute_couplings(u1, v1, k_q, u2, v2, k_r, g)
-
-      err = jax.lax.cond(
-          jnp.logical_and(compute_error, iteration >= min_iter),
-          lambda: dykstra_solution_error(q, r, ot_prob, self.norm_error)[0],
-          lambda: err
-      )
-
-      return u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
-
-    def recompute_couplings(
-        u1: jnp.ndarray,
-        v1: jnp.ndarray,
-        k_q: jnp.ndarray,
-        u2: jnp.ndarray,
-        v2: jnp.ndarray,
-        k_r: jnp.ndarray,
-        g: jnp.ndarray,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-      q = u1.reshape((-1, 1)) * k_q * v1.reshape((1, -1))
-      r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
-      return q, r, g
-
-    state_inner = fixed_point_loop.fixpoint_iter_backprop(
-        cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
-    )
-
-    u1, u2, v1_old, v2_old, g_old, _, _, _, _, _ = state_inner
-    return recompute_couplings(u1, v1_old, k_q, u2, v2_old, k_r, g_old)
+  dykstra_update_lse = sinkhorn_lr.LRSinkhorn.dykstra_update_lse
+  dykstra_update_kernel = sinkhorn_lr.LRSinkhorn.dykstra_update_kernel
 
   def lse_step(
       self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState,
@@ -827,39 +609,6 @@ def run(
       ot_prob, lse_mode=solver.lse_mode, use_danskin=solver.use_danskin
   )
   return out.set(ot_prob=ot_prob)
-
-
-def dykstra_solution_error(
-    q: jnp.ndarray, r: jnp.ndarray, ot_prob: quadratic_problem.QuadraticProblem,
-    norm_error: Tuple[int, ...]
-) -> jnp.ndarray:
-  """Compute solution error.
-
-  Since only balanced case is available for LR, this is marginal deviation.
-
-  Args:
-    q: first factor of solution.
-    r: second factor of solution.
-    ot_prob: linear problem.
-    norm_error: int, p-norm used to compute error.
-
-  Returns:
-    one or possibly many numbers quantifying deviation to true marginals.
-  """
-  norm_error = jnp.array(norm_error)
-  # Update the error
-  err = jnp.sum(
-      jnp.abs(jnp.sum(q, axis=1) - ot_prob.a) ** norm_error[:, None], axis=1
-  ) ** (1.0 / norm_error)
-  err += jnp.sum(
-      jnp.abs(jnp.sum(r, axis=1) - ot_prob.b) ** norm_error[:, None], axis=1
-  ) ** (1.0 / norm_error)
-  err += jnp.sum(
-      jnp.abs(jnp.sum(q, axis=0) - jnp.sum(r, axis=0)) ** norm_error[:, None],
-      axis=1
-  ) ** (1.0 / norm_error)
-
-  return err
 
 
 def _linearized_geometry(
