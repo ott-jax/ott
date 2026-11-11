@@ -84,6 +84,30 @@ class TestSinkhornImplicit:
     np.testing.assert_allclose(kernel, lse, rtol=1e-2, atol=1e-2)
 
   @pytest.mark.parametrize("lse_mode", [True, False])
+  def test_marginals_grad_zero_weights(self, rng: jax.Array, lse_mode: bool):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+    supp_a, supp_b = clouds.a > 0, clouds.b > 0
+
+    def loss(
+        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
+    ) -> float:
+      geom = pointcloud.PointCloud(x, y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=a, b=b)
+      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, threshold=1e-6)
+      return solver(prob).reg_ot_cost
+
+    grad_fn = jax.grad(loss, argnums=(2, 3))
+    grad_a, grad_b = grad_fn(clouds.x, clouds.y, clouds.a, clouds.b)
+    grad_a_supp, grad_b_supp = grad_fn(
+        clouds.x[supp_a], clouds.y[supp_b], clouds.a[supp_a], clouds.b[supp_b]
+    )
+
+    assert jnp.all(jnp.isfinite(grad_a))
+    assert jnp.all(jnp.isfinite(grad_b))
+    np.testing.assert_allclose(grad_a[supp_a], grad_a_supp, rtol=1e-4)
+    np.testing.assert_allclose(grad_b[supp_b], grad_b_supp, rtol=1e-4)
+
+  @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("tau", [1.0, 0.9])
   def test_epsilon_grad_zero_weights(
       self, rng: jax.Array, lse_mode: bool, tau: float

@@ -255,7 +255,7 @@ def compute_kl_reg_cost(
   supp_b = ot_prob.b > 0
   fa = ot_prob.geom.potential_from_scaling(ot_prob.a)
   if ot_prob.tau_a == 1.0:
-    div_a = jnp.sum(jnp.where(supp_a, ot_prob.a * (f - fa), 0.0))
+    div_a = jnp.sum(ot_prob.a * jnp.where(supp_a, f - fa, 0.0))
   else:
     rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
     phi_a = uf.phi_star(jnp.where(supp_a, fa - f, 0.0), rho_a)
@@ -263,7 +263,7 @@ def compute_kl_reg_cost(
 
   gb = ot_prob.geom.potential_from_scaling(ot_prob.b)
   if ot_prob.tau_b == 1.0:
-    div_b = jnp.sum(jnp.where(supp_b, ot_prob.b * (g - gb), 0.0))
+    div_b = jnp.sum(ot_prob.b * jnp.where(supp_b, g - gb, 0.0))
   else:
     rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
     phi_b = uf.phi_star(jnp.where(supp_b, gb - g, 0.0), rho_b)
