@@ -208,13 +208,13 @@ class LRGWOutput(NamedTuple):
   @property
   def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
-    geom_xx, geom_yy = self.ot_prob.geom_xx, self.ot_prob.geom_yy
     marginal_a = self.ot_prob.a if self.ot_prob.tau_a == 1.0 else self.q.sum(1)
     marginal_b = self.ot_prob.b if self.ot_prob.tau_b == 1.0 else self.r.sum(1)
+    lin_a, lin_b = self.ot_prob._apply_linear_loss(marginal_a, marginal_b)
 
     quad_cost = 0.5 * self.transport_cost_at_geom(other_geom=self.geom)
-    quad_cost += jnp.vdot(geom_xx.apply_square_cost(marginal_a), marginal_a)
-    quad_cost += jnp.vdot(geom_yy.apply_square_cost(marginal_b), marginal_b)
+    quad_cost += jnp.vdot(lin_a, marginal_a)
+    quad_cost += jnp.vdot(lin_b, marginal_b)
 
     if not self.ot_prob.is_fused:
       return quad_cost
@@ -364,19 +364,17 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     log_q, log_r, log_g = mu.safe_log(q), mu.safe_log(r), mu.safe_log(g)
     inv_g = 1.0 / g[None, :]
     lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
+    if not ot_prob.is_balanced:
+      lin_q, lin_r = ot_prob._apply_linear_loss(q.sum(1), r.sum(1))
 
     tmp = lin_geom.apply_cost(r, axis=1)
     grad_q = tmp * inv_g
     if ot_prob.tau_a != 1.0:  # unbalanced grad
-      grad_q += 2.0 * ot_prob.geom_xx.apply_square_cost(
-          q.sum(1), axis=1
-      )[:, None]
+      grad_q += 2.0 * lin_q[:, None]
 
     grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
     if ot_prob.tau_b != 1.0:  # unbalanced grad
-      grad_r += 2.0 * ot_prob.geom_yy.apply_square_cost(
-          r.sum(1), axis=1
-      )[:, None]
+      grad_r += 2.0 * lin_r[:, None]
 
     omega_quad = jnp.sum(q * tmp, axis=0)
     grad_g = -omega_quad / (g ** 2)
@@ -622,9 +620,8 @@ def _linearized_geometry(
     g: jnp.ndarray,
 ) -> low_rank.LRCGeometry:
   inv_sqrt_g = 1.0 / jnp.sqrt(g[None, :])
+  h1, h2 = prob.quad_loss
 
-  # TODO(michalk8): below is for squared loss, handle KL loss in the future;
-  # will need to be updated in many other places as well
-  tmp1 = -4.0 * prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
-  tmp2 = prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
-  return low_rank.LRCGeometry(tmp1, tmp2)
+  tmp1 = quadratic_problem.apply_cost(prob.geom_xx, q, axis=1, fn=h1)
+  tmp2 = quadratic_problem.apply_cost(prob.geom_yy, r, axis=1, fn=h2)
+  return low_rank.LRCGeometry(-2.0 * tmp1 * inv_sqrt_g, tmp2 * inv_sqrt_g)

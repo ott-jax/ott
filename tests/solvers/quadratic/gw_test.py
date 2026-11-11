@@ -478,6 +478,40 @@ class TestGromovWasserstein:
     with pytest.raises(AssertionError, match=r"squared Euclidean"):
       _ = solver(prob)
 
+  @pytest.mark.parametrize("loss", ["sqeucl", "kl"])
+  def test_gw_lr_loss_costs(self, rng: jax.Array, loss: str):
+
+    def gw_cost(q: jnp.ndarray, r: jnp.ndarray, g: jnp.ndarray) -> float:
+      p = (q / g) @ r.T
+      mu, nu = q.sum(1), r.sum(1)
+      quad = jnp.einsum("ik,jl,ij,kl->", h1.func(cx), h2.func(cy), p, p)
+      return mu @ f1.func(cx) @ mu + nu @ f2.func(cy) @ nu - quad
+
+    rng_x, rng_y = jr.split(rng, 2)
+    cx, cy = jr.uniform(rng_x, (10, 10)), jr.uniform(rng_y, (12, 12))
+    cx, cy = cx + cx.T, cy + cy.T
+    prob = quadratic_problem.QuadraticProblem(
+        geometry.Geometry(cost_matrix=cx),
+        geometry.Geometry(cost_matrix=cy),
+        loss=loss,
+        tau_a=0.9,
+        tau_b=0.9,
+    )
+    (f1, f2), (h1, h2) = prob.linear_loss, prob.quad_loss
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2, gamma=1.0, gamma_rescale=False
+    )
+    q, r, g = solver.initializer(prob)
+    state = solver.init_state(prob, (q, r, g))
+
+    out = solver.output_from_state(prob, state)
+    costs = solver._get_costs(prob, state)[:3]
+    grads = jax.grad(gw_cost, argnums=(0, 1, 2))(q, r, g)
+
+    np.testing.assert_allclose(out.primal_cost, gw_cost(q, r, g), rtol=1e-5)
+    for x, cost, grad in zip((q, r, g), costs, grads):
+      np.testing.assert_allclose(jnp.log(x) - cost, grad, rtol=1e-4, atol=1e-4)
+
   @pytest.mark.parametrize("lse_mode", [False, True])
   def test_gw_lr_zero_weights_unrolled_grad(
       self, rng: jax.Array, lse_mode: bool
