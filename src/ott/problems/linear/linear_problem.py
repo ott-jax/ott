@@ -131,6 +131,11 @@ class LinearProblem:
     Returns:
       The dual potential function.
     """
+    assert axis in (0, 1), axis
+    epsilon = self.geom.epsilon if epsilon is None else epsilon
+    # the potential functions below use the unscaled `cost_fn`
+    scale = 1.0 / self.geom.inv_scale_cost
+    fg, epsilon = scale * fg, scale * epsilon
 
     def f_potential(x: jax.Array) -> jax.Array:
       x, y = jnp.atleast_2d(x), self.geom.y
@@ -148,10 +153,6 @@ class LinearProblem:
       g, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
       return g.squeeze(0)
 
-    assert axis in (0, 1), axis
-    epsilon = self.geom.epsilon if epsilon is None else epsilon
-    scale = 1.0 / self.geom.inv_scale_cost
-    fg, epsilon = scale * fg, scale * epsilon
     return g_potential if axis == 0 else f_potential
 
   def _c_transform(

@@ -171,9 +171,9 @@ def solution_error(
 
   # In the unbalanced case, we compute the norm of the gradient.
   # the gradient is equal to the marginal of the current plan minus
-  # the gradient of < z, rho_z(exp^(-h/rho_z) -1> where z is either a or b
-  # and h is either f or g. Note this is equal to z if rho_z → inf, which
-  # is the case when tau_z → 1.0
+  # the gradient of < z, rho_z(exp^((eps log z - h)/rho_z) -1> where z is
+  # either a or b and h is either f or g. Note this is equal to z if
+  # rho_z → inf, which is the case when tau_z → 1.0
   if lse_mode:
     grad_a = uf.grad_of_marginal_fit(
         ot_prob.a, f_u, ot_prob.tau_a, ot_prob.epsilon
@@ -368,7 +368,9 @@ class SinkhornOutput(NamedTuple):
 
     where :math:`P^{\star}, a, b` is the coupling returned by the
     :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` and the two marginal weight
-    vectors; :math:`\rho_a=\varepsilon \tau_a / (1-\tau_a)` and
+    vectors; :math:`H(P) = -\sum_{ij} P_{ij} \log P_{ij}` is the
+    :attr:`entropy` of the coupling;
+    :math:`\rho_a=\varepsilon \tau_a / (1-\tau_a)` and
     :math:`\rho_b=\varepsilon \tau_b / (1-\tau_b)` are obtained when the problem
     is unbalanced from parameters ``tau_a`` and ``tau_b``. Note that the last
     two terms vanish in the balanced case, when ``tau_a==tau_b==1``.
@@ -381,6 +383,7 @@ class SinkhornOutput(NamedTuple):
     log_a = jnp.log(jnp.where(a > 0.0, a, 1.0))
     log_b = jnp.log(jnp.where(b > 0.0, b, 1.0))
 
+    # KL(P | ab^T) = -H(P) - <P1, log a> - <P^T1, log b> - |P| + |a||b|
     correction = jnp.vdot(marginal_a, log_a) + jnp.vdot(marginal_b, log_b)
     correction += mass - jnp.sum(a) * jnp.sum(b)
 
@@ -691,8 +694,8 @@ class Sinkhorn:
       problems, this is the deviation between the target marginal ``b`` and
       the marginal of the current primal solution. Otherwise, i.e., for
       unbalanced or semi-balanced problems, or when using
-      ``parallel_dual_updates``, this is the norm of the gradient of the dual
-      objective w.r.t. the potentials.
+      ``parallel_dual_updates``, this is the sum of the norms of the gradients
+      of the dual objective w.r.t. each potential.
     norm_error: power used to define the :math:`p`-norm used to quantify
       the magnitude of the gradients. This criterion is used to terminate the
       algorithm.

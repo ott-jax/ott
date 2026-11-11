@@ -98,8 +98,9 @@ class ImplicitDiff:
 
     .. math::
 
-      E(K, \epsilon, a, b, f, g) := - \langle a, \phi_a^{*}(-f) \rangle
-      - \langle b, \phi_b^{*}(-g) \rangle
+      E(K, \epsilon, a, b, f, g) :=
+      - \langle a, \phi_a^{*}(\epsilon \log a - f) \rangle
+      - \langle b, \phi_b^{*}(\epsilon \log b - g) \rangle
       - \epsilon \langle e^{f/\epsilon}, K e^{g/\epsilon} \rangle
 
     form the basis of the Sinkhorn algorithm. To differentiate optimal solutions

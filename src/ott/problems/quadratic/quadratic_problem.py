@@ -186,10 +186,15 @@ class QuadraticProblem:
     The term of the cost matrix coming from the quadratic KL in the
     unbalanced case can be written as:
 
-    `unbalanced_correction_term` =
-        :math:`tau_a / (1 - tau_a) * \sum(KL(P1|a))`
-        :math:`+ tau_b / (1 - tau_b) * \sum(KL(P^T1|b))`
-        :math:`+ epsilon * \sum(KL(P|ab'))`
+    .. math::
+
+      \rho_a \langle P1, \log(P1 / a) \rangle
+      + \rho_b \langle P^T1, \log(P^T1 / b) \rangle
+      + \varepsilon \langle P, \log(P / ab^T) \rangle,
+
+    where :math:`\rho_a = \varepsilon \tau_a / (1 - \tau_a)` and
+    :math:`\rho_b = \varepsilon \tau_b / (1 - \tau_b)`. The first (resp.
+    second) term is only present if ``tau_a < 1`` (resp. ``tau_b < 1``).
 
     Args:
       transport_matrix: jnp.ndarray<float>[num_a, num_b], transport matrix.

@@ -306,9 +306,9 @@ class TestSinkhorn:
     ).errors
     err = errors[jnp.logical_and(errors > -1, jnp.isfinite(errors))][-1]
     assert threshold > err
-    first = -(-min_iterations // 10) - 1
+    first = (min_iterations - 1) // 10
     np.testing.assert_array_equal(errors[:first], jnp.inf)
-    assert errors[first] > 0
+    assert 0 < errors[first] < jnp.inf
 
   @pytest.mark.parametrize(("errors", "converged"), [
       ([0.5, 1e-4, -1.0, -1.0], True),
