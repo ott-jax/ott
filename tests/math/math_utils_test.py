@@ -87,3 +87,13 @@ class TestNorm:
     g = functools.partial(jnp.linalg.norm, ord=ord, axis=1)
 
     np.testing.assert_array_equal(jax.jacobian(f)(z), jax.jacobian(g)(z))
+
+
+class TestSafeLog:
+
+  def test_grad_non_positive(self):
+    x = jnp.array([-1.0, 0.0, 0.5])
+
+    grad = jax.grad(lambda x: jnp.sum(mu.safe_log(x)))(x)
+
+    np.testing.assert_array_equal(grad, [0.0, 0.0, 2.0])
