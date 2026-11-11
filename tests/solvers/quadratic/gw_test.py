@@ -510,6 +510,30 @@ class TestGromovWasserstein:
     with pytest.raises(AssertionError, match=r"Relative epsilon"):
       _ = solver(prob)
 
+  def test_unbalanced_no_correction_matrix(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    cx = pointcloud.PointCloud(jr.normal(rng_x, (10, 2))).cost_matrix
+    cy = pointcloud.PointCloud(jr.normal(rng_y, (12, 3))).cost_matrix
+    loss = (cx[:, None, :, None] - cy[None, :, None, :]) ** 2
+    prob = quadratic_problem.QuadraticProblem(
+        geometry.Geometry(cost_matrix=cx),
+        geometry.Geometry(cost_matrix=cy),
+        tau_a=0.9,
+        tau_b=0.9,
+        gw_unbalanced_correction=False,
+    )
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), epsilon=0.5, min_iterations=3, max_iterations=3
+    )
+
+    out = solver(prob)
+
+    np.testing.assert_allclose(
+        out.primal_cost,
+        jnp.einsum("ijkl,ij,kl->", loss, out.matrix, out.matrix),
+        rtol=1e-5,
+    )
+
   @pytest.mark.usefixtures("enable_x64")
   def test_unbalanced_split_point(self, rng: jax.Array):
     rng_x, rng_y = jr.split(rng, 2)

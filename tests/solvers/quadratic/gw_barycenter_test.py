@@ -105,7 +105,9 @@ class TestGWBarycenter:
     assert bar_prob_cost.ndim is None
 
     linear_solver = sinkhorn.Sinkhorn()
-    quadratic_solver = gromov_wasserstein.GromovWasserstein(linear_solver)
+    quadratic_solver = gromov_wasserstein.GromovWasserstein(
+        linear_solver, epsilon=2.0
+    )
     solver = gwb_solver.GromovWassersteinBarycenter(quadratic_solver)
     solver = jax.jit(solver, static_argnames=["bar_size"])
 

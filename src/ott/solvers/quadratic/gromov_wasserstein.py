@@ -123,6 +123,8 @@ class GWOutput(NamedTuple):
 
   @property
   def _rescale_factor(self) -> float:
+    if not self.ot_prob._is_ugw:
+      return 1.0
     return jnp.sqrt(self.old_transport_mass / self.linear_state.transport_mass)
 
   @property
