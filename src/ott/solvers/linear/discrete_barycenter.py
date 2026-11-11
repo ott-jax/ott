@@ -46,8 +46,8 @@ class FixedBarycenter:
 
   Args:
     threshold: convergence threshold. The algorithm stops when the marginal
-      violations of all transport plans computed for that barycenter go below
-      that threshold.
+      violations of the transport plans computed for that barycenter, averaged
+      over the measures, go below that threshold.
     norm_error: norm used to compute marginal deviation.
     inner_iterations: number of iterations run before recomputing errors.
     min_iterations: number of iterations run without checking whether
@@ -62,7 +62,7 @@ class FixedBarycenter:
       self,
       threshold: float = 1e-2,
       norm_error: int = 1,
-      inner_iterations: float = 10,
+      inner_iterations: int = 10,
       min_iterations: int = 0,
       max_iterations: int = 2000,
       lse_mode: bool = True,
@@ -85,7 +85,7 @@ class FixedBarycenter:
 
     Args:
       fixed_bp: Fixed barycenter problem.
-      dual_initialization: Initial value for the g_v potential/scalings,
+      dual_initialization: Initial value for the g_v potentials,
         one for each of the histograms described in ``fixed_bp``. If ``None``,
         use initialization from :cite:`cuturi:15`, eq. 3.6.
 

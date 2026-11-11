@@ -105,14 +105,22 @@ class FreeBarycenterProblem:
 
   @property
   def flattened_y(self) -> jnp.ndarray:
-    """Array of shape ``[num_measures * (N_1 + N_2 + ...), ndim]``."""
+    """Array of shape ``[num_total_points, ndim]``.
+
+    If ``y`` is already segmented, the shape is
+    ``[num_measures * max_measure_size, ndim]``.
+    """
     if self._is_segmented:
       return self._y.reshape((-1, self._y.shape[-1]))
     return self._y
 
   @property
   def flattened_b(self) -> Optional[jnp.ndarray]:
-    """Array of shape ``[num_measures * (N_1 + N_2 + ...),]``."""
+    """Array of shape ``[num_total_points,]``.
+
+    If ``b`` is already segmented, the shape is
+    ``[num_measures * max_measure_size,]``.
+    """
     return None if self._b is None else self._b.ravel()
 
   @property

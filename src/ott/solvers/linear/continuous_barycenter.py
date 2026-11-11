@@ -127,7 +127,7 @@ class FreeBarycenterOutput(NamedTuple):
   Args:
     x: barycenter points.
     a: barycenter weights.
-    costs: Holds the sequence of regularized GW costs seen through the outer
+    costs: Holds the sequence of regularized OT costs seen through the outer
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
@@ -186,7 +186,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_size: int = 100,
       x_init: Optional[jnp.ndarray] = None,
       rng: Optional[jax.Array] = None,
-  ) -> FreeBarycenterState:
+  ) -> FreeBarycenterOutput:
     rng = utils.default_prng_key(rng)
     return self.iterations(bar_size, bar_prob, x_init, rng)
 
@@ -277,7 +277,7 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
   def iterations(
       self, bar_size: int, bar_prob: barycenter_problem.FreeBarycenterProblem,
       x_init: jnp.ndarray, rng: jax.Array
-  ) -> FreeBarycenterState:
+  ) -> FreeBarycenterOutput:
     """Wasserstein barycenter outer loop."""
 
     def cond_fn(
