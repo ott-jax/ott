@@ -166,6 +166,18 @@ class TestLRSinkhorn:
 
     assert out.n_iters == 20
 
+  def test_crossed_threshold_recorded_errors(self, clouds: _utils.PointClouds):
+    prob = clouds.problem()
+    solver = sinkhorn_lr.LRSinkhorn(rank=2, threshold=1e3)
+    state = solver.init_state(prob, solver.initializer(prob))
+    state = state.set(errors=state.errors.at[0].set(1e4))
+
+    state = solver.one_iteration(
+        prob, state, iteration=solver.inner_iterations, compute_error=False
+    )
+
+    assert not state.crossed_threshold
+
   @pytest.mark.usefixtures("enable_x64")
   @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("tau", [1.0, 0.9])

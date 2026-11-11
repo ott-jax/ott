@@ -662,14 +662,16 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       state = self.kernel_step(ot_prob, state, iteration)
 
     # re-computes error if compute_error is True, else set it to inf.
+    record_error = jnp.logical_and(
+        compute_error, iteration >= self.min_iterations
+    )
     cost = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
+        record_error, lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
         lambda: jnp.inf
     )
     error = jax.lax.cond(
-        iteration >= self.min_iterations,
-        lambda: state.compute_error(previous_state), lambda: jnp.inf
+        record_error, lambda: state.compute_error(previous_state),
+        lambda: jnp.inf
     )
     crossed_threshold = jnp.logical_or(
         state.crossed_threshold,
