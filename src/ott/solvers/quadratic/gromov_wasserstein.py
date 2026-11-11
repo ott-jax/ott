@@ -274,7 +274,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
     iteration = jnp.sum(out.costs != -1)
     converged = jnp.logical_and(
-        iteration < self.max_iterations,
+        self._converged(out, iteration),
         jnp.nanmean(out.linear_convergence) == 1.0
     )
     return out.set(

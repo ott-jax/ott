@@ -436,6 +436,27 @@ class TestGromovWasserstein:
 
     assert loss_thre(1e-1) > loss_thre(1e-5)
 
+  @pytest.mark.parametrize("force_scan", [False, True])
+  def test_converged_at_max_iterations(
+      self, clouds: _utils.QuadClouds, force_scan: bool
+  ):
+    prob = clouds.quad_problem()
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), epsilon=1e-1, min_iterations=1
+    )
+    n_iters = int(solver(prob).n_iters)
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(),
+        epsilon=1e-1,
+        min_iterations=n_iters if force_scan else 1,
+        max_iterations=n_iters,
+    )
+
+    out = solver(prob)
+
+    assert out.n_iters == n_iters
+    assert out.converged
+
   def test_ugw_cost(self, rng: jax.Array):
 
     def kl_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
