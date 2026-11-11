@@ -409,6 +409,7 @@ class KMeansInitializer(LRInitializer):
     return children, aux_data
 
 
+@jax.tree_util.register_pytree_node_class
 class GeneralizedKMeansInitializer(KMeansInitializer):
   """Generalized k-means initializer :cite:`scetbon:22b`.
 

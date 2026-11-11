@@ -42,6 +42,12 @@ class TestLRInitializers:
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
 
+  def test_generalized_k_means_jit(self):
+    initializer = initializers_lr.GeneralizedKMeansInitializer(3, gamma=5.0)
+    actual = jax.jit(lambda init: init)(initializer)
+    assert actual.rank == 3
+    assert actual._kwargs["gamma"] == 5.0
+
   @pytest.mark.fast()
   def test_rank2_with_zero_weights(self, rng: jax.Array):
     # zero weights must not collapse the factors to the product coupling
