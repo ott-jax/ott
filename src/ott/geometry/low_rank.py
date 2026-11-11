@@ -120,7 +120,7 @@ class LRCGeometry(geometry.Geometry):
   def diag_cost(self) -> jnp.ndarray:
     """Diagonal of the cost matrix."""
     assert self.is_square, "Diagonal cost only available for square geometries."
-    return jnp.sum(self._cost_1 * self._cost_2, axis=-1)
+    return jnp.sum(self.cost_1 * self.cost_2, axis=-1) + self.bias
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply elementwise-square of cost matrix to array (vector or matrix)."""
@@ -133,9 +133,12 @@ class LRCGeometry(geometry.Geometry):
 
     new_cost_1 = self.cost_1[:, :, None] * self.cost_1[:, None, :]
     new_cost_2 = self.cost_2[:, :, None] * self.cost_2[:, None, :]
+    new_cost_1 = new_cost_1.reshape((n, r ** 2))
+    new_cost_2 = new_cost_2.reshape((m, r ** 2))
     return LRCGeometry(
-        cost_1=new_cost_1.reshape((n, r ** 2)),
-        cost_2=new_cost_2.reshape((m, r ** 2))
+        cost_1=jnp.hstack([new_cost_1, 2.0 * self.bias * self.cost_1]),
+        cost_2=jnp.hstack([new_cost_2, self.cost_2]),
+        bias=self.bias ** 2,
     ).apply_cost(arr, axis)
 
   def _apply_cost_to_vec(
@@ -214,7 +217,7 @@ class LRCGeometry(geometry.Geometry):
     return LRCGeometry(
         cost_1=jnp.concatenate((self.cost_1, other.cost_1), axis=1),
         cost_2=jnp.concatenate((self.cost_2, other.cost_2), axis=1),
-        bias=self._bias + other._bias,
+        bias=self.bias + other.bias,
         # already included in `cost_{1,2}`
         scale_factor=1.0,
         scale_cost=1.0,

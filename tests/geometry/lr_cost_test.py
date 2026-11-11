@@ -120,6 +120,28 @@ class TestLRGeometry:
               geom2.apply_cost(mat, axis=axis), out_lr, rtol=5e-4
           )
 
+  @pytest.mark.parametrize("scale_cost", [1.0, 4.0])
+  def test_bias_and_scale_cost(self, rng: jax.Array, scale_cost: float):
+    rng_c, rng_v = jr.split(rng, 2)
+    c = jr.normal(rng_c, (11, 2))
+    vec = jr.normal(rng_v, (11,))
+    geom = low_rank.LRCGeometry(c, c, bias=0.7, scale_cost=scale_cost)
+    dense = geometry.Geometry(geom.cost_matrix)
+
+    np.testing.assert_allclose(
+        geom.apply_square_cost(vec),
+        dense.apply_square_cost(vec),
+        rtol=1e-4,
+        atol=1e-4
+    )
+    np.testing.assert_allclose(
+        geom.diag_cost, dense.diag_cost, rtol=1e-4, atol=1e-4
+    )
+    np.testing.assert_allclose((geom + geom).cost_matrix,
+                               2.0 * dense.cost_matrix,
+                               rtol=1e-4,
+                               atol=1e-4)
+
   @pytest.mark.parametrize("bias", [(0, 0), (4, 5)])
   @pytest.mark.parametrize("scale_factor", [(1, 1), (2, 3)])
   def test_add_lr_geoms(
