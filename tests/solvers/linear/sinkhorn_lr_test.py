@@ -244,6 +244,21 @@ class TestLRSinkhorn:
     actual = 2.0 * jnp.vdot(v, grad)
     np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-8)
 
+  @pytest.mark.usefixtures("enable_x64")
+  @pytest.mark.parametrize("lse_mode", [True, False])
+  @pytest.mark.parametrize("tau", [1.0, 0.9])
+  def test_float32_with_x64(self, rng: jax.Array, lse_mode: bool, tau: float):
+    x = jr.normal(rng, (10, 2), dtype=jnp.float32)
+    prob = linear_problem.LinearProblem(
+        pointcloud.PointCloud(x), tau_a=tau, tau_b=tau
+    )
+    solver = sinkhorn_lr.LRSinkhorn(rank=2, lse_mode=lse_mode)
+
+    out = solver(prob)
+
+    for arr in (out.q, out.r, out.g, out.costs, out.errors, out.reg_ot_cost):
+      assert arr.dtype == jnp.float32
+
   def test_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
     num_iterations = 37

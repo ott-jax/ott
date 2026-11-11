@@ -165,12 +165,12 @@ def unbalanced_dykstra_lse(
       supp_b=ot_prob.b > 0,
   )
   init_state = State(
-      v1=jnp.zeros(r),
-      v2=jnp.zeros(r),
-      u1=jnp.zeros(n),
-      u2=jnp.zeros(m),
+      v1=jnp.zeros(r, dtype=c_q.dtype),
+      v2=jnp.zeros(r, dtype=c_q.dtype),
+      u1=jnp.zeros(n, dtype=c_q.dtype),
+      u2=jnp.zeros(m, dtype=c_q.dtype),
       g=c_g,
-      err=jnp.inf,
+      err=jnp.array(jnp.inf, dtype=c_q.dtype),
   )
 
   state: State = fixed_point_loop.fixpoint_iter_backprop(
@@ -307,12 +307,12 @@ def unbalanced_dykstra_kernel(
       supp_b=ot_prob.b > 0.0,
   )
   init_state = State(
-      v1=jnp.ones(r),
-      v2=jnp.ones(r),
-      u1=jnp.ones(n),
-      u2=jnp.ones(m),
+      v1=jnp.ones(r, dtype=k_q.dtype),
+      v2=jnp.ones(r, dtype=k_q.dtype),
+      u1=jnp.ones(n, dtype=k_q.dtype),
+      u2=jnp.ones(m, dtype=k_q.dtype),
       g=k_g,
-      err=jnp.inf
+      err=jnp.array(jnp.inf, dtype=k_q.dtype)
   )
 
   state: State = fixed_point_loop.fixpoint_iter_backprop(
