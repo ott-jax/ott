@@ -342,6 +342,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     Returns:
       The low-rank GW output.
     """
+    assert ot_prob._loss_name == "sqeucl", \
+        "Only the squared Euclidean loss is supported."
+
     rng = utils.default_prng_key(rng)
     rng_lrc, rng_init = jax.random.split(rng)
 

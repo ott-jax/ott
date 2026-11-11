@@ -465,6 +465,19 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
+  def test_gw_lr_kl_loss(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.uniform(rng_x, (10, 2)), jr.uniform(rng_y, (12, 3))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x), pointcloud.PointCloud(y), loss="kl"
+    )
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2, min_iterations=0, inner_iterations=10, max_iterations=100
+    )
+
+    with pytest.raises(AssertionError, match=r"squared Euclidean"):
+      _ = solver(prob)
+
   @pytest.mark.parametrize("lse_mode", [False, True])
   def test_gw_lr_zero_weights_unrolled_grad(
       self, rng: jax.Array, lse_mode: bool
