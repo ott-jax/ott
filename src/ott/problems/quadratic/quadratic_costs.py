@@ -14,7 +14,6 @@
 from typing import Callable, NamedTuple
 
 import jax.numpy as jnp
-import jax.scipy as jsp
 
 __all__ = ["make_square_loss", "make_kl_loss"]
 
@@ -71,7 +70,9 @@ def make_kl_loss(clipping_value: float = 1e-8) -> GWLoss:
   Returns:
     The KL loss.
   """
-  f1 = Loss(lambda x: -jsp.special.entr(x) - x, is_linear=False)
+  f1 = Loss(
+      lambda x: x * jnp.log(jnp.clip(x, clipping_value)) - x, is_linear=False
+  )
   f2 = Loss(lambda y: y, is_linear=True)
   h1 = Loss(lambda x: x, is_linear=True)
   h2 = Loss(lambda y: jnp.log(jnp.clip(y, clipping_value)), is_linear=False)

@@ -397,6 +397,25 @@ class TestGromovWasserstein:
     )
     np.testing.assert_allclose(grad, grad_fd, rtol=1e-2)
 
+  def test_kl_loss_finite(self, rng: jax.Array):
+
+    def reg_gw_cost(x: jnp.ndarray) -> float:
+      prob = quadratic_problem.QuadraticProblem(
+          pointcloud.PointCloud(x), pointcloud.PointCloud(y), loss="kl"
+      )
+      return solver(prob).reg_gw_cost
+
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.uniform(rng_x, (10, 2)), jr.uniform(rng_y, (12, 3))
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), epsilon=1e-1
+    )
+
+    cost, grad = jax.value_and_grad(reg_gw_cost)(x)
+
+    assert jnp.isfinite(cost)
+    np.testing.assert_array_equal(jnp.isfinite(grad), True)
+
   def test_gw_adaptive_threshold(self, clouds: _utils.QuadClouds):
     """Checking solution is improved with smaller threshold for convergence."""
     geom_x = pointcloud.PointCloud(clouds.x, clouds.x)
