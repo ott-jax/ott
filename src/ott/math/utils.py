@@ -106,7 +106,7 @@ def kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
 
 def gen_ent(x: jnp.ndarray) -> float:
   """Generalized entropy, adds the sum of ``x`` compared to usual entropy."""
-  return jnp.sum(jsp.special.entr(x)) + jnp.sum(x)
+  return -jnp.sum(x * safe_log(x)) + jnp.sum(x)
 
 
 def gen_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:

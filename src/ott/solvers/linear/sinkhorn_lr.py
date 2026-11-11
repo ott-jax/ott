@@ -406,7 +406,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # shortcuts for problem's definition.
     r = self.rank
     n, m = ot_prob.geom.shape
-    loga, logb = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
+    loga, logb = mu.safe_log(ot_prob.a), mu.safe_log(ot_prob.b)
 
     h_old = h
     g1_old = g2_old = jnp.zeros(r, dtype=c_q.dtype)
@@ -441,14 +441,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       c_q, c_r, loga, logb, gamma, ot_prob = constants
 
       # First Projection
-      f1 = jnp.where(
-          jnp.isfinite(loga),
-          (loga - _softm(f1, g1_old, c_q, gamma, axis=1)) / gamma + f1, loga
-      )
-      f2 = jnp.where(
-          jnp.isfinite(logb),
-          (logb - _softm(f2, g2_old, c_r, gamma, axis=1)) / gamma + f2, logb
-      )
+      f1 = (loga - _softm(f1, g1_old, c_q, gamma, axis=1)) / gamma + f1
+      f2 = (logb - _softm(f2, g2_old, c_r, gamma, axis=1)) / gamma + f2
 
       h = h_old + w_gi
       h = jnp.maximum(jnp.log(min_entry_value) / gamma, h)
@@ -550,8 +544,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       a, b = ot_prob.a, ot_prob.b
 
       # First Projection
-      u1 = jnp.where(a > 0, a / jnp.dot(k_q, v1_old), 0.0)
-      u2 = jnp.where(b > 0, b / jnp.dot(k_r, v2_old), 0.0)
+      u1 = a / jnp.where(a > 0, jnp.dot(k_q, v1_old), 1.0)
+      u2 = b / jnp.where(b > 0, jnp.dot(k_r, v2_old), 1.0)
       g = jnp.maximum(min_entry_value, g_old * q_gi)
       q_gi = (g_old * q_gi) / g
       g_old = g
