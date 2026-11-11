@@ -59,6 +59,7 @@ class GWOutput(NamedTuple):
     geom: The geometry underlying the local linearization.
     old_transport_mass: Holds total mass of transport at previous iteration.
     ot_prob: The quadratic problem.
+    epsilon: Entropic regularization.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -70,6 +71,7 @@ class GWOutput(NamedTuple):
   # Intermediate values.
   old_transport_mass: float = 1.0
   ot_prob: Optional[quadratic_problem.QuadraticProblem] = None
+  epsilon: Optional[float] = None
 
   def set(self, **kwargs: Any) -> "GWOutput":
     """Return a copy of self, possibly with overwrites."""
@@ -88,22 +90,29 @@ class GWOutput(NamedTuple):
   def reg_gw_cost(self) -> float:
     """Regularized GW cost.
 
-    That is, ``quadratic + fused_penalty * linear + epsilon * KL(P | ab^T)``.
+    That is, ``quadratic + fused_penalty * linear + epsilon * KL(P | ab^T)``
+    or, with the unbalanced correction, the UGW cost of :cite:`sejourne:21`.
     """
+    if self.ot_prob._is_ugw:
+      transport = jax.lax.stop_gradient(self.matrix)
+      reg_cost = self.ot_prob._ugw_regularizer(transport, self.epsilon)
+      return self.primal_cost + reg_cost
     return self.linear_state.reg_ot_cost - self._quad_cost
 
   @property
   def primal_cost(self) -> float:
     """GW cost, i.e., ``quadratic + fused_penalty * linear``."""
+    if self.ot_prob._is_ugw:
+      transport = jax.lax.stop_gradient(self.matrix)
+      return self.ot_prob._ugw_primal_cost(
+          transport, self.geom.cost_matrix, self.epsilon
+      )
     primal_cost = self.linear_state.transport_cost_at_geom(other_geom=self.geom)
     return primal_cost - self._quad_cost
 
   @property
   def _quad_cost(self) -> float:
     prob = self.ot_prob
-    if prob.gw_unbalanced_correction and not prob.is_balanced:
-      return 0.0
-
     # `self.geom` is the gradient `2 * quadratic + fused_penalty * linear`
     quad_grad = self.geom.cost_matrix
     if prob.is_fused:
@@ -150,9 +159,9 @@ class GWState(NamedTuple):
   def update(  # noqa: D102
       self, iteration: int, linear_sol: LinearOutput,
       linear_pb: linear_problem.LinearProblem, store_errors: bool,
-      old_transport_mass: float
+      old_transport_mass: float, cost: float
   ) -> "GWState":
-    costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
+    costs = self.costs.at[iteration].set(cost)
     errors = None
     if store_errors and self.errors is not None:
       errors = self.errors.at[iteration, :].set(linear_sol.errors)
@@ -250,7 +259,10 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         relative_epsilon=self.relative_epsilon,
     )
 
-    linear_state = out.linear_state.set_cost(linearization, True, True)
+    linear_state = out.linear_state
+    if not prob._is_ugw:
+      linear_state = linear_state.set_cost(linearization, True, True)
+
     iteration = jnp.sum(out.costs != -1)
     converged = jnp.logical_and(
         iteration < self.max_iterations,
@@ -261,6 +273,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         geom=linearization.geom,
         converged=converged,
         ot_prob=prob,
+        epsilon=self.epsilon,
     )
 
   def init_state(
@@ -360,11 +373,27 @@ def iterations(
     )
     out = solver.linear_solver(linear_pb, init=init)
 
-    old_transport_mass = jax.lax.stop_gradient(
-        state.linear_state.transport_mass
-    )
+    old_transport_mass = lin_state.transport_mass
+    cost = out.reg_ot_cost
+    if prob._is_ugw:
+      rescale_factor = jnp.sqrt(state.old_transport_mass / old_transport_mass)
+      old_transport_mass *= rescale_factor
+
+      transport = rescale_factor * lin_state.matrix
+      cost = prob._ugw_primal_cost(
+          transport, linear_pb.geom.cost_matrix, solver.epsilon
+      )
+      cost += prob._ugw_regularizer(transport, solver.epsilon)
+
+    old_transport_mass = jax.lax.stop_gradient(old_transport_mass)
+
     new_state = state.update(
-        iteration, out, linear_pb, solver.store_inner_errors, old_transport_mass
+        iteration,
+        out,
+        linear_pb,
+        solver.store_inner_errors,
+        old_transport_mass,
+        cost,
     )
 
     # Inner iterations is currently fixed to 1.

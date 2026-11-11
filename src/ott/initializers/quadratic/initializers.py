@@ -160,20 +160,19 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       tmp2 = h2.func(geom_yy.cost_matrix)
       tmp = tmp1 @ self.init_coupling @ tmp2.T
 
-    if quad_prob.is_balanced or not quad_prob.gw_unbalanced_correction:
-      cost_matrix = 2.0 * (marginal_cost.cost_matrix - tmp)
+    cost_matrix = marginal_cost.cost_matrix - tmp
+    cost_matrix += 0.5 * quad_prob.fused_penalty * quad_prob._fused_cost_matrix
+    if not quad_prob._is_ugw:
+      cost_matrix *= 2.0
     else:
       # initialize epsilon for Unbalanced GW according to Sejourne et. al (2021)
       init_transport = jnp.outer(quad_prob.a, quad_prob.b)
       marginal_1, marginal_2 = init_transport.sum(1), init_transport.sum(0)
 
-      epsilon *= marginal_1.sum()
-      unbalanced_correction = quad_prob.cost_unbalanced_correction(
+      cost_matrix += quad_prob.cost_unbalanced_correction(
           init_transport, marginal_1, marginal_2, epsilon=epsilon
       )
-      cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
-
-    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
+      epsilon *= marginal_1.sum()
     return geometry.Geometry(
         cost_matrix=cost_matrix,
         epsilon=epsilon,

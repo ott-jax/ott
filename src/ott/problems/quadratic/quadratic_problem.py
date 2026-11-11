@@ -236,6 +236,59 @@ class QuadraticProblem:
       ) * (-jsp.special.entr(marginal_2).sum() - marginal_2logb)
     return cost
 
+  def _ugw_primal_cost(
+      self,
+      transport_matrix: jnp.ndarray,
+      cost_matrix: jnp.ndarray,
+      epsilon: float,
+  ) -> float:
+    """UGW cost :cite:`sejourne:21` without the quadratic KL divergences.
+
+    Args:
+      transport_matrix: Coupling.
+      cost_matrix: Linearization at ``transport_matrix``,
+        see :meth:`update_linearization`.
+      epsilon: Entropic regularization.
+
+    Returns:
+      The ``quadratic + fused_penalty * linear`` cost.
+    """
+    marginal_1, marginal_2 = transport_matrix.sum(1), transport_matrix.sum(0)
+    correction = self.cost_unbalanced_correction(
+        transport_matrix, marginal_1, marginal_2, epsilon=epsilon
+    )
+    lin_cost = jnp.sum(self._fused_cost_matrix * transport_matrix)
+
+    cost = jnp.vdot(cost_matrix, transport_matrix)
+    cost -= marginal_1.sum() * correction
+    return cost + 0.5 * self.fused_penalty * lin_cost
+
+  def _ugw_regularizer(
+      self, transport_matrix: jnp.ndarray, epsilon: float
+  ) -> float:
+    """Quadratic KL divergences of the UGW cost :cite:`sejourne:21`.
+
+    Args:
+      transport_matrix: Coupling.
+      epsilon: Entropic regularization.
+
+    Returns:
+      The regularization term.
+    """
+
+    def regularizer(tau: float) -> float:
+      return epsilon * tau / (1.0 - tau)
+
+    marginal_1, marginal_2 = transport_matrix.sum(1), transport_matrix.sum(0)
+    ab = jnp.outer(self.a, self.b)
+
+    cost = epsilon * _quad_kl(transport_matrix, ab)
+    if self.tau_a != 1.0:
+      cost += regularizer(self.tau_a) * _quad_kl(marginal_1, self.a)
+    if self.tau_b != 1.0:
+      cost += regularizer(self.tau_b) * _quad_kl(marginal_2, self.b)
+    return cost
+
   # TODO(michalk8): highly coupled to the pre-defined initializer, refactor
   def init_transport_mass(self) -> float:
     """Initialize the transport mass.
@@ -314,7 +367,7 @@ class QuadraticProblem:
     rescale_factor = 1.0
     unbalanced_correction = 0.0
 
-    if self.gw_unbalanced_correction and not self.is_balanced:
+    if self._is_ugw:
       marginal_1 = transport.marginal(axis=1)
       transport_mass = jax.lax.stop_gradient(marginal_1.sum())
       rescale_factor = jnp.sqrt(old_transport_mass / transport_mass)
@@ -325,11 +378,11 @@ class QuadraticProblem:
 
     transport_matrix = transport.matrix * rescale_factor
 
-    if self.gw_unbalanced_correction and not self.is_balanced:
-      epsilon *= jax.lax.stop_gradient(marginal_1.sum())
+    if self._is_ugw:
       unbalanced_correction = self.cost_unbalanced_correction(
           transport_matrix, marginal_1, marginal_2, epsilon=epsilon
       )
+      epsilon *= jax.lax.stop_gradient(marginal_1.sum())
 
     h1, h2 = self.quad_loss
     geom_xx, geom_yy = self.geom_xx, self.geom_yy
@@ -338,11 +391,11 @@ class QuadraticProblem:
     tmp = apply_cost(geom_yy, tmp.T, axis=1, fn=h2).T
 
     cost_matrix = marginal_cost.cost_matrix - tmp
-    if self.gw_unbalanced_correction and not self.is_balanced:
+    cost_matrix += 0.5 * self.fused_penalty * self._fused_cost_matrix
+    if self._is_ugw:
       cost_matrix += unbalanced_correction
     else:
       cost_matrix *= 2.0
-    cost_matrix += self.fused_penalty * rescale_factor * self._fused_cost_matrix
 
     geom = geometry.Geometry(
         cost_matrix=cost_matrix,
@@ -492,6 +545,11 @@ class QuadraticProblem:
     """Whether the problem is balanced."""
     return self.tau_a == 1.0 and self.tau_b == 1.0
 
+  @property
+  def _is_ugw(self) -> bool:
+    """Whether the unbalanced GW of :cite:`sejourne:21` is used."""
+    return self.gw_unbalanced_correction and not self.is_balanced
+
   def tree_flatten(self):  # noqa: D102
     return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
         "tau_a": self.tau_a,
@@ -508,6 +566,13 @@ class QuadraticProblem:
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     geoms, (a, b) = children[:3], children[3:]
     return cls(*geoms, a=a, b=b, **aux_data)
+
+
+def _quad_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
+  r"""Quadratic KL divergence :math:`\text{KL}(p \otimes p | q \otimes q)`."""
+  kl = jnp.sum(jsp.special.xlogy(p, p) - jsp.special.xlogy(p, q))
+  kl += q.sum() - p.sum()
+  return 2.0 * p.sum() * kl + (p.sum() - q.sum()) ** 2
 
 
 def apply_cost(  # noqa: D103

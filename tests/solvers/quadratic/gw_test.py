@@ -392,6 +392,43 @@ class TestGromovWasserstein:
 
     assert loss_thre(1e-1) > loss_thre(1e-5)
 
+  def test_ugw_cost(self, rng: jax.Array):
+
+    def kl_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
+      kl = jnp.sum(jax.scipy.special.xlogy(p, p / q)) - p.sum() + q.sum()
+      return 2.0 * p.sum() * kl + (p.sum() - q.sum()) ** 2
+
+    def ugw_cost(scale: float) -> float:
+      p = scale * out.matrix
+      cost = jnp.einsum("ijkl,ij,kl->", loss, p, p)
+      cost += eps * kl_kl(p, jnp.outer(a, b))
+      cost += eps * tau_a / (1.0 - tau_a) * kl_kl(p.sum(1), a)
+      cost += eps * tau_b / (1.0 - tau_b) * kl_kl(p.sum(0), b)
+      return cost
+
+    eps, tau_a, tau_b = 0.1, 0.95, 0.97
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (6, 2)), jr.normal(rng_y, (7, 3))
+    a, b = jnp.full(6, 1.0 / 6), jnp.full(7, 1.0 / 7)
+    geom_xx, geom_yy = pointcloud.PointCloud(x), pointcloud.PointCloud(y)
+    loss = (
+        geom_xx.cost_matrix[:, None, :, None] -
+        geom_yy.cost_matrix[None, :, None, :]
+    ) ** 2
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx, geom_yy, tau_a=tau_a, tau_b=tau_b
+    )
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(threshold=1e-5), epsilon=eps
+    )
+
+    out = solver(prob)
+
+    assert out.converged
+    np.testing.assert_allclose(out.reg_gw_cost, ugw_cost(1.0), rtol=1e-5)
+    assert ugw_cost(1.0) < ugw_cost(0.99)
+    assert ugw_cost(1.0) < ugw_cost(1.01)
+
   @pytest.mark.usefixtures("enable_x64")
   def test_unbalanced_split_point(self, rng: jax.Array):
     rng_x, rng_y = jr.split(rng, 2)
