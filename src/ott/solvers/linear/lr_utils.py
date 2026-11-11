@@ -18,6 +18,7 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 
 from ott.math import fixed_point_loop
+from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 
 __all__ = ["unbalanced_dykstra_lse", "unbalanced_dykstra_kernel"]
@@ -107,7 +108,7 @@ def unbalanced_dykstra_lse(
       compute_error: bool,
   ) -> State:
     const, c_q, c_r, c_g, gamma = constants
-    log_a, log_b = jnp.log(const.a), jnp.log(const.b)
+    log_a, log_b = mu.safe_log(const.a), mu.safe_log(const.b)
     rho_a, rho_b = const.rho_a, const.rho_b
 
     c_a = _get_ratio(const.rho_a, gamma)
@@ -236,6 +237,12 @@ def unbalanced_dykstra_kernel(
     )
     return (1.0 / gamma) * jnp.max(jnp.array([u1_err, u2_err, v1_err, v2_err]))
 
+  def _scaling(
+      marginal: jnp.ndarray, supp: jnp.ndarray, kv: jnp.ndarray, c: float
+  ) -> jnp.ndarray:
+    ratio = jnp.where(supp, marginal, 1.0) / jnp.where(supp, kv, 1.0)
+    return jnp.where(supp, ratio ** c, 0.0)
+
   def cond_fn(
       iteration: int,
       constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
@@ -257,9 +264,9 @@ def unbalanced_dykstra_kernel(
     if translation_invariant:
       lam_a, lam_b = compute_lambdas(const, state, gamma, g=k_g, lse_mode=False)
 
-      u1 = jnp.where(const.supp_a, (const.a / (k_q @ state.v1)) ** c_a, 0.0)
+      u1 = _scaling(const.a, const.supp_a, k_q @ state.v1, c_a)
       u1 = u1 * jnp.exp(-lam_a / ((1.0 / gamma) + const.rho_a))
-      u2 = jnp.where(const.supp_b, (const.b / (k_r @ state.v2)) ** c_b, 0.0)
+      u2 = _scaling(const.b, const.supp_b, k_r @ state.v2, c_b)
       u2 = u2 * jnp.exp(-lam_b / ((1.0 / gamma) + const.rho_b))
 
       state_lam = State(
@@ -275,8 +282,8 @@ def unbalanced_dykstra_kernel(
       k_trans = jnp.exp(gamma * (lam_a + lam_b)) * k_g
       g = (k_trans * v1_trans * v2_trans) ** (1.0 / 3.0)
     else:
-      u1 = jnp.where(const.supp_a, (const.a / (k_q @ state.v1)) ** c_a, 0.0)
-      u2 = jnp.where(const.supp_b, (const.b / (k_r @ state.v2)) ** c_b, 0.0)
+      u1 = _scaling(const.a, const.supp_a, k_q @ state.v1, c_a)
+      u2 = _scaling(const.b, const.supp_b, k_r @ state.v2, c_b)
 
       v1_trans = k_q.T @ u1
       v2_trans = k_r.T @ u2
@@ -349,15 +356,13 @@ def compute_lambdas(
     lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
     return lam_1, lam_2
 
+  u1 = jnp.where(const.supp_a, state.u1, 1.0)
+  u2 = jnp.where(const.supp_b, state.u2, 1.0)
   num_1 = jnp.sum(
-      jnp.where(
-          const.supp_a, ((state.u1 ** (-gamma_inv / rho_a)) * const.a), 0.0
-      )
+      jnp.where(const.supp_a, ((u1 ** (-gamma_inv / rho_a)) * const.a), 0.0)
   )
   num_2 = jnp.sum(
-      jnp.where(
-          const.supp_b, ((state.u2 ** (-gamma_inv / rho_b)) * const.b), 0.0
-      )
+      jnp.where(const.supp_b, ((u2 ** (-gamma_inv / rho_b)) * const.b), 0.0)
   )
   den = jnp.sum(g / (state.v1 * state.v2))
   const_1 = jnp.log(num_1 / den)

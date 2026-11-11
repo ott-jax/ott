@@ -277,14 +277,19 @@ class TestLRSinkhorn:
 
     np.testing.assert_allclose(out_pad.reg_ot_cost, out.reg_ot_cost, rtol=1e-5)
 
+  @pytest.mark.parametrize("tau", [1.0, 0.9])
   @pytest.mark.parametrize("lse_mode", [False, True])
-  def test_zero_weights_unrolled_grad(self, rng: jax.Array, lse_mode: bool):
+  def test_zero_weights_unrolled_grad(
+      self, rng: jax.Array, lse_mode: bool, tau: float
+  ):
 
     def loss(x: jnp.ndarray, n_pad: int) -> float:
       x = jnp.concatenate([x, jnp.full((n_pad, 2), 5.0)])
       a = jnp.concatenate([jnp.full(10, 0.1), jnp.zeros(n_pad)])
       q_pad = jnp.concatenate([q, jnp.zeros((n_pad, 2))])
-      prob = linear_problem.LinearProblem(pointcloud.PointCloud(x, y), a=a)
+      prob = linear_problem.LinearProblem(
+          pointcloud.PointCloud(x, y), a=a, tau_a=tau, tau_b=tau
+      )
       return solver(prob, init=(q_pad, r, g)).reg_ot_cost
 
     rng_x, rng_y = jr.split(rng, 2)
