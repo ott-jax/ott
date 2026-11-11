@@ -258,22 +258,25 @@ def compute_kl_reg_cost(
     div_a = jnp.sum(jnp.where(supp_a, ot_prob.a * (f - fa), 0.0))
   else:
     rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
-    div_a = -jnp.sum(
-        jnp.where(supp_a, ot_prob.a * uf.phi_star(-(f - fa), rho_a), 0.0)
-    )
+    phi_a = uf.phi_star(jnp.where(supp_a, fa - f, 0.0), rho_a)
+    div_a = -jnp.sum(jnp.where(supp_a, ot_prob.a * phi_a, 0.0))
 
   gb = ot_prob.geom.potential_from_scaling(ot_prob.b)
   if ot_prob.tau_b == 1.0:
     div_b = jnp.sum(jnp.where(supp_b, ot_prob.b * (g - gb), 0.0))
   else:
     rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
-    div_b = -jnp.sum(
-        jnp.where(supp_b, ot_prob.b * uf.phi_star(-(g - gb), rho_b), 0.0)
-    )
+    phi_b = uf.phi_star(jnp.where(supp_b, gb - g, 0.0), rho_b)
+    div_b = -jnp.sum(jnp.where(supp_b, ot_prob.b * phi_b, 0.0))
 
   # Using https://arxiv.org/pdf/1910.12958v2.pdf (24)
   if lse_mode:
-    total_sum = jnp.sum(ot_prob.geom.marginal_from_potentials(f, g))
+    f, g = jnp.where(supp_a, f, 0.0), jnp.where(supp_b, g, 0.0)
+    z, _ = ot_prob.geom.apply_lse_kernel(
+        f, g, ot_prob.epsilon, vec=supp_b.astype(g.dtype), axis=1
+    )
+    marginal = jnp.exp((z + f) / ot_prob.epsilon)
+    total_sum = jnp.sum(jnp.where(supp_a, marginal, 0.0))
   else:
     u = ot_prob.geom.scaling_from_potential(f)
     v = ot_prob.geom.scaling_from_potential(g)

@@ -83,6 +83,23 @@ class TestSinkhornImplicit:
 
     np.testing.assert_allclose(kernel, lse, rtol=1e-2, atol=1e-2)
 
+  @pytest.mark.parametrize("lse_mode", [True, False])
+  @pytest.mark.parametrize("tau", [1.0, 0.9])
+  def test_epsilon_grad_zero_weights(
+      self, rng: jax.Array, lse_mode: bool, tau: float
+  ):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+
+    def loss(eps: float) -> float:
+      prob = clouds.problem(epsilon=eps, tau_a=tau, tau_b=tau)
+      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, threshold=1e-6)
+      return solver(prob).reg_ot_cost
+
+    eps, h = 1e-1, 1e-3
+    expected = (loss(eps + h) - loss(eps - h)) / (2.0 * h)
+
+    np.testing.assert_allclose(jax.grad(loss)(eps), expected, rtol=1e-3)
+
   def test_custom_solver(self, clouds: _utils.PointClouds):
     solver_kwargs = {"ridge_kernel": 1e-6}
     calls = []

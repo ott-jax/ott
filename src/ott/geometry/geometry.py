@@ -557,7 +557,7 @@ class Geometry:
     """
     finite = jnp.isfinite(potential)
     return jnp.where(
-        finite, jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)), 0.0
+        finite, jnp.exp(jnp.where(finite, potential, 0.0) / self.epsilon), 0.0
     )
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
