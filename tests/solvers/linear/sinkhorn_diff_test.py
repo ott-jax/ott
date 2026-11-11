@@ -110,6 +110,26 @@ class TestSinkhornImplicit:
     )
     assert calls == [solver_kwargs]
 
+  @pytest.mark.usefixtures("enable_x64")
+  @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 0.87), (1.0, 0.7)])
+  def test_unbalanced_danskin(self, rng: jax.Array, tau_a: float, tau_b: float):
+    clouds = _utils.random_clouds(rng, n=38, m=73, dim=3)
+
+    def loss(x: jnp.ndarray, use_danskin: bool) -> float:
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=5e-2)
+      prob = linear_problem.LinearProblem(
+          geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
+      )
+      solver = sinkhorn.Sinkhorn(threshold=1e-8, use_danskin=use_danskin)
+      return solver(prob).reg_ot_cost
+
+    np.testing.assert_allclose(
+        jax.grad(loss)(clouds.x, True),
+        jax.grad(loss)(clouds.x, False),
+        rtol=1e-4,
+        atol=1e-8,
+    )
+
   @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
                            [(True, 1e-4, True), (False, 1e-6, False)])
   def test_implicit_differentiation_versus_autodiff(
