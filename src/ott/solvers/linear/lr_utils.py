@@ -146,7 +146,7 @@ def unbalanced_dykstra_lse(
 
     new_state = State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=jnp.inf)
     err = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= min_iter),
+        jnp.logical_and(compute_error, iteration + 1 >= min_iter),
         _error,
         lambda *_: state.err,
         gamma,
@@ -288,7 +288,7 @@ def unbalanced_dykstra_kernel(
 
     new_state = State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=jnp.inf)
     err = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= min_iter),
+        jnp.logical_and(compute_error, iteration + 1 >= min_iter),
         _error,
         lambda *_: state.err,
         gamma,

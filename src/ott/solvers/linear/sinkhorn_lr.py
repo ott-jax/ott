@@ -474,7 +474,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       h_old = h
 
       err = jax.lax.cond(
-          jnp.logical_and(compute_error, iteration >= min_iter),
+          jnp.logical_and(compute_error, iteration + 1 >= min_iter),
           lambda: solution_error(q, r, ot_prob, self.norm_error)[0], lambda: err
       )
 
@@ -572,7 +572,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       q, r, _ = recompute_couplings(u1, v1, k_q, u2, v2, k_r, g)
 
       err = jax.lax.cond(
-          jnp.logical_and(compute_error, iteration >= min_iter),
+          jnp.logical_and(compute_error, iteration + 1 >= min_iter),
           lambda: solution_error(q, r, ot_prob, self.norm_error)[0], lambda: err
       )
 

@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Type
+from typing import Any, Type
 
 import pytest
 
@@ -175,6 +175,30 @@ class TestLRSinkhorn:
     out = solver(prob)
 
     np.testing.assert_array_equal(jnp.isfinite(out.errors), [False, True])
+
+  @pytest.mark.parametrize("lse_mode", [True, False])
+  @pytest.mark.parametrize("tau", [1.0, 0.9])
+  def test_dykstra_min_iter(
+      self, clouds: _utils.PointClouds, lse_mode: bool, tau: float
+  ):
+    prob = clouds.problem(tau_a=tau, tau_b=tau)
+
+    def solve(**kwargs_dys: Any) -> jnp.ndarray:
+      solver = sinkhorn_lr.LRSinkhorn(
+          rank=2,
+          lse_mode=lse_mode,
+          min_iterations=20,
+          max_iterations=20,
+          kwargs_dys=kwargs_dys,
+      )
+      return solver(prob).matrix
+
+    np.testing.assert_allclose(
+        solve(min_iter=10, max_iter=20, tolerance=1e10),
+        solve(min_iter=10, max_iter=10),
+        rtol=1e-5,
+        atol=1e-6,
+    )
 
   def test_crossed_threshold_recorded_errors(self, clouds: _utils.PointClouds):
     prob = clouds.problem()
