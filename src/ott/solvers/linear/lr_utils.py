@@ -383,4 +383,4 @@ def _rho(tau: float) -> float:
 
 def _get_ratio(rho: float, gamma: float) -> float:
   gamma_inv = 1.0 / gamma
-  return jnp.where(jnp.isfinite(rho), rho / (rho + gamma_inv), 1.0)
+  return 1.0 / (1.0 + gamma_inv / rho)

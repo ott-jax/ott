@@ -306,6 +306,41 @@ class TestLRSinkhorn:
 
     np.testing.assert_allclose(grad_pad, grad, rtol=1e-5, atol=1e-5)
 
+  @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 1.0), (1.0, 0.9)])
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_one_sided_unbalanced_unrolled_grad(
+      self, rng: jax.Array, lse_mode: bool, tau_a: float, tau_b: float
+  ):
+
+    def loss(x: jnp.ndarray) -> float:
+      prob = linear_problem.LinearProblem(
+          pointcloud.PointCloud(x, y), tau_a=tau_a, tau_b=tau_b
+      )
+      return solver(prob).reg_ot_cost
+
+    rng_x, rng_y, rng_v = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 2))
+    v = jr.normal(rng_v, x.shape)
+    v = 1e-2 * v / jnp.linalg.norm(v)
+    solver = sinkhorn_lr.LRSinkhorn(
+        rank=2,
+        epsilon=1e-1,
+        lse_mode=lse_mode,
+        use_danskin=False,
+        min_iterations=20,
+        max_iterations=20,
+        kwargs_dys={
+            "min_iter": 20,
+            "max_iter": 20
+        },
+    )
+
+    grad = jax.grad(loss)(x)
+
+    expected = loss(x + v) - loss(x - v)
+    actual = 2.0 * jnp.vdot(v, grad)
+    np.testing.assert_allclose(actual, expected, rtol=1e-2, atol=1e-5)
+
   @pytest.mark.parametrize("translation_invariant", [False, True])
   def test_unbalanced_dykstra_kernel_zero_weights(
       self, rng: jax.Array, translation_invariant: bool
