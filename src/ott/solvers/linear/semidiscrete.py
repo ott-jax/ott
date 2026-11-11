@@ -380,7 +380,7 @@ class SemidiscreteSolver:
 
     state = SemidiscreteState(
         it=jnp.array(0),
-        epsilon=jnp.nan,
+        epsilon=jnp.array(jnp.nan, dtype=dtype),
         g=g_init,
         g_ema=g_init,
         opt_state=self.optimizer.init(g_init),

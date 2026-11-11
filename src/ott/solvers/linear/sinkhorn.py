@@ -275,8 +275,8 @@ def compute_kl_reg_cost(
     z, _ = ot_prob.geom.apply_lse_kernel(
         f, g, ot_prob.epsilon, vec=supp_b.astype(g.dtype), axis=1
     )
-    marginal = jnp.exp((z + f) / ot_prob.epsilon)
-    total_sum = jnp.sum(jnp.where(supp_a, marginal, 0.0))
+    log_marginal = jnp.where(supp_a, (z + f) / ot_prob.epsilon, -jnp.inf)
+    total_sum = jnp.sum(jnp.exp(log_marginal))
   else:
     u = ot_prob.geom.scaling_from_potential(f)
     v = ot_prob.geom.scaling_from_potential(g)

@@ -200,7 +200,7 @@ class LRGWOutput(NamedTuple):
 
   def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
-    return self.apply(jnp.ones(length,), axis=axis)
+    return self.apply(jnp.ones(length, dtype=self.q.dtype), axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for current solution, evaluated at any cost matrix."""
@@ -440,12 +440,11 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     loga, logb = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
 
     h_old = h
-    g1_old, g2_old = jnp.zeros(r), jnp.zeros(r)
-    f1, f2 = jnp.zeros(n), jnp.zeros(m)
+    g1_old = g2_old = jnp.zeros(r, dtype=c_q.dtype)
+    f1, f2 = jnp.zeros(n, dtype=c_q.dtype), jnp.zeros(m, dtype=c_q.dtype)
 
-    w_gi, w_gp = jnp.zeros(r), jnp.zeros(r)
-    w_q, w_r = jnp.zeros(r), jnp.zeros(r)
-    err = jnp.inf
+    w_gi = w_gp = w_q = w_r = jnp.zeros(r, dtype=c_q.dtype)
+    err = jnp.array(jnp.inf, dtype=c_q.dtype)
     state_inner = f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
     constants = c_q, c_r, loga, logb
 
@@ -560,12 +559,11 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     supp_a, supp_b = a > 0, b > 0
 
     g_old = k_g
-    v1_old, v2_old = jnp.ones(rank), jnp.ones(rank)
-    u1, u2 = jnp.ones(n), jnp.ones(m)
+    v1_old = v2_old = jnp.ones(rank, dtype=k_q.dtype)
+    u1, u2 = jnp.ones(n, dtype=k_q.dtype), jnp.ones(m, dtype=k_q.dtype)
 
-    q_gi, q_gp = jnp.ones(rank), jnp.ones(rank)
-    q_q, q_r = jnp.ones(rank), jnp.ones(rank)
-    err = jnp.inf
+    q_gi = q_gp = q_q = q_r = jnp.ones(rank, dtype=k_q.dtype)
+    err = jnp.array(jnp.inf, dtype=k_q.dtype)
     state_inner = u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
     constants = k_q, k_r, k_g, a, b
 
@@ -707,11 +705,11 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     )
     cost = jax.lax.cond(
         record_error, lambda: state.reg_gw_cost(ot_prob, epsilon=self.epsilon),
-        lambda: jnp.inf
+        lambda: jnp.array(jnp.inf, dtype=state.costs.dtype)
     )
     error = jax.lax.cond(
         record_error, lambda: state.compute_error(previous_state),
-        lambda: jnp.inf
+        lambda: jnp.array(jnp.inf, dtype=state.errors.dtype)
     )
     crossed_threshold = jnp.logical_or(
         state.crossed_threshold,
@@ -749,8 +747,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         r=r,
         g=g,
         gamma=self.gamma,
-        costs=-jnp.ones(self.outer_iterations),
-        errors=-jnp.ones(self.outer_iterations),
+        costs=-jnp.ones(self.outer_iterations, dtype=q.dtype),
+        errors=-jnp.ones(self.outer_iterations, dtype=q.dtype),
         crossed_threshold=False,
     )
 
