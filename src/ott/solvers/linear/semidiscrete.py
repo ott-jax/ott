@@ -105,7 +105,7 @@ class HardAssignmentOutput:
     weights = self.matrix.data
     i, j = self.paired_indices[0], self.paired_indices[1]
     if isinstance(geom, pointcloud.PointCloud):
-      cost = jax.vmap(geom.cost_fn)(geom.x[i], geom.y[j])
+      cost = geom.inv_scale_cost * jax.vmap(geom.cost_fn)(geom.x[i], geom.y[j])
     else:
       cost = geom.cost_matrix[i, j]
     return jnp.sum(weights * cost)
