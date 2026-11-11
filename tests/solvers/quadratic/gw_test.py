@@ -138,6 +138,31 @@ class TestQuadraticProblem:
     assert lr_prob.is_low_rank
     assert prob.geom_yy is lr_prob.geom_yy
 
+  @pytest.mark.parametrize("scale_cost", [2.0, "mean", "max_cost"])
+  def test_to_low_rank_scale_cost(
+      self, rng: jax.Array, scale_cost: Union[float, str]
+  ):
+    rng_x, rng_y, rng_z = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    z = jr.normal(rng_z, (12, 2))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x),
+        pointcloud.PointCloud(y),
+        geom_xy=pointcloud.PointCloud(x, z),
+        scale_cost=scale_cost,
+    )
+
+    lr_prob = prob.to_low_rank()
+
+    assert lr_prob.is_low_rank
+    for geom, lr_geom in zip(
+        (prob.geom_xx, prob.geom_yy, prob.geom_xy),
+        (lr_prob.geom_xx, lr_prob.geom_yy, lr_prob.geom_xy)
+    ):
+      np.testing.assert_allclose(
+          lr_geom.cost_matrix, geom.cost_matrix, rtol=1e-5, atol=1e-5
+      )
+
 
 TAU_A, TAU_B = 0.8, 0.9
 

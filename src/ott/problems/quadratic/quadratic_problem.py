@@ -564,7 +564,13 @@ class QuadraticProblem:
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
     geoms, (a, b) = children[:3], children[3:]
-    return cls(*geoms, a=a, b=b, **aux_data)
+    aux_data = aux_data.copy()
+    scale_cost = aux_data.pop("scale_cost")
+
+    # geometries are already rescaled
+    prob = cls(*geoms, a=a, b=b, **aux_data)
+    prob.scale_cost = scale_cost
+    return prob
 
 
 def _quad_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
