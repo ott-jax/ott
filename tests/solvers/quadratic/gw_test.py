@@ -22,9 +22,10 @@ import numpy as np
 
 from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
+from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 from tests import _utils
 
@@ -98,6 +99,27 @@ class TestQuadraticProblem:
 
     assert not prob._is_low_rank_convertible
     assert prob.to_low_rank().is_low_rank
+
+  def test_update_lr_geom_fused_penalty(self, rng: jax.Array):
+    rng_x, rng_y, rng_z = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    z = jr.normal(rng_z, (12, 2))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x),
+        pointcloud.PointCloud(y),
+        geom_xy=pointcloud.PointCloud(x, z),
+        fused_penalty=3.0,
+    )
+    lr_sink = sinkhorn_lr.LRSinkhorn(rank=2)(
+        linear_problem.LinearProblem(prob.geom_xy)
+    )
+
+    geom = prob.update_lr_geom(lr_sink)
+    geom_lr = prob.to_low_rank().update_lr_geom(lr_sink)
+
+    np.testing.assert_allclose(
+        geom_lr.cost_matrix, geom.cost_matrix, rtol=1e-5, atol=1e-5
+    )
 
   def test_gw_implicit_conversion_mixed_input(self, rng: jax.Array):
     n, m, d1, d2 = 13, 77, 3, 4

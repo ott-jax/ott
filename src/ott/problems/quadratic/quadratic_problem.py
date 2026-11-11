@@ -264,7 +264,7 @@ class QuadraticProblem:
           cost_1=tmp1, cost_2=-tmp2, relative_epsilon=relative_epsilon
       ) + marginal_cost
       if self.is_fused:
-        geom = geom + geom_xy
+        geom = geom + geom_xy.to_LRCGeometry(scale=self.fused_penalty)
     else:
       cost_matrix = marginal_cost.cost_matrix - jnp.dot(tmp1, tmp2.T)
       cost_matrix += self.fused_penalty * self._fused_cost_matrix
