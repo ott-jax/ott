@@ -98,6 +98,18 @@ class TestPointCloudApply:
     np.testing.assert_allclose(prod0_geom, prod0, rtol=1e-3, atol=1e-2)
     np.testing.assert_allclose(prod1_geom, prod1, rtol=1e-3, atol=1e-2)
 
+  def test_barycenter(self, rng: jax.Array):
+    rng_x, rng_w = jr.split(rng, 2)
+    x = jr.normal(rng_x, (7, 3))
+    weights = jr.uniform(rng_w, (7,))
+    weights = weights / weights.sum()
+
+    actual = pointcloud.PointCloud(x).barycenter(weights)
+
+    np.testing.assert_allclose(
+        actual, jnp.average(x, axis=0, weights=weights), rtol=1e-6
+    )
+
   def test_correct_shape(self):
     n, m, d = 11, 12, 17
     x = jnp.zeros((n, d))

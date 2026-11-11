@@ -221,7 +221,7 @@ class PointCloud(geometry.Geometry):
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
     """Compute barycenter of points in self.x using weights."""
-    return self.cost_fn.barycenter(self.x, weights)[0]
+    return self.cost_fn.barycenter(weights, self.x)[0]
 
   @classmethod
   def prepare_divergences(
