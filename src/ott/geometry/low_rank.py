@@ -106,8 +106,8 @@ class LRCGeometry(geometry.Geometry):
       return 1.0 / (max_bound + self._bias)
     if self._scale_cost == "mean":
       n, m = self.shape
-      a = jnp.full((n,), fill_value=1.0 / n)
-      b = jnp.full((m,), fill_value=1.0 / m)
+      a = jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
+      b = jnp.full((m,), fill_value=1.0 / m, dtype=self.dtype)
       mean = jnp.linalg.multi_dot([a, self._cost_1, self._cost_2.T, b])
       return 1.0 / (mean + self._bias)
     if self._scale_cost == "max_cost":

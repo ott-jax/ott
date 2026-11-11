@@ -119,7 +119,7 @@ class Geometry:
   def mean_cost_matrix(self) -> float:
     """Mean of the :attr:`cost_matrix`."""
     n, m = self.shape
-    tmp = self.apply_cost(jnp.full((n,), fill_value=1.0 / n))
+    tmp = self.apply_cost(jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype))
     return jnp.sum((1.0 / m) * tmp)
 
   @property
@@ -136,7 +136,9 @@ class Geometry:
     to output :math:`\sigma`.
     """
     n, m = self.shape
-    tmp = self.apply_square_cost(jnp.full((n,), fill_value=1.0 / n))
+    tmp = self.apply_square_cost(
+        jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
+    )
     tmp = jnp.sum((1.0 / m) * tmp) - (self.mean_cost_matrix ** 2)
     return jnp.sqrt(jax.nn.relu(tmp))
 

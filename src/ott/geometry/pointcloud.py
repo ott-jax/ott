@@ -205,8 +205,8 @@ class PointCloud(geometry.Geometry):
 
     if summary == "mean":
       n, m = self.shape
-      a = jnp.full((n,), fill_value=1.0 / n)
-      b = jnp.full((m,), fill_value=1.0 / m)
+      a = jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
+      b = jnp.full((m,), fill_value=1.0 / m, dtype=self.dtype)
       return jnp.sum(self._apply_cost_to_vec(a, scale_cost=1.0) * b)
 
     if summary == "max_cost":
