@@ -268,7 +268,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
   contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
 
   Args:
-    rank: Rank constraint on the coupling to minimize the linear OT problem
+    rank: Rank constraint on the coupling to minimize the linear OT problem.
     gamma: The (inverse of) gradient step size used by mirror descent.
     gamma_rescale: Whether to rescale :math:`\gamma` every iteration as
       described in :cite:`scetbon:22b`.
@@ -279,7 +279,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
-      input parameters. Only `True` handled at this moment.
+      input parameters. In the balanced case, the gradient w.r.t. ``a`` and
+      ``b`` is then zero; use ``use_danskin = False`` to obtain it.
     progress_fn: callback function which gets called during the Sinkhorn
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`

@@ -240,16 +240,11 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   r"""Low-rank Gromov-Wasserstein solver :cite:`scetbon:23`.
 
   The algorithm minimizes a non-convex problem. It therefore requires special
-  care to initialization and convergence. Convergence is evaluated on successive
-  evaluations of the objective.
-
-  .. warning::
-    This solver only for the **unbalanced** case. Balanced case is implemented
-    in :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
-    and will be unified here in the future release.
+  care to initialization and convergence. Convergence is evaluated on the change
+  between successive iterates of the factors.
 
   Args:
-    rank: Rank constraint on the coupling to minimize the linear OT problem
+    rank: Rank constraint on the coupling to minimize the quadratic OT problem.
     gamma: The (inverse of) gradient step size used by mirror descent.
     gamma_rescale: Whether to rescale :math:`\gamma` every iteration as
       described in :cite:`scetbon:22b`.
@@ -264,7 +259,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       out before the error is computed and monitored.
     max_iterations: The maximum number of low-rank Sinkhorn iterations.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
-      input parameters. Only `True` handled at this moment.
+      input parameters. In the balanced case, the gradient w.r.t. ``a`` and
+      ``b`` is then zero; use ``use_danskin = False`` to obtain it.
     implicit_diff: Whether to use implicit differentiation. Currently, only
       ``implicit_diff = False`` is implemented.
     progress_fn: callback function which gets called during the GW
@@ -331,9 +327,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       ot_prob: Quadratic OT problem.
       init: Initial values of the low-rank factors:
 
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.q`.
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.r`.
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.g`.
+        - :attr:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGWOutput.q`.
+        - :attr:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGWOutput.r`.
+        - :attr:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGWOutput.g`.
 
         If :obj:`None`, use the initializer.
       rng: Random key for seeding.

@@ -57,7 +57,7 @@ def solve(
       on the second marginal.
     loss: Gromov-Wasserstein loss function, see
       :class:`~ott.problems.quadratic.quadratic_costs.GWLoss` for more
-      information. If ``rank > 0``, ``'sqeucl'`` is always used.
+      information. If ``rank > 0``, only ``'sqeucl'`` is supported.
     gw_unbalanced_correction: Whether the unbalanced version of
       :cite:`sejourne:21` is used. Otherwise, ``tau_a`` and ``tau_b``
       only affect the resolution of the linearization of the GW problem
@@ -65,7 +65,8 @@ def solve(
     rank: Rank constraint on the coupling to minimize the quadratic OT problem
       :cite:`scetbon:22`. If :math:`-1`, no rank constraint is used.
     linear_solver_kwargs: Keyword arguments for
-      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`, if ``rank > 0``.
+      :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`. Only used when
+      ``rank = -1``.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein` or
       :class:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`,
