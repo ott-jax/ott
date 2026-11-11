@@ -48,7 +48,7 @@ class ImplicitDiff:
       :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
       The :mod:`jax` alternative is described in
       :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
-      Note that the CG solver handles better poorly conditioned problems,
+      Note that the default solver handles better poorly conditioned problems,
       which arise typically when differentiating the solutions of balanced OT
       problems (when ``tau_a==tau_b==1.0``). Relying on
       :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
@@ -57,11 +57,11 @@ class ImplicitDiff:
       doc. These parameters can be passed using ``solver_kwargs`` below.
     solver_kwargs: keyword arguments passed on to the solver.
     symmetric: flag used to figure out whether the linear system solved in the
-      implicit function theorem is symmetric or not. This happens when
-      ``tau_a==tau_b``, and when ``a == b``, or the precondition_fun
-      is the identity. The flag is :obj:`False` by default, and is also tested
-      against ``tau_a==tau_b``. It needs to be set manually by the user in the
-      more favorable case where the system is guaranteed to be symmetric.
+      implicit function theorem is symmetric or not. This happens when the
+      ``precondition_fun`` is linear, e.g., the identity. The flag is
+      :obj:`False` by default and is only used when ``precondition_fun`` is
+      specified. It needs to be set manually by the user in the more favorable
+      case where the system is guaranteed to be symmetric.
     precondition_fun: Function used to precondition, on both sides, the linear
       system derived from first-order conditions of the regularized OT problem.
       That linear system typically involves an equality between marginals (or
@@ -69,7 +69,7 @@ class ImplicitDiff:
       ) and another function of the potentials. When that function is specified,
       that function is applied on both sides of the equality, before being
       further differentiated to provide the Jacobians needed for
-      :term`implicit differentiation`.
+      :term:`implicit differentiation`.
   """
 
   solver: Optional[Solver_t] = None
@@ -98,21 +98,21 @@ class ImplicitDiff:
 
     .. math::
 
-      E(K, \epsilon, a, b, f, g) :=- <a,\phi_a^{*}(-f)> + <b,
+      E(K, \epsilon, a, b, f, g) :=- <a,\phi_a^{*}(-f)> - <b,
       \phi_b^{*}(-g)> - \langle\exp^{f/\epsilon}, K \exp^{g/\epsilon}>
 
     form the basis of the Sinkhorn algorithm. To differentiate optimal solutions
     to that problem, we exploit the fact that :math:`h(\nabla E = 0)` and
     differentiate that identity to recover variations (Jacobians) of optimal
-    solutions :math:`f^\star, g^\star$` as a function of changes in the inputs.
+    solutions :math:`f^\star, g^\star` as a function of changes in the inputs.
     The Jacobian of :math:`h(\nabla_{f,g} E = 0)` is a linear operator which, if
     it were to be instantiated as a matrix, would be of size
     :math:`(n+m) \times (n+m)`. When :math:`h` is the identity, that matrix is
-    the Hessian of :math:`E`, is symmetric and negative-definite
+    the Hessian of :math:`E`, is symmetric and negative semi-definite
     (:math:`E` is concave) and is structured as :math:`[A, B; B^T, D]`. More
     generally, for other functions :math:`h`, the Jacobian of these
     preconditioned
-    first order conditions is no longer symmetric (except if ``a==b``), and
+    first order conditions is no longer symmetric, and
     has now a structure as :math:`[A, B; C, D]`. That system can
     be still inverted more generic solvers. By default, :math:`h = \epsilon
     \log`, as proposed in :cite:`cuturi:20a`.
@@ -141,8 +141,7 @@ class ImplicitDiff:
     block.
 
     These linear systems are solved using the user-defined ``solver``, using
-    by default the conjugate gradient solver, or falling back on
-    :mod:`jax` when not.
+    by default :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).

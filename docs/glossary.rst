@@ -191,7 +191,7 @@ Glossary
         .. math::
 
           \max_{u, v >0} - \langle a,\phi_a^{*}(-\varepsilon\log u) \rangle
-          + \langle b, \phi_b^{*}(-\varepsilon\log v) \rangle -
+          - \langle b, \phi_b^{*}(-\varepsilon\log v) \rangle -
           \langle u, K v \rangle
 
         Both of these problems can be written with a *primal* formulation, that
