@@ -225,7 +225,11 @@ def _discrete_barycenter(
         iteration == max_iterations - 1,
         jnp.logical_and(compute_error, iteration + 1 >= min_iterations)
     )
-    err = jnp.where(record_error, jnp.mean(errors_fn(f_u, g_v, a)), jnp.inf)
+    err = jax.lax.cond(
+        record_error,
+        lambda: jnp.mean(errors_fn(f_u, g_v, a)).astype(errors.dtype),
+        lambda: jnp.asarray(jnp.inf, dtype=errors.dtype),
+    )
 
     errors = errors.at[iteration // inner_iterations, :].set(err)
     return errors, d, f_u, g_v
