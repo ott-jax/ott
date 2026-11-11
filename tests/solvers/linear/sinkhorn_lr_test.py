@@ -372,6 +372,33 @@ class TestLRSinkhorn:
 
     np.testing.assert_allclose(g_pad, g, rtol=1e-5)
 
+  @pytest.mark.parametrize(("param", "val", "h"), [("epsilon", 0.5, 1e-2),
+                                                   ("gamma", 10.0, 1e-1)])
+  def test_hyperparameter_grad(
+      self, rng: jax.Array, param: str, val: float, h: float
+  ):
+
+    def reg_ot_cost(val: float) -> float:
+      kwargs = {"epsilon": 1e-1, "gamma": 10.0, param: val}
+      solver = sinkhorn_lr.LRSinkhorn(
+          rank=2,
+          use_danskin=False,
+          min_iterations=100,
+          max_iterations=100,
+          inner_iterations=10,
+          **kwargs,
+      )
+      return solver(prob, rng=rng_init).reg_ot_cost
+
+    rng_x, rng_y, rng_init = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 2))
+    prob = linear_problem.LinearProblem(pointcloud.PointCloud(x, y))
+
+    grad = jax.grad(reg_ot_cost)(val)
+    fd = (reg_ot_cost(val + h) - reg_ot_cost(val - h)) / (2.0 * h)
+
+    np.testing.assert_allclose(grad, fd, rtol=1e-3)
+
   def test_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
     num_iterations = 37
