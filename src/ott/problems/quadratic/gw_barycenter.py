@@ -243,6 +243,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         a=state.a,
         b=b,
         fused_penalty=self.fused_penalty,
+        loss=self._loss_name,
     )
 
   @property

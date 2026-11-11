@@ -200,3 +200,19 @@ class TestGWBarycenter:
         rtol=1e-6,
         atol=1e-6,
     )
+
+  @pytest.mark.parametrize("gw_loss", ["sqeucl", "kl"])
+  def test_gw_barycenter_problem_loss(self, rng: jax.Array, gw_loss: str):
+    num_per_segment = (5, 7)
+    y = jr.uniform(rng, (sum(num_per_segment), self.ndim))
+    bar_prob = gwb.GWBarycenterProblem(
+        y=y, num_per_segment=num_per_segment, gw_loss=gw_loss
+    )
+    state = gwb_solver.GWBarycenterState(
+        cost=jnp.ones((4, 4)), a=jnp.full(4, 0.25)
+    )
+    ys, bs, _ = bar_prob.segmented_y_b
+
+    prob = bar_prob._create_problem(state, y=ys[0], b=bs[0])
+
+    assert prob._loss_name == gw_loss
