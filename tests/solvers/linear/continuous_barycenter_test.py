@@ -289,6 +289,30 @@ class TestBarycenter:
         atol=1e-5
     )
 
+  def test_bures_barycenter_single_point(self, rng: jax.Array):
+    dim = 2
+    bures_cost = costs.Bures(dimension=dim)
+    gmms = [
+        gaussian_mixture.GaussianMixture.from_random(
+            key, n_components=2, n_dimensions=dim, stdev_cov=1.0
+        ) for key in jr.split(rng, 2)
+    ]
+    y = jnp.stack([
+        means_and_covs_to_x(gmm.loc, gmm.covariance, dim) for gmm in gmms
+    ])
+    b = jnp.array([[0.3, 0.7], [0.6, 0.4]])
+    weights = jnp.array([0.4, 0.6])
+    bar_prob = barycenter_problem.FreeBarycenterProblem(
+        y, b, weights=weights, cost_fn=bures_cost, epsilon=1e-1
+    )
+    solver = cb.FreeWassersteinBarycenter(sinkhorn.Sinkhorn())
+
+    out = solver(bar_prob, bar_size=1, x_init=y[0, :1])
+
+    expected, _ = bures_cost.barycenter((weights[:, None] * b).ravel(),
+                                        y.reshape(-1, y.shape[-1]))
+    np.testing.assert_allclose(out.x[0], expected, rtol=1e-4, atol=1e-4)
+
   @pytest.mark.fast()
   def test_bures_barycenter_different_number_of_components(
       self,

@@ -20,7 +20,6 @@ import jax.numpy as jnp
 from ott import utils
 from ott.geometry import pointcloud
 from ott.math import fixed_point_loop
-from ott.math import utils as mu
 from ott.problems.linear import barycenter_problem, linear_problem
 from ott.solvers import was_solver
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
@@ -101,15 +100,13 @@ class FreeBarycenterState(NamedTuple):
     else:
       errors = None
 
-    # Approximation of barycenter as barycenter of barycenters per measure.
+    plans = matrices / jnp.sum(matrices, axis=-1, keepdims=True)
+    weights = jnp.einsum("i,ijk->jik", bar_prob.weights, plans)
+    weights = weights.reshape(weights.shape[0], -1)
+    ys = seg_y.reshape(-1, seg_y.shape[-1])
 
-    barycenters_per_measure = mu.barycentric_projection(
-        matrices, seg_y, bar_prob.cost_fn
-    )
-
-    x_new = jax.vmap(
-        lambda w, y: bar_prob.cost_fn.barycenter(w, y)[0], in_axes=[None, 1]
-    )(bar_prob.weights, barycenters_per_measure)
+    barycenter = jax.vmap(bar_prob.cost_fn.barycenter, in_axes=[0, None])
+    x_new, _ = barycenter(weights, ys)
 
     return self.set(
         x=x_new,
