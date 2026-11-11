@@ -57,11 +57,16 @@ class TestSinkhornGrid:
     assert threshold > err
 
   @pytest.mark.fast.with_args("lse_mode", [False, True], only_fast=0)
-  def test_grid_vs_euclidean(self, rng: jax.Array, lse_mode: bool):
+  @pytest.mark.parametrize("zero_weights", [False, True])
+  def test_grid_vs_euclidean(
+      self, rng: jax.Array, lse_mode: bool, zero_weights: bool
+  ):
     grid_size = (5, 6, 7)
     rngs = jr.split(rng, 2)
     a = jr.uniform(rngs[0], grid_size)
     b = jr.uniform(rngs[1], grid_size)
+    if zero_weights:
+      a, b = a.at[0, 1, 2].set(0.0), b.at[3, 2, 1].set(0.0)
     a = a.ravel() / jnp.sum(a)
     b = b.ravel() / jnp.sum(b)
     epsilon = 0.1
