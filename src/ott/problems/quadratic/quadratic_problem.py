@@ -19,6 +19,7 @@ import jax.scipy as jsp
 
 from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
+from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 from ott.problems.quadratic import quadratic_costs
 from ott.types import Transport
@@ -219,8 +220,8 @@ class QuadraticProblem:
     def regularizer(tau: float) -> float:
       return epsilon * tau / (1.0 - tau)
 
-    marginal_1loga = jsp.special.xlogy(marginal_1, self.a).sum()
-    marginal_2logb = jsp.special.xlogy(marginal_2, self.b).sum()
+    marginal_1loga = jnp.vdot(marginal_1, mu.safe_log(self.a))
+    marginal_2logb = jnp.vdot(marginal_2, mu.safe_log(self.b))
 
     cost = epsilon * (
         jsp.special.xlogy(transport_matrix, transport_matrix).sum() -
@@ -575,9 +576,7 @@ class QuadraticProblem:
 
 def _quad_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
   r"""Quadratic KL divergence :math:`\text{KL}(p \otimes p | q \otimes q)`."""
-  kl = jnp.sum(jsp.special.xlogy(p, p) - jsp.special.xlogy(p, q))
-  kl += q.sum() - p.sum()
-  return 2.0 * p.sum() * kl + (p.sum() - q.sum()) ** 2
+  return 2.0 * p.sum() * mu.gen_kl(p, q) + (p.sum() - q.sum()) ** 2
 
 
 def apply_cost(  # noqa: D103

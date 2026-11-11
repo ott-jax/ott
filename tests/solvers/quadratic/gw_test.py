@@ -534,6 +534,33 @@ class TestGromovWasserstein:
         reg_gw_cost(x_split, a_split), reg_gw_cost(x, a), rtol=1e-6
     )
 
+  def test_ugw_zero_weights_grad(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (6, 2)), jr.normal(rng_y, (7, 3))
+    a, b = jnp.full(6, 1.0 / 6), jnp.full(7, 1.0 / 7)
+    x_pad = jnp.concatenate([x, jnp.full((2, 2), 3.0)])
+    a_pad = jnp.concatenate([a, jnp.zeros(2)])
+
+    def reg_gw_cost(x: jnp.ndarray, a: jnp.ndarray) -> float:
+      prob = quadratic_problem.QuadraticProblem(
+          pointcloud.PointCloud(x),
+          pointcloud.PointCloud(y),
+          a=a,
+          b=b,
+          tau_a=0.8,
+          tau_b=0.9
+      )
+      solver = gromov_wasserstein.GromovWasserstein(
+          sinkhorn.Sinkhorn(threshold=1e-6), epsilon=1.0
+      )
+      return solver(prob).reg_gw_cost
+
+    grad_a = jax.grad(reg_gw_cost, argnums=1)(x, a)
+    grad_a_pad = jax.grad(reg_gw_cost, argnums=1)(x_pad, a_pad)
+
+    assert jnp.all(jnp.isfinite(grad_a_pad))
+    np.testing.assert_allclose(grad_a_pad[:6], grad_a, rtol=1e-5, atol=1e-5)
+
   @pytest.mark.fast()
   def test_gw_lr(self, rng: jax.Array):
     """Checking LR and Entropic have similar outputs on same problem."""
