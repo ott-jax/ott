@@ -177,8 +177,8 @@ Glossary
         .. math::
 
           \max_{f, g} - \langle a, \phi_a^{*}(-f) \rangle -  \langle b,
-          \phi_b^{*}(-g) \rangle - \varepsilon \left(\langle e^{f/\varepsilon},
-          e^{-C/\varepsilon} e^{g/\varepsilon} \rangle -|a||b|\right)
+          \phi_b^{*}(-g) \rangle - \varepsilon \left(\langle a e^{f/\varepsilon},
+          e^{-C/\varepsilon} (b e^{g/\varepsilon}) \rangle -|a||b|\right)
 
         where :math:`\phi_a(z) = \rho_a (z \log z - z + 1)` is a scaled
         entropy, and :math:`\phi_a^{*}(z) = \rho_a (e^{z/\rho_a} - 1)`, its
@@ -192,7 +192,7 @@ Glossary
 
           \max_{u, v >0} - \langle a,\phi_a^{*}(-\varepsilon\log u) \rangle
           - \langle b, \phi_b^{*}(-\varepsilon\log v) \rangle -
-          \varepsilon \left(\langle u, K v \rangle - |a||b|\right)
+          \varepsilon \left(\langle a u, K (b v) \rangle - |a||b|\right)
 
         Both of these problems can be written with a *primal* formulation, that
         solves the :term:`unbalanced` optimal transport problem with a variable
@@ -206,12 +206,12 @@ Glossary
 
         where :math:`\text{KL}` is the generalized Kullback-Leibler divergence.
 
-        The very same primal problem can also be written using a kernel
-        :math:`K` instead of a cost :math:`C` as well:
+        The very same primal problem can also be written, up to a constant,
+        using a kernel :math:`K` instead of a cost :math:`C` as well:
 
         .. math::
 
-          \min_{P>0}\, \varepsilon \text{KL}(P|K)
+          \min_{P>0}\, \varepsilon \text{KL}(P|K \odot ab^T)
           + \rho_a \text{KL}(P\mathbf{1}_m | a)
           + \rho_b \text{KL}(P^T \mathbf{1}_n | b)
 

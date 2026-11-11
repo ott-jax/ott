@@ -106,10 +106,12 @@ class SinkhornState(NamedTuple):
     rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
     rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
     tau = rho_a * rho_b / (rho_a + rho_b)
+    fa = ot_prob.epsilon * jnp.log(jnp.where(ot_prob.a > 0, ot_prob.a, 1.0))
+    gb = ot_prob.epsilon * jnp.log(jnp.where(ot_prob.b > 0, ot_prob.b, 1.0))
 
     shift = tau * (
-        mu.logsumexp(-f / rho_a, b=ot_prob.a) -
-        mu.logsumexp(-g / rho_b, b=ot_prob.b)
+        mu.logsumexp(-(f - fa) / rho_a, b=ot_prob.a) -
+        mu.logsumexp(-(g - gb) / rho_b, b=ot_prob.b)
     )
     return f + shift, g - shift
 
@@ -832,6 +834,8 @@ class Sinkhorn:
         potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
     ) -> float:
       rho = uf.rho(ot_prob.epsilon, tau)
+      log_marginal = jnp.log(jnp.where(marginal > 0, marginal, 1.0))
+      potential = potential - ot_prob.epsilon * log_marginal
       return -rho * mu.logsumexp(-potential / rho, b=marginal)
 
     # only for an unbalanced problems with `tau_{a,b} < 1`
@@ -839,6 +843,7 @@ class Sinkhorn:
         self.recenter_potentials and ot_prob.tau_a < 1.0 and ot_prob.tau_b < 1.0
     )
     w = self.momentum.weight(state, iteration)
+    eps = ot_prob.geom.epsilon_scheduler(iteration)
     tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
     old_fu, old_gv = state.fu, state.gv
 
@@ -850,6 +855,8 @@ class Sinkhorn:
     new_gv = tau_b * ot_prob.geom.update_potential(
         old_fu, old_gv, jnp.log(ot_prob.b), iteration, axis=0
     )
+    if tau_b < 1.0:
+      new_gv += (1.0 - tau_b) * eps * jnp.log(ot_prob.b)
     if recenter:
       new_gv -= k22 * smin(old_fu, ot_prob.a, tau_a)
       new_gv += xi21 * smin(new_gv, ot_prob.b, tau_b)
@@ -862,6 +869,8 @@ class Sinkhorn:
     new_fu = tau_a * ot_prob.geom.update_potential(
         old_fu, old_gv, jnp.log(ot_prob.a), iteration, axis=1
     )
+    if tau_a < 1.0:
+      new_fu += (1.0 - tau_a) * eps * jnp.log(ot_prob.a)
     if recenter:
       new_fu -= k11 * smin(old_gv, ot_prob.b, tau_b)
       new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)
@@ -879,7 +888,7 @@ class Sinkhorn:
     new_gv = _positive_power(
         ot_prob.geom.update_scaling(state.fu, ot_prob.b, iteration, axis=0),
         ot_prob.tau_b
-    )
+    ) * _positive_power(ot_prob.b, 1.0 - ot_prob.tau_b)
     gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
     new_fu = _positive_power(
         ot_prob.geom.update_scaling(
@@ -888,7 +897,7 @@ class Sinkhorn:
             iteration,
             axis=1
         ), ot_prob.tau_a
-    )
+    ) * _positive_power(ot_prob.a, 1.0 - ot_prob.tau_a)
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
     return state.set(potentials=(fu, gv))
 
