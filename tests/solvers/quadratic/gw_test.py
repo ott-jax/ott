@@ -325,6 +325,32 @@ class TestGromovWasserstein:
     assert loss_thre(1e-1) >= loss_thre(1e-4)
     assert loss_thre(1e-3) >= loss_thre(1e-5)
 
+  @pytest.mark.usefixtures("enable_x64")
+  def test_unbalanced_split_point(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (6, 2)), jr.normal(rng_y, (7, 3))
+    a, b = jnp.full(6, 1.0 / 6), jnp.full(7, 1.0 / 7)
+    x_split = jnp.concatenate([x[:1], x])
+    a_split = jnp.concatenate([a[:1] / 2, a[:1] / 2, a[1:]])
+
+    def reg_gw_cost(x: jnp.ndarray, a: jnp.ndarray) -> float:
+      prob = quadratic_problem.QuadraticProblem(
+          pointcloud.PointCloud(x),
+          pointcloud.PointCloud(y),
+          a=a,
+          b=b,
+          tau_a=0.8,
+          tau_b=0.9
+      )
+      solver = gromov_wasserstein.GromovWasserstein(
+          sinkhorn.Sinkhorn(threshold=1e-10), epsilon=1.0
+      )
+      return solver(prob).reg_gw_cost
+
+    np.testing.assert_allclose(
+        reg_gw_cost(x_split, a_split), reg_gw_cost(x, a), rtol=1e-6
+    )
+
   @pytest.mark.fast()
   def test_gw_lr(self, rng: jax.Array):
     """Checking LR and Entropic have similar outputs on same problem."""

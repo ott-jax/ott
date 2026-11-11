@@ -209,7 +209,10 @@ class QuadraticProblem:
     marginal_1loga = jsp.special.xlogy(marginal_1, self.a).sum()
     marginal_2logb = jsp.special.xlogy(marginal_2, self.b).sum()
 
-    cost = epsilon * jsp.special.xlogy(transport_matrix, transport_matrix).sum()
+    cost = epsilon * (
+        jsp.special.xlogy(transport_matrix, transport_matrix).sum() -
+        marginal_1loga - marginal_2logb
+    )
     if self.tau_a != 1.0:
       cost += regularizer(
           self.tau_a
