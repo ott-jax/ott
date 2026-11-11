@@ -197,7 +197,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     linear_solver: Linear OT solver.
     epsilon: Entropic regularization.
     relative_epsilon: Whether to use relative epsilon in the linearized
-      geometry.
+      geometry. Not supported with the unbalanced correction.
     initializer: Quadratic initializer. If :obj:`None`, use
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`.
     warm_start: Whether to initialize Sinkhorn calls with the values
@@ -245,6 +245,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The Gromov-Wasserstein output.
     """
+    assert self.relative_epsilon is None or not prob._is_ugw, \
+        "Relative epsilon is not supported with the unbalanced correction."
+
     if prob._is_low_rank_convertible:
       prob = prob.to_low_rank()
 

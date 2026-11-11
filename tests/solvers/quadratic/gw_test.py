@@ -473,6 +473,20 @@ class TestGromovWasserstein:
     assert ugw_cost(1.0) < ugw_cost(0.99)
     assert ugw_cost(1.0) < ugw_cost(1.01)
 
+  @pytest.mark.parametrize("relative_epsilon", ["mean", "std"])
+  def test_ugw_relative_epsilon(self, rng: jax.Array, relative_epsilon: str):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (6, 2)), jr.normal(rng_y, (7, 3))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x), pointcloud.PointCloud(y), tau_a=0.5
+    )
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), relative_epsilon=relative_epsilon
+    )
+
+    with pytest.raises(AssertionError, match=r"Relative epsilon"):
+      _ = solver(prob)
+
   @pytest.mark.usefixtures("enable_x64")
   def test_unbalanced_split_point(self, rng: jax.Array):
     rng_x, rng_y = jr.split(rng, 2)
