@@ -14,6 +14,7 @@
 import pytest
 
 import jax
+import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
@@ -22,7 +23,7 @@ from ott.initializers.linear import initializers_lr
 from ott.initializers.quadratic import initializers as quad_initializers
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import sinkhorn
-from ott.solvers.quadratic import gromov_wasserstein_lr
+from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
 
 class TestQuadraticInitializers:
@@ -74,6 +75,25 @@ class TestQuadraticInitializers:
     np.testing.assert_allclose(
         lin_prob.geom.epsilon, expected.geom.epsilon, rtol=1e-5
     )
+
+  def test_init_coupling_transport_mass(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(jr.normal(rng_x, (6, 2))),
+        pointcloud.PointCloud(jr.normal(rng_y, (7, 3))),
+        tau_a=0.8,
+        tau_b=0.9,
+    )
+    init_coupling = 0.5 * jnp.outer(prob.a, prob.b)
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(),
+        initializer=quad_initializers.QuadraticInitializer(init_coupling),
+    )
+
+    init = solver.initializer(prob, epsilon=solver.epsilon)
+    state = solver.init_state(prob, init)
+
+    np.testing.assert_allclose(state.old_transport_mass, 0.5, rtol=1e-5)
 
   @pytest.mark.parametrize("relative_epsilon", ["mean", "std"])
   def test_ugw_relative_epsilon(self, rng: jax.Array, relative_epsilon: str):

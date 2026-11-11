@@ -290,7 +290,6 @@ class QuadraticProblem:
       cost += regularizer(self.tau_b) * _quad_kl(marginal_2, self.b)
     return cost
 
-  # TODO(michalk8): highly coupled to the pre-defined initializer, refactor
   def init_transport_mass(self) -> float:
     """Initialize the transport mass.
 

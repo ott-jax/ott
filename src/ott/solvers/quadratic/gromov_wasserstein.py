@@ -304,7 +304,7 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     """
     linear_state = self.linear_solver(init)
     num_iter = self.max_iterations
-    transport_mass = prob.init_transport_mass()
+    transport_mass = self.initializer.init_transport_mass(prob)
     if self.store_inner_errors:
       errors = -jnp.ones((num_iter, self.linear_solver.outer_iterations),
                          dtype=init.dtype)

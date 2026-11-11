@@ -14,6 +14,7 @@
 import abc
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Sequence, Tuple
 
+import jax
 import jax.numpy as jnp
 import jax.tree_util as jtu
 
@@ -57,6 +58,19 @@ class BaseQuadraticInitializer(abc.ABC):
         tau_a=quad_prob.tau_a,
         tau_b=quad_prob.tau_b,
     )
+
+  def init_transport_mass(
+      self, quad_prob: "quadratic_problem.QuadraticProblem"
+  ) -> float:
+    """Mass of the coupling around which the problem is linearized.
+
+    Args:
+      quad_prob: Quadratic problem.
+
+    Returns:
+      The transport mass.
+    """
+    return quad_prob.init_transport_mass()
 
   @abc.abstractmethod
   def _create_geometry(
@@ -189,6 +203,13 @@ class QuadraticInitializer(BaseQuadraticInitializer):
         epsilon=epsilon,
         relative_epsilon=relative_epsilon
     )
+
+  def init_transport_mass(  # noqa: D102
+      self, quad_prob: "quadratic_problem.QuadraticProblem"
+  ) -> float:
+    if self.init_coupling is None:
+      return super().init_transport_mass(quad_prob)
+    return jax.lax.stop_gradient(self.init_coupling).sum()
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
     return [self.init_coupling], {}
