@@ -313,7 +313,7 @@ class QuadraticProblem:
     rescale_factor = 1.0
     unbalanced_correction = 0.0
 
-    if not self.is_balanced:
+    if self.gw_unbalanced_correction and not self.is_balanced:
       marginal_1 = transport.marginal(axis=1)
       transport_mass = jax.lax.stop_gradient(marginal_1.sum())
       rescale_factor = jnp.sqrt(old_transport_mass / transport_mass)
@@ -324,7 +324,7 @@ class QuadraticProblem:
 
     transport_matrix = transport.matrix * rescale_factor
 
-    if not self.is_balanced:
+    if self.gw_unbalanced_correction and not self.is_balanced:
       epsilon *= jax.lax.stop_gradient(marginal_1.sum())
       unbalanced_correction = self.cost_unbalanced_correction(
           transport_matrix, marginal_1, marginal_2, epsilon=epsilon
@@ -485,8 +485,7 @@ class QuadraticProblem:
   @property
   def is_balanced(self) -> bool:
     """Whether the problem is balanced."""
-    return ((not self.gw_unbalanced_correction) or
-            (self.tau_a == 1.0 and self.tau_b == 1.0))
+    return self.tau_a == 1.0 and self.tau_b == 1.0
 
   def tree_flatten(self):  # noqa: D102
     return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {

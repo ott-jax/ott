@@ -159,7 +159,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       tmp2 = h2.func(geom_yy.cost_matrix)
       tmp = tmp1 @ self.init_coupling @ tmp2.T
 
-    if quad_prob.is_balanced:
+    if quad_prob.is_balanced or not quad_prob.gw_unbalanced_correction:
       cost_matrix = marginal_cost.cost_matrix - tmp
     else:
       # initialize epsilon for Unbalanced GW according to Sejourne et. al (2021)

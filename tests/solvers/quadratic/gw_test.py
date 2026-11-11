@@ -478,6 +478,27 @@ class TestGromovWasserstein:
     with pytest.raises(AssertionError, match=r"squared Euclidean"):
       _ = solver(prob)
 
+  def test_gw_lr_unbalanced_correction(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    geom_xx, geom_yy = pointcloud.PointCloud(x), pointcloud.PointCloud(y)
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx, geom_yy, tau_a=0.9, tau_b=0.9
+    )
+    prob_no_corr = quadratic_problem.QuadraticProblem(
+        geom_xx, geom_yy, tau_a=0.9, tau_b=0.9, gw_unbalanced_correction=False
+    )
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2, min_iterations=0, inner_iterations=10, max_iterations=100
+    )
+
+    out = solver(prob)
+    out_no_corr = solver(prob_no_corr)
+
+    np.testing.assert_allclose(
+        out_no_corr.reg_gw_cost, out.reg_gw_cost, rtol=1e-6
+    )
+
   @pytest.mark.parametrize("loss", ["sqeucl", "kl"])
   def test_gw_lr_loss_costs(self, rng: jax.Array, loss: str):
 
