@@ -224,10 +224,10 @@ def unbalanced_dykstra_kernel(
       old_state: State,
   ) -> float:
     u1_err = jnp.linalg.norm(
-        jnp.log(new_state.u1) - jnp.log(old_state.u1), ord=jnp.inf
+        mu.safe_log(new_state.u1) - mu.safe_log(old_state.u1), ord=jnp.inf
     )
     u2_err = jnp.linalg.norm(
-        jnp.log(new_state.u2) - jnp.log(old_state.u2), ord=jnp.inf
+        mu.safe_log(new_state.u2) - mu.safe_log(old_state.u2), ord=jnp.inf
     )
     v1_err = jnp.linalg.norm(
         jnp.log(new_state.v1) - jnp.log(old_state.v1), ord=jnp.inf

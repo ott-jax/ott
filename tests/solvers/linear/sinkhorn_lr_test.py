@@ -23,7 +23,7 @@ import numpy as np
 from ott.geometry import low_rank, pointcloud
 from ott.initializers.linear import initializers_lr
 from ott.problems.linear import linear_problem
-from ott.solvers.linear import sinkhorn_lr
+from ott.solvers.linear import lr_utils, sinkhorn_lr
 from tests import _utils
 
 
@@ -305,6 +305,37 @@ class TestLRSinkhorn:
     grad_pad = jax.grad(loss)(x, 3)
 
     np.testing.assert_allclose(grad_pad, grad, rtol=1e-5, atol=1e-5)
+
+  @pytest.mark.parametrize("translation_invariant", [False, True])
+  def test_unbalanced_dykstra_kernel_zero_weights(
+      self, rng: jax.Array, translation_invariant: bool
+  ):
+    rng_x, rng_y, rng_q, rng_r = jr.split(rng, 4)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 2))
+    k_q, k_r = jr.uniform(rng_q, (10, 2)), jr.uniform(rng_r, (12, 2))
+    x_pad = jnp.concatenate([x, jnp.zeros((3, 2))])
+    a_pad = jnp.concatenate([jnp.full(10, 0.1), jnp.zeros(3)])
+    k_q_pad = jnp.concatenate([k_q, jnp.zeros((3, 2))])
+    prob = linear_problem.LinearProblem(
+        pointcloud.PointCloud(x, y), tau_a=0.9, tau_b=0.9
+    )
+    prob_pad = linear_problem.LinearProblem(
+        pointcloud.PointCloud(x_pad, y), a=a_pad, tau_a=0.9, tau_b=0.9
+    )
+    kwargs = {
+        "translation_invariant": translation_invariant,
+        "inner_iter": 1,
+        "tolerance": 1e-5,
+    }
+
+    _, _, g = lr_utils.unbalanced_dykstra_kernel(
+        k_q, k_r, jnp.ones(2), 1.0, prob, **kwargs
+    )
+    _, _, g_pad = lr_utils.unbalanced_dykstra_kernel(
+        k_q_pad, k_r, jnp.ones(2), 1.0, prob_pad, **kwargs
+    )
+
+    np.testing.assert_allclose(g_pad, g, rtol=1e-5)
 
   def test_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
