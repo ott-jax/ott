@@ -125,6 +125,38 @@ class TestGWBarycenter:
         atol=tol
     )
 
+  @pytest.mark.parametrize("scale_cost", ["mean", "max_cost"])
+  def test_fgw_barycenter_padding(self, rng: jax.Array, scale_cost: str):
+
+    def barycenter(max_measure_size: int) -> gwb_solver.GWBarycenterState:
+      bar_prob = gwb.GWBarycenterProblem(
+          y=y,
+          y_fused=y_fused,
+          num_per_segment=(6, 9),
+          max_measure_size=max_measure_size,
+          scale_cost=scale_cost,
+      )
+      return solver(bar_prob, bar_size=bar_size, bar_init=(cost_init, x_init))
+
+    bar_size = 5
+    rngs = jr.split(rng, 4)
+    # far from the zero padding
+    y = jr.normal(rngs[0], (15, self.ndim)) + 3.0
+    y_fused = jr.normal(rngs[1], (15, self.ndim_f)) + 3.0
+    cost_init = self.random_pc(bar_size, d=self.ndim, rng=rngs[2]).cost_matrix
+    x_init = jr.normal(rngs[3], (bar_size, self.ndim_f))
+    solver = gwb_solver.GromovWassersteinBarycenter(
+        gromov_wasserstein.GromovWasserstein(sinkhorn.Sinkhorn(), epsilon=1e-1),
+        min_iterations=3,
+        max_iterations=3,
+    )
+
+    out = barycenter(9)
+    out_padded = barycenter(12)
+
+    np.testing.assert_allclose(out.cost, out_padded.cost, rtol=1e-5, atol=1e-5)
+    np.testing.assert_allclose(out.x, out_padded.x, rtol=1e-5, atol=1e-5)
+
   @pytest.mark.fast(
       "jit,fused_penalty,scale_cost", [(False, 1.5, "mean"),
                                        (True, 3.1, "max_cost")],
