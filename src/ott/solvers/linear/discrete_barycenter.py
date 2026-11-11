@@ -148,55 +148,55 @@ def _discrete_barycenter(
 
   if lse_mode:
     parallel_update = jax.vmap(
-        lambda f, g, marginal, iteration: geom.
+        lambda geom, f, g, marginal, iteration: geom.
         update_potential(f, g, jnp.log(marginal), iteration=iteration, axis=1),
-        in_axes=[0, 0, 0, None]
+        in_axes=[None, 0, 0, 0, None]
     )
     parallel_apply = jax.vmap(
-        lambda f_, g_, eps_: geom.
+        lambda geom, f_, g_, eps_: geom.
         apply_lse_kernel(f_, g_, eps_, vec=None, axis=0)[0],
-        in_axes=[0, 0, None]
+        in_axes=[None, 0, 0, None]
     )
   else:
     parallel_update = jax.vmap(
-        lambda f, g, marginal, iteration: geom.
+        lambda geom, f, g, marginal, iteration: geom.
         update_scaling(g, marginal, iteration=iteration, axis=1),
-        in_axes=[0, 0, 0, None]
+        in_axes=[None, 0, 0, 0, None]
     )
     parallel_apply = jax.vmap(
-        lambda f_, g_, eps_: geom.apply_kernel(f_, eps_, axis=0),
-        in_axes=[0, 0, None]
+        lambda geom, f_, g_, eps_: geom.apply_kernel(f_, eps_, axis=0),
+        in_axes=[None, 0, 0, None]
     )
 
   errors_fn = jax.vmap(
       functools.partial(
           sinkhorn.marginal_error,
-          geom=geom,
           axis=1,
           norm_error=norm_error,
           lse_mode=lse_mode
       ),
-      in_axes=[0, 0, 0]
+      in_axes=[0, 0, 0, None]
   )
   errors = -jnp.ones((max_iterations // inner_iterations + 1, len(norm_error)))
 
-  const = (geom, a, weights)
+  const = (geom, a, weights, threshold)
 
-  def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
+  def cond_fn(iteration, const, state):
+    threshold = const[-1]
     errors = state[0]
     return jnp.logical_or(
         iteration == 0, errors[iteration // inner_iterations - 1, 0] > threshold
     )
 
   def body_fn(iteration, const, state, compute_error):
-    geom, a, weights = const
+    geom, a, weights, _ = const
     errors, d, f_u, g_v = state
 
     eps = geom.epsilon_scheduler(iteration)  # pylint: disable=protected-access
-    f_u = parallel_update(f_u, g_v, a, iteration)
+    f_u = parallel_update(geom, f_u, g_v, a, iteration)
     # kernel_f_u stands for K times potential u if running in scaling mode,
     # eps log K exp f / eps in lse mode.
-    kernel_f_u = parallel_apply(f_u, g_v, eps)
+    kernel_f_u = parallel_apply(geom, f_u, g_v, eps)
     # b below is the running estimate for the barycenter if running in scaling
     # mode, eps log b if running in lse mode.
     if lse_mode:
@@ -227,7 +227,7 @@ def _discrete_barycenter(
     )
     err = jax.lax.cond(
         record_error,
-        lambda: jnp.mean(errors_fn(f_u, g_v, a)).astype(errors.dtype),
+        lambda: jnp.mean(errors_fn(f_u, g_v, a, geom)).astype(errors.dtype),
         lambda: jnp.asarray(jnp.inf, dtype=errors.dtype),
     )
 
@@ -242,7 +242,7 @@ def _discrete_barycenter(
   )
 
   errors, d, f_u, g_v = state
-  kernel_f_u = parallel_apply(f_u, g_v, geom.epsilon)
+  kernel_f_u = parallel_apply(geom, f_u, g_v, geom.epsilon)
   if lse_mode:
     b = jnp.average(kernel_f_u, weights=weights, axis=0)
   else:
