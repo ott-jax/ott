@@ -410,7 +410,7 @@ def iterations(
     if solver.progress_fn is not None:
       jax.debug.callback(
           solver.progress_fn,
-          (iteration, inner_iterations, solver.max_iterations, state)
+          (iteration, inner_iterations, solver.max_iterations, new_state)
       )
 
     return new_state

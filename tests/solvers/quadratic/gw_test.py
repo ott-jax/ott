@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple, Union
+from typing import Any, Tuple, Union
 
 import pytest
 
@@ -904,3 +904,18 @@ class TestGromovWasserstein:
     res = fn(clouds.x, clouds.y)
 
     np.testing.assert_array_equal(jnp.isfinite(res), True)
+
+  def test_gw_progress_fn_state(self, clouds: _utils.QuadClouds):
+    costs = []
+
+    def progress_fn(status: Tuple[Any, ...]) -> None:
+      iteration, _, _, state = status
+      costs.append(float(state.costs[int(iteration)]))
+
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), progress_fn=progress_fn
+    )
+
+    out = solver(clouds.quad_problem())
+
+    np.testing.assert_allclose(costs, out.costs[:out.n_iters], rtol=1e-6)
