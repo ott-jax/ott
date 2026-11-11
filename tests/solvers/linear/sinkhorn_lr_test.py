@@ -15,6 +15,7 @@ from typing import Type
 
 import pytest
 
+import jax
 import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
@@ -164,6 +165,38 @@ class TestLRSinkhorn:
     out = solver(prob)
 
     assert out.n_iters == 20
+
+  @pytest.mark.usefixtures("enable_x64")
+  @pytest.mark.parametrize("lse_mode", [True, False])
+  @pytest.mark.parametrize("tau", [1.0, 0.9])
+  def test_grad(self, rng: jax.Array, lse_mode: bool, tau: float):
+    rng_x, rng_y, rng_w, rng_v = jr.split(rng, 4)
+    x = jr.normal(rng_x, (8, 2))
+    y = jr.normal(rng_y, (9, 2))
+    w = jr.normal(rng_w, (8, 9))
+    v = jr.normal(rng_v, x.shape)
+    v = 1e-4 * v / jnp.linalg.norm(v)
+    solver = sinkhorn_lr.LRSinkhorn(
+        rank=2,
+        lse_mode=lse_mode,
+        min_iterations=20,
+        max_iterations=20,
+        kwargs_dys={
+            "min_iter": 20,
+            "max_iter": 20
+        },
+    )
+
+    def loss(x: jnp.ndarray) -> float:
+      geom = pointcloud.PointCloud(x, y)
+      prob = linear_problem.LinearProblem(geom, tau_a=tau, tau_b=tau)
+      return jnp.vdot(w, solver(prob).matrix)
+
+    grad = jax.grad(loss)(x)
+
+    expected = loss(x + v) - loss(x - v)
+    actual = 2.0 * jnp.vdot(v, grad)
+    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-8)
 
   def test_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""

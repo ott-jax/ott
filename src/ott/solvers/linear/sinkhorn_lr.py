@@ -412,7 +412,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     w_q, w_r = jnp.zeros(r), jnp.zeros(r)
     err = jnp.inf
     state_inner = f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
-    constants = c_q, c_r, loga, logb
+    constants = c_q, c_r, loga, logb, gamma, ot_prob
 
     def cond_fn(
         iteration: int, constants: Tuple[jnp.ndarray, ...],
@@ -423,7 +423,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       return err > tolerance
 
     def _softm(
-        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
+        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, gamma: float, axis: int
     ) -> jnp.ndarray:
       return jsp.special.logsumexp(
           gamma * (f[:, None] + g[None, :] - c), axis=axis
@@ -435,16 +435,16 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     ) -> Tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
-      c_q, c_r, loga, logb = constants
+      c_q, c_r, loga, logb, gamma, ot_prob = constants
 
       # First Projection
       f1 = jnp.where(
           jnp.isfinite(loga),
-          (loga - _softm(f1, g1_old, c_q, axis=1)) / gamma + f1, loga
+          (loga - _softm(f1, g1_old, c_q, gamma, axis=1)) / gamma + f1, loga
       )
       f2 = jnp.where(
           jnp.isfinite(logb),
-          (logb - _softm(f2, g2_old, c_r, axis=1)) / gamma + f2, logb
+          (logb - _softm(f2, g2_old, c_r, gamma, axis=1)) / gamma + f2, logb
       )
 
       h = h_old + w_gi
@@ -453,8 +453,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       h_old = h
 
       # Update couplings
-      g_q = _softm(f1, g1_old, c_q, axis=0)
-      g_r = _softm(f2, g2_old, c_r, axis=0)
+      g_q = _softm(f1, g1_old, c_q, gamma, axis=0)
+      g_r = _softm(f2, g2_old, c_r, gamma, axis=0)
 
       # Second Projection
       h = (1.0 / 3.0) * (h_old + w_gp + w_q + w_r)
@@ -519,8 +519,6 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     # shortcuts for problem's definition.
     rank = self.rank
     n, m = ot_prob.geom.shape
-    a, b = ot_prob.a, ot_prob.b
-    supp_a, supp_b = a > 0, b > 0
 
     g_old = k_g
     v1_old, v2_old = jnp.ones(rank), jnp.ones(rank)
@@ -530,7 +528,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     q_q, q_r = jnp.ones(rank), jnp.ones(rank)
     err = jnp.inf
     state_inner = u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
-    constants = k_q, k_r, k_g, a, b
+    constants = k_q, k_r, k_g, ot_prob
 
     def cond_fn(
         iteration: int, constants: Tuple[jnp.ndarray, ...],
@@ -546,11 +544,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     ) -> Tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
-      k_q, k_r, k_g, a, b = constants
+      k_q, k_r, k_g, ot_prob = constants
+      a, b = ot_prob.a, ot_prob.b
 
       # First Projection
-      u1 = jnp.where(supp_a, a / jnp.dot(k_q, v1_old), 0.0)
-      u2 = jnp.where(supp_b, b / jnp.dot(k_r, v2_old), 0.0)
+      u1 = jnp.where(a > 0, a / jnp.dot(k_q, v1_old), 0.0)
+      u2 = jnp.where(b > 0, b / jnp.dot(k_r, v2_old), 0.0)
       g = jnp.maximum(min_entry_value, g_old * q_gi)
       q_gi = (g_old * q_gi) / g
       g_old = g

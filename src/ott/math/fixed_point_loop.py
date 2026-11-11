@@ -182,6 +182,9 @@ def fixpoint_iter_bwd(
       if isinstance(x, (np.ndarray, jnp.ndarray)) else 0, constants
   )
 
+  def add_cotangents(x, y):
+    return x if y.dtype == jax.dtypes.float0 else x + y
+
   def bwd_cond_fn(iteration_g_gconst):
     iteration, _, _ = iteration_g_gconst
     return iteration >= 0
@@ -211,7 +214,7 @@ def fixpoint_iter_bwd(
     )
     _, gi_constants, g_state = pullback(g)
     g_constants = jax.tree_util.tree_map(
-        lambda x, y: x + y, g_constants, gi_constants
+        add_cotangents, g_constants, gi_constants
     )
     out = (iteration - inner_iterations, g_state, g_constants)
     return (out, None) if force_scan else out

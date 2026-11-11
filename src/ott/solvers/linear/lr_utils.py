@@ -94,15 +94,19 @@ def unbalanced_dykstra_lse(
 
   def cond_fn(
       iteration: int,
-      const: Constants,
+      constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
       state: State,
   ) -> bool:
-    del iteration, const
+    del iteration, constants
     return tolerance < state.err
 
   def body_fn(
-      iteration: int, const: Constants, state: State, compute_error: bool
+      iteration: int,
+      constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
+      state: State,
+      compute_error: bool,
   ) -> State:
+    const, c_q, c_r, c_g, gamma = constants
     log_a, log_b = jnp.log(const.a), jnp.log(const.b)
     rho_a, rho_b = const.rho_a, const.rho_b
 
@@ -170,7 +174,8 @@ def unbalanced_dykstra_lse(
   )
 
   state: State = fixed_point_loop.fixpoint_iter_backprop(
-      cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
+      cond_fn, body_fn, min_iter, max_iter, inner_iter,
+      (constants, c_q, c_r, c_g, gamma), init_state
   )
 
   q = jnp.exp(state.u1[:, None] + c_q + state.v1[None, :])
@@ -233,15 +238,19 @@ def unbalanced_dykstra_kernel(
 
   def cond_fn(
       iteration: int,
-      const: Constants,
+      constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
       state: State,
   ) -> bool:
-    del iteration, const
+    del iteration, constants
     return tolerance < state.err
 
   def body_fn(
-      iteration: int, const: Constants, state: State, compute_error: bool
+      iteration: int,
+      constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
+      state: State,
+      compute_error: bool,
   ) -> State:
+    const, k_q, k_r, k_g, gamma = constants
     c_a = _get_ratio(const.rho_a, gamma)
     c_b = _get_ratio(const.rho_b, gamma)
 
@@ -307,7 +316,8 @@ def unbalanced_dykstra_kernel(
   )
 
   state: State = fixed_point_loop.fixpoint_iter_backprop(
-      cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
+      cond_fn, body_fn, min_iter, max_iter, inner_iter,
+      (constants, k_q, k_r, k_g, gamma), init_state
   )
 
   q = state.u1[:, None] * k_q * state.v1[None, :]
