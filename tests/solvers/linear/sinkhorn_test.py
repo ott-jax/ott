@@ -627,6 +627,31 @@ class TestSinkhorn:
     cost = jnp.sum(out.matrix * out.geom.cost_matrix)
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
 
+  @pytest.mark.usefixtures("enable_x64")
+  @pytest.mark.parametrize(("tau_a", "tau_b"), [(1.0, 1.0), (0.9, 0.87),
+                                                (1.0, 0.7)])
+  def test_ent_reg_cost(self, rng: jax.Array, tau_a: float, tau_b: float):
+    epsilon = 1e-1
+    clouds = _utils.random_clouds(rng)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=epsilon)
+    prob = linear_problem.LinearProblem(
+        geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
+    )
+
+    out = sinkhorn.Sinkhorn(threshold=1e-10)(prob)
+
+    p = out.matrix
+    expected = jnp.sum(p * geom.cost_matrix)
+    expected -= epsilon * jnp.sum(jsp.special.entr(p))
+
+    for tau, marginal, target in ((tau_a, p.sum(1), clouds.a),
+                                  (tau_b, p.sum(0), clouds.b)):
+      if tau < 1.0:
+        kl = jnp.sum(marginal * jnp.log(marginal / target) - marginal + target)
+        expected += epsilon * tau / (1.0 - tau) * kl
+
+    np.testing.assert_allclose(out.ent_reg_cost, expected, rtol=1e-6)
+
   @pytest.mark.fast.with_args(
       cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()], only_fast=0
   )

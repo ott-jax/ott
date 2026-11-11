@@ -373,9 +373,18 @@ class SinkhornOutput(NamedTuple):
     is unbalanced from parameters ``tau_a`` and ``tau_b``. Note that the last
     two terms vanish in the balanced case, when ``tau_a==tau_b==1``.
     """
-    ent_a = jnp.sum(jsp.special.entr(self.ot_prob.a))
-    ent_b = jnp.sum(jsp.special.entr(self.ot_prob.b))
-    return self.reg_ot_cost - self.geom.epsilon * (ent_a + ent_b)
+    a, b = self.ot_prob.a, self.ot_prob.b
+    marginal_a = a if self.ot_prob.tau_a == 1.0 else self.marginal(1)
+    marginal_b = b if self.ot_prob.tau_b == 1.0 else self.marginal(0)
+    mass = jnp.sum(marginal_b if self.ot_prob.tau_b == 1.0 else marginal_a)
+
+    log_a = jnp.log(jnp.where(a > 0.0, a, 1.0))
+    log_b = jnp.log(jnp.where(b > 0.0, b, 1.0))
+
+    correction = jnp.vdot(marginal_a, log_a) + jnp.vdot(marginal_b, log_b)
+    correction += mass - jnp.sum(a) * jnp.sum(b)
+
+    return self.reg_ot_cost + self.geom.epsilon * correction
 
   @property
   def kl_reg_cost(self) -> jnp.ndarray:
