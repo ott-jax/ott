@@ -359,11 +359,14 @@ class QuadraticProblem:
       old_transport_mass: Sum of the elements of the transport matrix at the
         previous iteration.
       relative_epsilon: Whether to use relative epsilon in the linearized
-        geometry.
+        geometry. Not supported with the unbalanced correction.
 
     Returns:
       Updated linear OT problem, a new local linearization of GW problem.
     """
+    assert relative_epsilon is None or not self._is_ugw, \
+        "Relative epsilon is not supported with the unbalanced correction."
+
     rescale_factor = 1.0
     unbalanced_correction = 0.0
 

@@ -75,6 +75,24 @@ class TestQuadraticInitializers:
         lin_prob.geom.epsilon, expected.geom.epsilon, rtol=1e-5
     )
 
+  @pytest.mark.parametrize("relative_epsilon", ["mean", "std"])
+  def test_ugw_relative_epsilon(self, rng: jax.Array, relative_epsilon: str):
+    rng_x, rng_y = jr.split(rng, 2)
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(jr.normal(rng_x, (6, 2))),
+        pointcloud.PointCloud(jr.normal(rng_y, (7, 3))),
+        tau_a=0.5,
+    )
+    initializer = quad_initializers.QuadraticInitializer()
+    out = sinkhorn.Sinkhorn()(initializer(prob, epsilon=1.0))
+
+    with pytest.raises(AssertionError, match=r"Relative epsilon"):
+      _ = initializer(prob, epsilon=1.0, relative_epsilon=relative_epsilon)
+    with pytest.raises(AssertionError, match=r"Relative epsilon"):
+      _ = prob.update_linearization(
+          out, epsilon=1.0, relative_epsilon=relative_epsilon
+      )
+
   @pytest.mark.parametrize("eps", [0.0, 1e-1])
   def test_gw_better_initialization_helps(self, rng: jax.Array, eps: float):
     n, m, d1, d2, rank = 83, 84, 12, 8, 5

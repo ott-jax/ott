@@ -140,6 +140,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       quad_prob: Quadratic OT problem.
       epsilon: Epsilon regularization.
       relative_epsilon: Flag, use `relative_epsilon` or not in geometry.
+        Not supported with the unbalanced correction.
       kwargs: Unused.
 
     Returns:
@@ -148,6 +149,8 @@ class QuadraticInitializer(BaseQuadraticInitializer):
     from ott.problems.quadratic import quadratic_problem
 
     del kwargs
+    assert relative_epsilon is None or not quad_prob._is_ugw, \
+        "Relative epsilon is not supported with the unbalanced correction."
 
     geom_xx, geom_yy = quad_prob.geom_xx, quad_prob.geom_yy
 

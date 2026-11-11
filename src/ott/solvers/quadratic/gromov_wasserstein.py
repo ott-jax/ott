@@ -251,9 +251,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     Returns:
       The Gromov-Wasserstein output.
     """
-    assert self.relative_epsilon is None or not prob._is_ugw, \
-        "Relative epsilon is not supported with the unbalanced correction."
-
     if prob._is_low_rank_convertible:
       prob = prob.to_low_rank()
 
