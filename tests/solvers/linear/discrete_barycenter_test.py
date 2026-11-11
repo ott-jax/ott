@@ -124,6 +124,20 @@ class TestDiscreteBarycenter:
 
     np.testing.assert_allclose(lse, kernel, rtol=1e-3, atol=1e-5)
 
+  def test_debiased_jit(self):
+    x = jnp.linspace(0.0, 1.0, 10)[:, None]
+    a = jnp.stack([jnp.linspace(1.0, 2.0, 10), jnp.linspace(2.0, 1.0, 10)])
+    a = a / a.sum(1, keepdims=True)
+    solver = db.FixedBarycenter(debiased=True)
+
+    def barycenter(x: jnp.ndarray) -> jnp.ndarray:
+      geom = pointcloud.PointCloud(x, epsilon=1e-1)
+      return solver(bp.FixedBarycenterProblem(geom, a=a)).histogram
+
+    np.testing.assert_allclose(
+        jax.jit(barycenter)(x), barycenter(x), rtol=1e-5, atol=1e-6
+    )
+
   @pytest.mark.parametrize(("min_iterations", "max_iterations", "last"), [
       (10, 100, 0),
       (20, 20, 1),

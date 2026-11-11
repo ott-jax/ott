@@ -105,9 +105,12 @@ class FixedBarycenter:
           dual_initialization, weights=weights, axis=0
       )[jnp.newaxis, :]
 
-    # TODO(michalk8): geom.is_symmetric is not static
-    if self.debiased and not geom.is_symmetric:
-      raise ValueError("Geometry must be symmetric to use debiased option.")
+    if self.debiased:
+      if not geom.is_square:
+        raise ValueError("Geometry must be square to use debiased option.")
+      is_symmetric = geom.is_symmetric
+      if not isinstance(is_symmetric, jax.core.Tracer) and not is_symmetric:
+        raise ValueError("Geometry must be symmetric to use debiased option.")
     norm_error = (self.norm_error,)
     return _discrete_barycenter(
         geom, a, weights, dual_initialization, self.threshold, norm_error,
