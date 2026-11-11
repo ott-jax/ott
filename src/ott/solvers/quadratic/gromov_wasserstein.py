@@ -48,7 +48,8 @@ class GWOutput(NamedTuple):
 
   Args:
     costs: Holds the sequence of regularized OT costs of the linearizations
-      seen through the outer loop of the solver.
+      or, with the unbalanced correction, of the UGW costs, seen through the
+      outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
     converged: Convergence flag for the outer GW iterations.
@@ -134,7 +135,8 @@ class GWState(NamedTuple):
 
   Attributes:
     costs: Holds the sequence of regularized OT costs of the linearizations
-      seen through the outer loop of the solver.
+      or, with the unbalanced correction, of the UGW costs, seen through the
+      outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
     linear_state: State used to solve and store solutions to the local
@@ -182,6 +184,10 @@ class GWState(NamedTuple):
 @jax.tree_util.register_pytree_node_class
 class GromovWasserstein(was_solver.WassersteinSolver):
   """Entropic Gromov-Wasserstein solver :cite:`peyre:16`.
+
+  With the unbalanced correction :cite:`sejourne:21`, the iterations can
+  oscillate for a while before converging, so consider increasing
+  ``max_iterations``.
 
   .. seealso::
     Low-rank Gromov-Wasserstein :cite:`scetbon:23` is implemented in

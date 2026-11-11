@@ -101,19 +101,21 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   (``gw_unbalanced_correction = False``) and include the unbalanced terms
   at the level of the linear problem only.
 
-  Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx` is the
-  cost matrix of `geom_xx` and `cost_yy` is the cost matrix of `geom_yy`.
-  `left_x` and `right_y` depend on the loss chosen for GW.
-  `gw_unbalanced_correction` is flag indicating whether the unbalanced
-  correction applies. The equation of the local cost can be written as:
+  Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx`, `cost_yy`
+  and `cost_xy` be the cost matrices of `geom_xx`, `geom_yy` and `geom_xy`.
+  `left_x` and `right_y` depend on the loss chosen for GW. Without the
+  unbalanced correction, the local cost is the gradient of
+  ``quadratic + fused_penalty * linear``, i.e.,
 
   .. math::
 
-    \text{marginal_dep_term} + \text{left}_x(\text{cost_xx}) P
-    \text{right}_y(\text{cost_yy}) + \text{unbalanced_correction}
+    2 (\text{marginal_dep_term} - \text{left}_x(\text{cost_xx}) P
+    \text{right}_y(\text{cost_yy})^T)
+    + \text{fused_penalty} \cdot \text{cost_xy}.
 
-  When working with the fused problem, a linear term is added to the cost
-  matrix: `cost_matrix` += `fused_penalty` * `geom_xy.cost_matrix`
+  With the unbalanced correction, half of this gradient is used and the
+  scalar `unbalanced_correction` is added, see :cite:`sejourne:21`, alg. 1,
+  and :cite:`thual:22`, alg. 1.
 
   Args:
     init_coupling: The coupling to use for initialization. If :obj:`None`,

@@ -348,10 +348,9 @@ class QuadraticProblem:
     :cite:`peyre:16`.
 
     If the problem is unbalanced (``tau_a < 1.0 or tau_b < 1.0``), two cases are
-    possible, as explained in :meth:`init_linearization` above.
-    Finally, it is also possible to consider a Fused Gromov-Wasserstein problem.
-    Details about the resulting cost matrix are also given in
-    :meth:`init_linearization`.
+    possible, as explained in
+    :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`,
+    which also details the cost matrix of the fused problem.
 
     Args:
       transport: Solution of the linearization of the quadratic problem.
