@@ -122,6 +122,29 @@ class TestDiscreteBarycenter:
 
     np.testing.assert_allclose(lse, kernel, rtol=1e-3, atol=1e-5)
 
+  @pytest.mark.parametrize(("min_iterations", "max_iterations", "last"), [
+      (10, 100, 0),
+      (20, 20, 1),
+  ])
+  def test_min_iterations(
+      self, min_iterations: int, max_iterations: int, last: int
+  ):
+    x = jnp.linspace(0.0, 1.0, 10)[:, None]
+    a = jnp.stack([jnp.linspace(1.0, 2.0, 10), jnp.linspace(2.0, 1.0, 10)])
+    geom = pointcloud.PointCloud(x, epsilon=1e-1)
+    prob = bp.FixedBarycenterProblem(geom, a=a / a.sum(1, keepdims=True))
+    solver = db.FixedBarycenter(
+        threshold=1e3,
+        min_iterations=min_iterations,
+        max_iterations=max_iterations
+    )
+
+    errors = solver(prob).errors[:, 0]
+
+    np.testing.assert_array_equal(errors[:last], jnp.inf)
+    assert jnp.isfinite(errors[last])
+    np.testing.assert_array_equal(errors[last + 1:], -1.0)
+
   @pytest.mark.parametrize("lse_mode", [True, False])
   def test_epsilon_schedule(self, lse_mode: bool):
     x = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])

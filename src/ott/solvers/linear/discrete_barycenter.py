@@ -221,10 +221,11 @@ def _discrete_barycenter(
       g_v = b[jnp.newaxis, :] / kernel_f_u
 
     # re-compute error if compute_error is True, else set to inf.
-    err = jnp.where(
-        jnp.logical_and(compute_error, iteration >= min_iterations),
-        jnp.mean(errors_fn(f_u, g_v, a)), jnp.inf
+    record_error = jnp.logical_or(
+        iteration == max_iterations - 1,
+        jnp.logical_and(compute_error, iteration + 1 >= min_iterations)
     )
+    err = jnp.where(record_error, jnp.mean(errors_fn(f_u, g_v, a)), jnp.inf)
 
     errors = errors.at[iteration // inner_iterations, :].set(err)
     return errors, d, f_u, g_v
