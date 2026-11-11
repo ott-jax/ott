@@ -86,7 +86,7 @@ def compute_reg_ot_cost(
     epsilon: float,
     use_danskin: bool = True
 ) -> float:
-  """Compute the regularized OT cost, here the primal cost of the LR solution.
+  """Compute the regularized OT cost of the LR solution.
 
   Args:
     q: first factor of solution
@@ -99,7 +99,9 @@ def compute_reg_ot_cost(
       w.r.t. relevant quantities.
 
   Returns:
-    regularized OT cost, the (primal) transport cost of the low-rank solution.
+    regularized OT cost, the (primal) transport cost of the low-rank solution,
+    minus the ``epsilon``-scaled entropies of the factors, plus the marginal
+    penalties in the unbalanced case.
   """
   tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
 
@@ -123,7 +125,7 @@ def solution_error(
 ) -> jnp.ndarray:
   """Compute solution error.
 
-  Since only balanced case is available for LR, this is marginal deviation.
+  This is the marginal deviation, used in the balanced case.
 
   Args:
     q: first factor of solution.
@@ -218,7 +220,7 @@ class LRSinkhornOutput(NamedTuple):
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a array; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
-    # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
+    # for `axis=0`: (batch, n), (n, r), (r,), (r, m)
     return ((inputs @ r) * self._inv_g) @ q.T
 
   def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
@@ -258,9 +260,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   That problem is non-convex, and therefore any algorithm that tries to
   solve it requires special attention to initialization and control of
-  convergence. Convergence is evaluated on successive evaluations of the
-  objective whereas initializers are instance of the
-  :class:`~ott.ott.initializers.linear.initializers_lr.LRInitializer` class.
+  convergence. Convergence is evaluated on the change between successive
+  iterates of the factors, whereas initializers are instances of the
+  :class:`~ott.initializers.linear.initializers_lr.LRInitializer` class.
 
   The algorithm is described in :cite:`scetbon:21` and the implementation
   contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
@@ -283,9 +285,10 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
     kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
-      :meth:`dykstra_update_kernel` or one of the functions defined in
-      :mod:`ott.solvers.linear`, depending on whether the problem
-      is balanced and on the ``lse_mode``.
+      :meth:`dykstra_update_kernel`,
+      :func:`~ott.solvers.linear.lr_utils.unbalanced_dykstra_lse` or
+      :func:`~ott.solvers.linear.lr_utils.unbalanced_dykstra_kernel`, depending
+      on whether the problem is balanced and on the ``lse_mode``.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """

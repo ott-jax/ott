@@ -195,7 +195,7 @@ class LRGWOutput(NamedTuple):
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a array; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
-    # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
+    # for `axis=0`: (batch, n), (n, r), (r,), (r, m)
     return ((inputs @ r) * self._inv_g) @ q.T
 
   def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
@@ -277,8 +277,10 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
     kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
-      :meth:`dykstra_update_kernel` or one of the functions defined in
-      :mod:`ott.solvers.linear`, depending on the ``lse_mode``.
+      :meth:`dykstra_update_kernel`,
+      :func:`~ott.solvers.linear.lr_utils.unbalanced_dykstra_lse` or
+      :func:`~ott.solvers.linear.lr_utils.unbalanced_dykstra_kernel`, depending
+      on whether the problem is balanced and on the ``lse_mode``.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """

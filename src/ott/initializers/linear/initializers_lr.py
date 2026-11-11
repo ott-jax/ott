@@ -441,10 +441,10 @@ class GeneralizedKMeansInitializer(KMeansInitializer):
     super().__init__(
         rank,
         sinkhorn_kwargs=sinkhorn_kwargs,
-        # below argument are stored in `_kwargs`
-        gamma=gamma,
         min_iterations=min_iterations,
         max_iterations=max_iterations,
+        # below argument are stored in `_kwargs`
+        gamma=gamma,
         inner_iterations=inner_iterations,
         threshold=threshold,
     )
