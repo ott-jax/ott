@@ -164,7 +164,17 @@ class TestLRSinkhorn:
 
     out = solver(prob)
 
-    assert out.n_iters == 20
+    assert out.n_iters == 10
+
+  def test_min_iterations(self, clouds: _utils.PointClouds):
+    prob = clouds.problem()
+    solver = sinkhorn_lr.LRSinkhorn(
+        rank=2, min_iterations=20, max_iterations=20, inner_iterations=10
+    )
+
+    out = solver(prob)
+
+    np.testing.assert_array_equal(jnp.isfinite(out.errors), [False, True])
 
   def test_crossed_threshold_recorded_errors(self, clouds: _utils.PointClouds):
     prob = clouds.problem()

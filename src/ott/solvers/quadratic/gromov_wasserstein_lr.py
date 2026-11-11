@@ -701,7 +701,7 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
 
     # re-computes error if compute_error is True, else set it to inf.
     record_error = jnp.logical_and(
-        compute_error, iteration >= self.min_iterations
+        compute_error, iteration + 1 >= self.min_iterations
     )
     cost = jax.lax.cond(
         record_error, lambda: state.reg_gw_cost(ot_prob, epsilon=self.epsilon),
@@ -811,8 +811,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         jnp.logical_not(jnp.isfinite(state.errors[it])),
         jnp.logical_not(jnp.isfinite(state.costs[it]))
     )
-    # `jnp.inf` is used if `iteration <= self.min_iterations`
-    return jnp.logical_and(iteration > self.min_iterations, is_not_finite)
+    # `jnp.inf` is used if `iteration < self.min_iterations`
+    return jnp.logical_and(iteration >= self.min_iterations, is_not_finite)
 
 
 def run(
