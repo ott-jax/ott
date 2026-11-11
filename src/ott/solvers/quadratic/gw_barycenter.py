@@ -75,6 +75,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of outermost iterations.
     store_inner_errors: Whether to store the errors of the quadratic OT solver.
+      Requires the ``quadratic_solver`` to also store them.
   """
 
   def __init__(
@@ -93,6 +94,12 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         store_inner_errors=store_inner_errors,
     )
     self.quadratic_solver = quadratic_solver
+
+    if store_inner_errors and not quadratic_solver.store_inner_errors:
+      raise ValueError(
+          "Storing inner errors requires the quadratic solver "
+          "to have `store_inner_errors=True`."
+      )
 
   def __call__(
       self, problem: gw_barycenter.GWBarycenterProblem, bar_size: int,

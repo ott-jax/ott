@@ -127,6 +127,14 @@ class TestGWBarycenter:
         atol=tol
     )
 
+  def test_store_inner_errors(self):
+    quadratic_solver = gromov_wasserstein.GromovWasserstein(sinkhorn.Sinkhorn())
+
+    with pytest.raises(ValueError, match=r"store_inner_errors=True"):
+      gwb_solver.GromovWassersteinBarycenter(
+          quadratic_solver, store_inner_errors=True
+      )
+
   @pytest.mark.parametrize("scale_cost", ["mean", "max_cost"])
   def test_fgw_barycenter_padding(self, rng: jax.Array, scale_cost: str):
 
