@@ -149,18 +149,25 @@ class QuadraticInitializer(BaseQuadraticInitializer):
 
     del kwargs
 
-    marginal_cost = quad_prob.marginal_dependent_cost(quad_prob.a, quad_prob.b)
     geom_xx, geom_yy = quad_prob.geom_xx, quad_prob.geom_yy
 
     h1, h2 = quad_prob.quad_loss
     if self.init_coupling is None:
+      init_transport = jnp.outer(quad_prob.a, quad_prob.b)
+      marginal_cost = quad_prob.marginal_dependent_cost(
+          quad_prob.a, quad_prob.b
+      )
       tmp1 = quadratic_problem.apply_cost(geom_xx, quad_prob.a, axis=1, fn=h1)
       tmp2 = quadratic_problem.apply_cost(geom_yy, quad_prob.b, axis=1, fn=h2)
       tmp = jnp.outer(tmp1, tmp2)
     else:
+      init_transport = self.init_coupling
+      marginal_cost = quad_prob.marginal_dependent_cost(
+          init_transport.sum(1), init_transport.sum(0)
+      )
       tmp1 = h1.func(geom_xx.cost_matrix)
       tmp2 = h2.func(geom_yy.cost_matrix)
-      tmp = tmp1 @ self.init_coupling @ tmp2.T
+      tmp = tmp1 @ init_transport @ tmp2.T
 
     cost_matrix = marginal_cost.cost_matrix - tmp
     cost_matrix += 0.5 * quad_prob.fused_penalty * quad_prob._fused_cost_matrix
@@ -168,7 +175,6 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       cost_matrix *= 2.0
     else:
       # initialize epsilon for Unbalanced GW according to Sejourne et. al (2021)
-      init_transport = jnp.outer(quad_prob.a, quad_prob.b)
       marginal_1, marginal_2 = init_transport.sum(1), init_transport.sum(0)
 
       cost_matrix += quad_prob.cost_unbalanced_correction(

@@ -19,7 +19,9 @@ import numpy as np
 
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers_lr
+from ott.initializers.quadratic import initializers as quad_initializers
 from ott.problems.quadratic import quadratic_problem
+from ott.solvers.linear import sinkhorn
 from ott.solvers.quadratic import gromov_wasserstein_lr
 
 
@@ -38,6 +40,40 @@ class TestQuadraticInitializers:
 
     assert solver.initializer is q_init
     assert solver.initializer.rank == rank
+
+  @pytest.mark.parametrize("gw_unbalanced_correction", [False, True])
+  def test_init_coupling_unbalanced(
+      self, rng: jax.Array, gw_unbalanced_correction: bool
+  ):
+    rng_x, rng_y = jr.split(rng, 2)
+    geom_xx = pointcloud.PointCloud(jr.normal(rng_x, (6, 2)))
+    geom_yy = pointcloud.PointCloud(jr.normal(rng_y, (7, 3)))
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx,
+        geom_yy,
+        scale_cost="max_cost",
+        tau_a=0.8,
+        tau_b=0.9,
+        gw_unbalanced_correction=gw_unbalanced_correction,
+    )
+    init = quad_initializers.QuadraticInitializer()(prob, epsilon=1.0)
+    out = sinkhorn.Sinkhorn()(init)
+
+    initializer = quad_initializers.QuadraticInitializer(out.matrix)
+    lin_prob = initializer(prob, epsilon=1.0)
+    expected = prob.update_linearization(
+        out, 1.0, old_transport_mass=out.transport_mass
+    )
+
+    np.testing.assert_allclose(
+        lin_prob.geom.cost_matrix,
+        expected.geom.cost_matrix,
+        rtol=1e-5,
+        atol=1e-5
+    )
+    np.testing.assert_allclose(
+        lin_prob.geom.epsilon, expected.geom.epsilon, rtol=1e-5
+    )
 
   @pytest.mark.parametrize("eps", [0.0, 1e-1])
   def test_gw_better_initialization_helps(self, rng: jax.Array, eps: float):
