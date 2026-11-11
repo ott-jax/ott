@@ -555,11 +555,13 @@ class QuadraticProblem:
     return self.gw_unbalanced_correction and not self.is_balanced
 
   def tree_flatten(self):  # noqa: D102
-    return ([self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b], {
+    return ([
+        self.geom_xx, self.geom_yy, self.geom_xy, self._a, self._b,
+        self.fused_penalty
+    ], {
         "tau_a": self.tau_a,
         "tau_b": self.tau_b,
         "loss": self._loss_name,
-        "fused_penalty": self.fused_penalty,
         "scale_cost": self.scale_cost,
         "gw_unbalanced_correction": self.gw_unbalanced_correction,
         "ranks": self.ranks,
@@ -568,12 +570,12 @@ class QuadraticProblem:
 
   @classmethod
   def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    geoms, (a, b) = children[:3], children[3:]
+    geoms, (a, b, fused_penalty) = children[:3], children[3:]
     aux_data = aux_data.copy()
     scale_cost = aux_data.pop("scale_cost")
 
     # geometries are already rescaled
-    prob = cls(*geoms, a=a, b=b, **aux_data)
+    prob = cls(*geoms, fused_penalty=fused_penalty, a=a, b=b, **aux_data)
     prob.scale_cost = scale_cost
     return prob
 

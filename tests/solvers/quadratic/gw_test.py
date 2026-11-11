@@ -816,6 +816,37 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(grad_pad, grad, rtol=1e-5, atol=1e-5)
 
+  @pytest.mark.parametrize("param", ["fused_penalty", "epsilon"])
+  def test_gw_lr_hyperparameter_grad(self, rng: jax.Array, param: str):
+
+    def reg_gw_cost(val: float) -> float:
+      fused_penalty = val if param == "fused_penalty" else 1.0
+      epsilon = val if param == "epsilon" else 1e-1
+      prob = quadratic_problem.QuadraticProblem(
+          geom_xx, geom_yy, geom_xy, fused_penalty=fused_penalty
+      )
+      solver = gromov_wasserstein_lr.LRGromovWasserstein(
+          rank=2,
+          epsilon=epsilon,
+          use_danskin=False,
+          min_iterations=100,
+          max_iterations=100,
+          inner_iterations=10,
+      )
+      return solver(prob, rng=rng_init).reg_gw_cost
+
+    rng_x, rng_y, rng_z, rng_init = jr.split(rng, 4)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    z = jr.normal(rng_z, (12, 2))
+    geom_xx, geom_yy = pointcloud.PointCloud(x), pointcloud.PointCloud(y)
+    geom_xy = pointcloud.PointCloud(x, z)
+    val, h = 0.5, 1e-2
+
+    grad = jax.grad(reg_gw_cost)(val)
+    fd = (reg_gw_cost(val + h) - reg_gw_cost(val - h)) / (2.0 * h)
+
+    np.testing.assert_allclose(grad, fd, rtol=1e-3)
+
   @pytest.mark.parametrize("scale_cost", [1.0, "mean"])
   def test_relative_epsilon(
       self,

@@ -591,6 +591,16 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     # `jnp.inf` is used if `iteration < self.min_iterations`
     return jnp.logical_and(iteration >= self.min_iterations, is_not_finite)
 
+  def tree_flatten(self):  # noqa: D102
+    children, aux_data = super().tree_flatten()
+    gamma, epsilon = aux_data.pop("gamma"), aux_data.pop("epsilon")
+    return children + [gamma, epsilon], aux_data
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    threshold, gamma, epsilon = children
+    return cls(threshold=threshold, gamma=gamma, epsilon=epsilon, **aux_data)
+
 
 def run(
     ot_prob: quadratic_problem.QuadraticProblem,
