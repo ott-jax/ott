@@ -21,8 +21,8 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
-from ott.geometry import costs, segment
-from ott.problems.linear import barycenter_problem
+from ott.geometry import costs, pointcloud, segment
+from ott.problems.linear import barycenter_problem, linear_problem
 from ott.solvers.linear import continuous_barycenter as cb
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.tools.gaussian_mixture import gaussian_mixture
@@ -195,6 +195,26 @@ class TestBarycenter:
     assert out.all_linear_solvers_converged
     # Check the costs vector is non-increasing
     assert jnp.all(jnp.diff(out.costs_along_iterations) <= 0.0)
+
+  @pytest.mark.fast()
+  def test_linear_outputs_match_barycenter(self, rng: jax.Array):
+    num_per_segment = (20, 17)
+    rng_y, rng_init = jr.split(rng)
+    y = jr.normal(rng_y, (sum(num_per_segment), 2))
+    bar_prob = barycenter_problem.FreeBarycenterProblem(
+        y, epsilon=1e-1, num_per_segment=num_per_segment
+    )
+    solver = cb.FreeWassersteinBarycenter(sinkhorn.Sinkhorn())
+
+    out = solver(bar_prob, bar_size=8, rng=rng_init)
+
+    for i, y_i in enumerate(jnp.split(y, [num_per_segment[0]])):
+      geom = pointcloud.PointCloud(out.x, y_i, epsilon=bar_prob.epsilon)
+      prob = linear_problem.LinearProblem(geom, a=out.a)
+      expected = sinkhorn.Sinkhorn()(prob).matrix
+      np.testing.assert_allclose(
+          out.matrix_at_index(i), expected, rtol=1e-3, atol=1e-6
+      )
 
   @pytest.mark.fast()
   def test_bures_barycenter(

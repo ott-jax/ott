@@ -71,21 +71,8 @@ class FreeBarycenterState(NamedTuple):
     Returns:
       The updated state.
     """
-    seg_y, seg_b, _ = bar_prob.segmented_y_b
-
-    @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
-    def solve_linear_ot(
-        a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
-    ):
-      geom = pointcloud.PointCloud(
-          x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
-      )
-      prob = linear_problem.LinearProblem(geom, a=a, b=b)
-      out = linear_solver(prob)
-      # instantiate matrix since it is a property of out.
-      return out, out.matrix
-
-    outs, matrices = solve_linear_ot(self.a, self.x, seg_b, seg_y)
+    seg_y, _, _ = bar_prob.segmented_y_b
+    outs, matrices = self._solve_linear(bar_prob, linear_solver)
     reg_ot_costs = outs.reg_ot_cost
     convergeds = outs.converged
     errors = outs.errors
@@ -115,6 +102,26 @@ class FreeBarycenterState(NamedTuple):
         linear_outputs=outs,
         errors=errors
     )
+
+  def _solve_linear(
+      self, bar_prob: barycenter_problem.FreeBarycenterProblem,
+      linear_solver: Any
+  ) -> Tuple[LinearOutput, jnp.ndarray]:
+    seg_y, seg_b, _ = bar_prob.segmented_y_b
+
+    @functools.partial(jax.vmap, in_axes=[None, None, 0, 0])
+    def solve_linear_ot(
+        a: Optional[jnp.ndarray], x: jnp.ndarray, b: jnp.ndarray, y: jnp.ndarray
+    ):
+      geom = pointcloud.PointCloud(
+          x, y, cost_fn=bar_prob.cost_fn, epsilon=bar_prob.epsilon
+      )
+      prob = linear_problem.LinearProblem(geom, a=a, b=b)
+      out = linear_solver(prob)
+      # instantiate matrix since it is a property of out.
+      return out, out.matrix
+
+    return solve_linear_ot(self.a, self.x, seg_b, seg_y)
 
 
 class FreeBarycenterOutput(NamedTuple):
@@ -264,13 +271,14 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       bar_prob: barycenter_problem.FreeBarycenterProblem
   ) -> FreeBarycenterOutput:
     """Create an output from a barycenter state."""
+    linear_outputs, _ = state._solve_linear(bar_prob, self.linear_solver)
     return FreeBarycenterOutput(
         x=state.x,
         a=state.a,
         bar_prob=bar_prob,
         costs=state.costs,
         linear_convergence=state.linear_convergence,
-        linear_outputs=state.linear_outputs,
+        linear_outputs=linear_outputs,
         errors=state.errors,
     )
 
