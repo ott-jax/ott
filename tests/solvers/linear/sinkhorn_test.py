@@ -133,6 +133,24 @@ class TestSinkhorn:
         lse_out.primal_cost, ker_out.primal_cost, rtol=1e-5, atol=1e-5
     )
 
+  def test_errors_all_norms(self, clouds: _utils.PointClouds):
+    prob = linear_problem.LinearProblem(clouds.geom(epsilon=0.1))
+    solver = sinkhorn.Sinkhorn(
+        norm_error=2, momentum=acceleration.Momentum(start=20)
+    )
+    n, m = prob.geom.shape
+    state = solver.init_state(prob, (jnp.zeros(n), jnp.zeros(m)))
+
+    state = solver.one_iteration(prob, state, iteration=0, compute_error=True)
+
+    expected = state.solution_error(
+        prob, (2, 1),
+        lse_mode=True,
+        parallel_dual_updates=False,
+        recenter=False
+    )
+    np.testing.assert_allclose(state.errors[0], expected, rtol=1e-6)
+
   def test_momentum_start_too_early(self):
     with pytest.raises(ValueError, match=r"Momentum start must be 0"):
       sinkhorn.Sinkhorn(
