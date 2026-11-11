@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import abc
-import functools
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -341,13 +340,6 @@ class KMeansInitializer(LRInitializer):
     from ott.tools import k_means
 
     del kwargs
-    fn = functools.partial(
-        k_means.k_means,
-        min_iterations=self._min_iter,
-        max_iterations=self._max_iter,
-        **self._kwargs
-    )
-
     if isinstance(ot_prob, quadratic_problem.QuadraticProblem):
       if ot_prob.geom_xy is not None and ot_prob.fused_penalty >= 1.0:
         # prefer the linear term if it has a higher weight
@@ -359,7 +351,15 @@ class KMeansInitializer(LRInitializer):
     arr = self._extract_array(geom, first=which == "q")
     marginals = ot_prob.a if which == "q" else ot_prob.b
 
-    centroids = fn(arr, self.rank, rng=rng).centroids
+    k_means_kwargs = {"weights": marginals, **self._kwargs}
+    centroids = k_means.k_means(
+        arr,
+        self.rank,
+        rng=rng,
+        min_iterations=self._min_iter,
+        max_iterations=self._max_iter,
+        **k_means_kwargs,
+    ).centroids
     geom = pointcloud.PointCloud(
         arr, centroids, epsilon=1e-1, scale_cost="max_cost"
     )
