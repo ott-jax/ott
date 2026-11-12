@@ -28,6 +28,36 @@ from ott import utils
 @pytest.mark.fast()
 class TestBatchedVmap:
 
+  @pytest.mark.parametrize("batch_size", [4, 7])
+  def test_gradient_residuals(self, rng: jax.Array, batch_size: int):
+    rng_x, rng_y = jr.split(rng)
+    x = jr.normal(rng_x, (32, 2))
+    y = jr.normal(rng_y, (48, 2))
+
+    def kernel_sum(x: jax.Array, y: jax.Array) -> jax.Array:
+      return jnp.exp(-jnp.sum((x - y) ** 2, axis=-1)).sum()
+
+    def total(x: jax.Array, y: jax.Array) -> jax.Array:
+      return utils.batched_vmap(
+          kernel_sum, batch_size=batch_size, in_axes=(0, None)
+      )(x, y).sum()
+
+    value, pullback = jax.vjp(total, x, y)
+    reference = jax.value_and_grad(
+        lambda x, y: jax.vmap(kernel_sum, in_axes=(0, None))(x, y).sum(),
+        argnums=(0, 1),
+    )(x, y)
+    np.testing.assert_allclose(value, reference[0], rtol=1e-5)
+    for actual, expected in zip(pullback(jnp.ones_like(value)), reference[1]):
+      np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
+
+    # The pullback should retain inputs, not a pairwise matrix for every batch.
+    residuals = jax.make_jaxpr(pullback)(jnp.ones_like(value)).consts
+    max_batch_elements = max(x.size, batch_size * y.size)
+    assert all(
+        np.size(residual) <= max_batch_elements for residual in residuals
+    )
+
   @pytest.mark.parametrize("batch_size", [1, 11, 32, 33])
   def test_batch_size(self, rng: jax.Array, batch_size: int):
     x = jr.normal(rng, (32, 2))
