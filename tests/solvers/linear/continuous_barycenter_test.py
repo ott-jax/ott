@@ -216,6 +216,26 @@ class TestBarycenter:
           out.matrix_at_index(i), expected, rtol=1e-3, atol=1e-6
       )
 
+  def test_barycenter_grad(self, rng: jax.Array):
+    num_per_segment = (4, 4)
+    rng_y, rng_init, rng_d = jr.split(rng, 3)
+    y = jr.normal(rng_y, (sum(num_per_segment), 2))
+    d = jr.normal(rng_d, y.shape)
+    solver = cb.FreeWassersteinBarycenter(
+        sinkhorn.Sinkhorn(threshold=1e-5), min_iterations=3, max_iterations=3
+    )
+
+    def loss(y: jnp.ndarray) -> float:
+      bar_prob = barycenter_problem.FreeBarycenterProblem(
+          y, epsilon=1e-1, num_per_segment=num_per_segment
+      )
+      return jnp.sum(solver(bar_prob, bar_size=3, rng=rng_init).x)
+
+    grad = jnp.vdot(jax.grad(loss)(y), d)
+    fd = (loss(y + 1e-2 * d) - loss(y - 1e-2 * d)) / 2e-2
+
+    np.testing.assert_allclose(grad, fd, rtol=1e-2)
+
   @pytest.mark.fast()
   def test_bures_barycenter(
       self,

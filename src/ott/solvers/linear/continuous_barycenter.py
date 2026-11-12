@@ -79,7 +79,8 @@ class FreeBarycenterState(NamedTuple):
 
     cost = jnp.sum(reg_ot_costs * bar_prob.weights)
     updated_costs = self.costs.at[iteration].set(cost)
-    converged = jnp.all(convergeds)
+    # `jnp.all` fails under `jax.grad` with implicit differentiation
+    converged = ~jnp.any(~convergeds)
     linear_convergence = self.linear_convergence.at[iteration].set(converged)
 
     if store_errors and self.errors is not None:
