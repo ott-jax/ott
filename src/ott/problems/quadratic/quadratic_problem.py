@@ -254,15 +254,17 @@ class QuadraticProblem:
     Returns:
       The ``quadratic + fused_penalty * linear`` cost.
     """
-    marginal_1, marginal_2 = transport_matrix.sum(1), transport_matrix.sum(0)
+    transport = jax.lax.stop_gradient(transport_matrix)
     correction = self.cost_unbalanced_correction(
-        transport_matrix, marginal_1, marginal_2, epsilon=epsilon
+        transport, transport.sum(1), transport.sum(0), epsilon=epsilon
     )
-    lin_cost = jnp.sum(self._fused_cost_matrix * transport_matrix)
+    fused_cost = self.fused_penalty * self._fused_cost_matrix
+    # half of the gradient of the quadratic term
+    quad_grad = cost_matrix - correction - 0.5 * fused_cost
 
-    cost = jnp.vdot(cost_matrix, transport_matrix)
-    cost -= marginal_1.sum() * correction
-    return cost + 0.5 * self.fused_penalty * lin_cost
+    cost = 2.0 * jnp.vdot(quad_grad, transport_matrix)
+    cost -= jnp.vdot(quad_grad, transport)
+    return cost + jnp.sum(fused_cost * transport_matrix)
 
   def _ugw_regularizer(
       self, transport_matrix: jnp.ndarray, epsilon: float

@@ -522,6 +522,40 @@ class TestGromovWasserstein:
         rtol=1e-5,
     )
 
+  def test_ugw_primal_cost_grad(self, rng: jax.Array):
+
+    def primal_cost(a: jnp.ndarray, explicit: bool) -> float:
+      prob = quadratic_problem.QuadraticProblem(
+          geometry.Geometry(cost_matrix=cx),
+          geometry.Geometry(cost_matrix=cy),
+          geometry.Geometry(cost_matrix=cxy),
+          a=a,
+          tau_a=0.8,
+          tau_b=0.9,
+      )
+      out = solver(prob)
+      if explicit:
+        p = out.matrix
+        return jnp.einsum("ijkl,ij,kl->", loss, p, p) + jnp.vdot(cxy, p)
+      return out.primal_cost
+
+    rngs = jr.split(rng, 3)
+    cx = pointcloud.PointCloud(jr.normal(rngs[0], (6, 2))).cost_matrix
+    cy = pointcloud.PointCloud(jr.normal(rngs[1], (7, 3))).cost_matrix
+    cxy = jr.uniform(rngs[2], (6, 7))
+    loss = (cx[:, None, :, None] - cy[None, :, None, :]) ** 2
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), epsilon=1.0, min_iterations=2, max_iterations=2
+    )
+    a = jnp.full(6, 1.0 / 6)
+
+    np.testing.assert_allclose(
+        jax.grad(primal_cost)(a, False),
+        jax.grad(primal_cost)(a, True),
+        rtol=1e-4,
+        atol=1e-4,
+    )
+
   def test_ugw_zero_weights_grad(self, rng: jax.Array):
     rng_x, rng_y = jr.split(rng, 2)
     x, y = jr.normal(rng_x, (6, 2)), jr.normal(rng_y, (7, 3))

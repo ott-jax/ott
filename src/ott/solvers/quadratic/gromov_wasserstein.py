@@ -98,17 +98,18 @@ class GWOutput(NamedTuple):
     """
     if self.ot_prob._is_ugw:
       transport = jax.lax.stop_gradient(self.matrix)
-      reg_cost = self.ot_prob._ugw_regularizer(transport, self.epsilon)
-      return self.primal_cost + reg_cost
+      cost = self.ot_prob._ugw_primal_cost(
+          transport, self.geom.cost_matrix, self.epsilon
+      )
+      return cost + self.ot_prob._ugw_regularizer(transport, self.epsilon)
     return self.linear_state.reg_ot_cost - self._quad_cost
 
   @property
   def primal_cost(self) -> float:
     """GW cost, i.e., ``quadratic + fused_penalty * linear``."""
     if self.ot_prob._is_ugw:
-      transport = jax.lax.stop_gradient(self.matrix)
       return self.ot_prob._ugw_primal_cost(
-          transport, self.geom.cost_matrix, self.epsilon
+          self.matrix, self.geom.cost_matrix, self.epsilon
       )
     primal_cost = self.linear_state.transport_cost_at_geom(other_geom=self.geom)
     return primal_cost - self._quad_cost
