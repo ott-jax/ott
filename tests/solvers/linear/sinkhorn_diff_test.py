@@ -118,6 +118,31 @@ class TestSinkhornImplicit:
     np.testing.assert_allclose(grad_a[supp_a], grad_a_supp, rtol=1e-4)
     np.testing.assert_allclose(grad_b[supp_b], grad_b_supp, rtol=1e-4)
 
+  def test_unbalanced_marginals_grad_zero_weights(self, rng: jax.Array):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+    supp_a, supp_b = clouds.a > 0, clouds.b > 0
+    w = jr.normal(rng, (clouds.n, clouds.m))
+
+    def loss(
+        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+        w: jnp.ndarray
+    ) -> float:
+      geom = pointcloud.PointCloud(x, y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=0.9, tau_b=0.9)
+      return jnp.vdot(w, sinkhorn.Sinkhorn(threshold=1e-6)(prob).matrix)
+
+    grad_fn = jax.grad(loss, argnums=(2, 3))
+    grad_a, grad_b = grad_fn(clouds.x, clouds.y, clouds.a, clouds.b, w)
+    grad_a_supp, grad_b_supp = grad_fn(
+        clouds.x[supp_a], clouds.y[supp_b], clouds.a[supp_a], clouds.b[supp_b],
+        w[supp_a][:, supp_b]
+    )
+
+    assert jnp.all(jnp.isfinite(grad_a))
+    assert jnp.all(jnp.isfinite(grad_b))
+    np.testing.assert_allclose(grad_a[supp_a], grad_a_supp, rtol=1e-4)
+    np.testing.assert_allclose(grad_b[supp_b], grad_b_supp, rtol=1e-4)
+
   @pytest.mark.parametrize(("lse_mode", "tau"), [(True, 0.9), (False, 1.0)])
   def test_epsilon_grad_zero_weights(
       self, rng: jax.Array, lse_mode: bool, tau: float

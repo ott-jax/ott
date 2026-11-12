@@ -48,6 +48,8 @@ def grad_of_marginal_fit(
     return c
   r = rho(epsilon, tau)
   h = h - epsilon * jnp.log(jnp.where(c > 0, c, 1.0))
+  # avoid `0 * inf` in the gradient, as `h` is `-inf` where `c` is zero
+  h = jnp.where(c > 0, h, 0.0)
   return jnp.where(c > 0, c * derivative_phi_star(-h, r), 0.0)
 
 
