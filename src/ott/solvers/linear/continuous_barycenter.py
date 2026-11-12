@@ -39,8 +39,6 @@ class FreeBarycenterState(NamedTuple):
       loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
-    linear_outputs: Holds latest output objects returned by linear solver when
-      recomputing transport between barycenter vs. each of the input measures.
     errors: Holds sequence of vectors of errors of the Sinkhorn algorithm
       at each iteration.
   """
@@ -49,7 +47,6 @@ class FreeBarycenterState(NamedTuple):
   a: jnp.ndarray
   costs: Optional[jnp.ndarray] = None
   linear_convergence: Optional[jnp.ndarray] = None
-  linear_outputs: Optional[LinearOutput] = None
   errors: Optional[jnp.ndarray] = None
 
   def set(self, **kwargs: Any) -> "FreeBarycenterState":
@@ -100,7 +97,6 @@ class FreeBarycenterState(NamedTuple):
         x=x_new,
         costs=updated_costs,
         linear_convergence=linear_convergence,
-        linear_outputs=outs,
         errors=errors
     )
 
@@ -243,26 +239,11 @@ class FreeWassersteinBarycenter(was_solver.WassersteinSolver):
       ))
     else:
       errors = None
-    state = FreeBarycenterState(
-        x=x,
-        a=a,
-        costs=-jnp.ones((num_iter,)),
-        linear_convergence=-jnp.ones((num_iter,)),
-        errors=errors
-    )
-    abstract_tree = jax.eval_shape(
-        functools.partial(state.update, store_errors=self.store_inner_errors),
-        0, bar_prob, self.linear_solver
-    )
-
-    linear_outputs = jax.tree.map(jnp.zeros_like, abstract_tree.linear_outputs)
-
     return FreeBarycenterState(
         x=x,
         a=a,
         costs=-jnp.ones((num_iter,)),
         linear_convergence=-jnp.ones((num_iter,)),
-        linear_outputs=linear_outputs,
         errors=errors
     )
 
