@@ -306,19 +306,19 @@ class TestSemidiscreteSolver:
     prob = _random_problem(rng_prob, m=8, d=2, epsilon=1e-1)
     g_init = jnp.ones(8)
 
-    def solve(potential_ema: float) -> jnp.ndarray:
+    def solve(num_iterations: int, potential_ema: float) -> jnp.ndarray:
       solver = semidiscrete.SemidiscreteSolver(
-          num_iterations=1,
+          num_iterations=num_iterations,
           batch_size=16,
           optimizer=optax.sgd(1e-1),
           potential_ema=potential_ema,
       )
       return solver(rng_solver, prob, g_init=g_init).g
 
-    g_1 = solve(0.0)
+    g_1, g_2 = solve(1, 0.0), solve(2, 0.0)
 
     np.testing.assert_allclose(
-        solve(0.9), 0.9 * g_init + 0.1 * g_1, rtol=1e-5, atol=1e-5
+        solve(2, 0.9), (0.9 * g_1 + g_2) / 1.9, rtol=1e-5, atol=1e-5
     )
 
   @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
