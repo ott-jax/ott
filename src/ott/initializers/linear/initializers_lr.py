@@ -363,6 +363,8 @@ class KMeansInitializer(LRInitializer):
         max_iterations=self._max_iter,
         **k_means_kwargs,
     ).centroids
+    # replace the points with zero weight, so they don't affect the scale
+    arr = jnp.where(marginals[:, None] > 0, arr, arr[jnp.argmax(marginals)])
     geom = pointcloud.PointCloud(
         arr, centroids, epsilon=1e-1, scale_cost="max_cost"
     )
