@@ -48,13 +48,11 @@ class ImplicitDiff:
       :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
       The :mod:`jax` alternative is described in
       :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
-      Note that the default solver handles better poorly conditioned problems,
-      which arise typically when differentiating the solutions of balanced OT
-      problems (when ``tau_a==tau_b==1.0``). Relying on
-      :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
-      for such cases might require hand-tuning ridge parameters,
-      in particular ``ridge_kernel`` and ``ridge_identity`` as described in its
-      doc. These parameters can be passed using ``solver_kwargs`` below.
+      Poorly conditioned problems, which arise typically when differentiating
+      the solutions of balanced OT problems (when ``tau_a==tau_b==1.0``), might
+      require hand-tuning the ridge parameters ``ridge_kernel`` and
+      ``ridge_identity`` of either solver. These parameters can be passed using
+      ``solver_kwargs`` below.
     solver_kwargs: keyword arguments passed on to the solver.
     symmetric: flag used to figure out whether the linear system solved in the
       implicit function theorem is symmetric or not. This happens when the

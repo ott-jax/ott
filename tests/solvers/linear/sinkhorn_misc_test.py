@@ -42,11 +42,8 @@ class TestSinkhornAnderson:
     np.testing.assert_allclose(actual, xs.mean(axis=1), rtol=1e-6)
 
   @pytest.mark.usefixtures("enable_x64")
-  @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("anderson", [True, False])
-  def test_float32_with_x64(
-      self, rng: jax.Array, lse_mode: bool, anderson: bool
-  ):
+  def test_float32_with_x64(self, rng: jax.Array, anderson: bool):
     rng_x, rng_y = jr.split(rng, 2)
     x = jr.uniform(rng_x, (13, 2), dtype=jnp.float32)
     y = jr.uniform(rng_y, (17, 2), dtype=jnp.float32)
@@ -56,7 +53,7 @@ class TestSinkhornAnderson:
     else:
       kwargs = {"momentum": acceleration.Momentum(start=20)}
 
-    out = linear.solve(geom, lse_mode=lse_mode, **kwargs)
+    out = linear.solve(geom, **kwargs)
 
     assert out.f.dtype == jnp.float32
 

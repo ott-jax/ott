@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import pytest
-
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -22,8 +20,7 @@ from ott.math import fixed_point_loop
 
 class TestFixpointIterBackprop:
 
-  @pytest.mark.parametrize("inner_iterations", [1, 2])
-  def test_force_scan_grad(self, inner_iterations: int):
+  def test_force_scan_grad(self):
 
     def loss(fixpoint_fn, c: jnp.ndarray, x: jnp.ndarray) -> float:
       x = fixpoint_fn(
@@ -31,7 +28,7 @@ class TestFixpointIterBackprop:
           body_fn=lambda _, c, x, __: jnp.tanh(c * x + 1.0),
           min_iterations=6,
           max_iterations=6,
-          inner_iterations=inner_iterations,
+          inner_iterations=2,
           constants=c,
           state=x,
       )

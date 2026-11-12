@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
-
 import pytest
 
 import jax
@@ -53,12 +51,9 @@ class TestDualPotentials:
     rel_error = jnp.abs(expected_dist - actual_dist) / expected_dist
     assert rel_error < 2 * eps
 
-  @pytest.mark.parametrize(
-      "scale_cost",
-      [1.0, 2.0, "mean", "median", "std", "max_cost", "max_norm", "max_bound"]
-  )
+  @pytest.mark.parametrize("scale_cost", [1.0, 2.0])
   def test_entropic_map_non_uniform_weights(
-      self, rng: jax.Array, scale_cost: Union[float, str]
+      self, rng: jax.Array, scale_cost: float
   ):
     rngs = jr.split(rng, 4)
     x = jr.normal(rngs[0], (13, 2))

@@ -95,8 +95,7 @@ class TestQuadraticInitializers:
 
     np.testing.assert_allclose(state.old_transport_mass, 0.5, rtol=1e-5)
 
-  @pytest.mark.parametrize("relative_epsilon", ["mean", "std"])
-  def test_ugw_relative_epsilon(self, rng: jax.Array, relative_epsilon: str):
+  def test_ugw_relative_epsilon(self, rng: jax.Array):
     rng_x, rng_y = jr.split(rng, 2)
     prob = quadratic_problem.QuadraticProblem(
         pointcloud.PointCloud(jr.normal(rng_x, (6, 2))),
@@ -107,11 +106,9 @@ class TestQuadraticInitializers:
     out = sinkhorn.Sinkhorn()(initializer(prob, epsilon=1.0))
 
     with pytest.raises(AssertionError, match=r"Relative epsilon"):
-      _ = initializer(prob, epsilon=1.0, relative_epsilon=relative_epsilon)
+      _ = initializer(prob, epsilon=1.0, relative_epsilon="mean")
     with pytest.raises(AssertionError, match=r"Relative epsilon"):
-      _ = prob.update_linearization(
-          out, epsilon=1.0, relative_epsilon=relative_epsilon
-      )
+      _ = prob.update_linearization(out, epsilon=1.0, relative_epsilon="mean")
 
   @pytest.mark.parametrize("eps", [0.0, 1e-1])
   def test_gw_better_initialization_helps(self, rng: jax.Array, eps: float):

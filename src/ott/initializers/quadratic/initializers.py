@@ -129,7 +129,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
 
   With the unbalanced correction, half of this gradient is used and the
   scalar `unbalanced_correction` is added, see :cite:`sejourne:21`, alg. 1,
-  and :cite:`thual:22`, alg. 1.
+  and :cite:`thual:22`, alg. S1.
 
   Args:
     init_coupling: The coupling to use for initialization. If :obj:`None`,

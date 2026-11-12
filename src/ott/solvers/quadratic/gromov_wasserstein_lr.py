@@ -258,7 +258,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     max_iterations: The maximum number of low-rank Sinkhorn iterations.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
       input parameters. In the balanced case, the gradient w.r.t. ``a`` and
-      ``b`` is then zero; use ``use_danskin = False`` to obtain it.
+      ``b`` then only accounts for the marginal terms of the quadratic cost;
+      use ``use_danskin = False`` to obtain the full gradient.
     implicit_diff: Whether to use implicit differentiation. Currently, only
       ``implicit_diff = False`` is implemented.
     progress_fn: callback function which gets called during the GW

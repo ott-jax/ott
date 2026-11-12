@@ -47,9 +47,9 @@ class GWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
 
   Args:
-    costs: Holds the sequence of regularized OT costs of the linearizations
-      or, with the unbalanced correction, of the UGW costs, seen through the
-      outer loop of the solver.
+    costs: Holds the sequence of regularized OT costs of the linearized
+      problems or, with the unbalanced correction, of the UGW costs, seen
+      through the outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
     converged: Convergence flag for the outer GW iterations.
@@ -91,8 +91,10 @@ class GWOutput(NamedTuple):
   def reg_gw_cost(self) -> float:
     """Regularized GW cost.
 
-    That is, ``quadratic + fused_penalty * linear + epsilon * KL(P | ab^T)``
-    or, with the unbalanced correction, the UGW cost of :cite:`sejourne:21`.
+    That is, ``quadratic + fused_penalty * linear + epsilon * KL(P | ab^T)``,
+    plus the marginal penalties in the unbalanced case, where ``epsilon`` is
+    the one of the linearization ``geom``. With the unbalanced correction, this
+    is the UGW cost of :cite:`sejourne:21`.
     """
     if self.ot_prob._is_ugw:
       transport = jax.lax.stop_gradient(self.matrix)
@@ -136,9 +138,9 @@ class GWState(NamedTuple):
   """State of the Gromov-Wasserstein solver.
 
   Attributes:
-    costs: Holds the sequence of regularized OT costs of the linearizations
-      or, with the unbalanced correction, of the UGW costs, seen through the
-      outer loop of the solver.
+    costs: Holds the sequence of regularized OT costs of the linearized
+      problems or, with the unbalanced correction, of the UGW costs, seen
+      through the outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
     linear_state: State used to solve and store solutions to the local
@@ -187,9 +189,9 @@ class GWState(NamedTuple):
 class GromovWasserstein(was_solver.WassersteinSolver):
   """Entropic Gromov-Wasserstein solver :cite:`peyre:16`.
 
-  With the unbalanced correction :cite:`sejourne:21`, the iterations can
-  oscillate for a while before converging, so consider increasing
-  ``max_iterations``.
+  With the unbalanced correction :cite:`sejourne:21`, the cost can stall
+  before the transport mass has converged, so consider decreasing
+  ``threshold``.
 
   .. seealso::
     Low-rank Gromov-Wasserstein :cite:`scetbon:23` is implemented in

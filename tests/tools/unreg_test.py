@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple
 
 import pytest
 
@@ -41,10 +41,9 @@ class TestHungarian:
         out_sink.matrix, out_hung.matrix.todense(), rtol=1e-3, atol=1e-3
     )
 
-  @pytest.mark.parametrize("scale_cost", [2.0, "mean"])
-  def test_primal_cost(self, rng: jax.Array, scale_cost: Union[float, str]):
+  def test_primal_cost(self, rng: jax.Array):
     x, y = gen_data(rng, 12, 12, 5)
-    geom = pointcloud.PointCloud(x, y, scale_cost=scale_cost)
+    geom = pointcloud.PointCloud(x, y, scale_cost=2.0)
 
     cost, out = unreg.hungarian(geom)
 

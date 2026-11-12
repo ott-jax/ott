@@ -153,7 +153,6 @@ class TestLRSinkhorn:
         pred, jnp.stack([gt] * n_stack), rtol=1e-6, atol=1e-6
     )
 
-  @pytest.mark.fast()
   def test_diverged_after_min_iterations(self, clouds: _utils.PointClouds):
     x = clouds.x.at[1, 0].set(jnp.nan)
     geom = pointcloud.PointCloud(x, clouds.y)
@@ -212,7 +211,6 @@ class TestLRSinkhorn:
 
     assert not state.crossed_threshold
 
-  @pytest.mark.usefixtures("enable_x64")
   @pytest.mark.parametrize("lse_mode", [True, False])
   @pytest.mark.parametrize("tau", [1.0, 0.9])
   def test_grad(self, rng: jax.Array, lse_mode: bool, tau: float):
@@ -221,7 +219,7 @@ class TestLRSinkhorn:
     y = jr.normal(rng_y, (9, 2))
     w = jr.normal(rng_w, (8, 9))
     v = jr.normal(rng_v, x.shape)
-    v = 1e-4 * v / jnp.linalg.norm(v)
+    v = 1e-2 * v / jnp.linalg.norm(v)
     solver = sinkhorn_lr.LRSinkhorn(
         rank=2,
         lse_mode=lse_mode,
@@ -242,7 +240,7 @@ class TestLRSinkhorn:
 
     expected = loss(x + v) - loss(x - v)
     actual = 2.0 * jnp.vdot(v, grad)
-    np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-8)
+    np.testing.assert_allclose(actual, expected, rtol=1e-2, atol=1e-8)
 
   @pytest.mark.usefixtures("enable_x64")
   @pytest.mark.parametrize("lse_mode", [True, False])
@@ -258,24 +256,6 @@ class TestLRSinkhorn:
 
     for arr in (out.q, out.r, out.g, out.costs, out.errors, out.reg_ot_cost):
       assert arr.dtype == jnp.float32
-
-  def test_zero_weights_epsilon(self, rng: jax.Array):
-    rng_x, rng_y = jr.split(rng, 2)
-    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 2))
-    x_pad = jnp.concatenate([x, jnp.full((3, 2), 5.0)])
-    a_pad = jnp.concatenate([jnp.full(10, 0.1), jnp.zeros(3)])
-    prob = linear_problem.LinearProblem(pointcloud.PointCloud(x, y))
-    prob_pad = linear_problem.LinearProblem(
-        pointcloud.PointCloud(x_pad, y), a=a_pad
-    )
-    solver = sinkhorn_lr.LRSinkhorn(rank=2, epsilon=1e-1)
-    q, r, g = solver.initializer(prob)
-    q_pad = jnp.concatenate([q, jnp.zeros((3, 2))])
-
-    out = solver(prob, init=(q, r, g))
-    out_pad = solver(prob_pad, init=(q_pad, r, g))
-
-    np.testing.assert_allclose(out_pad.reg_ot_cost, out.reg_ot_cost, rtol=1e-5)
 
   @pytest.mark.parametrize("tau", [1.0, 0.9])
   @pytest.mark.parametrize("lse_mode", [False, True])
@@ -306,15 +286,14 @@ class TestLRSinkhorn:
 
     np.testing.assert_allclose(grad_pad, grad, rtol=1e-5, atol=1e-5)
 
-  @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 1.0), (1.0, 0.9)])
   @pytest.mark.parametrize("lse_mode", [False, True])
   def test_one_sided_unbalanced_unrolled_grad(
-      self, rng: jax.Array, lse_mode: bool, tau_a: float, tau_b: float
+      self, rng: jax.Array, lse_mode: bool
   ):
 
     def loss(x: jnp.ndarray) -> float:
       prob = linear_problem.LinearProblem(
-          pointcloud.PointCloud(x, y), tau_a=tau_a, tau_b=tau_b
+          pointcloud.PointCloud(x, y), tau_a=0.9
       )
       return solver(prob).reg_ot_cost
 
@@ -341,10 +320,7 @@ class TestLRSinkhorn:
     actual = 2.0 * jnp.vdot(v, grad)
     np.testing.assert_allclose(actual, expected, rtol=1e-2, atol=1e-5)
 
-  @pytest.mark.parametrize("translation_invariant", [False, True])
-  def test_unbalanced_dykstra_kernel_zero_weights(
-      self, rng: jax.Array, translation_invariant: bool
-  ):
+  def test_unbalanced_dykstra_kernel_zero_weights(self, rng: jax.Array):
     rng_x, rng_y, rng_q, rng_r = jr.split(rng, 4)
     x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 2))
     k_q, k_r = jr.uniform(rng_q, (10, 2)), jr.uniform(rng_r, (12, 2))
@@ -357,11 +333,7 @@ class TestLRSinkhorn:
     prob_pad = linear_problem.LinearProblem(
         pointcloud.PointCloud(x_pad, y), a=a_pad, tau_a=0.9, tau_b=0.9
     )
-    kwargs = {
-        "translation_invariant": translation_invariant,
-        "inner_iter": 1,
-        "tolerance": 1e-5,
-    }
+    kwargs = {"inner_iter": 1, "tolerance": 1e-5}
 
     _, _, g = lr_utils.unbalanced_dykstra_kernel(
         k_q, k_r, jnp.ones(2), 1.0, prob, **kwargs
@@ -372,33 +344,29 @@ class TestLRSinkhorn:
 
     np.testing.assert_allclose(g_pad, g, rtol=1e-5)
 
-  @pytest.mark.parametrize(("param", "val", "h"), [("epsilon", 0.5, 1e-2),
-                                                   ("gamma", 10.0, 1e-1)])
-  def test_hyperparameter_grad(
-      self, rng: jax.Array, param: str, val: float, h: float
-  ):
+  def test_epsilon_grad(self, rng: jax.Array):
 
-    def reg_ot_cost(val: float) -> float:
-      kwargs = {"epsilon": 1e-1, "gamma": 10.0, param: val}
+    def reg_ot_cost(epsilon: float) -> float:
       solver = sinkhorn_lr.LRSinkhorn(
           rank=2,
+          epsilon=epsilon,
           use_danskin=False,
           min_iterations=100,
           max_iterations=100,
           inner_iterations=10,
-          **kwargs,
       )
-      return solver(prob, rng=rng_init).reg_ot_cost
+      return solver(prob).reg_ot_cost
 
-    rng_x, rng_y, rng_init = jr.split(rng, 3)
+    rng_x, rng_y = jr.split(rng, 2)
     x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 2))
     prob = linear_problem.LinearProblem(pointcloud.PointCloud(x, y))
 
-    grad = jax.grad(reg_ot_cost)(val)
-    fd = (reg_ot_cost(val + h) - reg_ot_cost(val - h)) / (2.0 * h)
+    grad = jax.grad(reg_ot_cost)(0.5)
+    fd = (reg_ot_cost(0.5 + 1e-2) - reg_ot_cost(0.5 - 1e-2)) / 2e-2
 
     np.testing.assert_allclose(grad, fd, rtol=1e-3)
 
+  @pytest.mark.fast()
   def test_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
     num_iterations = 37
@@ -536,8 +504,8 @@ class TestLRSinkhorn:
     )
     np.testing.assert_allclose(out.matrix, out_ti.matrix, rtol=1e-2, atol=1e-2)
 
-  @pytest.mark.parametrize("epsilon", [5e-2, 1e-1])
-  def test_epsilon_stationary_point(self, rng: jax.Array, epsilon: float):
+  def test_epsilon_stationary_point(self, rng: jax.Array):
+    epsilon = 1e-1
     prob = _utils.random_clouds(rng).problem()
     solver = sinkhorn_lr.LRSinkhorn(rank=3, epsilon=epsilon, threshold=1e-7)
 

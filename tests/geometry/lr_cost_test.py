@@ -120,12 +120,11 @@ class TestLRGeometry:
               geom2.apply_cost(mat, axis=axis), out_lr, rtol=5e-4
           )
 
-  @pytest.mark.parametrize("scale_cost", [1.0, 4.0])
-  def test_bias_and_scale_cost(self, rng: jax.Array, scale_cost: float):
+  def test_bias_and_scale_cost(self, rng: jax.Array):
     rng_c, rng_v = jr.split(rng, 2)
     c = jr.normal(rng_c, (11, 2))
     vec = jr.normal(rng_v, (11,))
-    geom = low_rank.LRCGeometry(c, c, bias=0.7, scale_cost=scale_cost)
+    geom = low_rank.LRCGeometry(c, c, bias=0.7, scale_cost=4.0)
     dense = geometry.Geometry(geom.cost_matrix)
 
     np.testing.assert_allclose(

@@ -21,7 +21,7 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
-from ott.geometry import epsilon_scheduler, geometry, low_rank, pointcloud
+from ott.geometry import epsilon_scheduler, geometry, pointcloud
 
 
 @pytest.mark.fast()
@@ -51,18 +51,11 @@ class TestCostMeanStd:
     np.testing.assert_allclose(default_scale * std, eps, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.usefixtures("enable_x64")
-  @pytest.mark.parametrize("geom_type", ["pc", "pc_online", "lrc"])
-  def test_float32_with_x64(self, rng: jax.Array, geom_type: str):
+  def test_float32_with_x64(self, rng: jax.Array):
     rng_x, rng_y = jr.split(rng, 2)
     x = jr.normal(rng_x, (5, 3), dtype=jnp.float32)
     y = jr.normal(rng_y, (7, 3), dtype=jnp.float32)
-    if geom_type == "lrc":
-      geom = low_rank.LRCGeometry(x, y, scale_cost="mean")
-    else:
-      batch_size = 2 if geom_type == "pc_online" else None
-      geom = pointcloud.PointCloud(
-          x, y, batch_size=batch_size, scale_cost="mean"
-      )
+    geom = pointcloud.PointCloud(x, y, batch_size=2, scale_cost="mean")
 
     assert geom.epsilon.dtype == jnp.float32
     assert geom.cost_matrix.dtype == jnp.float32

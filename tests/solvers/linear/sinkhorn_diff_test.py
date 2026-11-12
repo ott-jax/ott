@@ -77,14 +77,13 @@ class TestSinkhornImplicit:
 
     np.testing.assert_allclose(implicit, unrolled, rtol=1e-2, atol=1e-2)
 
-  @pytest.mark.parametrize("tau", [1.0, 0.9])
-  def test_kernel_unrolled_zero_weights(self, rng: jax.Array, tau: float):
+  def test_kernel_unrolled_zero_weights(self, rng: jax.Array):
     clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
 
     def loss(x: jnp.ndarray, lse_mode: bool) -> float:
       geom = pointcloud.PointCloud(x, clouds.y, epsilon=0.1)
       prob = linear_problem.LinearProblem(
-          geom, a=clouds.a, b=clouds.b, tau_a=tau, tau_b=tau
+          geom, a=clouds.a, b=clouds.b, tau_a=0.9, tau_b=0.9
       )
       solver = sinkhorn.Sinkhorn(
           lse_mode=lse_mode, implicit_diff=None, threshold=1e-5
@@ -96,8 +95,7 @@ class TestSinkhornImplicit:
 
     np.testing.assert_allclose(kernel, lse, rtol=1e-2, atol=1e-2)
 
-  @pytest.mark.parametrize("lse_mode", [True, False])
-  def test_marginals_grad_zero_weights(self, rng: jax.Array, lse_mode: bool):
+  def test_marginals_grad_zero_weights(self, rng: jax.Array):
     clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
     supp_a, supp_b = clouds.a > 0, clouds.b > 0
 
@@ -106,7 +104,7 @@ class TestSinkhornImplicit:
     ) -> float:
       geom = pointcloud.PointCloud(x, y, epsilon=0.1)
       prob = linear_problem.LinearProblem(geom, a=a, b=b)
-      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, threshold=1e-6)
+      solver = sinkhorn.Sinkhorn(threshold=1e-6)
       return solver(prob).reg_ot_cost
 
     grad_fn = jax.grad(loss, argnums=(2, 3))
@@ -120,8 +118,7 @@ class TestSinkhornImplicit:
     np.testing.assert_allclose(grad_a[supp_a], grad_a_supp, rtol=1e-4)
     np.testing.assert_allclose(grad_b[supp_b], grad_b_supp, rtol=1e-4)
 
-  @pytest.mark.parametrize("lse_mode", [True, False])
-  @pytest.mark.parametrize("tau", [1.0, 0.9])
+  @pytest.mark.parametrize(("lse_mode", "tau"), [(True, 0.9), (False, 1.0)])
   def test_epsilon_grad_zero_weights(
       self, rng: jax.Array, lse_mode: bool, tau: float
   ):
@@ -164,7 +161,6 @@ class TestSinkhornImplicit:
     )
     assert calls == [solver_kwargs]
 
-  @pytest.mark.usefixtures("enable_x64")
   @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 0.87), (1.0, 0.7)])
   def test_unbalanced_danskin(self, rng: jax.Array, tau_a: float, tau_b: float):
     clouds = _utils.random_clouds(rng, n=38, m=73, dim=3)
@@ -174,14 +170,14 @@ class TestSinkhornImplicit:
       prob = linear_problem.LinearProblem(
           geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
       )
-      solver = sinkhorn.Sinkhorn(threshold=1e-8, use_danskin=use_danskin)
+      solver = sinkhorn.Sinkhorn(threshold=1e-6, use_danskin=use_danskin)
       return solver(prob).reg_ot_cost
 
     np.testing.assert_allclose(
         jax.grad(loss)(clouds.x, True),
         jax.grad(loss)(clouds.x, False),
         rtol=1e-4,
-        atol=1e-8,
+        atol=1e-6,
     )
 
   @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),

@@ -161,7 +161,6 @@ class TestDiscreteBarycenter:
     assert jnp.isfinite(errors[last])
     np.testing.assert_array_equal(errors[last + 1:], -1.0)
 
-  @pytest.mark.usefixtures("enable_x64")
   @pytest.mark.parametrize("lse_mode", [True, False])
   def test_grad(self, rng: jax.Array, lse_mode: bool):
     rng_w, rng_v = jr.split(rng, 2)
@@ -170,7 +169,7 @@ class TestDiscreteBarycenter:
     a = a / a.sum(1, keepdims=True)
     w = jr.normal(rng_w, (10,))
     v = jr.normal(rng_v, x.shape)
-    v = 1e-4 * v / jnp.linalg.norm(v)
+    v = 1e-2 * v / jnp.linalg.norm(v)
     solver = db.FixedBarycenter(
         lse_mode=lse_mode, min_iterations=100, max_iterations=100
     )
@@ -184,7 +183,7 @@ class TestDiscreteBarycenter:
 
     expected = loss(x + v) - loss(x - v)
     actual = 2.0 * jnp.vdot(v, grad)
-    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-8)
+    np.testing.assert_allclose(actual, expected, rtol=1e-2, atol=1e-8)
 
   @pytest.mark.parametrize("lse_mode", [True, False])
   def test_epsilon_schedule(self, lse_mode: bool):

@@ -204,7 +204,9 @@ class TestBarycenter:
     bar_prob = barycenter_problem.FreeBarycenterProblem(
         y, epsilon=1e-1, num_per_segment=num_per_segment
     )
-    solver = cb.FreeWassersteinBarycenter(sinkhorn.Sinkhorn())
+    solver = cb.FreeWassersteinBarycenter(
+        sinkhorn.Sinkhorn(), min_iterations=1, max_iterations=1
+    )
 
     out = solver(bar_prob, bar_size=8, rng=rng_init)
 

@@ -58,7 +58,7 @@ class LRSinkhornState(NamedTuple):
       epsilon: float,
       use_danskin: bool = True
   ) -> float:
-    """For LR Sinkhorn, this defaults to the primal cost of LR solution."""
+    """Compute the regularized OT cost of the LR solution."""
     return compute_reg_ot_cost(
         self.q,
         self.r,

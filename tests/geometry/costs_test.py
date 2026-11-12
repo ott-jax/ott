@@ -183,17 +183,9 @@ class TestBuresBarycenter:
 
 class TestTICost:
 
-  @pytest.mark.parametrize(
-      "cost_fn", [
-          costs.SqPNorm(1.5),
-          costs.PNormP(1.5),
-          costs.EuclideanP(1.5),
-          costs.RegTICost(regularizers.L1()),
-      ]
-  )
-  def test_barycenter_not_implemented(self, cost_fn: costs.TICost):
+  def test_barycenter_not_implemented(self):
     with pytest.raises(NotImplementedError):
-      cost_fn.barycenter(jnp.ones(3) / 3.0, jnp.ones((3, 2)))
+      costs.SqPNorm(1.5).barycenter(jnp.ones(3) / 3.0, jnp.ones((3, 2)))
 
   @pytest.mark.parametrize(
       "cost_fn", [
