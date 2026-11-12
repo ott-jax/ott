@@ -344,8 +344,8 @@ class KMeansInitializer(LRInitializer):
 
     del kwargs
     if isinstance(ot_prob, quadratic_problem.QuadraticProblem):
-      if ot_prob.geom_xy is not None and ot_prob.fused_penalty >= 1.0:
-        # prefer the linear term if it has a higher weight
+      if ot_prob.geom_xy is not None:
+        # prefer the linear term, as `fused_penalty` can be traced
         geom = ot_prob.geom_xy
       else:
         geom = ot_prob.geom_xx if which == "q" else ot_prob.geom_yy

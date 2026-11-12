@@ -110,6 +110,22 @@ class TestQuadraticInitializers:
     with pytest.raises(AssertionError, match=r"Relative epsilon"):
       _ = prob.update_linearization(out, epsilon=1.0, relative_epsilon="mean")
 
+  def test_k_means_fused_jit(self, rng: jax.Array):
+    rng_x, rng_y, rng_z = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x),
+        pointcloud.PointCloud(y),
+        geom_xy=pointcloud.PointCloud(x, jr.normal(rng_z, (12, 2))),
+    )
+    initializer = initializers_lr.KMeansInitializer(rank=3)
+
+    actual = jax.jit(initializer)(prob)
+    expected = initializer(prob)
+
+    for act, exp in zip(actual, expected):
+      np.testing.assert_allclose(act, exp, rtol=1e-5, atol=1e-5)
+
   @pytest.mark.parametrize("eps", [0.0, 1e-1])
   def test_gw_better_initialization_helps(self, rng: jax.Array, eps: float):
     n, m, d1, d2, rank = 83, 84, 12, 8, 5
