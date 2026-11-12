@@ -374,7 +374,9 @@ def run(
       app_lse = mu.softmin(
           remove_tensor_sum(cost_t, potentials), epsilon, axis=axis
       )
-      pot += epsilon * jnp.log(a) + jnp.where(jnp.isfinite(app_lse), app_lse, 0)
+      supp = a > 0.0
+      fa = jnp.where(supp, epsilon * jnp.log(jnp.where(supp, a, 1.0)), -jnp.inf)
+      pot += fa + jnp.where(jnp.isfinite(app_lse), app_lse, 0)
       return potentials[:l] + (pot,) + potentials[l + 1:]
 
     potentials = state.potentials
@@ -432,4 +434,7 @@ def run(
 def coupling_tensor(
     potentials: Tuple[jnp.ndarray], cost_t: jnp.ndarray, epsilon: float
 ) -> jnp.ndarray:
-  return jnp.exp(-remove_tensor_sum(cost_t, potentials) / epsilon)
+  z = remove_tensor_sum(cost_t, potentials)
+  # -inf potentials at zero weights
+  inf = jnp.isposinf(z)
+  return jnp.where(inf, 0.0, jnp.exp(-jnp.where(inf, 0.0, z) / epsilon))

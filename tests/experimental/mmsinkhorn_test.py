@@ -129,6 +129,29 @@ class TestMMSinkhorn:
                                rtol=1e-3,
                                atol=1e-3)
 
+  @pytest.mark.parametrize("use_danskin", [True, False])
+  def test_mm_sinkhorn_diff_zero_weights(
+      self, rng: jax.Array, use_danskin: bool
+  ):
+    """Test gradients of MMSinkhorn's ent_reg_cost with zero weights."""
+    n_s, d = [5, 6, 7], 2
+    x_s = [jr.normal(rng, (n, d)) for rng, n in zip(jr.split(rng, 3), n_s)]
+    a_s = [jnp.ones(n) / n for n in n_s]
+    a_s[0] = jnp.array([0.0, 0.25, 0.25, 0.25, 0.25])
+    solver = mmsinkhorn.MMSinkhorn(threshold=1e-5, use_danskin=use_danskin)
+    grad_fn = jax.grad(
+        lambda x_s, a_s, eps: solver(x_s, a_s, epsilon=eps).ent_reg_cost,
+        argnums=(1, 2)
+    )
+
+    g_a_s, g_eps = grad_fn(x_s, a_s, 1.0)
+    g_a_s_supp, g_eps_supp = grad_fn([x_s[0][1:], *x_s[1:]],
+                                     [a_s[0][1:], *a_s[1:]], 1.0)
+
+    assert jnp.all(jnp.isfinite(g_a_s[0]))
+    np.testing.assert_allclose(g_a_s[0][1:], g_a_s_supp[0], rtol=1e-4)
+    np.testing.assert_allclose(g_eps, g_eps_supp, rtol=1e-4)
+
   @pytest.mark.parametrize("min_iterations", [30, 34])
   def test_min_iterations(self, rng: jax.Array, min_iterations: int):
     """Test that errors are recorded once ``min_iterations`` are done."""
