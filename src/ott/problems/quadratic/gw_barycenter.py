@@ -225,7 +225,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     # ignore the points with zero weight, e.g., the padded points
     mask_a, mask_b = a > 0, b > 0
     if self.scale_cost == "mean":
-      u, v = mask_a / mask_a.sum(), mask_b / mask_b.sum()
+      u = mask_a.astype(geom.dtype) / mask_a.sum()
+      v = mask_b.astype(geom.dtype) / mask_b.sum()
       scale_cost = jnp.vdot(u, geom.apply_cost(v, axis=1))
     elif self.scale_cost == "max_cost":
       mask = mask_a[:, None] & mask_b[None, :]

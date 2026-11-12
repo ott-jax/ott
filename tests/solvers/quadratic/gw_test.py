@@ -546,7 +546,7 @@ class TestGromovWasserstein:
     prob = quadratic_problem.QuadraticProblem(
         pointcloud.PointCloud(y[0]), pointcloud.PointCloud(y[1])
     )
-    bar_prob = gwb.GWBarycenterProblem(y=y, b=b, epsilon=1.0)
+    bar_prob = gwb.GWBarycenterProblem(y=y, b=b, epsilon=1.0, scale_cost="mean")
     solver = gromov_wasserstein.GromovWasserstein(sinkhorn.Sinkhorn())
     bar_solver = gwb_solver.GromovWassersteinBarycenter(
         solver, max_iterations=5
