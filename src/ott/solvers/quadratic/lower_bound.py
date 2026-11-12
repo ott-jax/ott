@@ -39,7 +39,8 @@ def third_lower_bound(
       to other points in its respective point cloud. These distributions are
       uniform, i.e., they do not depend on the marginals of ``prob``.
     epsilon: Entropy regularization.
-    kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`.
+    kwargs: Keyword arguments for :func:`~ott.solvers.linear.solve`, which
+      take precedence over the marginals of ``prob``.
 
   Returns:
     An approximation of the GW coupling that can be used to initialize
@@ -51,6 +52,11 @@ def third_lower_bound(
       dists_xx, dists_yy, cost_fn=distrib_cost, epsilon=epsilon
   )
 
-  return linear.solve(
-      geom_xy, a=prob.a, b=prob.b, tau_a=prob.tau_a, tau_b=prob.tau_b, **kwargs
-  )
+  kwargs = {
+      "a": prob.a,
+      "b": prob.b,
+      "tau_a": prob.tau_a,
+      "tau_b": prob.tau_b,
+      **kwargs,
+  }
+  return linear.solve(geom_xy, **kwargs)
