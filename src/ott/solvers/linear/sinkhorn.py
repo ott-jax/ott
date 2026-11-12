@@ -240,7 +240,9 @@ def compute_kl_reg_cost(
   terms). Situations where marginals ``a`` or ``b`` in ``ot_prob`` have zero
   coordinates are reflected in minus infinity entries in their corresponding
   dual potentials. To avoid NaN that may result when multiplying 0's by infinity
-  values, ``jnp.where`` is used to cancel these contributions.
+  values, ``jnp.where`` is used to cancel these contributions. The gradient
+  w.r.t. these zero weights uses the limit of their potentials, i.e., the
+  c-transform of the other potential.
 
   Args:
     f: jnp.ndarray, potential
@@ -251,38 +253,42 @@ def compute_kl_reg_cost(
   Returns:
     The regularized transport cost.
   """
-  supp_a = ot_prob.a > 0
-  supp_b = ot_prob.b > 0
-  fa = ot_prob.geom.potential_from_scaling(ot_prob.a)
-  if ot_prob.tau_a == 1.0:
-    div_a = jnp.sum(ot_prob.a * jnp.where(supp_a, f - fa, 0.0))
-  else:
-    rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
-    phi_a = uf.phi_star(jnp.where(supp_a, fa - f, 0.0), rho_a)
-    div_a = -jnp.sum(jnp.where(supp_a, ot_prob.a * phi_a, 0.0))
+  geom, eps = ot_prob.geom, ot_prob.epsilon
+  supp_a, supp_b = ot_prob.a > 0, ot_prob.b > 0
 
-  gb = ot_prob.geom.potential_from_scaling(ot_prob.b)
-  if ot_prob.tau_b == 1.0:
-    div_b = jnp.sum(ot_prob.b * jnp.where(supp_b, g - gb, 0.0))
-  else:
-    rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
-    phi_b = uf.phi_star(jnp.where(supp_b, gb - g, 0.0), rho_b)
-    div_b = -jnp.sum(jnp.where(supp_b, ot_prob.b * phi_b, 0.0))
-
-  # Using https://arxiv.org/pdf/1910.12958v2.pdf (24)
+  # Using https://arxiv.org/pdf/1910.12958v2.pdf (24),
+  # `z_a` and `z_b` are the negated c-transforms of `g` and `f`
   if lse_mode:
     f, g = jnp.where(supp_a, f, 0.0), jnp.where(supp_b, g, 0.0)
-    z, _ = ot_prob.geom.apply_lse_kernel(
-        f, g, ot_prob.epsilon, vec=supp_b.astype(g.dtype), axis=1
-    )
-    log_marginal = jnp.where(supp_a, (z + f) / ot_prob.epsilon, -jnp.inf)
-    total_sum = jnp.sum(jnp.exp(log_marginal))
+    vec_a, vec_b = supp_a.astype(f.dtype), supp_b.astype(g.dtype)
+    z_a, _ = geom.apply_lse_kernel(f, g, eps, vec=vec_b, axis=1)
+    z_b, _ = geom.apply_lse_kernel(f, g, eps, vec=vec_a, axis=0)
+    total_sum = jnp.sum(jnp.where(supp_a, jnp.exp((z_a + f) / eps), 0.0))
   else:
-    u = ot_prob.geom.scaling_from_potential(f)
-    v = ot_prob.geom.scaling_from_potential(g)
-    total_sum = jnp.sum(ot_prob.geom.marginal_from_scalings(u, v))
+    u, v = geom.scaling_from_potential(f), geom.scaling_from_potential(g)
+    kv = geom.apply_kernel(v, eps, axis=1)
+    ku = geom.apply_kernel(u, eps, axis=0)
+    z_a = eps * jnp.log(jnp.where(kv > 0, kv, 1.0))
+    z_b = eps * jnp.log(jnp.where(ku > 0, ku, 1.0))
+    total_sum = jnp.sum(u * kv)
 
-  return div_a + div_b + ot_prob.epsilon * (
+  def div(
+      marginal: jnp.ndarray, potential: jnp.ndarray, z: jnp.ndarray, tau: float
+  ) -> float:
+    # at zero weights, use the limit of the potential, which only
+    # contributes to the gradient w.r.t. the marginal
+    supp = marginal > 0
+    h = potential - geom.potential_from_scaling(marginal)
+    h = jnp.where(supp, h, -tau * z)
+    if tau == 1.0:
+      return jnp.sum(marginal * jnp.where(supp, h, h - eps))
+    rho = uf.rho(eps, tau)
+    phi = uf.phi_star(-h, rho) + jnp.where(supp, 0.0, eps * jnp.exp(-h / rho))
+    return -jnp.sum(marginal * phi)
+
+  div_a = div(ot_prob.a, f, z_a, ot_prob.tau_a)
+  div_b = div(ot_prob.b, g, z_b, ot_prob.tau_b)
+  return div_a + div_b + eps * (
       jnp.sum(ot_prob.a) * jnp.sum(ot_prob.b) - total_sum
   )
 
@@ -685,10 +691,9 @@ class Sinkhorn:
       use ``jnp.where`` conditional statements to carry ``inf`` rather than
       ``NaN`` values. In reverse mode differentiation, the inputs corresponding
       to these 0 weights (a location `x`, or a row in the corresponding
-      cost/kernel matrix), and the weight itself will have ``NaN`` gradient
-      values. This reflects that these gradients are undefined, since these
-      points were not considered in the optimization and have therefore no
-      impact on the output.
+      cost/kernel matrix) have zero gradient, since these points have no impact
+      on the output. The gradient w.r.t. the weight itself is the limit of the
+      gradient for positive weights.
 
   Args:
     lse_mode: :obj:`True` for log-sum-exp computations, :obj:`False` for kernel
@@ -853,6 +858,13 @@ class Sinkhorn:
       potential = potential - ot_prob.epsilon * log_marginal
       return -rho * mu.logsumexp(-potential / rho, b=marginal)
 
+    def safe_log(marginal: jnp.ndarray) -> jnp.ndarray:
+      # `-inf` at zero weights, but with a finite gradient
+      positive = marginal > 0
+      return jnp.where(
+          positive, jnp.log(jnp.where(positive, marginal, 1.0)), -jnp.inf
+      )
+
     # only for an unbalanced problems with `tau_{a,b} < 1`
     recenter = (
         self.recenter_potentials and ot_prob.tau_a < 1.0 and ot_prob.tau_b < 1.0
@@ -860,6 +872,7 @@ class Sinkhorn:
     w = self.momentum.weight(state, iteration)
     eps = ot_prob.geom.epsilon_scheduler(iteration)
     tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
+    log_a, log_b = safe_log(ot_prob.a), safe_log(ot_prob.b)
     old_fu, old_gv = state.fu, state.gv
 
     if recenter:
@@ -868,10 +881,10 @@ class Sinkhorn:
 
     # update g potential
     new_gv = tau_b * ot_prob.geom.update_potential(
-        old_fu, old_gv, jnp.log(ot_prob.b), iteration, axis=0
+        old_fu, old_gv, log_b, iteration, axis=0
     )
     if tau_b < 1.0:
-      new_gv += (1.0 - tau_b) * eps * jnp.log(ot_prob.b)
+      new_gv += (1.0 - tau_b) * eps * log_b
     if recenter:
       new_gv -= k22 * smin(old_fu, ot_prob.a, tau_a)
       new_gv += xi21 * smin(new_gv, ot_prob.b, tau_b)
@@ -882,10 +895,10 @@ class Sinkhorn:
 
     # update f potential
     new_fu = tau_a * ot_prob.geom.update_potential(
-        old_fu, old_gv, jnp.log(ot_prob.a), iteration, axis=1
+        old_fu, old_gv, log_a, iteration, axis=1
     )
     if tau_a < 1.0:
-      new_fu += (1.0 - tau_a) * eps * jnp.log(ot_prob.a)
+      new_fu += (1.0 - tau_a) * eps * log_a
     if recenter:
       new_fu -= k11 * smin(old_gv, ot_prob.b, tau_b)
       new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)

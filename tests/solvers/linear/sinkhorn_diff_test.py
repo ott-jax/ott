@@ -118,6 +118,36 @@ class TestSinkhornImplicit:
     np.testing.assert_allclose(grad_a[supp_a], grad_a_supp, rtol=1e-4)
     np.testing.assert_allclose(grad_b[supp_b], grad_b_supp, rtol=1e-4)
 
+  @pytest.mark.parametrize(("lse_mode", "tau", "implicit"),
+                           [(True, 1.0, True), (False, 0.9, True),
+                            (True, 0.9, False)])
+  def test_marginals_grad_at_zero_weights(
+      self, rng: jax.Array, lse_mode: bool, tau: float, implicit: bool
+  ):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+    implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
+
+    def loss(a: jnp.ndarray, b: jnp.ndarray) -> float:
+      geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=tau, tau_b=tau)
+      solver = sinkhorn.Sinkhorn(
+          lse_mode=lse_mode, threshold=1e-6, implicit_diff=implicit_diff
+      )
+      return solver(prob).reg_ot_cost
+
+    a_pos = jnp.where(clouds.a > 0, clouds.a, 1e-6)
+    b_pos = jnp.where(clouds.b > 0, clouds.b, 1e-6)
+    grad_fn = jax.grad(loss, argnums=(0, 1))
+
+    grads = grad_fn(clouds.a, clouds.b)
+    grads_pos = grad_fn(a_pos / a_pos.sum(), b_pos / b_pos.sum())
+
+    # in the balanced case, the gradients are defined up to a constant
+    for grad, grad_pos in zip(grads, grads_pos):
+      np.testing.assert_allclose(
+          grad - grad.mean(), grad_pos - grad_pos.mean(), rtol=1e-3, atol=1e-3
+      )
+
   def test_unbalanced_marginals_grad_zero_weights(self, rng: jax.Array):
     clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
     supp_a, supp_b = clouds.a > 0, clouds.b > 0
