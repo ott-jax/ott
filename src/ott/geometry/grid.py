@@ -11,15 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import functools
 import itertools
-from typing import Any, Callable, List, NoReturn, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    NoReturn,
+    Optional,
+    Sequence,
+    Tuple,
+)
 
 import jax
 import jax.numpy as jnp
 import numpy as np
 
+from ott import utils
 from ott.geometry import costs, geometry, low_rank, pointcloud
-from ott.math import utils
+from ott.math import utils as mu
 
 __all__ = ["Grid"]
 
@@ -178,34 +189,37 @@ class Grid(geometry.Geometry):
     if axis == 0:
       f, g = g, f
 
-    for dimension in range(self.grid_dimension):
-      g, vec = self._apply_lse_kernel_one_dimension(dimension, f, g, eps, vec)
+    for dimension, cost in enumerate(self._cost_matrices(axis=axis)):
+      g, vec = self._apply_lse_kernel_one_dimension(
+          dimension=dimension, cost=cost, f=f, g=g, eps=eps, vec=vec
+      )
       g -= jnp.where(jnp.isfinite(f), f, 0)
 
     if vec is None:
       vec = jnp.array(1.0)
     return g.ravel(), vec.ravel()
 
-  def _apply_lse_kernel_one_dimension(self, dimension, f, g, eps, vec=None):
+  def _apply_lse_kernel_one_dimension(
+      self, dimension, cost, f, g, eps, vec=None
+  ):
     """Permute axis & apply the kernel on a single slice."""
     indices = np.arange(self.grid_dimension)
     indices[dimension], indices[0] = 0, dimension
     f, g = jnp.transpose(f, indices), jnp.transpose(g, indices)
+    expand_axes = tuple(range(2, 1 + self.grid_dimension))
     centered_cost = (
-        f[:, jnp.newaxis, ...] + g[jnp.newaxis, ...] - jnp.expand_dims(
-            self.geometries[dimension].cost_matrix,
-            axis=tuple(range(2, 1 + self.grid_dimension))
-        )
+        f[:, jnp.newaxis, ...] + g[jnp.newaxis, ...] -
+        jnp.expand_dims(cost, axis=expand_axes)
     ) / eps
 
     if vec is not None:
       vec = jnp.transpose(vec, indices)
-      softmax_res, softmax_sgn = utils.logsumexp(
+      softmax_res, softmax_sgn = mu.logsumexp(
           centered_cost, b=vec, axis=1, return_sign=True
       )
       return eps * jnp.transpose(softmax_res,
                                  indices), jnp.transpose(softmax_sgn, indices)
-    softmax_res = eps * utils.logsumexp(centered_cost, axis=1)
+    softmax_res = eps * mu.logsumexp(centered_cost, axis=1)
     return jnp.transpose(softmax_res, indices), None
 
   def _apply_cost_to_vec(
@@ -237,28 +251,86 @@ class Grid(geometry.Geometry):
       axis: axis 0 if applying transpose costs, 1 if using the original cost.
       fn: function optionally applied to cost matrix element-wise, before the
         dot product.
-      is_linear: TODO.
+      is_linear: Whether ``fn`` is linear.
 
     Returns:
       A jnp.ndarray corresponding to cost x matrix
     """
-    # TODO(michalk8):
-    del fn, is_linear
+    if fn is not None and is_linear:
+      return fn(self._apply_cost_to_vec(vec, axis=axis))
+    if fn is not None:
+      return self._apply_fn_cost_to_vec(vec, axis=axis, fn=fn)
+    return sum(
+        self._apply_kronecker_to_vec(vec, matrices={d: cost})
+        for d, cost in enumerate(self._cost_matrices(axis=axis))
+    )
+
+  def _apply_fn_cost_to_vec(
+      self,
+      vec: jnp.ndarray,
+      axis: int,
+      fn: Callable[[jnp.ndarray], jnp.ndarray],
+  ) -> jnp.ndarray:
+    """Apply ``fn(cost)`` to a vector, computing the cost row by row."""
+    cost_matrices = self._cost_matrices(axis=axis)
     vec = jnp.reshape(vec, self.grid_size)
-    accum_vec = jnp.zeros_like(vec)
-    indices = list(range(1, self.grid_dimension))
-    for dimension, geom in enumerate(self.geometries):
-      cost = geom.cost_matrix
-      ind = indices.copy()
-      ind.insert(dimension, 0)
-      if axis == 0:
-        cost = cost.T
-      accum_vec += jnp.sum(
-          jnp.tensordot(cost, vec, axes=([0], [dimension])),
-          axis=indices,
-          keepdims=True
-      ).transpose(ind)
-    return accum_vec.ravel()
+
+    def apply_row(ix: jnp.ndarray) -> jnp.ndarray:
+      # a row of the cost is the outer sum of the rows of the slices' costs
+      ixs = jnp.unravel_index(ix, self.grid_size)
+      rows = [cost[i] for cost, i in zip(cost_matrices, ixs, strict=True)]
+      return jnp.vdot(fn(functools.reduce(jnp.add.outer, rows)), vec)
+
+    batch_size = max(1, 2 ** 22 // vec.size)  # ~4M cost entries per batch
+    apply_rows = utils.batched_vmap(apply_row, batch_size=batch_size)
+    return apply_rows(jnp.arange(vec.size))
+
+  def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
+    """Apply elementwise-square of cost matrix to array (vector or matrix).
+
+    The square of the cost, a sum of Kronecker products, is again a sum of
+    Kronecker products, of the squared costs of the slices and of the products
+    of the costs of pairs of slices.
+
+    Args:
+      arr: array.
+      axis: axis of the array on which the cost matrix should be applied.
+
+    Returns:
+      An array of the same shape as ``arr``.
+    """
+    cost_matrices = self._cost_matrices(axis=axis)
+    terms = [{d: cost ** 2} for d, cost in enumerate(cost_matrices)]
+    for d, e in itertools.combinations(range(self.grid_dimension), 2):
+      terms.append({d: cost_matrices[d], e: 2.0 * cost_matrices[e]})
+
+    def apply(vec: jnp.ndarray) -> jnp.ndarray:
+      return sum(
+          self._apply_kronecker_to_vec(vec, matrices=term) for term in terms
+      )
+
+    if arr.ndim == 1:
+      return apply(arr)
+    return jax.vmap(apply, in_axes=1, out_axes=1)(arr)
+
+  def _cost_matrices(self, axis: int) -> List[jnp.ndarray]:
+    """Cost matrices of the slices, transposed if ``axis = 0``."""
+    return [
+        geom.cost_matrix.T if axis == 0 else geom.cost_matrix
+        for geom in self.geometries
+    ]
+
+  def _apply_kronecker_to_vec(
+      self, vec: jnp.ndarray, matrices: Dict[int, jnp.ndarray]
+  ) -> jnp.ndarray:
+    """Apply a Kronecker product of ``matrices`` and of matrices of 1's."""
+    vec = jnp.reshape(vec, self.grid_size)
+    for d in range(self.grid_dimension):
+      if d in matrices:
+        vec = jnp.moveaxis(jnp.tensordot(matrices[d], vec, axes=(1, d)), 0, d)
+      else:
+        vec = jnp.sum(vec, axis=d, keepdims=True)
+    return jnp.broadcast_to(vec, self.grid_size).ravel()
 
   def apply_kernel(
       self,
@@ -286,7 +358,7 @@ class Grid(geometry.Geometry):
     vec = jnp.reshape(vec, self.grid_size)
     indices = list(range(1, self.grid_dimension))
     for dimension, geom in enumerate(self.geometries):
-      kernel = geom.kernel_matrix
+      kernel = geom.kernel_matrix.T if axis == 1 else geom.kernel_matrix
       kernel = kernel if eps is None else kernel ** (self.epsilon / eps)
       ind = indices.copy()
       ind.insert(dimension, 0)
