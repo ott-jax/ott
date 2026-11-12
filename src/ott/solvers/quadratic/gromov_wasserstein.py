@@ -286,8 +286,6 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         linear_state=linear_state,
         geom=linearization.geom,
         converged=converged,
-        ot_prob=prob,
-        epsilon=self.epsilon,
     )
 
   def init_state(
@@ -326,11 +324,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def output_from_state(
       self,
+      ot_prob: quadratic_problem.QuadraticProblem,
       state: GWState,
   ) -> GWOutput:
     """Create an output from a loop state.
 
     Arguments:
+      ot_prob: Quadratic OT problem.
       state: A GWState.
 
     Returns:
@@ -342,7 +342,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         errors=state.errors,
         linear_state=state.linear_state,
         geom=state.linear_pb.geom,
-        old_transport_mass=state.old_transport_mass
+        old_transport_mass=state.old_transport_mass,
+        ot_prob=ot_prob,
+        epsilon=self.epsilon,
     )
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
@@ -433,4 +435,4 @@ def iterations(
       state=solver.init_state(prob, init)
   )
 
-  return solver.output_from_state(state)
+  return solver.output_from_state(prob, state)

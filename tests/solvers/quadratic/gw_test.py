@@ -451,6 +451,16 @@ class TestGromovWasserstein:
     assert out.n_iters == n_iters
     assert out.converged
 
+  def test_output_from_state(self, clouds: _utils.QuadClouds):
+    prob = clouds.quad_problem()
+    solver = gromov_wasserstein.GromovWasserstein(sinkhorn.Sinkhorn())
+    init = solver.initializer(prob, epsilon=solver.epsilon)
+    state = solver.init_state(prob, init)
+
+    out = solver.output_from_state(prob, state)
+
+    np.testing.assert_allclose(out.matrix, state.linear_state.matrix, rtol=1e-6)
+
   def test_ugw_cost(self, rng: jax.Array):
 
     def kl_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
