@@ -314,6 +314,8 @@ def _apply_scan(
     vmapped_fun: Callable[P, R], in_axes: Optional[Union[int, Sequence[int],
                                                          Any]]
 ) -> Callable[P, R]:
+  # Recompute batch intermediates instead of retaining them across all batches.
+  vmapped_fun = jax.checkpoint(vmapped_fun, prevent_cse=False)
 
   def num_steps(axes: List[Any], args: Tuple[Any, ...]) -> int:
     ix = next(ix for ix, axis in enumerate(axes) if axis is not None)
@@ -362,6 +364,8 @@ def batched_vmap(
     out_axes: Any = 0,
 ) -> Callable[P, R]:
   """Batched version of :func:`~jax.vmap`.
+
+  Batch intermediates are recomputed during reverse-mode differentiation.
 
   Args:
     fun: Function to be mapped over additional axes.
