@@ -128,3 +128,31 @@ class TestMMSinkhorn:
                                first_order,
                                rtol=1e-3,
                                atol=1e-3)
+
+  @pytest.mark.parametrize("min_iterations", [30, 34])
+  def test_min_iterations(self, rng: jax.Array, min_iterations: int):
+    """Test that errors are recorded once ``min_iterations`` are done."""
+    x_s = [jr.normal(rng, (7, 2)) for rng in jr.split(rng, 3)]
+
+    out = mmsinkhorn.MMSinkhorn(min_iterations=min_iterations)(x_s)
+
+    errors = out.errors[:, 0]
+    first = (min_iterations - 1) // 10
+    np.testing.assert_array_equal(errors[:first], jnp.inf)
+    assert 0 < errors[first] < jnp.inf
+    assert out.converged
+
+  @pytest.mark.parametrize(("max_iterations", "converged"), [(15, False),
+                                                             (100, True)])
+  def test_scan_converged(
+      self, rng: jax.Array, max_iterations: int, converged: bool
+  ):
+    """Test the converged flag when running a scan loop."""
+    x_s = [jr.normal(rng, (7, 2)) for rng in jr.split(rng, 3)]
+    solver = mmsinkhorn.MMSinkhorn(
+        min_iterations=max_iterations, max_iterations=max_iterations
+    )
+
+    out = solver(x_s)
+
+    assert out.converged == converged

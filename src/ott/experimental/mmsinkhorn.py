@@ -224,8 +224,7 @@ class MMSinkhorn:
       ``max_iterations`` is equal to ``min_iterations``, Sinkhorn iterations are
       run by default using a :func:`~jax.lax.scan` loop rather than a custom,
       unroll-able :func:`~jax.lax.while_loop` that monitors convergence.
-      In that case the error is not monitored and the ``converged``
-      flag will return :obj:`False` as a consequence.
+      In that case the error is only computed at the last iteration.
     use_danskin: when :obj:`True`, it is assumed the entropy regularized cost
       is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
@@ -386,7 +385,9 @@ def run(
     err = jax.lax.cond(
         jnp.logical_or(
             iteration == solver.max_iterations - 1,
-            jnp.logical_and(compute_error, iteration >= solver.min_iterations)
+            jnp.logical_and(
+                compute_error, iteration + 1 >= solver.min_iterations
+            )
         ),
         lambda state, c, a, e: state.solution_error(c, a, e, solver.norm_error),
         lambda *_: jnp.inf, state, cost_t, a_s, epsilon
@@ -399,10 +400,8 @@ def run(
       cond_fn, body_fn, solver.min_iterations, solver.max_iterations,
       solver.inner_iterations, const, state
   )
-  converged = jnp.logical_and(
-      jnp.logical_not(jnp.any(jnp.isnan(state.errors))), state.errors[-1, 0]
-      < solver.threshold
-  )
+  n_iters = solver.inner_iterations * jnp.sum(state.errors[:, 0] != -1)
+  converged = solver._converged(state, n_iters)
 
   out = MMSinkhornOutput(
       potentials=state.potentials,
