@@ -220,6 +220,18 @@ class LRCGeometry(geometry.Geometry):
         scale_cost=1.0,
     )
 
+  def subset(  # noqa: D102
+      self,
+      row_ixs: Optional[jnp.ndarray] = None,
+      col_ixs: Optional[jnp.ndarray] = None,
+  ) -> "LRCGeometry":
+    (cost_1, cost_2, *rest), aux_data = self.tree_flatten()
+    if row_ixs is not None:
+      cost_1 = cost_1[jnp.atleast_1d(row_ixs)]
+    if col_ixs is not None:
+      cost_2 = cost_2[jnp.atleast_1d(col_ixs)]
+    return type(self).tree_unflatten(aux_data, (cost_1, cost_2, *rest))
+
   @property
   def dtype(self) -> jnp.dtype:  # noqa: D102
     return self._cost_1.dtype
@@ -261,7 +273,6 @@ class LRKGeometry(geometry.Geometry):
     k1: Array of shape ``[num_a, r]`` with positive features.
     k2: Array of shape ``[num_b, r]`` with positive features.
     epsilon: Epsilon regularization.
-    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -269,9 +280,8 @@ class LRKGeometry(geometry.Geometry):
       k1: jnp.ndarray,
       k2: jnp.ndarray,
       epsilon: Optional[float] = None,
-      **kwargs: Any
   ):
-    super().__init__(epsilon=epsilon, relative_epsilon=None, **kwargs)
+    super().__init__(epsilon=epsilon)
     self.k1 = k1
     self.k2 = k2
 
@@ -340,8 +350,16 @@ class LRKGeometry(geometry.Geometry):
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
+    return self.epsilon * self._kernel_cost
+
+  @property
+  def _kernel_cost(self) -> jnp.ndarray:
     eps = jnp.finfo(self.dtype).tiny
-    return -self.epsilon * jnp.log(self.kernel_matrix + eps)
+    return -jnp.log(self.kernel_matrix + eps)
+
+  @property
+  def _epsilon_geom(self) -> geometry.Geometry:
+    return geometry.Geometry(cost_matrix=self._kernel_cost)
 
   @property
   def rank(self) -> int:  # noqa: D102
@@ -360,6 +378,18 @@ class LRKGeometry(geometry.Geometry):
   ) -> jnp.ndarray:
     """Not implemented."""
     raise ValueError("Not implemented.")
+
+  def subset(  # noqa: D102
+      self,
+      row_ixs: Optional[jnp.ndarray] = None,
+      col_ixs: Optional[jnp.ndarray] = None,
+  ) -> "LRKGeometry":
+    (k1, k2, *rest), aux_data = self.tree_flatten()
+    if row_ixs is not None:
+      k1 = k1[jnp.atleast_1d(row_ixs)]
+    if col_ixs is not None:
+      k2 = k2[jnp.atleast_1d(col_ixs)]
+    return type(self).tree_unflatten(aux_data, (k1, k2, *rest))
 
   def tree_flatten(self):  # noqa: D102
     return [self.k1, self.k2, self._epsilon_init], {}

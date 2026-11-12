@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Callable, Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import pytest
 
@@ -184,6 +184,45 @@ class TestLRGeometry:
     actual = geom_lr.cost_matrix
 
     np.testing.assert_allclose(actual, expected, rtol=1e-3, atol=1e-3)
+
+  @pytest.mark.parametrize(("row_ixs", "col_ixs"), [
+      ([0, 3], None),
+      (None, [1, 2, 4]),
+      ([0, 3], [1, 2, 4]),
+  ])
+  def test_subset(
+      self, rng: jax.Array, row_ixs: Optional[List[int]],
+      col_ixs: Optional[List[int]]
+  ):
+    rng1, rng2 = jr.split(rng, 2)
+    c1 = jr.normal(rng1, (7, 3))
+    c2 = jr.normal(rng2, (5, 3))
+    geom = low_rank.LRCGeometry(c1, c2, bias=0.5)
+
+    expected = geom.cost_matrix
+    if row_ixs is not None:
+      row_ixs = jnp.asarray(row_ixs)
+      expected = expected[row_ixs]
+    if col_ixs is not None:
+      col_ixs = jnp.asarray(col_ixs)
+      expected = expected[:, col_ixs]
+    actual = geom.subset(row_ixs=row_ixs, col_ixs=col_ixs).cost_matrix
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-6, atol=1e-6)
+
+  @pytest.mark.parametrize("epsilon", [None, 1e-1, 1e-2])
+  def test_kernel_matrix(self, rng: jax.Array, epsilon: Optional[float]):
+    rng1, rng2 = jr.split(rng, 2)
+    c1 = jr.uniform(rng1, (7, 3))
+    c2 = jr.uniform(rng2, (5, 3))
+    geom = low_rank.LRCGeometry(c1, c2, bias=0.5, epsilon=epsilon)
+
+    np.testing.assert_allclose(
+        geom.kernel_matrix,
+        jnp.exp(-geom.cost_matrix / geom.epsilon),
+        rtol=1e-6,
+        atol=1e-6
+    )
 
   @pytest.mark.parametrize("axis", [0, 1])
   @pytest.mark.parametrize("fn", [lambda x: x + 10, lambda x: x * 2])

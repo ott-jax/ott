@@ -83,6 +83,17 @@ class TestGeodesic:
     np.testing.assert_allclose(cost_matrix, cost_matrix.T, rtol=tol, atol=tol)
     np.testing.assert_array_less(0, cost_matrix)
 
+  def test_cost_matches_kernel(self):
+    G = _graphs.random_graph(20, p=0.5)
+    geom = geodesic.Geodesic.from_graph(G, t=0.5)
+
+    np.testing.assert_allclose(
+        jnp.exp(-geom.cost_matrix / geom.epsilon),
+        geom.kernel_matrix,
+        rtol=1e-5,
+        atol=1e-5
+    )
+
   @pytest.mark.fast.with_args(
       order=[50, 100, 200],
       t=[1e-4, 1e-5],
@@ -146,11 +157,6 @@ class TestGeodesic:
     )
 
     expected = laplacian(G)
-    eigenvalues = jnp.linalg.eigvals(expected)
-    eigval = jnp.max(eigenvalues)
-    # rescale the laplacian
-    expected = 2 * expected / eigval if eigval > 2 else expected
-
     actual = geom.scaled_laplacian
 
     np.testing.assert_allclose(actual, expected, rtol=1e-5, atol=1e-5)
@@ -180,10 +186,10 @@ class TestGeodesic:
     assert gt_out.converged
     assert graph_out.converged
     np.testing.assert_allclose(
-        graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol
+        graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol * eps
     )
-    np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol)
-    np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol)
+    np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol * eps)
+    np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol * eps)
 
     for axis in [0, 1]:
       y_gt = gt_out.apply(x, axis=axis, lse_mode=False)
@@ -198,11 +204,16 @@ class TestGeodesic:
   def test_geometry_differentiability(self, rng: jax.Array):
 
     def callback(geom: geodesic.Geodesic) -> float:
-      solver = sinkhorn.Sinkhorn(lse_mode=False)
+      solver = sinkhorn.Sinkhorn(lse_mode=False, threshold=1e-6)
       prob = linear_problem.LinearProblem(geom)
       return solver(prob).reg_ot_cost
 
-    eps = 1e-3
+    def perturb(v: jnp.ndarray) -> geodesic.Geodesic:
+      return geodesic.Geodesic(
+          geom.scaled_laplacian + v, geom.eigval, geom.chebyshev_coeffs, geom.t
+      )
+
+    eps = 1e-2
     G = _graphs.random_graph(20, p=0.5)
     geom = geodesic.Geodesic.from_graph(G, t=1.0)
 
@@ -210,12 +221,10 @@ class TestGeodesic:
     v_w = (v_w / jnp.linalg.norm(v_w, axis=-1, keepdims=True)) * eps
 
     grad_sl = jax.grad(callback)(geom).scaled_laplacian
-    geom__finite_right = geodesic.Geodesic.from_graph(G + v_w, t=1.0)
-    geom__finite_left = geodesic.Geodesic.from_graph(G - v_w, t=1.0)
 
-    expected = callback(geom__finite_right) - callback(geom__finite_left)
+    expected = callback(perturb(v_w)) - callback(perturb(-v_w))
     actual = 2 * jnp.vdot(v_w, grad_sl)
-    np.testing.assert_allclose(actual, expected, rtol=1e-4, atol=1e-4)
+    np.testing.assert_allclose(actual, expected, rtol=1e-2, atol=1e-5)
 
   @pytest.mark.parametrize("normalize", [False, True])
   @pytest.mark.parametrize("t", [5, 10, 50])
@@ -229,11 +238,23 @@ class TestGeodesic:
     if is_sparse:
       G = jesp.BCOO.fromdense(G)
     geom = geodesic.Geodesic.from_graph(
-        G, t=t, order=order, normalize=normalize
+        G, t=t, order=order if normalize else 10 * order, normalize=normalize
     )
     approx = geom.apply_kernel(jnp.eye(G.shape[0]))
 
     np.testing.assert_allclose(exact, approx, rtol=1e-1, atol=1e-1)
+
+  @pytest.mark.parametrize("is_sparse", [True, False])
+  def test_heat_kernel_unnormalized_laplacian(self, is_sparse: bool):
+    t = 0.1
+    G = _graphs.random_graph(20, p=0.5)
+    exact = exact_heat_kernel(G, t=t)
+    if is_sparse:
+      G = jesp.BCOO.fromdense(G)
+    geom = geodesic.Geodesic.from_graph(G, t=t)
+    approx = geom.apply_kernel(jnp.eye(G.shape[0]))
+
+    np.testing.assert_allclose(approx, exact, rtol=1e-3, atol=1e-4)
 
   @pytest.mark.limit_memory("150 MB")
   def test_sparse_geo_memory(self, rng: jax.Array):

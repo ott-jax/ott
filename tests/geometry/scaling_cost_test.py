@@ -21,7 +21,7 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
-from ott.geometry import geometry, low_rank, pointcloud
+from ott.geometry import costs, geometry, low_rank, pointcloud
 from ott.problems.linear import linear_problem
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 
@@ -134,6 +134,24 @@ class TestScaleCost:
       np.testing.assert_allclose(1.0, geom1.cost_matrix.mean(), rtol=1e-4)
     elif scale == "max_cost":
       np.testing.assert_allclose(1.0, geom1.cost_matrix.max(), rtol=1e-4)
+
+  @pytest.mark.fast()
+  def test_max_cost_signed(self, data: ScaleCostData):
+    x, y = jnp.abs(data.x), jnp.abs(data.y)
+    cost_fn = costs.NegDotProduct()
+    cost = cost_fn.all_pairs(x, y)
+    expected = cost / jnp.max(jnp.abs(cost))
+
+    for geom in [
+        pointcloud.PointCloud(x, y, cost_fn=cost_fn, scale_cost="max_cost"),
+        pointcloud.PointCloud(
+            x, y, cost_fn=cost_fn, scale_cost="max_cost", batch_size=4
+        ),
+        geometry.Geometry(cost_matrix=cost, scale_cost="max_cost"),
+    ]:
+      np.testing.assert_allclose(
+          geom.cost_matrix, expected, rtol=1e-5, atol=1e-5
+      )
 
   @pytest.mark.fast.with_args(
       "scale", ["median", "mean", "max_cost", 100.0], only_fast=1

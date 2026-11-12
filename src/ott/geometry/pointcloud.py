@@ -340,7 +340,7 @@ class PointCloud(geometry.Geometry):
     if self._scale_cost == "max_cost":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)
-      return 1.0 / jnp.max(self._unscaled_cost_matrix)
+      return 1.0 / jnp.max(jnp.abs(self._unscaled_cost_matrix))
     if self._scale_cost == "mean":
       if self.is_online:
         return 1.0 / self._compute_summary_online(self._scale_cost)

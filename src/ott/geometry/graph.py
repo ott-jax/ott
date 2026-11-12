@@ -13,7 +13,6 @@
 # limitations under the License.
 from typing import Any, Dict, Literal, Optional, Sequence, Tuple
 
-import jax
 import jax.numpy as jnp
 import jax.scipy as jsp
 import jax.tree_util as jtu
@@ -44,7 +43,6 @@ class Graph(geometry.Geometry):
     tol: Relative tolerance with respect to the Hilbert metric, see
       :cite:`peyre:19`, Remark 4.12. Used when iteratively updating scalings.
       If negative, this option is ignored and only ``n_steps`` is used.
-    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -55,9 +53,8 @@ class Graph(geometry.Geometry):
       numerical_scheme: Literal["backward_euler",
                                 "crank_nicolson"] = "backward_euler",
       tol: float = -1.0,
-      **kwargs: Any
   ):
-    super().__init__(epsilon=1.0, **kwargs)
+    super().__init__(epsilon=t)
     self.laplacian = laplacian
     self.t = t
     self.n_steps = n_steps
@@ -157,7 +154,7 @@ class Graph(geometry.Geometry):
         # as CSR/CSC/COO matrices don't support adding a diagonal matrix now:
         # b' = (2 * I - M) @ b = (2 * I - (I + c * L)) @ b = (I - c * L) @ b
         b = b - scaled_lap @ b
-      return b, jsp.linalg.solve_triangular(L, b, lower=True)
+      return b, jsp.linalg.cho_solve((L, True), b)
 
     # eps we cannot use since it would require a re-solve
     # axis we can ignore since the matrix is symmetric
@@ -190,16 +187,11 @@ class Graph(geometry.Geometry):
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
-    # Symmetrize the kernel if needed. Numerical imprecision
-    # happens when `numerical_scheme='backward_euler'` and small `t`
-    return jax.lax.cond(
-        jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
-        lambda x: (x + x.T) / 2.0, kernel
-    )
+    return (kernel + kernel.T) / 2.0
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
-    return -self.t * mu.safe_log(self.kernel_matrix)
+    return -self.epsilon * mu.safe_log(self.kernel_matrix)
 
   @property
   def _scale(self) -> float:
@@ -207,7 +199,7 @@ class Graph(geometry.Geometry):
     if self.numerical_scheme == "backward_euler":
       return self.t / (4.0 * self.n_steps)
     if self.numerical_scheme == "crank_nicolson":
-      return self.t / (2.0 * self.n_steps)
+      return self.t / (8.0 * self.n_steps)
     raise NotImplementedError(
         f"Numerical scheme `{self.numerical_scheme}` is not implemented."
     )

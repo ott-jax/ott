@@ -243,6 +243,18 @@ class TestSinkhornDivergence:
     assert len(out.potentials) == 3
     assert len(out.geoms) == 3
 
+    div_kernel, out = sinkhorn_divergence.sinkhorn_divergence(
+        geometry.Geometry,
+        kernel_matrix=tuple(jnp.exp(-c / 0.1) for c in (cxy, cxx, cyy)),
+        epsilon=0.1,
+        a=clouds.a,
+        b=clouds.b,
+        solve_kwargs={"threshold": 1e-2},
+    )
+    np.testing.assert_allclose(div_kernel, div, rtol=1e-3, atol=1e-3)
+    assert len(out.potentials) == 3
+    assert len(out.geoms) == 3
+
   @pytest.mark.parametrize("shuffle", [False, True])
   def test_segment_sinkdiv_result(
       self, clouds: _utils.PointClouds, rng: jax.Array, shuffle: bool

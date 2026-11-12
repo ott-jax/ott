@@ -77,4 +77,6 @@ def gt_geometry(
 
   cost = jnp.asarray(cost)
   kernel = jnp.asarray(np.exp(-cost / epsilon))
-  return geometry.Geometry(cost_matrix=cost, kernel_matrix=kernel, epsilon=1.0)
+  return geometry.Geometry(
+      cost_matrix=cost, kernel_matrix=kernel, epsilon=epsilon
+  )

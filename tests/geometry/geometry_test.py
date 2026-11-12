@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import pytest
 
 import jax
@@ -47,3 +49,59 @@ class TestCostMeanStd:
 
     eps = pointcloud.PointCloud(x, y, relative_epsilon="std").epsilon
     np.testing.assert_allclose(default_scale * std, eps, rtol=1e-5, atol=1e-5)
+
+
+@pytest.mark.fast()
+class TestApplyKernel:
+
+  def test_apply_kernel_eps(self, rng: jax.Array):
+    cost = jr.uniform(rng, (4, 5), maxval=10.0)
+    vec = jnp.ones(5)
+    geom = geometry.Geometry(cost_matrix=cost, epsilon=1e-2)
+
+    actual = geom.apply_kernel(vec, eps=1.0, axis=1)
+
+    np.testing.assert_allclose(
+        actual, jnp.exp(-geom.cost_matrix) @ vec, rtol=1e-5
+    )
+
+
+@pytest.mark.fast()
+class TestKernelGeometry:
+
+  @pytest.mark.parametrize(("epsilon", "relative_epsilon"), [
+      (None, None),
+      (0.5, None),
+      (None, "mean"),
+      (0.5, "std"),
+  ])
+  def test_cost_matches_kernel(
+      self, rng: jax.Array, epsilon: Optional[float],
+      relative_epsilon: Optional[str]
+  ):
+    kernel = jr.uniform(rng, (5, 7), minval=0.1, maxval=1.0)
+    geom = geometry.Geometry(
+        kernel_matrix=kernel,
+        epsilon=epsilon,
+        relative_epsilon=relative_epsilon
+    )
+
+    np.testing.assert_allclose(geom.kernel_matrix, kernel)
+    np.testing.assert_allclose(
+        jnp.exp(-geom.cost_matrix / geom.epsilon), kernel, rtol=1e-5, atol=1e-5
+    )
+
+  def test_default_epsilon(self, rng: jax.Array):
+    kernel = jr.uniform(rng, (5, 7), minval=0.1, maxval=1.0)
+    geom = geometry.Geometry(kernel_matrix=kernel)
+
+    std = jnp.std(-jnp.log(kernel))
+    expected = epsilon_scheduler.DEFAULT_EPSILON_SCALE * std
+    np.testing.assert_allclose(geom.epsilon, expected, rtol=1e-5, atol=1e-5)
+
+  def test_scale_cost_requires_cost_matrix(self, rng: jax.Array):
+    kernel = jr.uniform(rng, (5, 7), minval=0.1, maxval=1.0)
+    geom = geometry.Geometry(kernel_matrix=kernel, scale_cost="mean")
+
+    with pytest.raises(ValueError, match="requires a cost matrix"):
+      _ = geom.cost_matrix

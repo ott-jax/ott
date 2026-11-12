@@ -40,14 +40,14 @@ class Geodesic(geometry.Geometry):
   Approximates the heat kernel using
   `Chebyshev polynomials <https://en.wikipedia.org/wiki/Chebyshev_polynomials>`_
   of the first kind of max order ``order``, which for small ``t``
-  approximates the geodesic exponential kernel :math:`e^{\frac{-d(x, y)^2}{t}}`.
+  approximates the geodesic exponential kernel
+  :math:`e^{\frac{-d(x, y)^2}{4t}}`.
 
   Args:
-    scaled_laplacian: The Laplacian scaled by the largest eigenvalue.
+    scaled_laplacian: The graph Laplacian.
     eigval: The largest eigenvalue of the Laplacian.
     chebyshev_coeffs: Coefficients of the Chebyshev polynomials.
     t: Time parameter for the heat kernel.
-    kwargs: Keyword arguments for :class:`~ott.geometry.geometry.Geometry`.
   """
 
   def __init__(
@@ -56,9 +56,8 @@ class Geodesic(geometry.Geometry):
       eigval: jnp.ndarray,
       chebyshev_coeffs: jnp.ndarray,
       t: float = 1e-3,
-      **kwargs: Any
   ):
-    super().__init__(epsilon=1.0, **kwargs)
+    super().__init__(epsilon=4.0 * t)
     self.scaled_laplacian = scaled_laplacian
     self.eigval = eigval
     self.chebyshev_coeffs = chebyshev_coeffs
@@ -116,17 +115,13 @@ class Geodesic(geometry.Geometry):
     if eigval is None:
       eigval = compute_largest_eigenvalue(laplacian, rng)
 
-    scaled_laplacian, eigval = jax.lax.cond((eigval > 2.0), lambda l:
-                                            (2.0 * l / eigval, 2.0), lambda l:
-                                            (l, eigval), laplacian)
-
     # compute the coeffs of the Chebyshev pols approx using Bessel funcs
     chebyshev_coeffs = compute_chebychev_coeff_all(
         0.5 * eigval, t, order, laplacian.dtype
     )
 
     return cls(
-        scaled_laplacian=scaled_laplacian,
+        scaled_laplacian=laplacian,
         eigval=eigval,
         chebyshev_coeffs=chebyshev_coeffs,
         t=t,
@@ -157,15 +152,12 @@ class Geodesic(geometry.Geometry):
   def kernel_matrix(self) -> jnp.ndarray:  # noqa: D102
     n, _ = self.shape
     kernel = self.apply_kernel(jnp.eye(n))
-    return jax.lax.cond(
-        jnp.allclose(kernel, kernel.T, atol=1e-8, rtol=1e-8), lambda x: x,
-        lambda x: (x + x.T) / 2.0, kernel
-    )
+    return (kernel + kernel.T) / 2.0
 
   @property
   def cost_matrix(self) -> jnp.ndarray:  # noqa: D102
     # Calculate the cost matrix using the formula (5) from the main reference
-    return -4.0 * self.t * mu.safe_log(self.kernel_matrix)
+    return -self.epsilon * mu.safe_log(self.kernel_matrix)
 
   @property
   def shape(self) -> Tuple[int, int]:  # noqa: D102

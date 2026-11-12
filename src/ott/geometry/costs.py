@@ -593,14 +593,22 @@ class Cosine(CostFn):
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray) -> float:
     """Cosine distance between vectors, denominator regularized with ridge."""
-    x_norm = jnp.linalg.norm(x, axis=-1)
-    y_norm = jnp.linalg.norm(y, axis=-1)
+    x_norm = mu.norm(x, axis=-1)
+    y_norm = mu.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
     return 1.0 - cosine_similarity
 
   @classmethod
   def _padder(cls, dim: int) -> jnp.ndarray:
     return jnp.ones((1, dim))
+
+  def tree_flatten(self):  # noqa: D102
+    return (), (self._ridge,)
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    del children
+    return cls(*aux_data)
 
 
 @jtu.register_pytree_node_class
@@ -628,8 +636,8 @@ class Arccos(CostFn):
     self._ridge = ridge
 
   def __call__(self, x: jnp.ndarray, y: jnp.ndarray):  # noqa: D102
-    x_norm = jnp.linalg.norm(x, axis=-1)
-    y_norm = jnp.linalg.norm(y, axis=-1)
+    x_norm = mu.norm(x, axis=-1)
+    y_norm = mu.norm(y, axis=-1)
     cosine_similarity = jnp.vdot(x, y) / (x_norm * y_norm + self._ridge)
     theta = jnp.arccos(cosine_similarity)
 
@@ -745,7 +753,7 @@ class Bures(CostFn):
     def cond_fn(iteration: int, constants: Tuple[Any, ...], state) -> bool:
       del constants
       _, diffs = state
-      return diffs[iteration // inner_iterations] > tolerance
+      return diffs[iteration // inner_iterations - 1] > tolerance
 
     def body_fn(
         iteration: int, constants: Tuple[Any, ...],

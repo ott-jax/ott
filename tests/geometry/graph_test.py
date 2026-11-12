@@ -22,6 +22,7 @@ import jax
 import jax.experimental.sparse as jesp
 import jax.numpy as jnp
 import jax.random as jr
+import jax.scipy as jsp
 import numpy as np
 
 from ott.geometry import geometry, graph
@@ -45,8 +46,6 @@ class TestGraph:
     vec_direct0 = geom.kernel_matrix.T @ x
     vec_direct1 = geom.kernel_matrix @ x
 
-    # we symmetrize the kernel explicitly when materializing it, because
-    # numerical error arise  for small `t` and `backward_euler`
     np.testing.assert_array_equal(kernel, kernel.T)
     np.testing.assert_array_equal(jnp.linalg.eigvals(kernel) > 0.0, True)
     # internally, the axis is ignored because the kernel is symmetric
@@ -55,6 +54,17 @@ class TestGraph:
 
     np.testing.assert_allclose(vec0, vec_direct0, rtol=tol, atol=tol)
     np.testing.assert_allclose(vec1, vec_direct1, rtol=tol, atol=tol)
+
+  def test_cost_matches_kernel(self):
+    G = _graphs.random_graph(20, p=0.5)
+    geom = graph.Graph.from_graph(G, t=0.5)
+
+    np.testing.assert_allclose(
+        jnp.exp(-geom.cost_matrix / geom.epsilon),
+        geom.kernel_matrix,
+        rtol=1e-5,
+        atol=1e-5
+    )
 
   def test_automatic_t(self):
     G = _graphs.random_graph(38, return_laplacian=False)
@@ -92,12 +102,29 @@ class TestGraph:
         atol=1e-2
     )
 
+  @pytest.mark.parametrize(
+      "numerical_scheme", ["backward_euler", "crank_nicolson"]
+  )
+  def test_approximates_heat_kernel(
+      self, numerical_scheme: Literal["backward_euler", "crank_nicolson"]
+  ):
+    t, n_steps = 0.1, 1000
+    G = _graphs.random_graph(20, p=0.5)
+    geom = graph.Graph.from_graph(
+        G, t=t, n_steps=n_steps, numerical_scheme=numerical_scheme
+    )
+
+    expected = jsp.linalg.expm(-t / 4.0 * geom.laplacian)
+    actual = geom.apply_kernel(jnp.eye(G.shape[0]))
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-2, atol=1e-3)
+
   @pytest.mark.fast.with_args(
       n_steps=[50, 100, 200],
       t=[1e-4, 1e-5],
       only_fast=0,
   )
-  def test_crank_nicolson_more_stable(self, t: Optional[float], n_steps: int):
+  def test_cost_is_symmetric(self, t: Optional[float], n_steps: int):
     tol = 5 * t
     G = nx.linalg.adjacency_matrix(balanced_tree(r=2, h=5))
     G = jnp.asarray(G.toarray())
@@ -115,8 +142,7 @@ class TestGraph:
     cn_cost = -t * jnp.log(cn_geom.apply_kernel(eye) + eps)
 
     np.testing.assert_allclose(cn_cost, cn_cost.T, rtol=tol, atol=tol)
-    with pytest.raises(AssertionError):
-      np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
+    np.testing.assert_allclose(be_cost, be_cost.T, rtol=tol, atol=tol)
 
   @pytest.mark.parametrize(("jit", "normalize"), [(False, True), (True, False)])
   def test_directed_graph(self, jit: bool, normalize: bool):
@@ -186,10 +212,10 @@ class TestGraph:
     assert gt_out.converged
     assert graph_out.converged
     np.testing.assert_allclose(
-        graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol
+        graph_out.reg_ot_cost, gt_out.reg_ot_cost, rtol=tol, atol=tol * eps
     )
-    np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol)
-    np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol)
+    np.testing.assert_allclose(graph_out.f, gt_out.f, rtol=tol, atol=tol * eps)
+    np.testing.assert_allclose(graph_out.g, gt_out.g, rtol=tol, atol=tol * eps)
 
     for axis in [0, 1]:
       y_gt = gt_out.apply(x, axis=axis, lse_mode=False)

@@ -72,6 +72,20 @@ class TestCostFn:
             atol=1e-5,
         )
 
+  def test_cosine_grad_at_zero(self):
+    y = jnp.ones(3)
+    grad = jax.grad(costs.Cosine(ridge=1.0))(jnp.zeros(3), y)
+    np.testing.assert_allclose(grad, -y, rtol=1e-6)
+
+  @pytest.mark.parametrize("n", [0, 1, 2])
+  def test_arccos_grad_at_zero(self, n: int):
+    grad = jax.grad(costs.Arccos(n))(jnp.zeros(3), jnp.ones(3))
+    np.testing.assert_array_equal(jnp.isfinite(grad), True)
+
+  def test_cosine_tree_flatten(self):
+    cost_fn = jax.tree.map(lambda x: x, costs.Cosine(ridge=0.5))
+    assert cost_fn._ridge == 0.5
+
 
 @pytest.mark.fast()
 class TestBuresBarycenter:
@@ -148,6 +162,23 @@ class TestBuresBarycenter:
     np.testing.assert_array_less((diffs[diffs > -1])[-1], tolerance)
     # Check right output size of difference vectors
     np.testing.assert_equal(diffs.shape[0], max_iterations // inner_iterations)
+
+  def test_bures_barycenter_stops_at_tolerance(self, rng: jax.Array):
+    d, k, tolerance = 3, 4, 1e-6
+    rngs = jr.split(rng, 2)
+    means = jr.normal(rngs[0], (k, d))
+    a = jr.normal(rngs[1], (k, d, d))
+    covs = a @ a.transpose(0, 2, 1) + 0.1 * jnp.eye(d)
+    xs = jnp.concatenate([means, covs.reshape(k, -1)], axis=1)
+    weights = jnp.full((k,), 1.0 / k)
+
+    _, diffs = costs.Bures(d).barycenter(
+        weights, xs, tolerance=tolerance, inner_iterations=1
+    )
+    diffs = diffs[diffs > -1]
+
+    np.testing.assert_array_less(tolerance, diffs[:-1])
+    np.testing.assert_array_less(diffs[-1], tolerance)
 
 
 class TestTICost:
