@@ -179,3 +179,16 @@ class TestMMSinkhorn:
     out = solver(x_s)
 
     assert out.converged == converged
+
+  @pytest.mark.usefixtures("enable_x64")
+  def test_float32_with_x64(self, rng: jax.Array):
+    n_s, d = [5, 6, 7], 2
+    x_s = [
+        jr.normal(rng, (n, d), dtype=jnp.float32)
+        for rng, n in zip(jr.split(rng, 3), n_s)
+    ]
+
+    out = mmsinkhorn.MMSinkhorn()(x_s)
+
+    for arr in (*out.potentials, out.errors, out.ent_reg_cost, out.tensor):
+      assert arr.dtype == jnp.float32

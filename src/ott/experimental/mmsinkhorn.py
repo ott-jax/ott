@@ -159,7 +159,7 @@ def cost_tensor(
 
   k = len(x_s)  # TODO(cuturi) padded version
   ns = [x.shape[0] for x in x_s]
-  cost_t = jnp.zeros(ns)
+  cost_t = jnp.zeros(ns, dtype=jnp.result_type(*x_s))
 
   for i in range(k):
     for j in range(i + 1, k):
@@ -290,29 +290,35 @@ class MMSinkhorn:
     elif isinstance(cost_fns, Tuple):
       assert len(cost_fns) == (len(n_s) * (len(n_s) - 1)) // 2
 
+    dtype = jnp.result_type(*x_s)
     # Default to uniform probability weights for each point cloud.
     if a_s is None:
-      a_s = [jnp.ones(n) / n for n in n_s]
+      a_s = [jnp.ones(n, dtype=dtype) / n for n in n_s]
     else:
       # Case in which user passes ``None`` weights within tuple.
-      a_s = [(jnp.ones(n) / n if a is None else a) for a, n in zip(a_s, n_s)]
+      a_s = [(jnp.ones(n, dtype=dtype) / n if a is None else a)
+             for a, n in zip(a_s, n_s)]
 
     assert len(n_s) == len(a_s), (len(n_s), len(a_s))
     for n, a in zip(n_s, a_s):
       assert n == a.shape[0], (n, a.shape[0])
 
     cost_t = cost_tensor(x_s, cost_fns)
-    state = self.init_state(n_s)
     if epsilon is None:
       epsilon = epsilon_scheduler.DEFAULT_EPSILON_SCALE * jnp.std(cost_t)
+    state = self.init_state(n_s, jnp.result_type(cost_t, epsilon, *a_s))
     const = cost_t, a_s, epsilon
     out = run(const, self, state)
     return out.set(x_s=x_s, a_s=a_s, cost_fns=cost_fns, epsilon=epsilon)
 
-  def init_state(self, n_s: Tuple[int, ...]) -> MMSinkhornState:
+  def init_state(
+      self,
+      n_s: Tuple[int, ...],
+      dtype: Optional[jnp.dtype] = None
+  ) -> MMSinkhornState:
     """Return the initial state of the loop."""
-    errors = -jnp.ones((self.outer_iterations, 1))
-    potentials = tuple(jnp.zeros(n) for n in n_s)
+    errors = -jnp.ones((self.outer_iterations, 1), dtype=dtype)
+    potentials = tuple(jnp.zeros(n, dtype=dtype) for n in n_s)
     return MMSinkhornState(potentials=potentials, errors=errors)
 
   def _converged(self, state: MMSinkhornState, iteration: int) -> bool:
@@ -392,7 +398,8 @@ def run(
             )
         ),
         lambda state, c, a, e: state.solution_error(c, a, e, solver.norm_error),
-        lambda *_: jnp.inf, state, cost_t, a_s, epsilon
+        lambda *_: jnp.array(jnp.inf, dtype=state.errors.dtype), state, cost_t,
+        a_s, epsilon
     )
     errors = state.errors.at[iteration // solver.inner_iterations, :].set(err)
     return state.set(errors=errors)
