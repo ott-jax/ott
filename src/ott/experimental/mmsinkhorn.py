@@ -59,11 +59,12 @@ class MMSinkhornOutput(NamedTuple):
   Args:
     potentials: Tuple of :math:`k` optimal dual variables, vectors of sizes
       equal to the number of points in each of the :math:`k` point clouds.
-    errors: Vector of errors, along iterations. This vector is of size
-      ``max_iterations // inner_iterations`` where those were the parameters
-      passed on to the :class:`~ott.experimental.mmsinkhorn.MMSinkhorn` solver.
-      Follows the conventions used in
-      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.errors`
+    errors: Array of errors, along iterations. This array is of shape
+      ``[ceil(max_iterations / inner_iterations), 1]`` where those were the
+      parameters passed on to the
+      :class:`~ott.experimental.mmsinkhorn.MMSinkhorn` solver. Follows the
+      conventions used in
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.errors`.
     x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size
       :math:`n_i \times d` where `d` is common to all point clouds.
     a_s: Tuple of :math:`k` probability vectors, each of size :math:`n_i`.

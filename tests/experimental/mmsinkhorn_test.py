@@ -45,7 +45,7 @@ class TestMMSinkhorn:
       b = None
     else:
       b = jr.uniform(rngs[3], (m,))
-      b.at[2].set(0.0)
+      b = b.at[2].set(0.0)
       b /= jnp.sum(b)
     cost_fn = costs.PNormP(1.8)
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
@@ -60,6 +60,10 @@ class TestMMSinkhorn:
     for axis in [0, 1]:
       f = out.potentials[axis]
       f_ms = out_ms.potentials[axis]
+      # the potentials are `-inf` at zero weights
+      supp = jnp.isfinite(f)
+      np.testing.assert_array_equal(jnp.isfinite(f_ms), supp)
+      f, f_ms = f[supp], f_ms[supp]
       f -= jnp.mean(f)
       f_ms -= jnp.mean(f_ms)
       np.testing.assert_allclose(f, f_ms, rtol=1e-3, atol=1e-3)
