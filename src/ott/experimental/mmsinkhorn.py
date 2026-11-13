@@ -109,9 +109,7 @@ class MMSinkhornOutput(NamedTuple):
   @property
   def tensor(self) -> jnp.ndarray:
     """Transport tensor."""
-    return jnp.exp(
-        -remove_tensor_sum(self.cost_t, self.potentials) / self.epsilon
-    )
+    return coupling_tensor(self.potentials, self.cost_t, self.epsilon)
 
   @property
   def marginals(self) -> Tuple[jnp.ndarray, ...]:

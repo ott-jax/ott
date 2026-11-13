@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List
+
 import pytest
 
 import jax
@@ -155,6 +157,28 @@ class TestMMSinkhorn:
     assert jnp.all(jnp.isfinite(g_a_s[0]))
     np.testing.assert_allclose(g_a_s[0][1:], g_a_s_supp[0], rtol=1e-4)
     np.testing.assert_allclose(g_eps, g_eps_supp, rtol=1e-4)
+
+  def test_tensor_grad_zero_weights(self, rng: jax.Array):
+    n_s, d = [5, 6, 7], 2
+    rng_x, rng_v, rng_w = jr.split(rng, 3)
+    x_s = [jr.normal(rng, (n, d)) for rng, n in zip(jr.split(rng_x, 3), n_s)]
+    v_s = [jr.normal(rng, (n, d)) for rng, n in zip(jr.split(rng_v, 3), n_s)]
+    a_s = [jnp.ones(n) / n for n in n_s]
+    a_s[0] = jnp.array([0.0, 0.25, 0.25, 0.25, 0.25])
+    w = jr.normal(rng_w, n_s)
+    solver = mmsinkhorn.MMSinkhorn(threshold=1e-6)
+
+    def loss(x_s: List[jnp.ndarray]) -> float:
+      # the default epsilon depends on `x_s`
+      return jnp.vdot(w, solver(x_s, a_s).tensor)
+
+    grad = jax.grad(loss)(x_s)
+    h = 1e-3
+    loss_p = loss([x + h * v for x, v in zip(x_s, v_s)])
+    loss_m = loss([x - h * v for x, v in zip(x_s, v_s)])
+
+    actual = sum(jnp.vdot(g, v) for g, v in zip(grad, v_s))
+    np.testing.assert_allclose(actual, (loss_p - loss_m) / (2 * h), rtol=1e-3)
 
   @pytest.mark.parametrize("min_iterations", [30, 34])
   def test_min_iterations(self, rng: jax.Array, min_iterations: int):
