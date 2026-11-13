@@ -732,6 +732,24 @@ class TestSinkhorn:
       captured = capsys.readouterr()
       assert captured.out.startswith("foo 7/14"), captured
 
+  def test_tqdm_progress_fn_total(self, clouds: _utils.PointClouds):
+    tqdm = pytest.importorskip("tqdm")
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=1e-1)
+
+    with tqdm.tqdm() as pbar:
+      progress_fn = utils.tqdm_progress_fn(pbar)
+      _ = linear.solve(
+          geom,
+          progress_fn=progress_fn,
+          min_iterations=15,
+          max_iterations=15,
+          inner_iterations=7,
+      )
+      jax.effects_barrier()
+
+    # the last block of 7 iterations is run in full
+    assert pbar.n == pbar.total == 3
+
   @pytest.mark.fast()
   def test_custom_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""

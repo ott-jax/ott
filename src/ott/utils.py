@@ -14,6 +14,7 @@
 import dataclasses
 import functools
 import io
+import math
 import warnings
 from collections.abc import Sequence
 from typing import (
@@ -210,7 +211,7 @@ def tqdm_progress_fn(
 
       postfix = fmt.format(iter=iteration, max_iter=total_iter, error=error)
       pbar.set_postfix_str(postfix)
-      pbar.total = total_iter // inner_iterations
+      pbar.total = math.ceil(total_iter / inner_iterations)
       pbar.update()
 
   return progress_callback
