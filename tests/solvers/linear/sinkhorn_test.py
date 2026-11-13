@@ -784,3 +784,22 @@ class TestSinkhorn:
     assert out.primal_cost.dtype == dtype
     assert out.dual_cost.dtype == dtype
     assert out.transport_mass.dtype == dtype
+
+  def test_sinkhorn_mixed_precision(self, clouds: _utils.PointClouds):
+    x, y = clouds.x.astype(jnp.float16), clouds.y.astype(jnp.float16)
+    a, b = clouds.a, clouds.b.astype(jnp.float16)
+    geom = pointcloud.PointCloud(x, y, epsilon=1e-1)
+    geom_32 = pointcloud.PointCloud(
+        x.astype(jnp.float32), y.astype(jnp.float32), epsilon=1e-1
+    )
+
+    out = linear.solve(geom, a=a, b=b, threshold=1e-3)
+    expected = linear.solve(
+        geom_32, a=a, b=b.astype(jnp.float32), threshold=1e-3
+    )
+
+    # promoted to the dtype of the marginals
+    assert out.f.dtype == jnp.float32
+    assert out.g.dtype == jnp.float32
+    assert out.errors.dtype == jnp.float32
+    np.testing.assert_allclose(out.reg_ot_cost, expected.reg_ot_cost, rtol=1e-3)

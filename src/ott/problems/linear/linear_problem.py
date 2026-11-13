@@ -105,8 +105,9 @@ class LinearProblem:
 
   @property
   def dtype(self) -> jnp.dtype:
-    """The data type of the geometry."""
-    return self.geom.dtype
+    """The data type of the geometry and of the marginals."""
+    marginals = [m for m in (self._a, self._b) if m is not None]
+    return jnp.result_type(self.geom.dtype, *marginals)
 
   def potential_fn_from_dual_vec(
       self,

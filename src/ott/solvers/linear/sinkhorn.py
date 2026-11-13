@@ -1023,6 +1023,7 @@ class Sinkhorn:
                                                                jnp.ndarray]
   ) -> SinkhornState:
     """Return the initial state of the loop."""
+    init = tuple(x.astype(ot_prob.dtype) for x in init)
     errors = -jnp.ones((self.outer_iterations, len(self.norm_error)),
                        dtype=ot_prob.dtype)
     state = SinkhornState(init, errors=errors)
