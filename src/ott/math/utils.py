@@ -172,7 +172,9 @@ def logsumexp_jvp(axis, keepdims, return_sign, primals, tangents):
   if b is None:
     res = jnp.sum(centered_exp * tan_mat, axis=axis, keepdims=keepdims)
   else:
-    res = jnp.sum(b * centered_exp * tan_mat, axis=axis, keepdims=keepdims)
+    # entries with zero weights are ignored, avoid `0 * inf` if they are large
+    weights = jnp.where(b != 0, b * centered_exp, 0.0)
+    res = jnp.sum(weights * tan_mat, axis=axis, keepdims=keepdims)
     res += jnp.sum(tan_b * centered_exp, axis=axis, keepdims=keepdims)
   if return_sign:
     return (lse, sign), (sign * res, jnp.zeros_like(sign))

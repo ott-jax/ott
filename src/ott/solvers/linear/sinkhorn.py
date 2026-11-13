@@ -263,7 +263,9 @@ def compute_kl_reg_cost(
     vec_a, vec_b = supp_a.astype(f.dtype), supp_b.astype(g.dtype)
     z_a, _ = geom.apply_lse_kernel(f, g, eps, vec=vec_b, axis=1)
     z_b, _ = geom.apply_lse_kernel(f, g, eps, vec=vec_a, axis=0)
-    total_sum = jnp.sum(jnp.where(supp_a, jnp.exp((z_a + f) / eps), 0.0))
+    # mask before the exponential, as it can overflow at zero weights
+    log_marginal = jnp.where(supp_a, (z_a + f) / eps, -jnp.inf)
+    total_sum = jnp.sum(jnp.exp(log_marginal))
   else:
     u, v = geom.scaling_from_potential(f), geom.scaling_from_potential(g)
     kv = geom.apply_kernel(v, eps, axis=1)
