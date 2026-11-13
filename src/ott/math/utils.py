@@ -200,16 +200,35 @@ def softmin(
   return -gamma * jsp.special.logsumexp(x / -gamma, axis=axis)
 
 
-softmin.defvjp(
-    lambda x, gamma, axis: (softmin(x, gamma, axis), (x / -gamma, axis)),
-    lambda axis, res, g: (
-        jnp.where(
-            jnp.isinf(res[0]), 0.0,
-            jax.nn.softmax(res[0], axis=axis) *
-            (g if axis is None else jnp.expand_dims(g, axis=axis))
-        ), None
-    )
-)
+def _softmin_fwd(
+    x: jnp.ndarray, gamma: float, axis: Optional[Union[int, Sequence[int]]]
+) -> Tuple[jnp.ndarray, Tuple[jnp.ndarray, ...]]:
+  out = softmin(x, gamma, axis)
+  return out, (x / -gamma, out, gamma)
+
+
+def _softmin_bwd(
+    axis: Optional[Union[int, Sequence[int]]], res: Tuple[jnp.ndarray, ...],
+    g: jnp.ndarray
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
+  z, out, gamma = res
+  if axis is not None:
+    g, out = jnp.expand_dims(g, axis=axis), jnp.expand_dims(out, axis=axis)
+  is_inf = jnp.isinf(z)
+  probs = jax.nn.softmax(z, axis=axis)
+  grad_x = jnp.where(is_inf, 0.0, probs * g)
+
+  # the derivative w.r.t. `gamma` is the negative entropy of `probs`
+  lse = out / -gamma
+  entropy = lse - jnp.sum(
+      jnp.where(is_inf, 0.0, probs * z), axis=axis, keepdims=True
+  )
+  entropy = jnp.where(jnp.isfinite(lse), entropy, 0.0)
+  grad_gamma = -jnp.sum(g * entropy)
+  return grad_x, grad_gamma.astype(jnp.result_type(gamma))
+
+
+softmin.defvjp(_softmin_fwd, _softmin_bwd)
 
 
 @functools.partial(jax.vmap, in_axes=[0, 0, None])
