@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import io
 from typing import Any, Tuple, Union
 
 import pytest
@@ -971,8 +972,6 @@ class TestGromovWasserstein:
           progress_fn=utils.default_progress_fn(),
           min_iterations=5,
           max_iterations=5,
-          # needs to be explicitly set
-          store_inner_errors=True,
       )
 
       return quad_solver(prob).reg_gw_cost
@@ -997,3 +996,28 @@ class TestGromovWasserstein:
     out = solver(clouds.quad_problem())
 
     np.testing.assert_allclose(costs, out.costs[:out.n_iters], rtol=1e-6)
+
+  def test_gw_default_progress_fn(self, clouds: _utils.QuadClouds):
+    stream = io.StringIO()
+    progress_fn = utils.default_progress_fn(fmt="{iter} {error}", stream=stream)
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), progress_fn=progress_fn
+    )
+
+    out = solver(clouds.quad_problem())
+    jax.effects_barrier()
+
+    errors = {}
+    for line in stream.getvalue().splitlines():
+      iteration, error = line.split()
+      errors[int(iteration)] = float(error)
+    n_iters = int(out.n_iters)
+    costs = out.costs[:n_iters]
+    # the relative change of the costs, used as the convergence criterion
+    expected = jnp.abs(jnp.diff(costs) / costs[1:])
+
+    assert sorted(errors) == list(range(1, n_iters + 1))
+    assert errors[1] == float("inf")
+    np.testing.assert_allclose([errors[i] for i in range(2, n_iters + 1)],
+                               expected,
+                               rtol=1e-5)

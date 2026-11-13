@@ -106,7 +106,9 @@ def default_progress_fn(
   :mod:`linear problems <ott.problems.linear>`.
 
   It prints the progress only when the error is computed, that is every
-  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
+  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`. For
+  :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`, the
+  error is the relative change of its costs, i.e., its convergence criterion.
 
   Args:
     fmt: Format used to print. It can format ``iter``, ``max_iter`` and
@@ -119,8 +121,9 @@ def default_progress_fn(
     - the current iteration number,
     - the number of inner iterations after which the error is computed,
     - the total number of iterations, and
-    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState` or
-      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`.
+    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState`,
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState` or
+      :class:`~ott.solvers.quadratic.gromov_wasserstein.GWState`.
 
   Examples:
     .. code-block:: python
@@ -164,7 +167,9 @@ def tqdm_progress_fn(
   :mod:`linear problems <ott.problems.linear>`.
 
   It updates the progress bar only when the error is computed, that is every
-  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
+  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`. For
+  :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`, the
+  error is the relative change of its costs, i.e., its convergence criterion.
 
   Args:
     pbar: `tqdm <https://tqdm.github.io/docs/tqdm/>`_ progress bar.
@@ -177,8 +182,9 @@ def tqdm_progress_fn(
     - the current iteration number,
     - the number of inner iterations after which the error is computed,
     - the total number of iterations, and
-    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState` or
-      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`.
+    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState`,
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState` or
+      :class:`~ott.solvers.quadratic.gromov_wasserstein.GWState`.
 
   Examples:
     .. code-block:: python
@@ -222,7 +228,12 @@ def _prepare_info(status: IOStatus) -> Tuple[int, int, int, np.ndarray]:
   iteration = int(iteration) + 1
   inner_iterations = int(inner_iterations)
   total_iter = int(total_iter)
-  errors = np.array(state.errors).ravel()
+  if hasattr(state, "linear_state"):
+    # Gromov-Wasserstein, use its convergence criterion
+    costs = np.asarray(state.costs)
+    errors = np.abs(np.diff(costs, prepend=np.inf) / costs)
+  else:
+    errors = np.array(state.errors).ravel()
 
   return iteration, inner_iterations, total_iter, errors
 
