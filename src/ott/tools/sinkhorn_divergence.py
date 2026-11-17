@@ -240,8 +240,9 @@ def sinkhorn_divergence(
     if isinstance(geom_y, geometry.Geometry):
       geom_y = geom_y.copy_epsilon(geom_xy)
 
-  a = jnp.ones(num_a) / num_a if a is None else a
-  b = jnp.ones(num_b) / num_b if b is None else b
+  dtype = geom_xy.dtype
+  a = jnp.full((num_a,), 1.0 / num_a, dtype=dtype) if a is None else a
+  b = jnp.full((num_b,), 1.0 / num_b, dtype=dtype) if b is None else b
   out = _sinkhorn_divergence(
       geom_xy,
       geom_x,

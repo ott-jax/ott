@@ -195,6 +195,16 @@ class TestSinkhornDivergence:
     assert len(out.potentials) == 3
     assert len(out.geoms) == 3
 
+  @pytest.mark.usefixtures("enable_x64")
+  def test_float32_with_x64(self, clouds: _utils.PointClouds):
+    x, y = clouds.x.astype(jnp.float32), clouds.y.astype(jnp.float32)
+
+    div, out = sinkhorn_divergence.sinkdiv(x, y, epsilon=0.1)
+
+    assert div.dtype == jnp.float32
+    assert out.a.dtype == jnp.float32
+    assert out.b.dtype == jnp.float32
+
   def test_kernel_matrices(self, clouds: _utils.PointClouds):
     geoms = pointcloud.PointCloud.prepare_divergences(
         clouds.x, clouds.y, epsilon=0.1
