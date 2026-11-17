@@ -577,10 +577,11 @@ class W2NeuralDual:
     else:
       g_value = g_value_finetuned
 
-    # switch from grad-convex potentials to quadratic - convex parameterization
+    # switch from the convex potentials to the Kantorovich potentials of the
+    # squared Euclidean cost `||x - y||^2`: `f(x) = ||x||^2 - 2 f_value(x)`
     return dual_potentials.DualPotentials(
-        f=lambda x: 0.5 * jnp.sum(x ** 2) - f_value(x),
-        g=lambda x: 0.5 * jnp.sum(x ** 2) - g_value(x),
+        f=lambda x: jnp.sum(x ** 2) - 2.0 * f_value(x),
+        g=lambda x: jnp.sum(x ** 2) - 2.0 * g_value(x),
         cost_fn=costs.SqEuclidean(),
     )
 
