@@ -646,13 +646,16 @@ class Geometry:
   ) -> Tuple["Geometry", ...]:
     """Instantiate 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
-    nones = [None, None, None]
-    cost_matrices = kwargs.pop("cost_matrix", args or None)
-    kernel_matrices = kwargs.pop("kernel_matrix", nones)
-    cost_matrices = cost_matrices if cost_matrices is not None else nones
+    nones = (None,) * size
+    cost_matrices = kwargs.pop("cost_matrix", args)
+    kernel_matrices = kwargs.pop("kernel_matrix", None)
+    if cost_matrices is None or len(cost_matrices) == 0:
+      cost_matrices = nones
+    if kernel_matrices is None:
+      kernel_matrices = nones
     return tuple(
-        cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
-        for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
+        cls(cost_matrix=cost, kernel_matrix=kernel, **kwargs)
+        for cost, kernel in zip(cost_matrices[:size], kernel_matrices[:size])
     )
 
   def to_LRCGeometry(

@@ -195,6 +195,27 @@ class TestSinkhornDivergence:
     assert len(out.potentials) == 3
     assert len(out.geoms) == 3
 
+  def test_kernel_matrices(self, clouds: _utils.PointClouds):
+    geoms = pointcloud.PointCloud.prepare_divergences(
+        clouds.x, clouds.y, epsilon=0.1
+    )
+    solve_kwargs = {"lse_mode": False}
+
+    div_cost, _ = sinkhorn_divergence.sinkhorn_divergence(
+        geometry.Geometry,
+        cost_matrix=tuple(geom.cost_matrix for geom in geoms),
+        epsilon=0.1,
+        solve_kwargs=solve_kwargs,
+    )
+    div_kernel, _ = sinkhorn_divergence.sinkhorn_divergence(
+        geometry.Geometry,
+        kernel_matrix=tuple(geom.kernel_matrix for geom in geoms),
+        epsilon=0.1,
+        solve_kwargs=solve_kwargs,
+    )
+
+    np.testing.assert_allclose(div_kernel, div_cost, rtol=1e-5)
+
   def test_generic_point_cloud_wrapper(self, clouds: _utils.PointClouds):
     x, y = clouds.x, clouds.y
 
