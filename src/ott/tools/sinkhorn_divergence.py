@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from types import MappingProxyType
-from typing import Any, Mapping, Optional, Tuple, Type, Union
+from typing import Any, Mapping, NamedTuple, Optional, Tuple, Type, Union
 
 import jax
 import jax.numpy as jnp
 
-from ott import utils
 from ott.geometry import costs, geometry, pointcloud, segment
 from ott.problems.linear import linear_problem, potentials
 from ott.solvers import linear
@@ -30,40 +29,47 @@ __all__ = [
 
 Potentials = Tuple[jnp.ndarray, jnp.ndarray]
 Factors = Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]
+Output = Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]
 
 
-@utils.register_pytree_node
-class SinkhornDivergenceOutput:  # noqa: D101
+class SinkhornDivergenceOutput(NamedTuple):
   r"""Holds the outputs of a call to :func:`sinkhorn_divergence`.
 
-  Objects of this class contain both solutions and problem definition of a
-  two or three regularized OT problem instantiated when computing a Sinkhorn
+  Objects of this class contain both solutions and problem definition of the
+  two or three regularized OT problems instantiated when computing a Sinkhorn
   divergence between two probability distributions.
+
+  When ``static_b=True``, the problem between the second measure and itself is
+  not solved: its geometry, potentials or factors and errors are :obj:`None`,
+  it is marked as converged and its number of iterations is :math:`0`.
 
   Args:
     divergence: value of the Sinkhorn divergence
     geoms: three geometries describing the Sinkhorn divergence, of respective
-      sizes ``[n, m], [n, n], [m, m]`` if their cost or kernel matrices where
+      sizes ``[n, m], [n, n], [m, m]`` if their cost or kernel matrices were
       instantiated.
     a: first ``[n,]`` vector of marginal weights.
     b: second ``[m,]`` vector of marginal weights.
     potentials: three pairs of dual potential vectors, of sizes
       ``[n,], [m,]``, ``[n,], [n,]``, ``[m,], [m,]``, returned when the call
       to the :func:`~ott.solvers.linear.solve` solver to compute the divergence
-      relies on a vanilla :class:`~ott.solver.linear.sinkhorn.Sinkhorn` solver.
+      relies on a vanilla :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
     factors: three triplets of matrices, of sizes
       ``([n, rank], [m, rank], [rank,])``, ``([n, rank], [n, rank], [rank,])``
       and ``([m, rank], [m, rank], [rank,])``, returned when the call
       to the :func:`~ott.solvers.linear.solve` solver to compute the divergence
-      relies on a low-rank :class:`~ott.solver.linear.sinkhorn_lr.LRSinkhorn`
+      relies on a low-rank :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`
       solver.
+    errors: errors of each of the three problems, see
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.errors`.
     converged: triplet of booleans indicating the convergence of each of the
       three problems run to compute the divergence.
     n_iters: number of iterations keeping track of compute effort needed to
       complete each of the three terms in the divergence.
   """
   divergence: float
-  geoms: Tuple[geometry.Geometry, geometry.Geometry, geometry.Geometry]
+  geoms: Tuple[geometry.Geometry, geometry.Geometry,
+               Optional[geometry.Geometry]]
   a: jnp.ndarray
   b: jnp.ndarray
   potentials: Optional[Tuple[Potentials, Potentials, Potentials]]
@@ -93,8 +99,11 @@ class SinkhornDivergenceOutput:  # noqa: D101
     Returns:
       The debiased dual potential functions.
     """
-    assert not self.is_low_rank, \
-      "Dual potentials not available: divergence computed with low-rank solver."
+    if self.is_low_rank:
+      raise ValueError(
+          "Dual potentials are not available, the divergence was computed "
+          "with a low-rank solver."
+      )
     geom_xy, *_ = self.geoms
     prob_xy = linear_problem.LinearProblem(geom_xy, a=self.a, b=self.b)
     (f_xy, g_xy), (f_x, _), (_, g_y) = self.potentials
@@ -117,20 +126,6 @@ class SinkhornDivergenceOutput:  # noqa: D101
   def is_low_rank(self) -> bool:
     """Whether the output is low-rank."""
     return self.factors is not None
-
-  def tree_flatten(self):  # noqa: D102
-    return [
-        self.divergence, self.geoms, self.a, self.b, self.potentials,
-        self.factors
-    ], {
-        "errors": self.errors,
-        "n_iters": self.n_iters,
-        "converged": self.converged,
-    }
-
-  @classmethod
-  def tree_unflatten(cls, aux_data, children):  # noqa: D102
-    return cls(*children, **aux_data)
 
 
 def sinkdiv(
@@ -230,14 +225,15 @@ def sinkhorn_divergence(
   Returns:
     The Sinkhorn divergence value, and output object detailing computations.
   """
-  geoms = geom.prepare_divergences(*args, static_b=static_b, **kwargs)
-  geom_xy, geom_x, geom_y, *_ = geoms + (None,) * 3
+  geom_xy, geom_x, *geom_y = geom.prepare_divergences(
+      *args, static_b=static_b, **kwargs
+  )
+  geom_y = geom_y[0] if geom_y else None
   num_a, num_b = geom_xy.shape
 
   if share_epsilon:
-    if isinstance(geom_x, geometry.Geometry):
-      geom_x = geom_x.copy_epsilon(geom_xy)
-    if isinstance(geom_y, geometry.Geometry):
+    geom_x = geom_x.copy_epsilon(geom_xy)
+    if geom_y is not None:
       geom_y = geom_y.copy_epsilon(geom_xy)
 
   dtype = geom_xy.dtype
@@ -268,30 +264,27 @@ def _sinkhorn_divergence(
 ) -> SinkhornDivergenceOutput:
   """Compute the (unbalanced) Sinkhorn divergence for the wrapper function.
 
-    This definition includes a correction depending on the total masses of each
-    measure, as defined in :cite:`sejourne:19`, eq. 15, and is extended to also
-    accept :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` solvers, as
-    advocated in :cite:`scetbon:22b`.
+  This definition includes a correction depending on the total masses of each
+  measure, as defined in :cite:`sejourne:19`, eq. 15, and is extended to also
+  accept :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn` solvers, as
+  advocated in :cite:`scetbon:22b`.
 
   Args:
-    geometry_xy: a Cost object able to apply kernels with a certain epsilon,
-    between the views X and Y.
-    geometry_xx: a Cost object able to apply kernels with a certain epsilon,
-    between elements of the view X.
-    geometry_yy: a Cost object able to apply kernels with a certain epsilon,
-    between elements of the view Y.
-    a: jnp.ndarray<float>[n]: the weight of each input point. The sum of
-     all elements of ``b`` must match that of ``a`` to converge.
-    b: jnp.ndarray<float>[m]: the weight of each target point. The sum of
-     all elements of ``b`` must match that of ``a`` to converge.
+    geometry_xy: Geometry between the points of the two measures.
+    geometry_xx: Geometry between the points of the first measure.
+    geometry_yy: Geometry between the points of the second measure. If
+      :obj:`None`, the regularized OT cost of the second measure onto itself is
+      not computed and ``offset_yy`` is used instead.
+    a: Weights of the first measure, of shape ``[n,]``.
+    b: Weights of the second measure, of shape ``[m,]``.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
-    offset_yy: when available, regularized OT cost precomputed on
-       ``geometry_yy`` cost when transporting weight vector ``b`` onto itself.
+    offset_yy: Precomputed regularized OT cost of ``b`` onto itself, used when
+      ``geometry_yy`` is :obj:`None`. If :obj:`None`, use :math:`0`.
     kwargs: Keyword arguments to :func:`~ott.solvers.linear.solve`.
 
   Returns:
-    The output object
+    The output object.
   """
   kwargs_symmetric = kwargs.copy()
   is_low_rank = kwargs.get("rank", -1) > 0
@@ -321,34 +314,34 @@ def _sinkhorn_divergence(
   out_xy = linear.solve(geometry_xy, a=a, b=b, **kwargs)
   out_xx = linear.solve(geometry_xx, a=a, b=a, **kwargs_symmetric)
   if geometry_yy is None:
-    # Create dummy output, corresponds to scenario where static_b is True.
-    out_yy = _empty_output(is_low_rank, offset_yy)
+    # with `static_b`, the problem between `b` and itself is not solved
+    out_yy = None
+    cost_yy = 0.0 if offset_yy is None else offset_yy
   else:
     out_yy = linear.solve(geometry_yy, a=b, b=b, **kwargs_symmetric)
+    cost_yy = out_yy.reg_ot_cost
 
   eps = jax.lax.stop_gradient(geometry_xy.epsilon)
-  div = (
-      out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + out_yy.reg_ot_cost) +
-      0.5 * eps * (jnp.sum(a) - jnp.sum(b)) ** 2
-  )
+  div = out_xy.reg_ot_cost - 0.5 * (out_xx.reg_ot_cost + cost_yy)
+  # correction for the total masses, eq. 15 in :cite:`sejourne:19`
+  div += 0.5 * eps * (jnp.sum(a) - jnp.sum(b)) ** 2
 
-  if is_low_rank:
-    factors = tuple((out.q, out.r, out.g) for out in (out_xy, out_xx, out_yy))
-    pots = None
-  else:
-    pots = tuple((out.f, out.g) for out in (out_xy, out_xx, out_yy))
-    factors = None
+  solutions, errors, converged, n_iters = zip(
+      _unpack(out_xy, is_low_rank),
+      _unpack(out_xx, is_low_rank),
+      _unpack(out_yy, is_low_rank),
+  )
 
   return SinkhornDivergenceOutput(
       divergence=div,
       geoms=(geometry_xy, geometry_xx, geometry_yy),
       a=a,
       b=b,
-      potentials=pots,
-      factors=factors,
-      errors=(out_xy.errors, out_xx.errors, out_yy.errors),
-      converged=(out_xy.converged, out_xx.converged, out_yy.converged),
-      n_iters=(out_xy.n_iters, out_xx.n_iters, out_yy.n_iters),
+      potentials=None if is_low_rank else solutions,
+      factors=solutions if is_low_rank else None,
+      errors=errors,
+      converged=converged,
+      n_iters=n_iters,
   )
 
 
@@ -368,7 +361,7 @@ def segment_sinkhorn_divergence(
     solve_kwargs: Mapping[str, Any] = MappingProxyType({}),
     static_b: bool = False,
     share_epsilon: bool = True,
-    symmetric_sinkhorn: bool = False,
+    symmetric_sinkhorn: bool = True,
     **kwargs: Any
 ) -> jnp.ndarray:
   """Compute Sinkhorn divergence between subsets of vectors in `x` and `y`.
@@ -426,7 +419,7 @@ def segment_sinkhorn_divergence(
       for all 2 or 3 terms of the Sinkhorn divergence. In that case, the epsilon
       will be by default that used when comparing x to y (contained in the first
       geometry). This flag is set to True by default, because in the default
-      setting, the epsilon regularization is a function of the mean of the cost
+      setting, the epsilon regularization is a function of the std of the cost
       matrix.
     symmetric_sinkhorn: Use Sinkhorn updates in Eq. 25 of :cite:`feydy:19` for
       symmetric terms comparing x/x and y/y.
@@ -484,28 +477,15 @@ def segment_sinkhorn_divergence(
   )
 
 
-def _empty_output(
-    is_low_rank: bool,
-    offset_yy: Optional[float] = None
-) -> Union[sinkhorn.SinkhornOutput, sinkhorn_lr.LRSinkhornOutput]:
-  if is_low_rank:
-    return sinkhorn_lr.LRSinkhornOutput(
-        q=None,
-        r=None,
-        g=None,
-        ot_prob=None,
-        epsilon=None,
-        inner_iterations=0,
-        converged=True,
-        costs=jnp.array([-jnp.inf]),
-        errors=jnp.array([-jnp.inf]),
-        reg_ot_cost=0.0 if offset_yy is None else offset_yy,
-    )
+def _unpack(
+    out: Optional[Output], is_low_rank: bool
+) -> Tuple[Tuple[Optional[jnp.ndarray], ...], Optional[jnp.ndarray], Any, Any]:
+  """Get the solution, errors, convergence and number of iterations.
 
-  return sinkhorn.SinkhornOutput(
-      potentials=(None, None),
-      errors=jnp.array([-jnp.inf]),
-      reg_ot_cost=0.0 if offset_yy is None else offset_yy,
-      threshold=0.0,
-      inner_iterations=0,
-  )
+  ``out`` is :obj:`None` when the problem between ``b`` and itself is not
+  solved, i.e., when ``static_b=True``.
+  """
+  if out is None:
+    return (None,) * (3 if is_low_rank else 2), None, True, 0
+  solution = (out.q, out.r, out.g) if is_low_rank else (out.f, out.g)
+  return solution, out.errors, out.converged, out.n_iters

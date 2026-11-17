@@ -205,6 +205,15 @@ class TestSinkhornDivergence:
     assert out.a.dtype == jnp.float32
     assert out.b.dtype == jnp.float32
 
+  def test_low_rank_dual_potentials(self, clouds: _utils.PointClouds):
+    _, out = sinkhorn_divergence.sinkdiv(
+        clouds.x, clouds.y, epsilon=0.1, solve_kwargs={"rank": 2}
+    )
+
+    assert out.is_low_rank
+    with pytest.raises(ValueError, match="low-rank"):
+      out.to_dual_potentials()
+
   def test_kernel_matrices(self, clouds: _utils.PointClouds):
     geoms = pointcloud.PointCloud.prepare_divergences(
         clouds.x, clouds.y, epsilon=0.1
