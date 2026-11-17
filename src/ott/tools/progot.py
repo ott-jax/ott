@@ -147,7 +147,7 @@ class ProgOTOutput(NamedTuple):
   @property
   def is_debiased(self) -> bool:
     """Whether the OT solver is debiased."""
-    return isinstance(self.outputs[0], sd.SinkhornDivergenceOutput)
+    return isinstance(self.outputs, sd.SinkhornDivergenceOutput)
 
 
 @jtu.register_pytree_node_class
