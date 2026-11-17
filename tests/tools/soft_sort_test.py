@@ -247,7 +247,7 @@ class TestSoftSort:
   @pytest.mark.parametrize("jit", [False, True])
   def test_quantiles(self, rng: jax.Array, jit: bool):
     inputs = jr.uniform(rng, (100, 2, 3))
-    q = jnp.array([0.1, 0.8, 0.4])
+    q = jnp.array([0.8, 0.1, 0.4])
     quantile_fn = soft_sort.quantile
     if jit:
       quantile_fn = jax.jit(quantile_fn, static_argnames="axis")
