@@ -15,7 +15,9 @@ import pytest
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
+from ott.problems.linear import linear_problem
 from ott.tools import progot
 from tests import _utils
 
@@ -32,3 +34,16 @@ class TestProgOT:
     out = solver(clouds.problem())
 
     assert out.is_debiased == is_debiased
+
+  def test_iterates(self, rng: jax.Array):
+    clouds = _utils.random_clouds(rng)
+    prob = linear_problem.LinearProblem(clouds.geom())
+    alphas = progot.get_alpha_schedule("lin", num_steps=4)
+
+    out = progot.ProgOT(alphas=alphas)(prob)
+    xs, _ = out.transport(clouds.x, return_intermediate=True)
+
+    # every step solves the problem between the previous interpolation and `y`
+    np.testing.assert_allclose(
+        out.outputs.geom.x[1:], xs[:-1], rtol=1e-5, atol=1e-5
+    )

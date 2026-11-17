@@ -245,7 +245,7 @@ class ProgOT:
         eps = out.geom.epsilon
 
       t_x = out.to_dual_potentials().transport(state.x, forward=True)
-      next_x = (1.0 - alpha) * x + alpha * t_x
+      next_x = (1.0 - alpha) * state.x + alpha * t_x
 
       next_init = ((1.0 - alpha) * out.f,
                    (1.0 - alpha) * out.g) if warm_start else None
