@@ -114,6 +114,25 @@ class TestBatchedVmap:
 
     chex.assert_trees_all_close(gt_fn(tree), fn(tree), rtol=1e-4, atol=1e-4)
 
+  def test_in_axes_unmapped_pytree(self, rng: jax.Array):
+
+    def f(params: Any, x: jnp.ndarray, y: jnp.ndarray) -> jnp.ndarray:
+      cost = jnp.sum((x - y) ** 2, axis=-1)
+      return params["scale"] * jnp.exp(-cost / params["width"])
+
+    rng1, rng2 = jr.split(rng, 2)
+    params = {"scale": 2.0, "width": 0.5}
+    x = jr.normal(rng1, (8, 2))
+    y = jr.normal(rng2, (5, 2))
+    in_axes = (None, 0, None)
+
+    gt_fn = jax.vmap(f, in_axes=in_axes)
+    fn = utils.batched_vmap(f, in_axes=in_axes, batch_size=3)
+
+    np.testing.assert_allclose(
+        gt_fn(params, x, y), fn(params, x, y), rtol=1e-6, atol=1e-6
+    )
+
   @pytest.mark.parametrize("out_axes", [0, 1, 2, -1, -2, -3])
   def test_out_axes(self, rng: jax.Array, out_axes: int):
 

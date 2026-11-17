@@ -327,10 +327,10 @@ def _apply_scan(
                                                          Any]]
 ) -> Callable[P, R]:
 
-  def num_steps(axes: List[Any], args: Tuple[Any, ...]) -> int:
-    ix = next(ix for ix, axis in enumerate(axes) if axis is not None)
-    leaf, *_ = jax.tree.leaves(args[ix])
-    axis, *_ = jax.tree.leaves(axes[ix])
+  def num_steps(leaves: List[Any], axes: List[Any]) -> int:
+    leaf, axis = next(
+        (leaf, axis) for leaf, axis in zip(leaves, axes) if axis is not None
+    )
     return leaf.shape[axis]
 
   def select_batch(arg: Any, index: int, *, axis: int) -> Any:
@@ -358,7 +358,7 @@ def _apply_scan(
         return_flat=True,
         has_extra_dim=True,
     )
-    n = num_steps(axes, args)
+    n = num_steps(leaves, axes)
 
     _, result = jax.lax.scan(body_fn, init=None, xs=jnp.arange(n))
     return result
