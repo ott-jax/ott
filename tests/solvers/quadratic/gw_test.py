@@ -831,7 +831,8 @@ class TestGromovWasserstein:
           max_iterations=100,
           inner_iterations=10,
       )
-      return solver(prob, rng=rng_init).reg_gw_cost
+      # same initialization for the gradient and the finite differences
+      return solver(prob, rng=jr.clone(rng_init)).reg_gw_cost
 
     rng_x, rng_y, rng_z, rng_init = jr.split(rng, 4)
     x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))

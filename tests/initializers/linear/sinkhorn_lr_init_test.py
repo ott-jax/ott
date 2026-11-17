@@ -62,10 +62,11 @@ class TestLRInitializers:
   def test_float32_with_x64(
       self, rng: jax.Array, initializer_cls: Type[initializers_lr.LRInitializer]
   ):
-    x = jr.normal(rng, (10, 2), dtype=jnp.float32)
+    rng_x, rng_init = jr.split(rng, 2)
+    x = jr.normal(rng_x, (10, 2), dtype=jnp.float32)
     prob = linear_problem.LinearProblem(pointcloud.PointCloud(x))
 
-    q, r, g = initializer_cls(rank=2)(prob, rng=rng)
+    q, r, g = initializer_cls(rank=2)(prob, rng=rng_init)
 
     assert q.dtype == r.dtype == g.dtype == jnp.float32
 

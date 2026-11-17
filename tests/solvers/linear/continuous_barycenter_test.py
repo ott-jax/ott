@@ -231,7 +231,8 @@ class TestBarycenter:
       bar_prob = barycenter_problem.FreeBarycenterProblem(
           y, epsilon=1e-1, num_per_segment=num_per_segment
       )
-      return jnp.sum(solver(bar_prob, bar_size=3, rng=rng_init).x)
+      # same initialization for the gradient and the finite differences
+      return jnp.sum(solver(bar_prob, bar_size=3, rng=jr.clone(rng_init)).x)
 
     grad = jnp.vdot(jax.grad(loss)(y), d)
     fd = (loss(y + 1e-2 * d) - loss(y - 1e-2 * d)) / 2e-2

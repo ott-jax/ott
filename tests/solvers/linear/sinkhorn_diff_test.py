@@ -149,9 +149,10 @@ class TestSinkhornImplicit:
       )
 
   def test_unbalanced_marginals_grad_zero_weights(self, rng: jax.Array):
-    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+    rng_clouds, rng_w = jr.split(rng, 2)
+    clouds = _utils.random_clouds(rng_clouds, zero_a=(0, 3), zero_b=(1,))
     supp_a, supp_b = clouds.a > 0, clouds.b > 0
-    w = jr.normal(rng, (clouds.n, clouds.m))
+    w = jr.normal(rng_w, (clouds.n, clouds.m))
 
     def loss(
         x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,

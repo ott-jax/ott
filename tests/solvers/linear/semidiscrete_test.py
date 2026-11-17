@@ -313,7 +313,8 @@ class TestSemidiscreteSolver:
           optimizer=optax.sgd(1e-1),
           potential_ema=potential_ema,
       )
-      return solver(rng_solver, prob, g_init=g_init).g
+      # same samples in every run
+      return solver(jr.clone(rng_solver), prob, g_init=g_init).g
 
     g_1, g_2 = solve(1, 0.0), solve(2, 0.0)
 
