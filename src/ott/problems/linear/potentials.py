@@ -223,7 +223,10 @@ class DualPotentials:
       forward: use the forward map from the potentials
         if ``True``, otherwise use the inverse map
       quantile: quantile to filter the potentials with
-      kantorovich: whether to plot the Kantorovich potential
+      kantorovich: whether to plot the Kantorovich potential :math:`f`,
+        otherwise plot the Brenier potential
+        :math:`\frac{1}{2}(\|x\|_2^2 - f(x))` of the
+        :class:`~ott.geometry.costs.SqEuclidean` cost
       ax: axis to add the plot to
       x_bounds: x-axis bounds of the plot
         :math:`(x_{\text{min}}, x_{\text{max}})`
@@ -253,8 +256,8 @@ class DualPotentials:
     X1, X2 = jnp.meshgrid(x1, x2)
     X12flat = jnp.hstack((X1.reshape(-1, 1), X2.reshape(-1, 1)))
     Zflat = jax.vmap(self.f if forward else self.g)(X12flat)
-    if kantorovich:
-      Zflat = 0.5 * (jnp.linalg.norm(X12flat, axis=-1) ** 2) - Zflat
+    if not kantorovich:
+      Zflat = 0.5 * (jnp.sum(X12flat ** 2, axis=-1) - Zflat)
     Zflat = np.asarray(Zflat)
     vmin, vmax = np.quantile(Zflat, [quantile, 1.0 - quantile])
     Zflat = Zflat.clip(vmin, vmax)

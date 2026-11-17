@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from unittest import mock
+
 import pytest
 
 import jax
@@ -20,7 +22,7 @@ import jax.random as jr
 import numpy as np
 
 from ott.geometry import costs, pointcloud, regularizers
-from ott.problems.linear import linear_problem
+from ott.problems.linear import linear_problem, potentials
 from ott.solvers.linear import sinkhorn
 from ott.tools import sinkhorn_divergence
 from ott.tools.gaussian_mixture import gaussian
@@ -116,6 +118,22 @@ class TestDualPotentials:
     dp.plot_ot_map(x, y, x_test, forward=True)
     dp.plot_ot_map(x, y, y_test, forward=False)
     dp.plot_potential()
+
+  @pytest.mark.fast()
+  @pytest.mark.parametrize("kantorovich", [False, True])
+  def test_plot_potential(self, kantorovich: bool):
+    f = lambda x: jnp.sum(x) ** 2
+    dp = potentials.DualPotentials(f=f, g=f, cost_fn=costs.SqEuclidean())
+    ax = mock.MagicMock()
+
+    _ = dp.plot_potential(ax=ax, quantile=0.0, kantorovich=kantorovich)
+
+    x1, x2, z = ax.contourf.call_args.args
+    x = jnp.stack([x1.ravel(), x2.ravel()], axis=-1)
+    f_x = jax.vmap(f)(x)
+    # otherwise, the Brenier potential for the cost `||x - y||^2`
+    expected = f_x if kantorovich else 0.5 * (jnp.sum(x ** 2, axis=-1) - f_x)
+    np.testing.assert_allclose(z.ravel(), expected, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.fast.with_args(
       p=[1.3, 2.2, 1.0], forward=[False, True], only_fast=0
