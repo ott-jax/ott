@@ -131,3 +131,16 @@ class TestNeuralDual:
     np.testing.assert_allclose(
         pred_target, pred_target_jit, rtol=1e-3, atol=1e-3
     )
+
+  def test_transport_is_gradient_of_f(self, ds: DatasetPair_t):
+    solver = neuraldual.W2NeuralDual(dim_data=2, num_train_iters=4)
+    train_dataset, valid_dataset = ds
+    dual_potentials = solver(*train_dataset, *valid_dataset)
+    x = next(train_dataset.source_iter)
+
+    # the gradient of the convex potential `neural_f` is the transport map
+    expected = jax.vmap(jax.grad(solver.neural_f))(x)
+
+    np.testing.assert_allclose(
+        dual_potentials.transport(x), expected, rtol=1e-5, atol=1e-5
+    )

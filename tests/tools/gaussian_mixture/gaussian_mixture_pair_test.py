@@ -154,6 +154,9 @@ class TestGaussianMixturePair:
         lock_gmm1=lock_gmm1
     )
     children, aux_data = jax.tree_util.tree_flatten(pair)
+    # unflattening must not modify the tree definition, e.g., `jax.grad`
+    # unflattens it more than once
+    _ = jax.tree_util.tree_unflatten(aux_data, children)
     pair_new = jax.tree_util.tree_unflatten(aux_data, children)
 
     assert pair.gmm0 == pair_new.gmm0

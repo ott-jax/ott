@@ -206,6 +206,9 @@ class SortingInitializer(DefaultInitializer):
     Returns:
       potential f, array of size n.
     """
+    # the initialization is not differentiated, also because reverse-mode
+    # differentiation of `jax.lax.while_loop` is not supported
+    modified_cost, init_f = jax.lax.stop_gradient((modified_cost, init_f))
 
     def body_fn(
         state: Tuple[jnp.ndarray, float, int]

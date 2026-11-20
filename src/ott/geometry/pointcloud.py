@@ -407,7 +407,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def dtype(self) -> jnp.dtype:  # noqa: D102
-    return self.x.dtype
+    return jnp.result_type(self.x, self.y)
 
   @property
   def is_symmetric(self) -> bool:  # noqa: D102
