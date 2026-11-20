@@ -37,6 +37,159 @@ def clouds() -> _utils.PointClouds:
 class TestSinkhornImplicit:
   """Check implicit and autodiff match for Sinkhorn."""
 
+  def test_solve_jax_cg_non_symmetric(self, rng: jax.Array):
+    rng_a, rng_b = jr.split(rng, 2)
+    a = jr.normal(rng_a, (5, 5)) + 5.0 * jnp.eye(5)
+    b = jr.normal(rng_b, (5,))
+
+    x = implicit_lib.solve_jax_cg(
+        lambda x: a @ x, b, lin_t=lambda x: a.T @ x, symmetric=False
+    )
+
+    np.testing.assert_allclose(x, jnp.linalg.solve(a, b), rtol=1e-4, atol=1e-4)
+
+  def test_implicit_grad_linear_in_cotangent(self, clouds: _utils.PointClouds):
+
+    def loss(x: jnp.ndarray, scale: float) -> float:
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+      return scale * sinkhorn.Sinkhorn()(prob).primal_cost
+
+    grad = jax.grad(loss)
+
+    np.testing.assert_allclose(
+        grad(clouds.x, 1e-5) / 1e-5, grad(clouds.x, 1.0), rtol=1e-3, atol=1e-3
+    )
+
+  def test_implicit_zero_weights(self, rng: jax.Array):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+
+    def loss(
+        x: jnp.ndarray, implicit_diff: Optional[implicit_lib.ImplicitDiff]
+    ) -> float:
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=clouds.a, b=clouds.b)
+      solver = sinkhorn.Sinkhorn(threshold=1e-5, implicit_diff=implicit_diff)
+      return solver(prob).primal_cost
+
+    implicit = jax.grad(loss)(clouds.x, implicit_lib.ImplicitDiff())
+    unrolled = jax.grad(loss)(clouds.x, None)
+
+    np.testing.assert_allclose(implicit, unrolled, rtol=1e-2, atol=1e-2)
+
+  def test_kernel_unrolled_zero_weights(self, rng: jax.Array):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+
+    def loss(x: jnp.ndarray, lse_mode: bool) -> float:
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(
+          geom, a=clouds.a, b=clouds.b, tau_a=0.9, tau_b=0.9
+      )
+      solver = sinkhorn.Sinkhorn(
+          lse_mode=lse_mode, implicit_diff=None, threshold=1e-5
+      )
+      return solver(prob).primal_cost
+
+    kernel = jax.grad(loss)(clouds.x, False)
+    lse = jax.grad(loss)(clouds.x, True)
+
+    np.testing.assert_allclose(kernel, lse, rtol=1e-2, atol=1e-2)
+
+  def test_marginals_grad_zero_weights(self, rng: jax.Array):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+    supp_a, supp_b = clouds.a > 0, clouds.b > 0
+
+    def loss(
+        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray
+    ) -> float:
+      geom = pointcloud.PointCloud(x, y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=a, b=b)
+      solver = sinkhorn.Sinkhorn(threshold=1e-6)
+      return solver(prob).reg_ot_cost
+
+    grad_fn = jax.grad(loss, argnums=(2, 3))
+    grad_a, grad_b = grad_fn(clouds.x, clouds.y, clouds.a, clouds.b)
+    grad_a_supp, grad_b_supp = grad_fn(
+        clouds.x[supp_a], clouds.y[supp_b], clouds.a[supp_a], clouds.b[supp_b]
+    )
+
+    assert jnp.all(jnp.isfinite(grad_a))
+    assert jnp.all(jnp.isfinite(grad_b))
+    np.testing.assert_allclose(grad_a[supp_a], grad_a_supp, rtol=1e-4)
+    np.testing.assert_allclose(grad_b[supp_b], grad_b_supp, rtol=1e-4)
+
+  @pytest.mark.parametrize(("lse_mode", "tau", "implicit"),
+                           [(True, 1.0, True), (False, 0.9, True),
+                            (True, 0.9, False)])
+  def test_marginals_grad_at_zero_weights(
+      self, rng: jax.Array, lse_mode: bool, tau: float, implicit: bool
+  ):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+    implicit_diff = implicit_lib.ImplicitDiff() if implicit else None
+
+    def loss(a: jnp.ndarray, b: jnp.ndarray) -> float:
+      geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=tau, tau_b=tau)
+      solver = sinkhorn.Sinkhorn(
+          lse_mode=lse_mode, threshold=1e-6, implicit_diff=implicit_diff
+      )
+      return solver(prob).reg_ot_cost
+
+    a_pos = jnp.where(clouds.a > 0, clouds.a, 1e-6)
+    b_pos = jnp.where(clouds.b > 0, clouds.b, 1e-6)
+    grad_fn = jax.grad(loss, argnums=(0, 1))
+
+    grads = grad_fn(clouds.a, clouds.b)
+    grads_pos = grad_fn(a_pos / a_pos.sum(), b_pos / b_pos.sum())
+
+    # in the balanced case, the gradients are defined up to a constant
+    for grad, grad_pos in zip(grads, grads_pos):
+      np.testing.assert_allclose(
+          grad - grad.mean(), grad_pos - grad_pos.mean(), rtol=1e-3, atol=1e-3
+      )
+
+  def test_unbalanced_marginals_grad_zero_weights(self, rng: jax.Array):
+    rng_clouds, rng_w = jr.split(rng, 2)
+    clouds = _utils.random_clouds(rng_clouds, zero_a=(0, 3), zero_b=(1,))
+    supp_a, supp_b = clouds.a > 0, clouds.b > 0
+    w = jr.normal(rng_w, (clouds.n, clouds.m))
+
+    def loss(
+        x: jnp.ndarray, y: jnp.ndarray, a: jnp.ndarray, b: jnp.ndarray,
+        w: jnp.ndarray
+    ) -> float:
+      geom = pointcloud.PointCloud(x, y, epsilon=0.1)
+      prob = linear_problem.LinearProblem(geom, a=a, b=b, tau_a=0.9, tau_b=0.9)
+      return jnp.vdot(w, sinkhorn.Sinkhorn(threshold=1e-6)(prob).matrix)
+
+    grad_fn = jax.grad(loss, argnums=(2, 3))
+    grad_a, grad_b = grad_fn(clouds.x, clouds.y, clouds.a, clouds.b, w)
+    grad_a_supp, grad_b_supp = grad_fn(
+        clouds.x[supp_a], clouds.y[supp_b], clouds.a[supp_a], clouds.b[supp_b],
+        w[supp_a][:, supp_b]
+    )
+
+    assert jnp.all(jnp.isfinite(grad_a))
+    assert jnp.all(jnp.isfinite(grad_b))
+    np.testing.assert_allclose(grad_a[supp_a], grad_a_supp, rtol=1e-4)
+    np.testing.assert_allclose(grad_b[supp_b], grad_b_supp, rtol=1e-4)
+
+  @pytest.mark.parametrize(("lse_mode", "tau"), [(True, 0.9), (False, 1.0)])
+  def test_epsilon_grad_zero_weights(
+      self, rng: jax.Array, lse_mode: bool, tau: float
+  ):
+    clouds = _utils.random_clouds(rng, zero_a=(0, 3), zero_b=(1,))
+
+    def loss(eps: float) -> float:
+      prob = clouds.problem(epsilon=eps, tau_a=tau, tau_b=tau)
+      solver = sinkhorn.Sinkhorn(lse_mode=lse_mode, threshold=1e-6)
+      return solver(prob).reg_ot_cost
+
+    eps, h = 1e-1, 1e-3
+    expected = (loss(eps + h) - loss(eps - h)) / (2.0 * h)
+
+    np.testing.assert_allclose(jax.grad(loss)(eps), expected, rtol=1e-3)
+
   def test_custom_solver(self, clouds: _utils.PointClouds):
     solver_kwargs = {"ridge_kernel": 1e-6}
     calls = []
@@ -63,6 +216,25 @@ class TestSinkhornImplicit:
         atol=1e-6
     )
     assert calls == [solver_kwargs]
+
+  @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 0.87), (1.0, 0.7)])
+  def test_unbalanced_danskin(self, rng: jax.Array, tau_a: float, tau_b: float):
+    clouds = _utils.random_clouds(rng, n=38, m=73, dim=3)
+
+    def loss(x: jnp.ndarray, use_danskin: bool) -> float:
+      geom = pointcloud.PointCloud(x, clouds.y, epsilon=5e-2)
+      prob = linear_problem.LinearProblem(
+          geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
+      )
+      solver = sinkhorn.Sinkhorn(threshold=1e-6, use_danskin=use_danskin)
+      return solver(prob).reg_ot_cost
+
+    np.testing.assert_allclose(
+        jax.grad(loss)(clouds.x, True),
+        jax.grad(loss)(clouds.x, False),
+        rtol=1e-4,
+        atol=1e-6,
+    )
 
   @pytest.mark.parametrize(("lse_mode", "threshold", "pcg"),
                            [(True, 1e-4, True), (False, 1e-6, False)])

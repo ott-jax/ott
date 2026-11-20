@@ -59,11 +59,12 @@ class MMSinkhornOutput(NamedTuple):
   Args:
     potentials: Tuple of :math:`k` optimal dual variables, vectors of sizes
       equal to the number of points in each of the :math:`k` point clouds.
-    errors: Vector of errors, along iterations. This vector is of size
-      ``max_iterations // inner_iterations`` where those were the parameters
-      passed on to the :class:`~ott.experimental.mmsinkhorn.MMSinkhorn` solver.
-      Follows the conventions used in
-      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.errors`
+    errors: Array of errors, along iterations. This array is of shape
+      ``[ceil(max_iterations / inner_iterations), 1]`` where those were the
+      parameters passed on to the
+      :class:`~ott.experimental.mmsinkhorn.MMSinkhorn` solver. Follows the
+      conventions used in
+      :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.errors`.
     x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size
       :math:`n_i \times d` where `d` is common to all point clouds.
     a_s: Tuple of :math:`k` probability vectors, each of size :math:`n_i`.
@@ -108,9 +109,7 @@ class MMSinkhornOutput(NamedTuple):
   @property
   def tensor(self) -> jnp.ndarray:
     """Transport tensor."""
-    return jnp.exp(
-        -remove_tensor_sum(self.cost_t, self.potentials) / self.epsilon
-    )
+    return coupling_tensor(self.potentials, self.cost_t, self.epsilon)
 
   @property
   def marginals(self) -> Tuple[jnp.ndarray, ...]:
@@ -159,7 +158,7 @@ def cost_tensor(
 
   k = len(x_s)  # TODO(cuturi) padded version
   ns = [x.shape[0] for x in x_s]
-  cost_t = jnp.zeros(ns)
+  cost_t = jnp.zeros(ns, dtype=jnp.result_type(*x_s))
 
   for i in range(k):
     for j in range(i + 1, k):
@@ -224,8 +223,7 @@ class MMSinkhorn:
       ``max_iterations`` is equal to ``min_iterations``, Sinkhorn iterations are
       run by default using a :func:`~jax.lax.scan` loop rather than a custom,
       unroll-able :func:`~jax.lax.while_loop` that monitors convergence.
-      In that case the error is not monitored and the ``converged``
-      flag will return :obj:`False` as a consequence.
+      In that case the error is only computed at the last iteration.
     use_danskin: when :obj:`True`, it is assumed the entropy regularized cost
       is evaluated using optimal potentials that are frozen, i.e. whose
       gradients have been stopped. This is useful when carrying out first order
@@ -267,7 +265,8 @@ class MMSinkhorn:
 
     The solver also uses ``epsilon`` as an input, with the default rule set to
     one twentieth of the standard deviation of the all values stored in the cost
-    tensor resulting from these inputs.
+    tensor resulting from these inputs. That default is treated as a constant
+    when differentiating, as in :class:`~ott.geometry.geometry.Geometry`.
 
     Args:
       x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size
@@ -291,29 +290,36 @@ class MMSinkhorn:
     elif isinstance(cost_fns, Tuple):
       assert len(cost_fns) == (len(n_s) * (len(n_s) - 1)) // 2
 
+    dtype = jnp.result_type(*x_s)
     # Default to uniform probability weights for each point cloud.
     if a_s is None:
-      a_s = [jnp.ones(n) / n for n in n_s]
+      a_s = [jnp.ones(n, dtype=dtype) / n for n in n_s]
     else:
       # Case in which user passes ``None`` weights within tuple.
-      a_s = [(jnp.ones(n) / n if a is None else a) for a, n in zip(a_s, n_s)]
+      a_s = [(jnp.ones(n, dtype=dtype) / n if a is None else a)
+             for a, n in zip(a_s, n_s)]
 
     assert len(n_s) == len(a_s), (len(n_s), len(a_s))
     for n, a in zip(n_s, a_s):
       assert n == a.shape[0], (n, a.shape[0])
 
     cost_t = cost_tensor(x_s, cost_fns)
-    state = self.init_state(n_s)
     if epsilon is None:
-      epsilon = epsilon_scheduler.DEFAULT_EPSILON_SCALE * jnp.std(cost_t)
+      scale = jax.lax.stop_gradient(jnp.std(cost_t))
+      epsilon = epsilon_scheduler.DEFAULT_EPSILON_SCALE * scale
+    state = self.init_state(n_s, jnp.result_type(cost_t, epsilon, *a_s))
     const = cost_t, a_s, epsilon
     out = run(const, self, state)
     return out.set(x_s=x_s, a_s=a_s, cost_fns=cost_fns, epsilon=epsilon)
 
-  def init_state(self, n_s: Tuple[int, ...]) -> MMSinkhornState:
+  def init_state(
+      self,
+      n_s: Tuple[int, ...],
+      dtype: Optional[jnp.dtype] = None
+  ) -> MMSinkhornState:
     """Return the initial state of the loop."""
-    errors = -jnp.ones((self.outer_iterations, 1))
-    potentials = tuple(jnp.zeros(n) for n in n_s)
+    errors = -jnp.ones((self.outer_iterations, 1), dtype=dtype)
+    potentials = tuple(jnp.zeros(n, dtype=dtype) for n in n_s)
     return MMSinkhornState(potentials=potentials, errors=errors)
 
   def _converged(self, state: MMSinkhornState, iteration: int) -> bool:
@@ -375,7 +381,9 @@ def run(
       app_lse = mu.softmin(
           remove_tensor_sum(cost_t, potentials), epsilon, axis=axis
       )
-      pot += epsilon * jnp.log(a) + jnp.where(jnp.isfinite(app_lse), app_lse, 0)
+      supp = a > 0.0
+      fa = jnp.where(supp, epsilon * jnp.log(jnp.where(supp, a, 1.0)), -jnp.inf)
+      pot += fa + jnp.where(jnp.isfinite(app_lse), app_lse, 0)
       return potentials[:l] + (pot,) + potentials[l + 1:]
 
     potentials = state.potentials
@@ -386,10 +394,13 @@ def run(
     err = jax.lax.cond(
         jnp.logical_or(
             iteration == solver.max_iterations - 1,
-            jnp.logical_and(compute_error, iteration >= solver.min_iterations)
+            jnp.logical_and(
+                compute_error, iteration + 1 >= solver.min_iterations
+            )
         ),
         lambda state, c, a, e: state.solution_error(c, a, e, solver.norm_error),
-        lambda *_: jnp.inf, state, cost_t, a_s, epsilon
+        lambda *_: jnp.array(jnp.inf, dtype=state.errors.dtype), state, cost_t,
+        a_s, epsilon
     )
     errors = state.errors.at[iteration // solver.inner_iterations, :].set(err)
     return state.set(errors=errors)
@@ -399,10 +410,8 @@ def run(
       cond_fn, body_fn, solver.min_iterations, solver.max_iterations,
       solver.inner_iterations, const, state
   )
-  converged = jnp.logical_and(
-      jnp.logical_not(jnp.any(jnp.isnan(state.errors))), state.errors[-1, 0]
-      < solver.threshold
-  )
+  n_iters = solver.inner_iterations * jnp.sum(state.errors[:, 0] != -1)
+  converged = solver._converged(state, n_iters)
 
   out = MMSinkhornOutput(
       potentials=state.potentials,
@@ -433,4 +442,7 @@ def run(
 def coupling_tensor(
     potentials: Tuple[jnp.ndarray], cost_t: jnp.ndarray, epsilon: float
 ) -> jnp.ndarray:
-  return jnp.exp(-remove_tensor_sum(cost_t, potentials) / epsilon)
+  z = remove_tensor_sum(cost_t, potentials)
+  # -inf potentials at zero weights
+  inf = jnp.isposinf(z)
+  return jnp.where(inf, 0.0, jnp.exp(-jnp.where(inf, 0.0, z) / epsilon))

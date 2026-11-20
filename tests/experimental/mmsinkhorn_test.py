@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import List, Optional
+
 import pytest
 
 import jax
@@ -45,7 +47,7 @@ class TestMMSinkhorn:
       b = None
     else:
       b = jr.uniform(rngs[3], (m,))
-      b.at[2].set(0.0)
+      b = b.at[2].set(0.0)
       b /= jnp.sum(b)
     cost_fn = costs.PNormP(1.8)
     geom = pointcloud.PointCloud(x, y, cost_fn=cost_fn)
@@ -60,6 +62,10 @@ class TestMMSinkhorn:
     for axis in [0, 1]:
       f = out.potentials[axis]
       f_ms = out_ms.potentials[axis]
+      # the potentials are `-inf` at zero weights
+      supp = jnp.isfinite(f)
+      np.testing.assert_array_equal(jnp.isfinite(f_ms), supp)
+      f, f_ms = f[supp], f_ms[supp]
       f -= jnp.mean(f)
       f_ms -= jnp.mean(f_ms)
       np.testing.assert_allclose(f, f_ms, rtol=1e-3, atol=1e-3)
@@ -115,9 +121,14 @@ class TestMMSinkhorn:
     x_s_m = [x - eps * delta for x, delta in zip(x_s, deltas)]
 
     solver = mmsinkhorn.MMSinkhorn(threshold=1e-5)
+    # the default epsilon is a constant when differentiating
+    epsilon = solver(x_s).epsilon
     ent_reg = jax.jit(lambda x_s: solver(x_s).ent_reg_cost)
-    out_p = ent_reg(x_s_p)
-    out_m = ent_reg(x_s_m)
+    ent_reg_fixed = jax.jit(
+        lambda x_s: solver(x_s, epsilon=epsilon).ent_reg_cost
+    )
+    out_p = ent_reg_fixed(x_s_p)
+    out_m = ent_reg_fixed(x_s_m)
     ent_g = jax.grad(ent_reg)
     g_s = ent_g(x_s)
     first_order = 0
@@ -128,3 +139,90 @@ class TestMMSinkhorn:
                                first_order,
                                rtol=1e-3,
                                atol=1e-3)
+
+  @pytest.mark.parametrize("use_danskin", [True, False])
+  def test_mm_sinkhorn_diff_zero_weights(
+      self, rng: jax.Array, use_danskin: bool
+  ):
+    """Test gradients of MMSinkhorn's ent_reg_cost with zero weights."""
+    n_s, d = [5, 6, 7], 2
+    x_s = [jr.normal(rng, (n, d)) for rng, n in zip(jr.split(rng, 3), n_s)]
+    a_s = [jnp.ones(n) / n for n in n_s]
+    a_s[0] = jnp.array([0.0, 0.25, 0.25, 0.25, 0.25])
+    solver = mmsinkhorn.MMSinkhorn(threshold=1e-5, use_danskin=use_danskin)
+    grad_fn = jax.grad(
+        lambda x_s, a_s, eps: solver(x_s, a_s, epsilon=eps).ent_reg_cost,
+        argnums=(1, 2)
+    )
+
+    g_a_s, g_eps = grad_fn(x_s, a_s, 1.0)
+    g_a_s_supp, g_eps_supp = grad_fn([x_s[0][1:], *x_s[1:]],
+                                     [a_s[0][1:], *a_s[1:]], 1.0)
+
+    assert jnp.all(jnp.isfinite(g_a_s[0]))
+    np.testing.assert_allclose(g_a_s[0][1:], g_a_s_supp[0], rtol=1e-4)
+    np.testing.assert_allclose(g_eps, g_eps_supp, rtol=1e-4)
+
+  def test_tensor_grad_zero_weights(self, rng: jax.Array):
+    n_s, d = [5, 6, 7], 2
+    rng_x, rng_v, rng_w = jr.split(rng, 3)
+    x_s = [jr.normal(rng, (n, d)) for rng, n in zip(jr.split(rng_x, 3), n_s)]
+    v_s = [jr.normal(rng, (n, d)) for rng, n in zip(jr.split(rng_v, 3), n_s)]
+    a_s = [jnp.ones(n) / n for n in n_s]
+    a_s[0] = jnp.array([0.0, 0.25, 0.25, 0.25, 0.25])
+    w = jr.normal(rng_w, n_s)
+    solver = mmsinkhorn.MMSinkhorn(threshold=1e-6)
+
+    def loss(x_s: List[jnp.ndarray], epsilon: Optional[float] = None) -> float:
+      return jnp.vdot(w, solver(x_s, a_s, epsilon=epsilon).tensor)
+
+    # the default epsilon is a constant when differentiating
+    epsilon = solver(x_s, a_s).epsilon
+    grad = jax.grad(loss)(x_s)
+    h = 1e-3
+    loss_p = loss([x + h * v for x, v in zip(x_s, v_s)], epsilon)
+    loss_m = loss([x - h * v for x, v in zip(x_s, v_s)], epsilon)
+
+    actual = sum(jnp.vdot(g, v) for g, v in zip(grad, v_s))
+    np.testing.assert_allclose(actual, (loss_p - loss_m) / (2 * h), rtol=1e-3)
+
+  @pytest.mark.parametrize("min_iterations", [30, 34])
+  def test_min_iterations(self, rng: jax.Array, min_iterations: int):
+    """Test that errors are recorded once ``min_iterations`` are done."""
+    x_s = [jr.normal(rng, (7, 2)) for rng in jr.split(rng, 3)]
+
+    out = mmsinkhorn.MMSinkhorn(min_iterations=min_iterations)(x_s)
+
+    errors = out.errors[:, 0]
+    first = (min_iterations - 1) // 10
+    np.testing.assert_array_equal(errors[:first], jnp.inf)
+    assert 0 < errors[first] < jnp.inf
+    assert out.converged
+
+  @pytest.mark.parametrize(("max_iterations", "converged"), [(15, False),
+                                                             (100, True)])
+  def test_scan_converged(
+      self, rng: jax.Array, max_iterations: int, converged: bool
+  ):
+    """Test the converged flag when running a scan loop."""
+    x_s = [jr.normal(rng, (7, 2)) for rng in jr.split(rng, 3)]
+    solver = mmsinkhorn.MMSinkhorn(
+        min_iterations=max_iterations, max_iterations=max_iterations
+    )
+
+    out = solver(x_s)
+
+    assert out.converged == converged
+
+  @pytest.mark.usefixtures("enable_x64")
+  def test_float32_with_x64(self, rng: jax.Array):
+    n_s, d = [5, 6, 7], 2
+    x_s = [
+        jr.normal(rng, (n, d), dtype=jnp.float32)
+        for rng, n in zip(jr.split(rng, 3), n_s)
+    ]
+
+    out = mmsinkhorn.MMSinkhorn()(x_s)
+
+    for arr in (*out.potentials, out.errors, out.ent_reg_cost, out.tensor):
+      assert arr.dtype == jnp.float32

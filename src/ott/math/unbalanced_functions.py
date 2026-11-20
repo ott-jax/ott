@@ -47,6 +47,9 @@ def grad_of_marginal_fit(
   if tau == 1.0:
     return c
   r = rho(epsilon, tau)
+  h = h - epsilon * jnp.log(jnp.where(c > 0, c, 1.0))
+  # avoid `0 * inf` in the gradient, as `h` is `-inf` where `c` is zero
+  h = jnp.where(c > 0, h, 0.0)
   return jnp.where(c > 0, c * derivative_phi_star(-h, r), 0.0)
 
 
@@ -78,6 +81,7 @@ def diag_jacobian_of_marginal_fit(
     return 0.0
 
   r = rho(epsilon, tau)
+  h = h - epsilon * jnp.log(jnp.where(c > 0, c, 1.0))
   # here no minus sign because we are taking derivative w.r.t -h
   return jnp.where(
       c > 0,

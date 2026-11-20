@@ -60,3 +60,15 @@ class TestGeometryLse:
                                  jnp.sum(delta_b * g[1]),
                                  rtol=1e-3,
                                  atol=1e-2)
+
+  def test_lse_grad_zero_weights(self):
+    # large entries with zero weights don't contribute to the gradient
+    mat = jnp.array([[0.0, 100.0], [1.0, 2.0]])
+    b = jnp.array([[1.0, 0.0], [1.0, 1.0]])
+
+    grad_fn = jax.grad(lambda x: jnp.sum(mu.logsumexp(x, axis=1, b=b)))
+    expected_fn = jax.grad(
+        lambda x: jnp.sum(jax.scipy.special.logsumexp(x, axis=1, b=b))
+    )
+
+    np.testing.assert_allclose(grad_fn(mat), expected_fn(mat), rtol=1e-6)

@@ -205,8 +205,8 @@ class PointCloud(geometry.Geometry):
 
     if summary == "mean":
       n, m = self.shape
-      a = jnp.full((n,), fill_value=1.0 / n)
-      b = jnp.full((m,), fill_value=1.0 / m)
+      a = jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
+      b = jnp.full((m,), fill_value=1.0 / m, dtype=self.dtype)
       return jnp.sum(self._apply_cost_to_vec(a, scale_cost=1.0) * b)
 
     if summary == "max_cost":
@@ -221,7 +221,7 @@ class PointCloud(geometry.Geometry):
 
   def barycenter(self, weights: jnp.ndarray) -> jnp.ndarray:
     """Compute barycenter of points in self.x using weights."""
-    return self.cost_fn.barycenter(self.x, weights)[0]
+    return self.cost_fn.barycenter(weights, self.x)[0]
 
   @classmethod
   def prepare_divergences(
@@ -407,7 +407,7 @@ class PointCloud(geometry.Geometry):
 
   @property
   def dtype(self) -> jnp.dtype:  # noqa: D102
-    return self.x.dtype
+    return jnp.result_type(self.x, self.y)
 
   @property
   def is_symmetric(self) -> bool:  # noqa: D102

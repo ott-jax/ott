@@ -47,8 +47,9 @@ class GWOutput(NamedTuple):
   """Holds the output of the Gromov-Wasserstein solver.
 
   Args:
-    costs: Holds the sequence of regularized GW costs seen through the outer
-      loop of the solver.
+    costs: Holds the sequence of regularized OT costs of the linearized
+      problems or, with the unbalanced correction, of the UGW costs, seen
+      through the outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
     converged: Convergence flag for the outer GW iterations.
@@ -58,6 +59,8 @@ class GWOutput(NamedTuple):
       linearization of GW.
     geom: The geometry underlying the local linearization.
     old_transport_mass: Holds total mass of transport at previous iteration.
+    ot_prob: The quadratic problem.
+    epsilon: Entropic regularization.
   """
 
   costs: Optional[jnp.ndarray] = None
@@ -68,6 +71,8 @@ class GWOutput(NamedTuple):
   geom: Optional[geometry.Geometry] = None
   # Intermediate values.
   old_transport_mass: float = 1.0
+  ot_prob: Optional[quadratic_problem.QuadraticProblem] = None
+  epsilon: Optional[float] = None
 
   def set(self, **kwargs: Any) -> "GWOutput":
     """Return a copy of self, possibly with overwrites."""
@@ -84,17 +89,49 @@ class GWOutput(NamedTuple):
 
   @property
   def reg_gw_cost(self) -> float:
-    """Regularized optimal transport cost of the linearization."""
-    return self.linear_state.reg_ot_cost
+    """Regularized GW cost.
 
-  @property
-  def _rescale_factor(self) -> float:
-    return jnp.sqrt(self.old_transport_mass / self.linear_state.transport_mass)
+    That is,
+    ``0.5 * quadratic + fused_penalty * linear + epsilon * KL(P | ab^T)``,
+    plus the marginal penalties in the unbalanced case, where ``epsilon`` is
+    the one of the linearization ``geom``. With the unbalanced correction, this
+    is half of the UGW cost of :cite:`sejourne:21`, plus
+    ``fused_penalty * linear``.
+    """
+    if self.ot_prob._is_ugw:
+      transport = jax.lax.stop_gradient(self.matrix)
+      cost = self.ot_prob._ugw_primal_cost(
+          transport, self.geom.cost_matrix, self.epsilon
+      )
+      return cost + self.ot_prob._ugw_regularizer(transport, self.epsilon)
+    return self.linear_state.reg_ot_cost - self._quad_cost
 
   @property
   def primal_cost(self) -> float:
-    """Return transport cost of current linear OT solution at geometry."""
-    return self.linear_state.transport_cost_at_geom(other_geom=self.geom)
+    """GW cost, i.e., ``0.5 * quadratic + fused_penalty * linear``."""
+    if self.ot_prob._is_ugw:
+      return self.ot_prob._ugw_primal_cost(
+          self.matrix, self.geom.cost_matrix, self.epsilon
+      )
+    primal_cost = self.linear_state.transport_cost_at_geom(other_geom=self.geom)
+    return primal_cost - self._quad_cost
+
+  @property
+  def _quad_cost(self) -> float:
+    prob = self.ot_prob
+    # `self.geom` is the gradient of `0.5 * quadratic + fused_penalty * linear`
+    quad_grad = self.geom.cost_matrix
+    if prob.is_fused:
+      quad_grad -= prob.fused_penalty * prob._fused_cost_matrix
+    transport = jax.lax.stop_gradient(self.linear_state.matrix)
+    # `<quad_grad, P>` is the quadratic loss
+    return 0.5 * jnp.vdot(quad_grad, transport)
+
+  @property
+  def _rescale_factor(self) -> float:
+    if not self.ot_prob._is_ugw:
+      return 1.0
+    return jnp.sqrt(self.old_transport_mass / self.linear_state.transport_mass)
 
   @property
   def n_iters(self) -> int:  # noqa: D102
@@ -105,8 +142,9 @@ class GWState(NamedTuple):
   """State of the Gromov-Wasserstein solver.
 
   Attributes:
-    costs: Holds the sequence of regularized GW costs seen through the outer
-      loop of the solver.
+    costs: Holds the sequence of regularized OT costs of the linearized
+      problems or, with the unbalanced correction, of the UGW costs, seen
+      through the outer loop of the solver.
     linear_convergence: Holds the sequence of bool convergence flags of the
       inner Sinkhorn iterations.
     linear_state: State used to solve and store solutions to the local
@@ -131,9 +169,9 @@ class GWState(NamedTuple):
   def update(  # noqa: D102
       self, iteration: int, linear_sol: LinearOutput,
       linear_pb: linear_problem.LinearProblem, store_errors: bool,
-      old_transport_mass: float
+      old_transport_mass: float, cost: float
   ) -> "GWState":
-    costs = self.costs.at[iteration].set(linear_sol.reg_ot_cost)
+    costs = self.costs.at[iteration].set(cost)
     errors = None
     if store_errors and self.errors is not None:
       errors = self.errors.at[iteration, :].set(linear_sol.errors)
@@ -155,6 +193,10 @@ class GWState(NamedTuple):
 class GromovWasserstein(was_solver.WassersteinSolver):
   """Entropic Gromov-Wasserstein solver :cite:`peyre:16`.
 
+  With the unbalanced correction :cite:`sejourne:21`, the cost can stall
+  before the transport mass has converged, so consider decreasing
+  ``threshold``.
+
   .. seealso::
     Low-rank Gromov-Wasserstein :cite:`scetbon:23` is implemented in
     :class:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGromovWasserstein`.
@@ -163,11 +205,12 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     linear_solver: Linear OT solver.
     epsilon: Entropic regularization.
     relative_epsilon: Whether to use relative epsilon in the linearized
-      geometry.
+      geometry. Not supported with the unbalanced correction.
     initializer: Quadratic initializer. If :obj:`None`, use
       :class:`~ott.initializers.quadratic.initializers.QuadraticInitializer`.
     warm_start: Whether to initialize Sinkhorn calls with the values
-      from the previous iteration.
+      from the previous iteration. Not supported for
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhorn`.
     progress_fn: callback function which gets called during the
       Gromov-Wasserstein iterations, so the user can display the error at each
       iteration, e.g., using a progress bar.
@@ -193,6 +236,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     ) if initializer is None else initializer
     self.warm_start = warm_start
     self.progress_fn = progress_fn
+
+    if warm_start and isinstance(linear_solver, sinkhorn_lr.LRSinkhorn):
+      raise ValueError("Warm start is not supported for `LRSinkhorn`.")
 
   def __call__(
       self,
@@ -231,14 +277,19 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         relative_epsilon=self.relative_epsilon,
     )
 
-    linear_state = out.linear_state.set_cost(linearization, True, True)
+    linear_state = out.linear_state
+    if not prob._is_ugw:
+      linear_state = linear_state.set_cost(linearization, True, True)
+
     iteration = jnp.sum(out.costs != -1)
     converged = jnp.logical_and(
-        iteration < self.max_iterations,
+        self._converged(out, iteration),
         jnp.nanmean(out.linear_convergence) == 1.0
     )
     return out.set(
-        linear_state=linear_state, geom=linearization.geom, converged=converged
+        linear_state=linear_state,
+        geom=linearization.geom,
+        converged=converged,
     )
 
   def init_state(
@@ -257,15 +308,18 @@ class GromovWasserstein(was_solver.WassersteinSolver):
     """
     linear_state = self.linear_solver(init)
     num_iter = self.max_iterations
-    transport_mass = prob.init_transport_mass()
+    transport_mass = self.initializer.init_transport_mass(prob)
     if self.store_inner_errors:
-      errors = -jnp.ones((num_iter, self.linear_solver.outer_iterations))
+      errors = -jnp.ones((num_iter, self.linear_solver.outer_iterations),
+                         dtype=init.dtype)
     else:
       errors = None
 
     return GWState(
-        costs=-jnp.ones((num_iter,)),
-        linear_convergence=jnp.full((num_iter,), fill_value=jnp.nan),
+        costs=-jnp.ones((num_iter,), dtype=init.dtype),
+        linear_convergence=jnp.full((num_iter,),
+                                    fill_value=jnp.nan,
+                                    dtype=init.dtype),
         linear_state=linear_state,
         linear_pb=init,
         old_transport_mass=transport_mass,
@@ -274,11 +328,13 @@ class GromovWasserstein(was_solver.WassersteinSolver):
 
   def output_from_state(
       self,
+      ot_prob: quadratic_problem.QuadraticProblem,
       state: GWState,
   ) -> GWOutput:
     """Create an output from a loop state.
 
     Arguments:
+      ot_prob: Quadratic OT problem.
       state: A GWState.
 
     Returns:
@@ -290,7 +346,9 @@ class GromovWasserstein(was_solver.WassersteinSolver):
         errors=state.errors,
         linear_state=state.linear_state,
         geom=state.linear_pb.geom,
-        old_transport_mass=state.old_transport_mass
+        old_transport_mass=state.old_transport_mass,
+        ot_prob=ot_prob,
+        epsilon=self.epsilon,
     )
 
   def tree_flatten(self) -> Tuple[Sequence[Any], Dict[str, Any]]:  # noqa: D102
@@ -338,11 +396,27 @@ def iterations(
     )
     out = solver.linear_solver(linear_pb, init=init)
 
-    old_transport_mass = jax.lax.stop_gradient(
-        state.linear_state.transport_mass
-    )
+    old_transport_mass = lin_state.transport_mass
+    cost = out.reg_ot_cost
+    if prob._is_ugw:
+      rescale_factor = jnp.sqrt(state.old_transport_mass / old_transport_mass)
+      old_transport_mass *= rescale_factor
+
+      transport = rescale_factor * lin_state.matrix
+      cost = prob._ugw_primal_cost(
+          transport, linear_pb.geom.cost_matrix, solver.epsilon
+      )
+      cost += prob._ugw_regularizer(transport, solver.epsilon)
+
+    old_transport_mass = jax.lax.stop_gradient(old_transport_mass)
+
     new_state = state.update(
-        iteration, out, linear_pb, solver.store_inner_errors, old_transport_mass
+        iteration,
+        out,
+        linear_pb,
+        solver.store_inner_errors,
+        old_transport_mass,
+        cost,
     )
 
     # Inner iterations is currently fixed to 1.
@@ -350,7 +424,7 @@ def iterations(
     if solver.progress_fn is not None:
       jax.debug.callback(
           solver.progress_fn,
-          (iteration, inner_iterations, solver.max_iterations, state)
+          (iteration, inner_iterations, solver.max_iterations, new_state)
       )
 
     return new_state
@@ -365,4 +439,4 @@ def iterations(
       state=solver.init_state(prob, init)
   )
 
-  return solver.output_from_state(state)
+  return solver.output_from_state(prob, state)

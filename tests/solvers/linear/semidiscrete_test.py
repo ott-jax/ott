@@ -230,6 +230,98 @@ class TestSemidiscreteSolver:
     )
     np.testing.assert_array_equal(jnp.isfinite(out.losses), True)
 
+  def test_converged_early_stop(self, rng: jax.Array):
+    rng_y, rng_solver = jr.split(rng, 2)
+    y = jr.normal(rng_y, (8, 2))
+    geom = sdpc.SemidiscretePointCloud(jr.normal, y, epsilon=1e-1)
+    prob = sdlp.SemidiscreteLinearProblem(geom)
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=100,
+        batch_size=16,
+        error_eval_every=10,
+        threshold=10.0,
+        optimizer=optax.sgd(1e-2),
+    )
+
+    out = solver(rng_solver, prob)
+
+    assert out.it == 10
+    assert out.converged
+
+  @pytest.mark.parametrize(("num_iterations", "error_eval_every"), [
+      (15, 10),
+      (5, 1000),
+  ])
+  def test_num_iterations(
+      self, rng: jax.Array, num_iterations: int, error_eval_every: int
+  ):
+    rng_y, rng_solver = jr.split(rng, 2)
+    y = jr.normal(rng_y, (8, 2))
+    geom = sdpc.SemidiscretePointCloud(jr.normal, y, epsilon=1e-1)
+    prob = sdlp.SemidiscreteLinearProblem(geom)
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=num_iterations,
+        batch_size=16,
+        error_eval_every=error_eval_every,
+        threshold=0.0,
+        optimizer=optax.sgd(1e-2),
+    )
+
+    out = solver(rng_solver, prob)
+
+    assert out.it == num_iterations
+    assert jnp.isfinite(out.errors[-1])
+
+  def test_error_zero_weights(self, rng: jax.Array):
+    rng_prob, rng_solver = jr.split(rng, 2)
+    prob = _random_problem(rng_prob, m=8, d=2, epsilon=1e-1)
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=20,
+        batch_size=16,
+        error_eval_every=10,
+        threshold=0.0,
+        optimizer=optax.sgd(1e-2),
+    )
+
+    out = solver(rng_solver, prob)
+
+    assert out.it == 20
+    np.testing.assert_array_equal(jnp.isfinite(out.errors), True)
+
+  def test_error_batch_size_one(self, rng: jax.Array):
+    rng_prob, rng_solver = jr.split(rng, 2)
+    prob = _random_problem(rng_prob, m=8, d=2, epsilon=1e-1)
+    solver = semidiscrete.SemidiscreteSolver(
+        num_iterations=10,
+        batch_size=16,
+        error_batch_size=1,
+        optimizer=optax.sgd(1e-2),
+    )
+
+    with pytest.raises(AssertionError, match=r"Error batch size must be > 1"):
+      solver(rng_solver, prob)
+
+  def test_potential_ema(self, rng: jax.Array):
+    rng_prob, rng_solver = jr.split(rng, 2)
+    prob = _random_problem(rng_prob, m=8, d=2, epsilon=1e-1)
+    g_init = jnp.ones(8)
+
+    def solve(num_iterations: int, potential_ema: float) -> jnp.ndarray:
+      solver = semidiscrete.SemidiscreteSolver(
+          num_iterations=num_iterations,
+          batch_size=16,
+          optimizer=optax.sgd(1e-1),
+          potential_ema=potential_ema,
+      )
+      # same samples in every run
+      return solver(jr.clone(rng_solver), prob, g_init=g_init).g
+
+    g_1, g_2 = solve(1, 0.0), solve(2, 0.0)
+
+    np.testing.assert_allclose(
+        solve(2, 0.9), (0.9 * g_1 + g_2) / 1.9, rtol=1e-5, atol=1e-5
+    )
+
   @pytest.mark.parametrize(("n", "epsilon"), [(17, 0.0), (20, 1e-3),
                                               (35, None)])
   def test_output(self, rng: jax.Array, n: int, epsilon: Optional[float]):

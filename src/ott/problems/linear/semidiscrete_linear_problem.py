@@ -89,6 +89,8 @@ class SemidiscreteLinearProblem:
     # `potential_fn_from_dual_vec` accesses only necessary properties of the
     # problem/geometry, so we can pass the semidiscrete point cloud
     prob = linear_problem.LinearProblem(self.geom, b=self.b)
+    epsilon = self.geom.epsilon if epsilon is None else epsilon
+    g = g + epsilon * jnp.log(jnp.where(self.b > 0.0, self.b, 1.0))
     return prob.potential_fn_from_dual_vec(g, epsilon=epsilon, axis=1)
 
   @property

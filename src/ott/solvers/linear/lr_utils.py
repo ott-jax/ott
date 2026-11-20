@@ -18,6 +18,7 @@ import jax.numpy as jnp
 import jax.scipy as jsp
 
 from ott.math import fixed_point_loop
+from ott.math import utils as mu
 from ott.problems.linear import linear_problem
 
 __all__ = ["unbalanced_dykstra_lse", "unbalanced_dykstra_kernel"]
@@ -94,16 +95,20 @@ def unbalanced_dykstra_lse(
 
   def cond_fn(
       iteration: int,
-      const: Constants,
+      constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
       state: State,
   ) -> bool:
-    del iteration, const
+    del iteration, constants
     return tolerance < state.err
 
   def body_fn(
-      iteration: int, const: Constants, state: State, compute_error: bool
+      iteration: int,
+      constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
+      state: State,
+      compute_error: bool,
   ) -> State:
-    log_a, log_b = jnp.log(const.a), jnp.log(const.b)
+    const, c_q, c_r, c_g, gamma = constants
+    log_a, log_b = mu.safe_log(const.a), mu.safe_log(const.b)
     rho_a, rho_b = const.rho_a, const.rho_b
 
     c_a = _get_ratio(const.rho_a, gamma)
@@ -142,7 +147,7 @@ def unbalanced_dykstra_lse(
 
     new_state = State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=jnp.inf)
     err = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= min_iter),
+        jnp.logical_and(compute_error, iteration + 1 >= min_iter),
         _error,
         lambda *_: state.err,
         gamma,
@@ -161,16 +166,17 @@ def unbalanced_dykstra_lse(
       supp_b=ot_prob.b > 0,
   )
   init_state = State(
-      v1=jnp.zeros(r),
-      v2=jnp.zeros(r),
-      u1=jnp.zeros(n),
-      u2=jnp.zeros(m),
+      v1=jnp.zeros(r, dtype=c_q.dtype),
+      v2=jnp.zeros(r, dtype=c_q.dtype),
+      u1=jnp.zeros(n, dtype=c_q.dtype),
+      u2=jnp.zeros(m, dtype=c_q.dtype),
       g=c_g,
-      err=jnp.inf,
+      err=jnp.array(jnp.inf, dtype=c_q.dtype),
   )
 
   state: State = fixed_point_loop.fixpoint_iter_backprop(
-      cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
+      cond_fn, body_fn, min_iter, max_iter, inner_iter,
+      (constants, c_q, c_r, c_g, gamma), init_state
   )
 
   q = jnp.exp(state.u1[:, None] + c_q + state.v1[None, :])
@@ -218,10 +224,10 @@ def unbalanced_dykstra_kernel(
       old_state: State,
   ) -> float:
     u1_err = jnp.linalg.norm(
-        jnp.log(new_state.u1) - jnp.log(old_state.u1), ord=jnp.inf
+        mu.safe_log(new_state.u1) - mu.safe_log(old_state.u1), ord=jnp.inf
     )
     u2_err = jnp.linalg.norm(
-        jnp.log(new_state.u2) - jnp.log(old_state.u2), ord=jnp.inf
+        mu.safe_log(new_state.u2) - mu.safe_log(old_state.u2), ord=jnp.inf
     )
     v1_err = jnp.linalg.norm(
         jnp.log(new_state.v1) - jnp.log(old_state.v1), ord=jnp.inf
@@ -231,26 +237,36 @@ def unbalanced_dykstra_kernel(
     )
     return (1.0 / gamma) * jnp.max(jnp.array([u1_err, u2_err, v1_err, v2_err]))
 
+  def _scaling(
+      marginal: jnp.ndarray, supp: jnp.ndarray, kv: jnp.ndarray, c: float
+  ) -> jnp.ndarray:
+    ratio = jnp.where(supp, marginal, 1.0) / jnp.where(supp, kv, 1.0)
+    return jnp.where(supp, ratio ** c, 0.0)
+
   def cond_fn(
       iteration: int,
-      const: Constants,
+      constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
       state: State,
   ) -> bool:
-    del iteration, const
+    del iteration, constants
     return tolerance < state.err
 
   def body_fn(
-      iteration: int, const: Constants, state: State, compute_error: bool
+      iteration: int,
+      constants: Tuple[Constants, jnp.ndarray, jnp.ndarray, jnp.ndarray, float],
+      state: State,
+      compute_error: bool,
   ) -> State:
+    const, k_q, k_r, k_g, gamma = constants
     c_a = _get_ratio(const.rho_a, gamma)
     c_b = _get_ratio(const.rho_b, gamma)
 
     if translation_invariant:
       lam_a, lam_b = compute_lambdas(const, state, gamma, g=k_g, lse_mode=False)
 
-      u1 = jnp.where(const.supp_a, (const.a / (k_q @ state.v1)) ** c_a, 0.0)
+      u1 = _scaling(const.a, const.supp_a, k_q @ state.v1, c_a)
       u1 = u1 * jnp.exp(-lam_a / ((1.0 / gamma) + const.rho_a))
-      u2 = jnp.where(const.supp_b, (const.b / (k_r @ state.v2)) ** c_b, 0.0)
+      u2 = _scaling(const.b, const.supp_b, k_r @ state.v2, c_b)
       u2 = u2 * jnp.exp(-lam_b / ((1.0 / gamma) + const.rho_b))
 
       state_lam = State(
@@ -266,8 +282,8 @@ def unbalanced_dykstra_kernel(
       k_trans = jnp.exp(gamma * (lam_a + lam_b)) * k_g
       g = (k_trans * v1_trans * v2_trans) ** (1.0 / 3.0)
     else:
-      u1 = jnp.where(const.supp_a, (const.a / (k_q @ state.v1)) ** c_a, 0.0)
-      u2 = jnp.where(const.supp_b, (const.b / (k_r @ state.v2)) ** c_b, 0.0)
+      u1 = _scaling(const.a, const.supp_a, k_q @ state.v1, c_a)
+      u2 = _scaling(const.b, const.supp_b, k_r @ state.v2, c_b)
 
       v1_trans = k_q.T @ u1
       v2_trans = k_r.T @ u2
@@ -279,7 +295,7 @@ def unbalanced_dykstra_kernel(
 
     new_state = State(v1=v1, v2=v2, u1=u1, u2=u2, g=g, err=jnp.inf)
     err = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= min_iter),
+        jnp.logical_and(compute_error, iteration + 1 >= min_iter),
         _error,
         lambda *_: state.err,
         gamma,
@@ -298,16 +314,17 @@ def unbalanced_dykstra_kernel(
       supp_b=ot_prob.b > 0.0,
   )
   init_state = State(
-      v1=jnp.ones(r),
-      v2=jnp.ones(r),
-      u1=jnp.ones(n),
-      u2=jnp.ones(m),
+      v1=jnp.ones(r, dtype=k_q.dtype),
+      v2=jnp.ones(r, dtype=k_q.dtype),
+      u1=jnp.ones(n, dtype=k_q.dtype),
+      u2=jnp.ones(m, dtype=k_q.dtype),
       g=k_g,
-      err=jnp.inf
+      err=jnp.array(jnp.inf, dtype=k_q.dtype)
   )
 
   state: State = fixed_point_loop.fixpoint_iter_backprop(
-      cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, init_state
+      cond_fn, body_fn, min_iter, max_iter, inner_iter,
+      (constants, k_q, k_r, k_g, gamma), init_state
   )
 
   q = state.u1[:, None] * k_q * state.v1[None, :]
@@ -339,15 +356,13 @@ def compute_lambdas(
     lam_2 = harmonic * gamma_inv * ratio_2 * (const_2 - ratio_1 * const_1)
     return lam_1, lam_2
 
+  u1 = jnp.where(const.supp_a, state.u1, 1.0)
+  u2 = jnp.where(const.supp_b, state.u2, 1.0)
   num_1 = jnp.sum(
-      jnp.where(
-          const.supp_a, ((state.u1 ** (-gamma_inv / rho_a)) * const.a), 0.0
-      )
+      jnp.where(const.supp_a, ((u1 ** (-gamma_inv / rho_a)) * const.a), 0.0)
   )
   num_2 = jnp.sum(
-      jnp.where(
-          const.supp_b, ((state.u2 ** (-gamma_inv / rho_b)) * const.b), 0.0
-      )
+      jnp.where(const.supp_b, ((u2 ** (-gamma_inv / rho_b)) * const.b), 0.0)
   )
   den = jnp.sum(g / (state.v1 * state.v2))
   const_1 = jnp.log(num_1 / den)
@@ -368,4 +383,4 @@ def _rho(tau: float) -> float:
 
 def _get_ratio(rho: float, gamma: float) -> float:
   gamma_inv = 1.0 / gamma
-  return jnp.where(jnp.isfinite(rho), rho / (rho + gamma_inv), 1.0)
+  return 1.0 / (1.0 + gamma_inv / rho)

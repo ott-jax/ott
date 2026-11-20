@@ -50,6 +50,16 @@ class TestCostMeanStd:
     eps = pointcloud.PointCloud(x, y, relative_epsilon="std").epsilon
     np.testing.assert_allclose(default_scale * std, eps, rtol=1e-5, atol=1e-5)
 
+  @pytest.mark.usefixtures("enable_x64")
+  def test_float32_with_x64(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x = jr.normal(rng_x, (5, 3), dtype=jnp.float32)
+    y = jr.normal(rng_y, (7, 3), dtype=jnp.float32)
+    geom = pointcloud.PointCloud(x, y, batch_size=2, scale_cost="mean")
+
+    assert geom.epsilon.dtype == jnp.float32
+    assert geom.cost_matrix.dtype == jnp.float32
+
 
 @pytest.mark.fast()
 class TestApplyKernel:

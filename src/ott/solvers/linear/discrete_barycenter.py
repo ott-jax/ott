@@ -46,8 +46,8 @@ class FixedBarycenter:
 
   Args:
     threshold: convergence threshold. The algorithm stops when the marginal
-      violations of all transport plans computed for that barycenter go below
-      that threshold.
+      violations of the transport plans computed for that barycenter, averaged
+      over the measures, go below that threshold.
     norm_error: norm used to compute marginal deviation.
     inner_iterations: number of iterations run before recomputing errors.
     min_iterations: number of iterations run without checking whether
@@ -62,7 +62,7 @@ class FixedBarycenter:
       self,
       threshold: float = 1e-2,
       norm_error: int = 1,
-      inner_iterations: float = 10,
+      inner_iterations: int = 10,
       min_iterations: int = 0,
       max_iterations: int = 2000,
       lse_mode: bool = True,
@@ -85,7 +85,7 @@ class FixedBarycenter:
 
     Args:
       fixed_bp: Fixed barycenter problem.
-      dual_initialization: Initial value for the g_v potential/scalings,
+      dual_initialization: Initial value for the g_v potentials,
         one for each of the histograms described in ``fixed_bp``. If ``None``,
         use initialization from :cite:`cuturi:15`, eq. 3.6.
 
@@ -105,9 +105,12 @@ class FixedBarycenter:
           dual_initialization, weights=weights, axis=0
       )[jnp.newaxis, :]
 
-    # TODO(michalk8): geom.is_symmetric is not static
-    if self.debiased and not geom.is_symmetric:
-      raise ValueError("Geometry must be symmetric to use debiased option.")
+    if self.debiased:
+      if not geom.is_square:
+        raise ValueError("Geometry must be square to use debiased option.")
+      is_symmetric = geom.is_symmetric
+      if not isinstance(is_symmetric, jax.core.Tracer) and not is_symmetric:
+        raise ValueError("Geometry must be symmetric to use debiased option.")
     norm_error = (self.norm_error,)
     return _discrete_barycenter(
         geom, a, weights, dual_initialization, self.threshold, norm_error,
@@ -148,55 +151,55 @@ def _discrete_barycenter(
 
   if lse_mode:
     parallel_update = jax.vmap(
-        lambda f, g, marginal, iteration: geom.
+        lambda geom, f, g, marginal, iteration: geom.
         update_potential(f, g, jnp.log(marginal), iteration=iteration, axis=1),
-        in_axes=[0, 0, 0, None]
+        in_axes=[None, 0, 0, 0, None]
     )
     parallel_apply = jax.vmap(
-        lambda f_, g_, eps_: geom.
+        lambda geom, f_, g_, eps_: geom.
         apply_lse_kernel(f_, g_, eps_, vec=None, axis=0)[0],
-        in_axes=[0, 0, None]
+        in_axes=[None, 0, 0, None]
     )
   else:
     parallel_update = jax.vmap(
-        lambda f, g, marginal, iteration: geom.
+        lambda geom, f, g, marginal, iteration: geom.
         update_scaling(g, marginal, iteration=iteration, axis=1),
-        in_axes=[0, 0, 0, None]
+        in_axes=[None, 0, 0, 0, None]
     )
     parallel_apply = jax.vmap(
-        lambda f_, g_, eps_: geom.apply_kernel(f_, eps_, axis=0),
-        in_axes=[0, 0, None]
+        lambda geom, f_, g_, eps_: geom.apply_kernel(f_, eps_, axis=0),
+        in_axes=[None, 0, 0, None]
     )
 
   errors_fn = jax.vmap(
       functools.partial(
           sinkhorn.marginal_error,
-          geom=geom,
           axis=1,
           norm_error=norm_error,
           lse_mode=lse_mode
       ),
-      in_axes=[0, 0, 0]
+      in_axes=[0, 0, 0, None]
   )
   errors = -jnp.ones((max_iterations // inner_iterations + 1, len(norm_error)))
 
-  const = (geom, a, weights)
+  const = (geom, a, weights, threshold)
 
-  def cond_fn(iteration, const, state):  # pylint: disable=unused-argument
+  def cond_fn(iteration, const, state):
+    threshold = const[-1]
     errors = state[0]
     return jnp.logical_or(
         iteration == 0, errors[iteration // inner_iterations - 1, 0] > threshold
     )
 
   def body_fn(iteration, const, state, compute_error):
-    geom, a, weights = const
+    geom, a, weights, _ = const
     errors, d, f_u, g_v = state
 
     eps = geom.epsilon_scheduler(iteration)  # pylint: disable=protected-access
-    f_u = parallel_update(f_u, g_v, a, iteration)
+    f_u = parallel_update(geom, f_u, g_v, a, iteration)
     # kernel_f_u stands for K times potential u if running in scaling mode,
     # eps log K exp f / eps in lse mode.
-    kernel_f_u = parallel_apply(f_u, g_v, eps)
+    kernel_f_u = parallel_apply(geom, f_u, g_v, eps)
     # b below is the running estimate for the barycenter if running in scaling
     # mode, eps log b if running in lse mode.
     if lse_mode:
@@ -209,7 +212,7 @@ def _discrete_barycenter(
         b += d
         d = 0.5 * (
             d + geom.update_potential(
-                jnp.zeros((num_a,)), d, b / eps, iteration=iteration, axis=0
+                d, jnp.zeros_like(d), b / eps, iteration=iteration, axis=0
             )
         )
       else:
@@ -221,9 +224,14 @@ def _discrete_barycenter(
       g_v = b[jnp.newaxis, :] / kernel_f_u
 
     # re-compute error if compute_error is True, else set to inf.
-    err = jnp.where(
-        jnp.logical_and(compute_error, iteration >= min_iterations),
-        jnp.mean(errors_fn(f_u, g_v, a)), jnp.inf
+    record_error = jnp.logical_or(
+        iteration == max_iterations - 1,
+        jnp.logical_and(compute_error, iteration + 1 >= min_iterations)
+    )
+    err = jax.lax.cond(
+        record_error,
+        lambda: jnp.mean(errors_fn(f_u, g_v, a, geom)).astype(errors.dtype),
+        lambda: jnp.asarray(jnp.inf, dtype=errors.dtype),
     )
 
     errors = errors.at[iteration // inner_iterations, :].set(err)
@@ -237,7 +245,7 @@ def _discrete_barycenter(
   )
 
   errors, d, f_u, g_v = state
-  kernel_f_u = parallel_apply(f_u, g_v, geom.epsilon)
+  kernel_f_u = parallel_apply(geom, f_u, g_v, geom.epsilon)
   if lse_mode:
     b = jnp.average(kernel_f_u, weights=weights, axis=0)
   else:

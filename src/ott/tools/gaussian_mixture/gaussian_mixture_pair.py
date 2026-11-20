@@ -202,6 +202,8 @@ class GaussianMixturePair:
       A GaussianMixturePair.
     """  # noqa: D401
     children = list(children)
+    # copy, `aux_data` belongs to the tree definition and must not be modified
+    aux_data = dict(aux_data)
     if "gmm1" in aux_data:
       gmm1 = aux_data.pop("gmm1")
       children.insert(1, gmm1)

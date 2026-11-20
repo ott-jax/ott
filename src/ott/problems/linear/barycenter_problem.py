@@ -105,14 +105,22 @@ class FreeBarycenterProblem:
 
   @property
   def flattened_y(self) -> jnp.ndarray:
-    """Array of shape ``[num_measures * (N_1 + N_2 + ...), ndim]``."""
+    """Array of shape ``[num_total_points, ndim]``.
+
+    If ``y`` is already segmented, the shape is
+    ``[num_measures * max_measure_size, ndim]``.
+    """
     if self._is_segmented:
       return self._y.reshape((-1, self._y.shape[-1]))
     return self._y
 
   @property
   def flattened_b(self) -> Optional[jnp.ndarray]:
-    """Array of shape ``[num_measures * (N_1 + N_2 + ...),]``."""
+    """Array of shape ``[num_total_points,]``.
+
+    If ``b`` is already segmented, the shape is
+    ``[num_measures * max_measure_size,]``.
+    """
     return None if self._b is None else self._b.ravel()
 
   @property
@@ -134,11 +142,17 @@ class FreeBarycenterProblem:
   def weights(self) -> jnp.ndarray:
     """Barycenter weights of shape ``[num_measures,]`` that sum to 1."""
     if self._weights is None:
-      return jnp.ones((self.num_measures,)) / self.num_measures
+      n = self.num_measures
+      return jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
     # Check that the number of measures coincides with the weights' size.
     assert self._weights.shape[0] == self.num_measures
     # By default, we assume that weights sum to 1, and enforce this if needed.
     return self._weights / jnp.sum(self._weights)
+
+  @property
+  def dtype(self) -> jnp.dtype:
+    """The data type of the measures."""
+    return self._y.dtype
 
   @property
   def _is_segmented(self) -> bool:

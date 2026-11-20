@@ -105,7 +105,7 @@ class HardAssignmentOutput:
     weights = self.matrix.data
     i, j = self.paired_indices[0], self.paired_indices[1]
     if isinstance(geom, pointcloud.PointCloud):
-      cost = jax.vmap(geom.cost_fn)(geom.x[i], geom.y[j])
+      cost = geom.inv_scale_cost * jax.vmap(geom.cost_fn)(geom.x[i], geom.y[j])
     else:
       cost = geom.cost_matrix[i, j]
     return jnp.sum(weights * cost)
@@ -279,7 +279,7 @@ def constant_epsilon_scheduler(
 @jtu.register_static
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class SemidiscreteSolver:
-  """Semidiscrete optimal transport solver.
+  r"""Semidiscrete optimal transport solver.
 
   Args:
     num_iterations: Number of iterations.
@@ -292,7 +292,10 @@ class SemidiscreteSolver:
     error_num_repeats: Number of repeats used to estimate
       the marginal chi-squared error, set to sixteen by default.
     threshold: Convergence threshold for the marginal chi-squared error.
-    potential_ema: Exponential moving average of the dual potential.
+    potential_ema: Decay :math:`\alpha \in [0, 1)` of the exponential moving
+      average of the dual potential, :math:`\bar{g}_t = \bar{g}_{t-1} +
+      \beta_t (g_t - \bar{g}_{t-1})`, where :math:`\beta_t = (1 - \alpha) /
+      (1 - \alpha^t)` corrects the bias towards the initial potential.
     epsilon_scheduler: Epsilon scheduler along the iterations with a signature
       ``(step, target_epsilon) -> epsilon``.
       By default, :func:`constant_epsilon_scheduler` is used.
@@ -335,7 +338,7 @@ class SemidiscreteSolver:
         state: SemidiscreteState,
     ) -> bool:
       loss = state.losses[it - 1]
-      err = jnp.abs(state.errors[it // self.error_eval_every - 1])
+      err = jnp.abs(state.errors[(it - 1) // self.error_eval_every])
       not_converged = err > self.threshold
       not_diverged = jnp.isfinite(loss)
       target_eps_not_reached = ~jnp.isclose(state.epsilon, prob.epsilon)
@@ -354,13 +357,18 @@ class SemidiscreteSolver:
         state: SemidiscreteState,
         compute_error: bool,
     ) -> SemidiscreteState:
-      return self.step(
-          jr.fold_in(rng, it),
-          state=state,
-          prob=prob,
-          compute_error=compute_error,
-          # we evaluate the error using the same samples
-          rng_error=rng_error,
+      return jax.lax.cond(
+          it < self.num_iterations,
+          lambda state: self.step(
+              jr.fold_in(rng, it),
+              state=state,
+              prob=prob,
+              compute_error=compute_error | (it == self.num_iterations - 1),
+              # we evaluate the error using the same samples
+              rng_error=rng_error,
+          ),
+          lambda state: state,
+          state,
       )
 
     _, m = prob.geom.shape
@@ -373,7 +381,7 @@ class SemidiscreteSolver:
 
     state = SemidiscreteState(
         it=jnp.array(0),
-        epsilon=jnp.nan,
+        epsilon=jnp.array(jnp.nan, dtype=dtype),
         g=g_init,
         g_ema=g_init,
         opt_state=self.optimizer.init(g_init),
@@ -439,7 +447,9 @@ class SemidiscreteSolver:
         grads, state.opt_state, g_old, value=loss
     )
     g_new = optax.apply_updates(g_old, updates)
-    g_ema = optax.incremental_update(g_new, state.g_ema, self.potential_ema)
+    alpha = self.potential_ema
+    step_size = (1.0 - alpha) / (1.0 - alpha ** (it + 1))
+    g_ema = optax.incremental_update(g_new, state.g_ema, step_size)
 
     # fmt: off
     error = jax.lax.cond(
@@ -472,8 +482,9 @@ class SemidiscreteSolver:
       self, state: SemidiscreteState, prob: sdlp.SemidiscreteLinearProblem
   ) -> SemidiscreteOutput:
     it = state.it
-    leq_thr = state.errors[it // self.error_eval_every] <= self.threshold
-    finite_loss = jnp.isfinite(state.losses[it])
+    err = jnp.abs(state.errors[(it - 1) // self.error_eval_every])
+    leq_thr = err <= self.threshold
+    finite_loss = jnp.isfinite(state.losses[it - 1])
     return SemidiscreteOutput(
         g=state.g_ema,
         prob=prob,
@@ -574,7 +585,8 @@ def _marginal_chi2_error(
     else:
       out = jnp.sum(matrix, axis=0) ** 2 - jnp.sum(matrix ** 2, axis=0)
 
-    out = jnp.sum(out / prob.b) / (batch_size * (batch_size - 1.0))
+    b = jnp.where(prob.b > 0.0, prob.b, 1.0)
+    out = jnp.sum(out / b) / (batch_size * (batch_size - 1.0))
     return out - 1.0
 
   def body(chi2_err_avg: jax.Array, it: jax.Array) -> Tuple[jax.Array, None]:
@@ -584,6 +596,7 @@ def _marginal_chi2_error(
     chi2_err_avg = chi2_err_avg + chi2 / num_iters
     return chi2_err_avg, None
 
+  assert batch_size > 1, f"Error batch size must be > 1, got {batch_size}."
   out = SemidiscreteOutput(g=g, prob=prob)
 
   chi2_err = jnp.zeros((), dtype=g.dtype)

@@ -15,7 +15,9 @@ from typing import Union
 
 import pytest
 
+import jax
 import jax.numpy as jnp
+import jax.random as jr
 import numpy as np
 
 from ott.geometry import epsilon_scheduler, grid, pointcloud
@@ -64,8 +66,8 @@ class TestDiscreteBarycenter:
 
     assert bar[(jnp.prod(size) - 1) // 2] > 0.7
     assert bar[(jnp.prod(size) - 1) // 2] < 1
-    err = errors[jnp.isfinite(errors)][-1]
-    assert threshold > err
+    err = errors[errors != -1][-1]
+    assert err < threshold
 
   @pytest.mark.parametrize(("lse_mode", "epsilon"), [(True, 1e-3),
                                                      (False, 1e-2)],
@@ -104,6 +106,84 @@ class TestDiscreteBarycenter:
     bar = out.histogram
     # check the barycenter has bump in the middle.
     assert bar[n // 4] > 0.1
+
+  def test_debiased_lse_matches_kernel(self):
+    x = jnp.linspace(0.0, 1.0, 20)[:, None]
+    a = jnp.stack([jnp.linspace(1.0, 2.0, 20), jnp.linspace(2.0, 1.0, 20)])
+    geom = pointcloud.PointCloud(x, epsilon=5e-2)
+    prob = bp.FixedBarycenterProblem(geom, a=a / a.sum(1, keepdims=True))
+
+    lse, kernel = (
+        db.FixedBarycenter(
+            lse_mode=lse_mode,
+            debiased=True,
+            min_iterations=500,
+            max_iterations=500
+        )(prob).histogram for lse_mode in (True, False)
+    )
+
+    np.testing.assert_allclose(lse, kernel, rtol=1e-3, atol=1e-5)
+
+  def test_debiased_jit(self):
+    x = jnp.linspace(0.0, 1.0, 10)[:, None]
+    a = jnp.stack([jnp.linspace(1.0, 2.0, 10), jnp.linspace(2.0, 1.0, 10)])
+    a = a / a.sum(1, keepdims=True)
+    solver = db.FixedBarycenter(debiased=True)
+
+    def barycenter(x: jnp.ndarray) -> jnp.ndarray:
+      geom = pointcloud.PointCloud(x, epsilon=1e-1)
+      return solver(bp.FixedBarycenterProblem(geom, a=a)).histogram
+
+    np.testing.assert_allclose(
+        jax.jit(barycenter)(x), barycenter(x), rtol=1e-5, atol=1e-6
+    )
+
+  @pytest.mark.parametrize(("min_iterations", "max_iterations", "last"), [
+      (10, 100, 0),
+      (20, 20, 1),
+  ])
+  def test_min_iterations(
+      self, min_iterations: int, max_iterations: int, last: int
+  ):
+    x = jnp.linspace(0.0, 1.0, 10)[:, None]
+    a = jnp.stack([jnp.linspace(1.0, 2.0, 10), jnp.linspace(2.0, 1.0, 10)])
+    geom = pointcloud.PointCloud(x, epsilon=1e-1)
+    prob = bp.FixedBarycenterProblem(geom, a=a / a.sum(1, keepdims=True))
+    solver = db.FixedBarycenter(
+        threshold=1e3,
+        min_iterations=min_iterations,
+        max_iterations=max_iterations
+    )
+
+    errors = solver(prob).errors[:, 0]
+
+    np.testing.assert_array_equal(errors[:last], jnp.inf)
+    assert jnp.isfinite(errors[last])
+    np.testing.assert_array_equal(errors[last + 1:], -1.0)
+
+  @pytest.mark.parametrize("lse_mode", [True, False])
+  def test_grad(self, rng: jax.Array, lse_mode: bool):
+    rng_w, rng_v = jr.split(rng, 2)
+    x = jnp.linspace(0.0, 1.0, 10)[:, None]
+    a = jnp.stack([jnp.linspace(1.0, 2.0, 10), jnp.linspace(2.0, 1.0, 10)])
+    a = a / a.sum(1, keepdims=True)
+    w = jr.normal(rng_w, (10,))
+    v = jr.normal(rng_v, x.shape)
+    v = 1e-2 * v / jnp.linalg.norm(v)
+    solver = db.FixedBarycenter(
+        lse_mode=lse_mode, min_iterations=100, max_iterations=100
+    )
+
+    def loss(x: jnp.ndarray) -> float:
+      geom = pointcloud.PointCloud(x, epsilon=1e-1)
+      prob = bp.FixedBarycenterProblem(geom, a=a)
+      return jnp.dot(w, solver(prob).histogram)
+
+    grad = jax.grad(loss)(x)
+
+    expected = loss(x + v) - loss(x - v)
+    actual = 2.0 * jnp.vdot(v, grad)
+    np.testing.assert_allclose(actual, expected, rtol=1e-2, atol=1e-8)
 
   @pytest.mark.parametrize("lse_mode", [True, False])
   def test_epsilon_schedule(self, lse_mode: bool):

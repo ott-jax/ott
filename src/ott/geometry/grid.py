@@ -188,12 +188,13 @@ class Grid(geometry.Geometry):
 
     if axis == 0:
       f, g = g, f
+    f = jnp.where(jnp.isfinite(f), f, 0.0)
 
     for dimension, cost in enumerate(self._cost_matrices(axis=axis)):
       g, vec = self._apply_lse_kernel_one_dimension(
           dimension=dimension, cost=cost, f=f, g=g, eps=eps, vec=vec
       )
-      g -= jnp.where(jnp.isfinite(f), f, 0)
+      g -= f
 
     if vec is None:
       vec = jnp.array(1.0)

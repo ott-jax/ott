@@ -16,17 +16,15 @@ from typing import Any, Callable, Mapping, NamedTuple, Optional, Tuple
 
 import jax
 import jax.numpy as jnp
-import jax.scipy as jsp
 import numpy as np
 
 from ott import utils
 from ott.geometry import geometry, low_rank
 from ott.initializers.linear import initializers_lr
-from ott.math import fixed_point_loop
 from ott.math import unbalanced_functions as uf
 from ott.math import utils as mu
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.linear import lr_utils, sinkhorn
+from ott.solvers.linear import lr_utils, sinkhorn, sinkhorn_lr
 
 __all__ = ["LRGromovWasserstein", "LRGWOutput"]
 
@@ -96,11 +94,6 @@ def compute_reg_gw_cost(
   Returns:
     regularized OT cost, the (primal) transport cost of the low-rank solution.
   """
-
-  def ent(x: jnp.ndarray) -> float:
-    # generalized entropy
-    return jnp.sum(jsp.special.entr(x) + x)
-
   q = jax.lax.stop_gradient(q) if use_danskin else q
   r = jax.lax.stop_gradient(r) if use_danskin else r
   g = jax.lax.stop_gradient(g) if use_danskin else g
@@ -117,7 +110,9 @@ def compute_reg_gw_cost(
       converged=False,
   )
 
-  cost = out.primal_cost - epsilon * (ent(q) + ent(r) + ent(g))
+  cost = out.primal_cost - epsilon * (
+      mu.gen_ent(q) + mu.gen_ent(r) + mu.gen_ent(g)
+  )
   if ot_prob.tau_a != 1.0:
     rho_a = uf.rho(1.0, ot_prob.tau_a)
     cost += rho_a * mu.gen_kl(jnp.sum(q, axis=1), ot_prob.a)
@@ -195,12 +190,12 @@ class LRGWOutput(NamedTuple):
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a array; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
-    # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
+    # for `axis=0`: (batch, n), (n, r), (r,), (r, m)
     return ((inputs @ r) * self._inv_g) @ q.T
 
   def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
-    return self.apply(jnp.ones(length,), axis=axis)
+    return self.apply(jnp.ones(length, dtype=self.q.dtype), axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for current solution, evaluated at any cost matrix."""
@@ -213,22 +208,22 @@ class LRGWOutput(NamedTuple):
   @property
   def primal_cost(self) -> float:
     """Return (by recomputing it) transport cost of current solution."""
-    geom_xx, geom_yy = self.ot_prob.geom_xx, self.ot_prob.geom_yy
     marginal_a = self.ot_prob.a if self.ot_prob.tau_a == 1.0 else self.q.sum(1)
     marginal_b = self.ot_prob.b if self.ot_prob.tau_b == 1.0 else self.r.sum(1)
+    lin_a, lin_b = self.ot_prob._apply_linear_loss(marginal_a, marginal_b)
 
-    quad_cost = 0.5 * self.transport_cost_at_geom(other_geom=self.geom)
-    quad_cost += jnp.vdot(geom_xx.apply_square_cost(marginal_a), marginal_a)
-    quad_cost += jnp.vdot(geom_yy.apply_square_cost(marginal_b), marginal_b)
+    quad_cost = self.transport_cost_at_geom(other_geom=self.geom)
+    quad_cost += jnp.vdot(lin_a, marginal_a)
+    quad_cost += jnp.vdot(lin_b, marginal_b)
+    # half of the quadratic term
+    quad_cost *= 0.5
 
     if not self.ot_prob.is_fused:
       return quad_cost
 
-    alpha = self.ot_prob.fused_penalty / (self.ot_prob.fused_penalty + 1.0)
     norm_g = jnp.linalg.norm(self.g, ord=1)
-
     lin_cost = self.cost_at_geom(self.ot_prob.geom_xy)
-    return alpha * norm_g * lin_cost + (1.0 - alpha) * quad_cost
+    return quad_cost + self.ot_prob.fused_penalty * norm_g * lin_cost
 
   @property
   def transport_mass(self) -> float:
@@ -245,16 +240,11 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
   r"""Low-rank Gromov-Wasserstein solver :cite:`scetbon:23`.
 
   The algorithm minimizes a non-convex problem. It therefore requires special
-  care to initialization and convergence. Convergence is evaluated on successive
-  evaluations of the objective.
-
-  .. warning::
-    This solver only for the **unbalanced** case. Balanced case is implemented
-    in :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`
-    and will be unified here in the future release.
+  care to initialization and convergence. Convergence is evaluated on the change
+  between successive iterates of the factors.
 
   Args:
-    rank: Rank constraint on the coupling to minimize the linear OT problem
+    rank: Rank constraint on the coupling to minimize the quadratic OT problem.
     gamma: The (inverse of) gradient step size used by mirror descent.
     gamma_rescale: Whether to rescale :math:`\gamma` every iteration as
       described in :cite:`scetbon:22b`.
@@ -269,7 +259,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       out before the error is computed and monitored.
     max_iterations: The maximum number of low-rank Sinkhorn iterations.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
-      input parameters. Only `True` handled at this moment.
+      input parameters. In the balanced case, the gradient w.r.t. ``a`` and
+      ``b`` then only accounts for the marginal terms of the quadratic cost;
+      use ``use_danskin = False`` to obtain the full gradient.
     implicit_diff: Whether to use implicit differentiation. Currently, only
       ``implicit_diff = False`` is implemented.
     progress_fn: callback function which gets called during the GW
@@ -277,8 +269,10 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
     kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
-      :meth:`dykstra_update_kernel` or one of the functions defined in
-      :mod:`ott.solvers.linear`, depending on the ``lse_mode``.
+      :meth:`dykstra_update_kernel`,
+      :func:`~ott.solvers.linear.lr_utils.unbalanced_dykstra_lse` or
+      :func:`~ott.solvers.linear.lr_utils.unbalanced_dykstra_kernel`, depending
+      on whether the problem is balanced and on the ``lse_mode``.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """
@@ -334,9 +328,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       ot_prob: Quadratic OT problem.
       init: Initial values of the low-rank factors:
 
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.q`.
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.r`.
-        - :attr:`~ott.solvers.linear.sinkhorn_lr.LRGWOutput.g`.
+        - :attr:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGWOutput.q`.
+        - :attr:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGWOutput.r`.
+        - :attr:`~ott.solvers.quadratic.gromov_wasserstein_lr.LRGWOutput.g`.
 
         If :obj:`None`, use the initializer.
       rng: Random key for seeding.
@@ -345,6 +339,9 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     Returns:
       The low-rank GW output.
     """
+    assert ot_prob._loss_name == "sqeucl", \
+        "Only the squared Euclidean loss is supported."
+
     rng = utils.default_prng_key(rng)
     rng_lrc, rng_init = jax.random.split(rng)
 
@@ -364,25 +361,22 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     log_q, log_r, log_g = mu.safe_log(q), mu.safe_log(r), mu.safe_log(g)
     inv_g = 1.0 / g[None, :]
     lin_geom = _linearized_geometry(ot_prob, q=q, r=r, g=g)
+    if not ot_prob.is_balanced:
+      lin_q, lin_r = ot_prob._apply_linear_loss(q.sum(1), r.sum(1))
 
     tmp = lin_geom.apply_cost(r, axis=1)
     grad_q = tmp * inv_g
     if ot_prob.tau_a != 1.0:  # unbalanced grad
-      grad_q += 2.0 * ot_prob.geom_xx.apply_square_cost(
-          q.sum(1), axis=1
-      )[:, None]
+      grad_q += lin_q[:, None]
 
     grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
     if ot_prob.tau_b != 1.0:  # unbalanced grad
-      grad_r += 2.0 * ot_prob.geom_yy.apply_square_cost(
-          r.sum(1), axis=1
-      )[:, None]
+      grad_r += lin_r[:, None]
 
     omega_quad = jnp.sum(q * tmp, axis=0)
     grad_g = -omega_quad / (g ** 2)
 
     if ot_prob.is_fused:
-      alpha = ot_prob.fused_penalty / (ot_prob.fused_penalty + 1.0)
       norm_g = jnp.linalg.norm(g, ord=1)
 
       tmp = ot_prob.geom_xy.apply_cost(r, axis=1)
@@ -392,17 +386,18 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       omega_lin = jnp.sum(q * tmp, axis=0)
       lin_grad_g = -omega_lin / (g ** 2) * norm_g + jnp.sum(q * tmp * inv_g)
 
-      grad_q = alpha * lin_grad_q + (1.0 - alpha) * grad_q
-      grad_r = alpha * lin_grad_r + (1.0 - alpha) * grad_r
-      grad_g = alpha * lin_grad_g + (1.0 - alpha) * grad_g
+      grad_q += ot_prob.fused_penalty * lin_grad_q
+      grad_r += ot_prob.fused_penalty * lin_grad_r
+      grad_g += ot_prob.fused_penalty * lin_grad_g
 
     grad_q += self.epsilon * log_q
     grad_r += self.epsilon * log_r
     grad_g += self.epsilon * log_g
 
     if self.gamma_rescale:
-      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
-      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
+      supp_a, supp_b = ot_prob.a[:, None] > 0.0, ot_prob.b[:, None] > 0.0
+      norm_q = jnp.max(jnp.abs(grad_q), where=supp_a, initial=0.0) ** 2
+      norm_r = jnp.max(jnp.abs(grad_r), where=supp_b, initial=0.0) ** 2
       norm_g = jnp.max(jnp.abs(grad_g)) ** 2
       gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
     else:
@@ -411,229 +406,14 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     eps_factor = 1.0 / (self.epsilon * gamma + 1.0)
     gamma *= eps_factor
 
-    c_q = -gamma * grad_q + eps_factor * log_q
-    c_r = -gamma * grad_r + eps_factor * log_r
-    c_g = -gamma * grad_g + eps_factor * log_g
+    c_q = -gamma * grad_q + log_q
+    c_r = -gamma * grad_r + log_r
+    c_g = -gamma * grad_g + log_g
 
     return c_q, c_r, c_g, gamma
 
-  # TODO(michalk8): move to `lr_utils` when refactoring this the future
-  def dykstra_update_lse(
-      self,
-      c_q: jnp.ndarray,
-      c_r: jnp.ndarray,
-      h: jnp.ndarray,
-      gamma: float,
-      ot_prob: quadratic_problem.QuadraticProblem,
-      min_entry_value: float = 1e-6,
-      tolerance: float = 1e-3,
-      min_iter: int = 0,
-      inner_iter: int = 10,
-      max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Run Dykstra's algorithm."""
-    # shortcuts for problem's definition.
-    r = self.rank
-    n, m = ot_prob.geom_xx.shape[0], ot_prob.geom_yy.shape[0]
-    loga, logb = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
-
-    h_old = h
-    g1_old, g2_old = jnp.zeros(r), jnp.zeros(r)
-    f1, f2 = jnp.zeros(n), jnp.zeros(m)
-
-    w_gi, w_gp = jnp.zeros(r), jnp.zeros(r)
-    w_q, w_r = jnp.zeros(r), jnp.zeros(r)
-    err = jnp.inf
-    state_inner = f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
-    constants = c_q, c_r, loga, logb
-
-    def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
-    ) -> bool:
-      del iteration, constants
-      *_, err = state_inner
-      return err > tolerance
-
-    def _softm(
-        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
-    ) -> jnp.ndarray:
-      return jsp.special.logsumexp(
-          gamma * (f[:, None] + g[None, :] - c), axis=axis
-      )
-
-    def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
-      # TODO(michalk8): in the future, use `NamedTuple`
-      f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
-      c_q, c_r, loga, logb = constants
-
-      # First Projection
-      f1 = jnp.where(
-          jnp.isfinite(loga),
-          (loga - _softm(f1, g1_old, c_q, axis=1)) / gamma + f1, loga
-      )
-      f2 = jnp.where(
-          jnp.isfinite(logb),
-          (logb - _softm(f2, g2_old, c_r, axis=1)) / gamma + f2, logb
-      )
-
-      h = h_old + w_gi
-      h = jnp.maximum(jnp.log(min_entry_value) / gamma, h)
-      w_gi += h_old - h
-      h_old = h
-
-      # Update couplings
-      g_q = _softm(f1, g1_old, c_q, axis=0)
-      g_r = _softm(f2, g2_old, c_r, axis=0)
-
-      # Second Projection
-      h = (1.0 / 3.0) * (h_old + w_gp + w_q + w_r)
-      h += g_q / (3.0 * gamma)
-      h += g_r / (3.0 * gamma)
-      g1 = h + g1_old - g_q / gamma
-      g2 = h + g2_old - g_r / gamma
-
-      w_q = w_q + g1_old - g1
-      w_r = w_r + g2_old - g2
-      w_gp = h_old + w_gp - h
-
-      q, r, _ = recompute_couplings(f1, g1, c_q, f2, g2, c_r, h, gamma)
-
-      g1_old = g1
-      g2_old = g2
-      h_old = h
-
-      err = jax.lax.cond(
-          jnp.logical_and(compute_error, iteration >= min_iter),
-          lambda: dykstra_solution_error(q, r, ot_prob, self.norm_error)[0],
-          lambda: err
-      )
-
-      return f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
-
-    def recompute_couplings(
-        f1: jnp.ndarray,
-        g1: jnp.ndarray,
-        c_q: jnp.ndarray,
-        f2: jnp.ndarray,
-        g2: jnp.ndarray,
-        c_r: jnp.ndarray,
-        h: jnp.ndarray,
-        gamma: float,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-      q = jnp.exp(gamma * (f1[:, None] + g1[None, :] - c_q))
-      r = jnp.exp(gamma * (f2[:, None] + g2[None, :] - c_r))
-      g = jnp.exp(gamma * h)
-      return q, r, g
-
-    state_inner = fixed_point_loop.fixpoint_iter_backprop(
-        cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
-    )
-
-    f1, f2, g1_old, g2_old, h_old, _, _, _, _, _ = state_inner
-    return recompute_couplings(f1, g1_old, c_q, f2, g2_old, c_r, h_old, gamma)
-
-  def dykstra_update_kernel(
-      self,
-      k_q: jnp.ndarray,
-      k_r: jnp.ndarray,
-      k_g: jnp.ndarray,
-      gamma: float,
-      ot_prob: quadratic_problem.QuadraticProblem,
-      min_entry_value: float = 1e-6,
-      tolerance: float = 1e-3,
-      min_iter: int = 0,
-      inner_iter: int = 10,
-      max_iter: int = 10000
-  ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-    """Run Dykstra's algorithm."""
-    # shortcuts for problem's definition.
-    del gamma
-    rank = self.rank
-    n, m = ot_prob.geom_xx.shape[0], ot_prob.geom_yy.shape[0]
-    a, b = ot_prob.a, ot_prob.b
-    supp_a, supp_b = a > 0, b > 0
-
-    g_old = k_g
-    v1_old, v2_old = jnp.ones(rank), jnp.ones(rank)
-    u1, u2 = jnp.ones(n), jnp.ones(m)
-
-    q_gi, q_gp = jnp.ones(rank), jnp.ones(rank)
-    q_q, q_r = jnp.ones(rank), jnp.ones(rank)
-    err = jnp.inf
-    state_inner = u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
-    constants = k_q, k_r, k_g, a, b
-
-    def cond_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...]
-    ) -> bool:
-      del iteration, constants
-      *_, err = state_inner
-      return err > tolerance
-
-    def body_fn(
-        iteration: int, constants: Tuple[jnp.ndarray, ...],
-        state_inner: Tuple[jnp.ndarray, ...], compute_error: bool
-    ) -> Tuple[jnp.ndarray, ...]:
-      # TODO(michalk8): in the future, use `NamedTuple`
-      u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
-      k_q, k_r, k_g, a, b = constants
-
-      # First Projection
-      u1 = jnp.where(supp_a, a / jnp.dot(k_q, v1_old), 0.0)
-      u2 = jnp.where(supp_b, b / jnp.dot(k_r, v2_old), 0.0)
-      g = jnp.maximum(min_entry_value, g_old * q_gi)
-      q_gi = (g_old * q_gi) / g
-      g_old = g
-
-      # Second Projection
-      v1_trans = jnp.dot(k_q.T, u1)
-      v2_trans = jnp.dot(k_r.T, u2)
-      g = (g_old * q_gp * v1_old * q_q * v1_trans * v2_old * q_r *
-           v2_trans) ** (1 / 3)
-      v1 = g / v1_trans
-      v2 = g / v2_trans
-      q_gp = (g_old * q_gp) / g
-      q_q = (q_q * v1_old) / v1
-      q_r = (q_r * v2_old) / v2
-      v1_old = v1
-      v2_old = v2
-      g_old = g
-
-      # Compute Couplings
-      q, r, _ = recompute_couplings(u1, v1, k_q, u2, v2, k_r, g)
-
-      err = jax.lax.cond(
-          jnp.logical_and(compute_error, iteration >= min_iter),
-          lambda: dykstra_solution_error(q, r, ot_prob, self.norm_error)[0],
-          lambda: err
-      )
-
-      return u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
-
-    def recompute_couplings(
-        u1: jnp.ndarray,
-        v1: jnp.ndarray,
-        k_q: jnp.ndarray,
-        u2: jnp.ndarray,
-        v2: jnp.ndarray,
-        k_r: jnp.ndarray,
-        g: jnp.ndarray,
-    ) -> Tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray]:
-      q = u1.reshape((-1, 1)) * k_q * v1.reshape((1, -1))
-      r = u2.reshape((-1, 1)) * k_r * v2.reshape((1, -1))
-      return q, r, g
-
-    state_inner = fixed_point_loop.fixpoint_iter_backprop(
-        cond_fn, body_fn, min_iter, max_iter, inner_iter, constants, state_inner
-    )
-
-    u1, u2, v1_old, v2_old, g_old, _, _, _, _, _ = state_inner
-    return recompute_couplings(u1, v1_old, k_q, u2, v2_old, k_r, g_old)
+  dykstra_update_lse = sinkhorn_lr.LRSinkhorn.dykstra_update_lse
+  dykstra_update_kernel = sinkhorn_lr.LRSinkhorn.dykstra_update_kernel
 
   def lse_step(
       self, ot_prob: quadratic_problem.QuadraticProblem, state: LRGWState,
@@ -700,14 +480,16 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
       state = self.kernel_step(ot_prob, state, iteration)
 
     # re-computes error if compute_error is True, else set it to inf.
+    record_error = jnp.logical_and(
+        compute_error, iteration + 1 >= self.min_iterations
+    )
     cost = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        lambda: state.reg_gw_cost(ot_prob, epsilon=self.epsilon),
-        lambda: jnp.inf
+        record_error, lambda: state.reg_gw_cost(ot_prob, epsilon=self.epsilon),
+        lambda: jnp.array(jnp.inf, dtype=state.costs.dtype)
     )
     error = jax.lax.cond(
-        iteration >= self.min_iterations,
-        lambda: state.compute_error(previous_state), lambda: jnp.inf
+        record_error, lambda: state.compute_error(previous_state),
+        lambda: jnp.array(jnp.inf, dtype=state.errors.dtype)
     )
     crossed_threshold = jnp.logical_or(
         state.crossed_threshold,
@@ -745,8 +527,8 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         r=r,
         g=g,
         gamma=self.gamma,
-        costs=-jnp.ones(self.outer_iterations),
-        errors=-jnp.ones(self.outer_iterations),
+        costs=-jnp.ones(self.outer_iterations, dtype=q.dtype),
+        errors=-jnp.ones(self.outer_iterations, dtype=q.dtype),
         crossed_threshold=False,
     )
 
@@ -809,8 +591,18 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
         jnp.logical_not(jnp.isfinite(state.errors[it])),
         jnp.logical_not(jnp.isfinite(state.costs[it]))
     )
-    # `jnp.inf` is used if `it < self.min_iterations`
-    return jnp.logical_and(it >= self.min_iterations, is_not_finite)
+    # `jnp.inf` is used if `iteration < self.min_iterations`
+    return jnp.logical_and(iteration >= self.min_iterations, is_not_finite)
+
+  def tree_flatten(self):  # noqa: D102
+    children, aux_data = super().tree_flatten()
+    gamma, epsilon = aux_data.pop("gamma"), aux_data.pop("epsilon")
+    return children + [gamma, epsilon], aux_data
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    threshold, gamma, epsilon = children
+    return cls(threshold=threshold, gamma=gamma, epsilon=epsilon, **aux_data)
 
 
 def run(
@@ -826,39 +618,6 @@ def run(
   return out.set(ot_prob=ot_prob)
 
 
-def dykstra_solution_error(
-    q: jnp.ndarray, r: jnp.ndarray, ot_prob: quadratic_problem.QuadraticProblem,
-    norm_error: Tuple[int, ...]
-) -> jnp.ndarray:
-  """Compute solution error.
-
-  Since only balanced case is available for LR, this is marginal deviation.
-
-  Args:
-    q: first factor of solution.
-    r: second factor of solution.
-    ot_prob: linear problem.
-    norm_error: int, p-norm used to compute error.
-
-  Returns:
-    one or possibly many numbers quantifying deviation to true marginals.
-  """
-  norm_error = jnp.array(norm_error)
-  # Update the error
-  err = jnp.sum(
-      jnp.abs(jnp.sum(q, axis=1) - ot_prob.a) ** norm_error[:, None], axis=1
-  ) ** (1.0 / norm_error)
-  err += jnp.sum(
-      jnp.abs(jnp.sum(r, axis=1) - ot_prob.b) ** norm_error[:, None], axis=1
-  ) ** (1.0 / norm_error)
-  err += jnp.sum(
-      jnp.abs(jnp.sum(q, axis=0) - jnp.sum(r, axis=0)) ** norm_error[:, None],
-      axis=1
-  ) ** (1.0 / norm_error)
-
-  return err
-
-
 def _linearized_geometry(
     prob: quadratic_problem.QuadraticProblem,
     *,
@@ -867,9 +626,9 @@ def _linearized_geometry(
     g: jnp.ndarray,
 ) -> low_rank.LRCGeometry:
   inv_sqrt_g = 1.0 / jnp.sqrt(g[None, :])
+  h1, h2 = prob.quad_loss
 
-  # TODO(michalk8): below is for squared loss, handle KL loss in the future;
-  # will need to be updated in many other places as well
-  tmp1 = -4.0 * prob.geom_xx.apply_cost(q, axis=1) * inv_sqrt_g
-  tmp2 = prob.geom_yy.apply_cost(r, axis=1) * inv_sqrt_g
-  return low_rank.LRCGeometry(tmp1, tmp2)
+  tmp1 = quadratic_problem.apply_cost(prob.geom_xx, q, axis=1, fn=h1)
+  tmp2 = quadratic_problem.apply_cost(prob.geom_yy, r, axis=1, fn=h2)
+  # gradient of half the quadratic term, without the marginal terms
+  return low_rank.LRCGeometry(-tmp1 * inv_sqrt_g, tmp2 * inv_sqrt_g)

@@ -201,6 +201,17 @@ class TestKmeans:
     else:
       _ = k_means.k_means(geom, k, init=init_fn)
 
+  @pytest.mark.usefixtures("enable_x64")
+  @pytest.mark.parametrize("init", ["k-means++", "random"])
+  def test_float32_with_x64(self, rng: jax.Array, init: str):
+    x = jr.normal(rng, (50, 2), dtype=jnp.float32)
+
+    out = k_means.k_means(x, k=3, init=init, store_inner_errors=True)
+
+    assert out.centroids.dtype == jnp.float32
+    assert out.error.dtype == jnp.float32
+    assert out.inner_errors.dtype == jnp.float32
+
   def test_k_means_plus_plus_better_than_random(self, rng: jax.Array):
     k = 5
     rng1, rng2 = jr.split(rng, 2)

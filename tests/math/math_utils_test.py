@@ -87,3 +87,27 @@ class TestNorm:
     g = functools.partial(jnp.linalg.norm, ord=ord, axis=1)
 
     np.testing.assert_array_equal(jax.jacobian(f)(z), jax.jacobian(g)(z))
+
+
+class TestSafeLog:
+
+  def test_grad_non_positive(self):
+    x = jnp.array([-1.0, 0.0, 0.5])
+
+    grad = jax.grad(lambda x: jnp.sum(mu.safe_log(x)))(x)
+
+    np.testing.assert_array_equal(grad, [0.0, 0.0, 2.0])
+
+
+class TestSoftmin:
+
+  @pytest.mark.parametrize("axis", [None, 1])
+  def test_gamma_grad(self, rng: jax.Array, axis: Optional[int]):
+    x = jr.normal(rng, (4, 5)).at[0, 1].set(jnp.inf)
+    loss = lambda gamma: jnp.sum(mu.softmin(x, gamma, axis=axis) ** 2)
+    gamma, h = 0.7, 1e-3
+
+    grad = jax.grad(loss)(gamma)
+    expected = (loss(gamma + h) - loss(gamma - h)) / (2 * h)
+
+    np.testing.assert_allclose(grad, expected, rtol=1e-3)

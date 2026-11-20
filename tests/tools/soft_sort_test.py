@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import functools
-from typing import Tuple
+from typing import Any, Tuple
 
 import pytest
 
@@ -21,6 +21,7 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
+from ott.initializers.linear import initializers
 from ott.solvers.linear import acceleration
 from ott.solvers.linear import implicit_differentiation as implicit_lib
 from ott.tools import soft_sort
@@ -52,6 +53,21 @@ class TestSoftSort:
 
     np.testing.assert_array_equal(x.shape, xs.shape)
     np.testing.assert_array_equal(jnp.diff(xs, axis=0) >= 0.0, True)
+
+  @pytest.mark.fast()
+  def test_sort_grad(self, rng: jax.Array):
+    rng_x, rng_w = jr.split(rng, 2)
+    x = jr.uniform(rng_x, (16,))
+    w = jr.normal(rng_w, (16,))
+
+    def loss(x: jnp.ndarray, **kwargs: Any) -> jnp.ndarray:
+      return jnp.dot(w, soft_sort.sort(x, threshold=1e-5, **kwargs))
+
+    # uses the sorting initializer
+    grad = jax.grad(loss)(x)
+    expected = jax.grad(loss)(x, initializer=initializers.DefaultInitializer())
+
+    np.testing.assert_allclose(grad, expected, rtol=1e-3, atol=1e-3)
 
   def test_sort_array_squashing_momentum(self, rng: jax.Array):
     shape = (33, 1)
@@ -231,7 +247,7 @@ class TestSoftSort:
   @pytest.mark.parametrize("jit", [False, True])
   def test_quantiles(self, rng: jax.Array, jit: bool):
     inputs = jr.uniform(rng, (100, 2, 3))
-    q = jnp.array([0.1, 0.8, 0.4])
+    q = jnp.array([0.8, 0.1, 0.4])
     quantile_fn = soft_sort.quantile
     if jit:
       quantile_fn = jax.jit(quantile_fn, static_argnames="axis")

@@ -53,7 +53,8 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
     gw_loss: Gromov-Wasserstein loss.
     fused_penalty: Multiplier of the linear term. Only used when
       ``y_fused != None``.
-    scale_cost: Scaling of cost matrices passed to geometries.
+    scale_cost: Scaling of cost matrices passed to geometries. Points with
+      zero weight are ignored when computing ``'mean'`` or ``'max_cost'``.
     kwargs: Keyword arguments for
       :class:`~ott.problems.linear.barycenter_problem.BarycenterProblem`.
   """
@@ -121,7 +122,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         transport: jnp.ndarray,
         fn: Optional[quadratic_costs.Loss],
     ) -> jnp.ndarray:
-      geom = self._create_y_geometry(y)
+      geom = self._create_y_geometry(y, b)
       fn, lin = (None, True) if fn is None else (fn.func, fn.is_linear)
 
       tmp = geom.apply_cost(
@@ -192,33 +193,50 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
   def _create_y_geometry(
       self,
       y: jnp.ndarray,
+      b: jnp.ndarray,
   ) -> geometry.Geometry:
     if self._y_as_costs:
       assert y.shape[0] == y.shape[1], y.shape
-      return geometry.Geometry(
-          y,
-          epsilon=self.epsilon,
-          scale_cost=self.scale_cost,
+      geom = geometry.Geometry(y, epsilon=self.epsilon)
+    else:
+      geom = pointcloud.PointCloud(
+          y, epsilon=self.epsilon, cost_fn=self.cost_fn
       )
-    return pointcloud.PointCloud(
-        y,
-        epsilon=self.epsilon,
-        scale_cost=self.scale_cost,
-        cost_fn=self.cost_fn,
-    )
+    return self._rescale_geometry(geom, b, b)
 
   def _create_fused_geometry(
       self,
       x: jnp.ndarray,
       y: jnp.ndarray,
+      a: jnp.ndarray,
+      b: jnp.ndarray,
   ) -> pointcloud.PointCloud:
-    return pointcloud.PointCloud(
-        x,
-        y,
-        cost_fn=self.cost_fn,
-        epsilon=self.epsilon,
-        scale_cost=self.scale_cost,
+    geom = pointcloud.PointCloud(
+        x, y, epsilon=self.epsilon, cost_fn=self.cost_fn
     )
+    return self._rescale_geometry(geom, a, b)
+
+  def _rescale_geometry(
+      self,
+      geom: geometry.Geometry,
+      a: jnp.ndarray,
+      b: jnp.ndarray,
+  ) -> geometry.Geometry:
+    # ignore the points with zero weight, e.g., the padded points
+    mask_a, mask_b = a > 0, b > 0
+    if self.scale_cost == "mean":
+      u = mask_a.astype(geom.dtype) / mask_a.sum()
+      v = mask_b.astype(geom.dtype) / mask_b.sum()
+      scale_cost = jnp.vdot(u, geom.apply_cost(v, axis=1))
+    elif self.scale_cost == "max_cost":
+      mask = mask_a[:, None] & mask_b[None, :]
+      scale_cost = jnp.max(jnp.where(mask, geom.cost_matrix, -jnp.inf))
+    else:
+      scale_cost = self.scale_cost
+
+    children, aux_data = geom.tree_flatten()
+    aux_data["scale_cost"] = scale_cost
+    return type(geom).tree_unflatten(aux_data, children)
 
   def _create_problem(
       self,
@@ -228,11 +246,11 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
       f: Optional[jnp.ndarray] = None
   ) -> quadratic_problem.QuadraticProblem:
     geom_xx = self._create_bary_geometry(state.cost)
-    geom_yy = self._create_y_geometry(y)
+    geom_yy = self._create_y_geometry(y, b)
     if self.is_fused:
       assert f is not None
       assert state.x.shape[1] == f.shape[1]
-      geom_xy = self._create_fused_geometry(state.x, f)
+      geom_xy = self._create_fused_geometry(state.x, f, state.a, b)
     else:
       geom_xy = None
 
@@ -243,6 +261,7 @@ class GWBarycenterProblem(barycenter_problem.FreeBarycenterProblem):
         a=state.a,
         b=b,
         fused_penalty=self.fused_penalty,
+        loss=self._loss_name,
     )
 
   @property

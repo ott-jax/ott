@@ -48,20 +48,18 @@ class ImplicitDiff:
       :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
       The :mod:`jax` alternative is described in
       :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`.
-      Note that the CG solver handles better poorly conditioned problems,
-      which arise typically when differentiating the solutions of balanced OT
-      problems (when ``tau_a==tau_b==1.0``). Relying on
-      :func:`~ott.solvers.linear.implicit_differentiation.solve_jax_cg`
-      for such cases might require hand-tuning ridge parameters,
-      in particular ``ridge_kernel`` and ``ridge_identity`` as described in its
-      doc. These parameters can be passed using ``solver_kwargs`` below.
+      Poorly conditioned problems, which arise typically when differentiating
+      the solutions of balanced OT problems (when ``tau_a==tau_b==1.0``), might
+      require hand-tuning the ridge parameters ``ridge_kernel`` and
+      ``ridge_identity`` of either solver. These parameters can be passed using
+      ``solver_kwargs`` below.
     solver_kwargs: keyword arguments passed on to the solver.
     symmetric: flag used to figure out whether the linear system solved in the
-      implicit function theorem is symmetric or not. This happens when
-      ``tau_a==tau_b``, and when ``a == b``, or the precondition_fun
-      is the identity. The flag is :obj:`False` by default, and is also tested
-      against ``tau_a==tau_b``. It needs to be set manually by the user in the
-      more favorable case where the system is guaranteed to be symmetric.
+      implicit function theorem is symmetric or not. This happens when the
+      ``precondition_fun`` is linear, e.g., the identity. The flag is
+      :obj:`False` by default and is only used when ``precondition_fun`` is
+      specified. It needs to be set manually by the user in the more favorable
+      case where the system is guaranteed to be symmetric.
     precondition_fun: Function used to precondition, on both sides, the linear
       system derived from first-order conditions of the regularized OT problem.
       That linear system typically involves an equality between marginals (or
@@ -69,7 +67,7 @@ class ImplicitDiff:
       ) and another function of the potentials. When that function is specified,
       that function is applied on both sides of the equality, before being
       further differentiated to provide the Jacobians needed for
-      :term`implicit differentiation`.
+      :term:`implicit differentiation`.
   """
 
   solver: Optional[Solver_t] = None
@@ -98,21 +96,23 @@ class ImplicitDiff:
 
     .. math::
 
-      E(K, \epsilon, a, b, f, g) :=- <a,\phi_a^{*}(-f)> + <b,
-      \phi_b^{*}(-g)> - \langle\exp^{f/\epsilon}, K \exp^{g/\epsilon}>
+      E(K, \epsilon, a, b, f, g) :=
+      - \langle a, \phi_a^{*}(\epsilon \log a - f) \rangle
+      - \langle b, \phi_b^{*}(\epsilon \log b - g) \rangle
+      - \epsilon \langle e^{f/\epsilon}, K e^{g/\epsilon} \rangle
 
     form the basis of the Sinkhorn algorithm. To differentiate optimal solutions
     to that problem, we exploit the fact that :math:`h(\nabla E = 0)` and
     differentiate that identity to recover variations (Jacobians) of optimal
-    solutions :math:`f^\star, g^\star$` as a function of changes in the inputs.
+    solutions :math:`f^\star, g^\star` as a function of changes in the inputs.
     The Jacobian of :math:`h(\nabla_{f,g} E = 0)` is a linear operator which, if
     it were to be instantiated as a matrix, would be of size
     :math:`(n+m) \times (n+m)`. When :math:`h` is the identity, that matrix is
-    the Hessian of :math:`E`, is symmetric and negative-definite
+    the Hessian of :math:`E`, is symmetric and negative semi-definite
     (:math:`E` is concave) and is structured as :math:`[A, B; B^T, D]`. More
     generally, for other functions :math:`h`, the Jacobian of these
     preconditioned
-    first order conditions is no longer symmetric (except if ``a==b``), and
+    first order conditions is no longer symmetric in general, and
     has now a structure as :math:`[A, B; C, D]`. That system can
     be still inverted more generic solvers. By default, :math:`h = \epsilon
     \log`, as proposed in :cite:`cuturi:20a`.
@@ -141,8 +141,7 @@ class ImplicitDiff:
     block.
 
     These linear systems are solved using the user-defined ``solver``, using
-    by default the conjugate gradient solver, or falling back on
-    :mod:`jax` when not.
+    by default :func:`~ott.solvers.linear.lineax_implicit.solve_lineax`.
 
     Args:
       gr: 2-tuple, (vector of size ``n``, vector of size ``m``).
@@ -170,35 +169,37 @@ class ImplicitDiff:
       symmetric = self.symmetric
 
     derivative = jax.vmap(jax.grad(precond_fun))
+    supp_a, supp_b = ot_prob.a > 0.0, ot_prob.b > 0.0
+    marg_a = jnp.where(supp_a, marginal_a(f, g), 1.0)
+    marg_b = jnp.where(supp_b, marginal_b(f, g), 1.0)
+    deriv_a = jnp.where(supp_a, derivative(marg_a), 0.0)
+    deriv_b = jnp.where(supp_b, derivative(marg_b), 0.0)
+    gr = jnp.where(supp_a, gr[0], 0.0), jnp.where(supp_b, gr[1], 0.0)
 
     n, m = geom.shape
     # pylint: disable=g-long-lambda
-    vjp_fg = lambda z: app_transport(
-        f, g, z * derivative(marginal_b(f, g)), axis=1
-    ) / geom.epsilon
-    vjp_gf = lambda z: app_transport(
-        f, g, z * derivative(marginal_a(f, g)), axis=0
-    ) / geom.epsilon
+    vjp_fg = lambda z: app_transport(f, g, z * deriv_b, axis=1) / geom.epsilon
+    vjp_gf = lambda z: app_transport(f, g, z * deriv_a, axis=0) / geom.epsilon
 
     if not symmetric:
       vjp_fgt = lambda z: app_transport(
           f, g, z, axis=0
-      ) * derivative(marginal_b(f, g)) / geom.epsilon
+      ) * deriv_b / geom.epsilon
       vjp_gft = lambda z: app_transport(
           f, g, z, axis=1
-      ) * derivative(marginal_a(f, g)) / geom.epsilon
+      ) * deriv_a / geom.epsilon
 
-    diag_hess_a = (
-        marginal_a(f, g) * derivative(marginal_a(f, g)) / geom.epsilon +
-        uf.diag_jacobian_of_marginal_fit(
+    diag_hess_a = jnp.where(
+        supp_a,
+        marg_a * deriv_a / geom.epsilon + uf.diag_jacobian_of_marginal_fit(
             ot_prob.a, f, ot_prob.tau_a, geom.epsilon, derivative
-        )
+        ), 1.0
     )
-    diag_hess_b = (
-        marginal_b(f, g) * derivative(marginal_b(f, g)) / geom.epsilon +
-        uf.diag_jacobian_of_marginal_fit(
+    diag_hess_b = jnp.where(
+        supp_b,
+        marg_b * deriv_b / geom.epsilon + uf.diag_jacobian_of_marginal_fit(
             ot_prob.b, g, ot_prob.tau_b, geom.epsilon, derivative
-        )
+        ), 1.0
     )
     n, m = geom.shape
     # TODO(cuturi) consider materializing linear operator schur if size allows.
@@ -263,14 +264,15 @@ class ImplicitDiff:
     else:
       precond_fun = self.precondition_fun
 
-    result_a = jnp.where(
-        prob.a > 0,
-        precond_fun(marginal_a(f, g)) - precond_fun(grad_a), 0.0
-    )
-    result_b = jnp.where(
-        prob.b > 0,
-        precond_fun(marginal_b(f, g)) - precond_fun(grad_b), 0.0
-    )
+    def residual(
+        marginal: jnp.ndarray, grad: jnp.ndarray, supp: jnp.ndarray
+    ) -> jnp.ndarray:
+      marginal = jnp.where(supp, marginal, 1.0)
+      grad = jnp.where(supp, grad, 1.0)
+      return jnp.where(supp, precond_fun(marginal) - precond_fun(grad), 0.0)
+
+    result_a = residual(marginal_a(f, g), grad_a, prob.a > 0.0)
+    result_b = residual(marginal_b(f, g), grad_b, prob.b > 0.0)
     return jnp.concatenate((result_a, result_b))
 
   def gradient(
@@ -316,8 +318,9 @@ def solve_jax_cg(
     kwargs: arguments passed to :func:`~jax.scipy.sparse.linalg.cg`
   """
   op = lin if symmetric else lambda x: lin_t(lin(x))
+  rhs = b if symmetric else lin_t(b)
   if ridge_kernel > 0.0 or ridge_identity > 0.0:
     lin_reg = lambda x: op(x) + ridge_kernel * jnp.sum(x) + ridge_identity * x
   else:
     lin_reg = op
-  return jax.scipy.sparse.linalg.cg(lin_reg, b, **kwargs)[0]
+  return jax.scipy.sparse.linalg.cg(lin_reg, rhs, **kwargs)[0]

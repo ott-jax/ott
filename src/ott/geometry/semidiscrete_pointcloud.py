@@ -121,10 +121,7 @@ class SemidiscretePointCloud:
     """Epsilon regularization value."""
     if not self.is_entropy_regularized:
       return jnp.array(0.0, dtype=self.dtype)
-    rng = jr.key(self._relative_epsilon_seed)
-    shape = (self._relative_epsilon_num_samples, *self.y.shape[1:])
-    x = self.sampler(rng, shape, self.dtype)
-    geom = self._from_samples(x, self._epsilon, self._relative_epsilon)
+    geom = self._reference_geom()
     return jnp.array(geom.epsilon, dtype=self.dtype)
 
   @property
@@ -141,6 +138,17 @@ class SemidiscretePointCloud:
   def dtype(self) -> jnp.dtype:
     """The data type."""
     return self.y.dtype
+
+  @property
+  def inv_scale_cost(self) -> jax.Array:
+    """Inverse of the cost scaling, estimated like :attr:`epsilon`."""
+    return self._reference_geom().inv_scale_cost
+
+  def _reference_geom(self) -> pointcloud.PointCloud:
+    rng = jr.key(self._relative_epsilon_seed)
+    shape = (self._relative_epsilon_num_samples, *self.y.shape[1:])
+    x = self.sampler(rng, shape, self.dtype)
+    return self._from_samples(x, self._epsilon, self._relative_epsilon)
 
   def tree_flatten(self):  # noqa: D102
     return (self.y, self.cost_fn), (

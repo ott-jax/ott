@@ -106,10 +106,12 @@ class SinkhornState(NamedTuple):
     rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
     rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
     tau = rho_a * rho_b / (rho_a + rho_b)
+    fa = ot_prob.epsilon * jnp.log(jnp.where(ot_prob.a > 0, ot_prob.a, 1.0))
+    gb = ot_prob.epsilon * jnp.log(jnp.where(ot_prob.b > 0, ot_prob.b, 1.0))
 
     shift = tau * (
-        mu.logsumexp(-f / rho_a, b=ot_prob.a) -
-        mu.logsumexp(-g / rho_b, b=ot_prob.b)
+        mu.logsumexp(-(f - fa) / rho_a, b=ot_prob.a) -
+        mu.logsumexp(-(g - gb) / rho_b, b=ot_prob.b)
     )
     return f + shift, g - shift
 
@@ -122,6 +124,11 @@ class SinkhornState(NamedTuple):
   def gv(self) -> jnp.ndarray:
     """The second dual potential or scaling."""
     return self.potentials[1]
+
+
+def _positive_power(x: jnp.ndarray, p: float) -> jnp.ndarray:
+  positive = x > 0.0
+  return jnp.where(positive, jnp.where(positive, x, 1.0) ** p, 0.0)
 
 
 def solution_error(
@@ -164,9 +171,9 @@ def solution_error(
 
   # In the unbalanced case, we compute the norm of the gradient.
   # the gradient is equal to the marginal of the current plan minus
-  # the gradient of < z, rho_z(exp^(-h/rho_z) -1> where z is either a or b
-  # and h is either f or g. Note this is equal to z if rho_z → inf, which
-  # is the case when tau_z → 1.0
+  # the gradient of < z, rho_z(exp^((eps log z - h)/rho_z) -1> where z is
+  # either a or b and h is either f or g. Note this is equal to z if
+  # rho_z → inf, which is the case when tau_z → 1.0
   if lse_mode:
     grad_a = uf.grad_of_marginal_fit(
         ot_prob.a, f_u, ot_prob.tau_a, ot_prob.epsilon
@@ -233,7 +240,9 @@ def compute_kl_reg_cost(
   terms). Situations where marginals ``a`` or ``b`` in ``ot_prob`` have zero
   coordinates are reflected in minus infinity entries in their corresponding
   dual potentials. To avoid NaN that may result when multiplying 0's by infinity
-  values, ``jnp.where`` is used to cancel these contributions.
+  values, ``jnp.where`` is used to cancel these contributions. The gradient
+  w.r.t. these zero weights uses the limit of their potentials, i.e., the
+  c-transform of the other potential.
 
   Args:
     f: jnp.ndarray, potential
@@ -244,35 +253,44 @@ def compute_kl_reg_cost(
   Returns:
     The regularized transport cost.
   """
-  supp_a = ot_prob.a > 0
-  supp_b = ot_prob.b > 0
-  fa = ot_prob.geom.potential_from_scaling(ot_prob.a)
-  if ot_prob.tau_a == 1.0:
-    div_a = jnp.sum(jnp.where(supp_a, ot_prob.a * (f - fa), 0.0))
-  else:
-    rho_a = uf.rho(ot_prob.epsilon, ot_prob.tau_a)
-    div_a = -jnp.sum(
-        jnp.where(supp_a, ot_prob.a * uf.phi_star(-(f - fa), rho_a), 0.0)
-    )
+  geom, eps = ot_prob.geom, ot_prob.epsilon
+  supp_a, supp_b = ot_prob.a > 0, ot_prob.b > 0
 
-  gb = ot_prob.geom.potential_from_scaling(ot_prob.b)
-  if ot_prob.tau_b == 1.0:
-    div_b = jnp.sum(jnp.where(supp_b, ot_prob.b * (g - gb), 0.0))
-  else:
-    rho_b = uf.rho(ot_prob.epsilon, ot_prob.tau_b)
-    div_b = -jnp.sum(
-        jnp.where(supp_b, ot_prob.b * uf.phi_star(-(g - gb), rho_b), 0.0)
-    )
-
-  # Using https://arxiv.org/pdf/1910.12958v2.pdf (24)
+  # Using https://arxiv.org/pdf/1910.12958v2.pdf (24),
+  # `z_a` and `z_b` are the negated c-transforms of `g` and `f`
   if lse_mode:
-    total_sum = jnp.sum(ot_prob.geom.marginal_from_potentials(f, g))
+    f, g = jnp.where(supp_a, f, 0.0), jnp.where(supp_b, g, 0.0)
+    vec_a, vec_b = supp_a.astype(f.dtype), supp_b.astype(g.dtype)
+    z_a, _ = geom.apply_lse_kernel(f, g, eps, vec=vec_b, axis=1)
+    z_b, _ = geom.apply_lse_kernel(f, g, eps, vec=vec_a, axis=0)
+    # mask before the exponential, as it can overflow at zero weights
+    log_marginal = jnp.where(supp_a, (z_a + f) / eps, -jnp.inf)
+    total_sum = jnp.sum(jnp.exp(log_marginal))
   else:
-    u = ot_prob.geom.scaling_from_potential(f)
-    v = ot_prob.geom.scaling_from_potential(g)
-    total_sum = jnp.sum(ot_prob.geom.marginal_from_scalings(u, v))
+    u, v = geom.scaling_from_potential(f), geom.scaling_from_potential(g)
+    kv = geom.apply_kernel(v, eps, axis=1)
+    ku = geom.apply_kernel(u, eps, axis=0)
+    z_a = eps * jnp.log(jnp.where(kv > 0, kv, 1.0))
+    z_b = eps * jnp.log(jnp.where(ku > 0, ku, 1.0))
+    total_sum = jnp.sum(u * kv)
 
-  return div_a + div_b + ot_prob.epsilon * (
+  def div(
+      marginal: jnp.ndarray, potential: jnp.ndarray, z: jnp.ndarray, tau: float
+  ) -> float:
+    # at zero weights, use the limit of the potential, which only
+    # contributes to the gradient w.r.t. the marginal
+    supp = marginal > 0
+    h = potential - geom.potential_from_scaling(marginal)
+    h = jnp.where(supp, h, -tau * z)
+    if tau == 1.0:
+      return jnp.sum(marginal * jnp.where(supp, h, h - eps))
+    rho = uf.rho(eps, tau)
+    phi = uf.phi_star(-h, rho) + jnp.where(supp, 0.0, eps * jnp.exp(-h / rho))
+    return -jnp.sum(marginal * phi)
+
+  div_a = div(ot_prob.a, f, z_a, ot_prob.tau_a)
+  div_b = div(ot_prob.b, g, z_b, ot_prob.tau_b)
+  return div_a + div_b + eps * (
       jnp.sum(ot_prob.a) * jnp.sum(ot_prob.b) - total_sum
   )
 
@@ -289,15 +307,15 @@ class SinkhornOutput(NamedTuple):
     potentials: list of optimal dual variables, two vector of size
       ``ot.prob.shape[0]`` and ``ot.prob.shape[1]`` returned by Sinkhorn
     errors: vector or errors, along iterations. This vector is of size
-      ``max_iterations // inner_iterations`` where those were the parameters
-      passed on to the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` solver.
-      For each entry indexed at ``i``, ``errors[i]`` can be either a real
-      non-negative value (meaning the algorithm recorded that error at the
-      ``i * inner_iterations`` iteration), a ``jnp.inf`` value (meaning the
-      algorithm computed that iteration but did not compute its error, because,
-      for instance, ``i < min_iterations // inner_iterations``), or a ``-1``,
-      meaning that execution was terminated before that iteration, because the
-      criterion was found to be smaller than ``threshold``.
+      ``ceil(max_iterations / inner_iterations)`` where those were the
+      parameters passed on to the :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`
+      solver. For each entry indexed at ``i``, ``errors[i]`` can be either a
+      real non-negative value (meaning the algorithm recorded that error after
+      ``(i + 1) * inner_iterations`` iterations), a ``jnp.inf`` value (meaning
+      the algorithm computed these iterations but did not compute their error,
+      because ``(i + 1) * inner_iterations < min_iterations``), or a ``-1``,
+      meaning that execution was terminated before these iterations, because
+      the algorithm converged or diverged.
     reg_ot_cost: the regularized optimal transport cost. By default this is
       the linear contribution + KL term. See
       :attr:`~ott.solvers.linear.sinkhorn.SinkhornOutput.ent_reg_cost`,
@@ -308,8 +326,9 @@ class SinkhornOutput(NamedTuple):
       marginals, unbalanced regularizers, etc.
     threshold: convergence threshold used to control the termination of the
       algorithm.
-    converged: whether the output corresponds to a solution whose error is
-      below the convergence threshold.
+    converged: whether the stopping criterion was met, i.e. the last recorded
+      error is below ``threshold``. :obj:`False` if the solver diverged or
+      reached ``max_iterations`` above ``threshold``.
     inner_iterations: number of iterations that were run between two
       computations of errors.
   """
@@ -360,14 +379,26 @@ class SinkhornOutput(NamedTuple):
 
     where :math:`P^{\star}, a, b` is the coupling returned by the
     :class:`~ott.solvers.linear.sinkhorn.Sinkhorn` and the two marginal weight
-    vectors; :math:`\rho_a=\varepsilon \tau_a / (1-\tau_a)` and
+    vectors; :math:`H(P) = -\sum_{ij} P_{ij} \log P_{ij}` is the
+    :attr:`entropy` of the coupling;
+    :math:`\rho_a=\varepsilon \tau_a / (1-\tau_a)` and
     :math:`\rho_b=\varepsilon \tau_b / (1-\tau_b)` are obtained when the problem
     is unbalanced from parameters ``tau_a`` and ``tau_b``. Note that the last
     two terms vanish in the balanced case, when ``tau_a==tau_b==1``.
     """
-    ent_a = jnp.sum(jsp.special.entr(self.ot_prob.a))
-    ent_b = jnp.sum(jsp.special.entr(self.ot_prob.b))
-    return self.reg_ot_cost - self.geom.epsilon * (ent_a + ent_b)
+    a, b = self.ot_prob.a, self.ot_prob.b
+    marginal_a = a if self.ot_prob.tau_a == 1.0 else self.marginal(1)
+    marginal_b = b if self.ot_prob.tau_b == 1.0 else self.marginal(0)
+    mass = jnp.sum(marginal_b if self.ot_prob.tau_b == 1.0 else marginal_a)
+
+    log_a = jnp.log(jnp.where(a > 0.0, a, 1.0))
+    log_b = jnp.log(jnp.where(b > 0.0, b, 1.0))
+
+    # KL(P | ab^T) = -H(P) - <P1, log a> - <P^T1, log b> - |P| + |a||b|
+    correction = jnp.vdot(marginal_a, log_a) + jnp.vdot(marginal_b, log_b)
+    correction += mass - jnp.sum(a) * jnp.sum(b)
+
+    return self.reg_ot_cost + self.geom.epsilon * correction
 
   @property
   def kl_reg_cost(self) -> jnp.ndarray:
@@ -571,16 +602,17 @@ class Sinkhorn:
 
     In addition to standard Sinkhorn updates, the user can also use heavy-ball
     type updates using a ``momentum`` parameter in ]0,2[. We also implement a
-    strategy that tries to set that parameter adaptively at
-    ``chg_momentum_from`` iterations, as a function of progress in the error,
+    strategy that tries to set that parameter adaptively after
+    ``momentum.start`` iterations, as a function of progress in the error,
     as proposed in the literature.
 
     Another upgrade to the standard Sinkhorn updates provided to the users lies
-    in using Anderson acceleration. This can be parameterized by setting the
-    otherwise null ``anderson`` to a positive integer. When selected,the
-    algorithm will recompute, every ``refresh_anderson_frequency`` (set by
-    default to 1) an extrapolation of the most recently computed ``anderson``
-    iterates. When using that option, notice that differentiation (if required)
+    in using Anderson acceleration. This can be parameterized by passing an
+    :class:`~ott.solvers.linear.acceleration.AndersonAcceleration` instance as
+    ``anderson``. When selected, the algorithm will recompute, every
+    ``anderson.refresh_every`` iterations (set by default to 1), an
+    extrapolation of the ``anderson.memory`` most recently computed iterates.
+    When using that option, notice that differentiation (if required)
     can only be carried out using implicit differentiation, and that all
     momentum related parameters are ignored.
 
@@ -661,19 +693,19 @@ class Sinkhorn:
       use ``jnp.where`` conditional statements to carry ``inf`` rather than
       ``NaN`` values. In reverse mode differentiation, the inputs corresponding
       to these 0 weights (a location `x`, or a row in the corresponding
-      cost/kernel matrix), and the weight itself will have ``NaN`` gradient
-      values. This reflects that these gradients are undefined, since these
-      points were not considered in the optimization and have therefore no
-      impact on the output.
+      cost/kernel matrix) have zero gradient, since these points have no impact
+      on the output. The gradient w.r.t. the weight itself is the limit of the
+      gradient for positive weights.
 
   Args:
     lse_mode: :obj:`True` for log-sum-exp computations, :obj:`False` for kernel
       multiplication.
-    threshold: tolerance used to stop the Sinkhorn iterations. This is
-      typically the deviation between a target marginal and the marginal of the
-      current primal solution when either or both ``tau_a`` and ``tau_b`` are
-      :math:`1.0` (balanced or semi-balanced problem), or the relative change
-      between two successive solutions in the unbalanced case.
+    threshold: tolerance used to stop the Sinkhorn iterations. For balanced
+      problems, this is the deviation between the target marginal ``b`` and
+      the marginal of the current primal solution. Otherwise, i.e., for
+      unbalanced or semi-balanced problems, or when using
+      ``parallel_dual_updates``, this is the sum of the norms of the gradients
+      of the dual objective w.r.t. each potential.
     norm_error: power used to define the :math:`p`-norm used to quantify
       the magnitude of the gradients. This criterion is used to terminate the
       algorithm.
@@ -697,10 +729,10 @@ class Sinkhorn:
     parallel_dual_updates: updates potentials or scalings in parallel if
       :obj:`True`, sequentially (in Gauss-Seidel fashion) if :obj:`False`.
     recenter_potentials: Whether to re-center the dual potentials.
-      If the problem is balanced, the ``f`` potential is zero-centered for
-      numerical stability. Otherwise, use the approach of :cite:`sejourne:22`
-      to achieve faster convergence. Only used when ``lse_mode = True`` and
-      ``tau_a < 1`` and ``tau_b < 1``.
+      If the problem is balanced, the output ``f`` potential is zero-centered
+      for numerical stability. If ``tau_a < 1`` and ``tau_b < 1``, use the
+      approach of :cite:`sejourne:22` to achieve faster convergence, which is
+      applied during the iterations only when ``lse_mode = True``.
     use_danskin: when :obj:`True`, it is assumed the
       :term:`entropy-regularized optimal transport` cost
       is evaluated using :term:`dual Kantorovich potentials` that are frozen,
@@ -743,6 +775,11 @@ class Sinkhorn:
     self.implicit_diff = implicit_diff
 
     if momentum is not None:
+      if 0 < momentum.start < 2 * self.inner_iterations:
+        raise ValueError(
+            f"Momentum start must be 0 or at least `2 * inner_iterations="
+            f"{2 * self.inner_iterations}`, found {momentum.start}."
+        )
       self.momentum = acceleration.Momentum(
           momentum.start, momentum.error_threshold, momentum.value,
           self.inner_iterations
@@ -819,14 +856,25 @@ class Sinkhorn:
         potential: jnp.ndarray, marginal: jnp.ndarray, tau: float
     ) -> float:
       rho = uf.rho(ot_prob.epsilon, tau)
+      log_marginal = jnp.log(jnp.where(marginal > 0, marginal, 1.0))
+      potential = potential - ot_prob.epsilon * log_marginal
       return -rho * mu.logsumexp(-potential / rho, b=marginal)
+
+    def safe_log(marginal: jnp.ndarray) -> jnp.ndarray:
+      # `-inf` at zero weights, but with a finite gradient
+      positive = marginal > 0
+      return jnp.where(
+          positive, jnp.log(jnp.where(positive, marginal, 1.0)), -jnp.inf
+      )
 
     # only for an unbalanced problems with `tau_{a,b} < 1`
     recenter = (
         self.recenter_potentials and ot_prob.tau_a < 1.0 and ot_prob.tau_b < 1.0
     )
     w = self.momentum.weight(state, iteration)
+    eps = ot_prob.geom.epsilon_scheduler(iteration)
     tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
+    log_a, log_b = safe_log(ot_prob.a), safe_log(ot_prob.b)
     old_fu, old_gv = state.fu, state.gv
 
     if recenter:
@@ -835,8 +883,10 @@ class Sinkhorn:
 
     # update g potential
     new_gv = tau_b * ot_prob.geom.update_potential(
-        old_fu, old_gv, jnp.log(ot_prob.b), iteration, axis=0
+        old_fu, old_gv, log_b, iteration, axis=0
     )
+    if tau_b < 1.0:
+      new_gv += (1.0 - tau_b) * eps * log_b
     if recenter:
       new_gv -= k22 * smin(old_fu, ot_prob.a, tau_a)
       new_gv += xi21 * smin(new_gv, ot_prob.b, tau_b)
@@ -847,8 +897,10 @@ class Sinkhorn:
 
     # update f potential
     new_fu = tau_a * ot_prob.geom.update_potential(
-        old_fu, old_gv, jnp.log(ot_prob.a), iteration, axis=1
+        old_fu, old_gv, log_a, iteration, axis=1
     )
+    if tau_a < 1.0:
+      new_fu += (1.0 - tau_a) * eps * log_a
     if recenter:
       new_fu -= k11 * smin(old_gv, ot_prob.b, tau_b)
       new_fu += xi12 * smin(new_fu, ot_prob.a, tau_a)
@@ -863,16 +915,19 @@ class Sinkhorn:
     """Sinkhorn multiplicative update."""
     w = self.momentum.weight(state, iteration)
     old_gv = state.gv
-    new_gv = ot_prob.geom.update_scaling(
-        state.fu, ot_prob.b, iteration, axis=0
-    ) ** ot_prob.tau_b
+    new_gv = _positive_power(
+        ot_prob.geom.update_scaling(state.fu, ot_prob.b, iteration, axis=0),
+        ot_prob.tau_b
+    ) * _positive_power(ot_prob.b, 1.0 - ot_prob.tau_b)
     gv = self.momentum(w, state.gv, new_gv, self.lse_mode)
-    new_fu = ot_prob.geom.update_scaling(
-        old_gv if self.parallel_dual_updates else gv,
-        ot_prob.a,
-        iteration,
-        axis=1
-    ) ** ot_prob.tau_a
+    new_fu = _positive_power(
+        ot_prob.geom.update_scaling(
+            old_gv if self.parallel_dual_updates else gv,
+            ot_prob.a,
+            iteration,
+            axis=1
+        ), ot_prob.tau_a
+    ) * _positive_power(ot_prob.a, 1.0 - ot_prob.tau_a)
     fu = self.momentum(w, state.fu, new_fu, self.lse_mode)
     return state.set(potentials=(fu, gv))
 
@@ -914,7 +969,9 @@ class Sinkhorn:
     err = jax.lax.cond(
         jnp.logical_or(
             iteration == self.max_iterations - 1,
-            jnp.logical_and(compute_error, iteration >= self.min_iterations)
+            jnp.logical_and(
+                compute_error, iteration + 1 >= self.min_iterations
+            )
         ),
         lambda state, prob: state.solution_error(
             prob,
@@ -922,8 +979,8 @@ class Sinkhorn:
             lse_mode=self.lse_mode,
             parallel_dual_updates=self.parallel_dual_updates,
             recenter=self.recenter_potentials
-        )[0],
-        lambda *_: jnp.array(jnp.inf, dtype=ot_prob.dtype),
+        ),
+        lambda *_: jnp.full(len(self.norm_error), jnp.inf, dtype=ot_prob.dtype),
         state,
         ot_prob,
     )
@@ -966,6 +1023,7 @@ class Sinkhorn:
                                                                jnp.ndarray]
   ) -> SinkhornState:
     """Return the initial state of the loop."""
+    init = tuple(x.astype(ot_prob.dtype) for x in init)
     errors = -jnp.ones((self.outer_iterations, len(self.norm_error)),
                        dtype=ot_prob.dtype)
     state = SinkhornState(init, errors=errors)
@@ -1008,19 +1066,8 @@ class Sinkhorn:
     if self.recenter_potentials:
       f, g = state.recenter(f, g, ot_prob=ot_prob)
 
-    # By convention, the algorithm is said to have converged if the algorithm
-    # has not nan'ed during iterations (notice some errors might be infinite,
-    # this convention is used when the error is not recomputed), and if the
-    # last recorded error is lower than the threshold. Note that this will be
-    # the case if either the algorithm terminated earlier (in which case the
-    # last state.errors[-1] = -1 by convention) or if the algorithm carried out
-    # the maximal number of iterations and its last recorded error (at -1
-    # position) is lower than the threshold.
-
-    converged = jnp.logical_and(
-        jnp.logical_not(jnp.any(jnp.isnan(state.errors))), state.errors[-1]
-        < self.threshold
-    )[0]
+    n_iters = self.inner_iterations * jnp.sum(state.errors[:, 0] != -1)
+    converged = self._converged(state, n_iters)
 
     return SinkhornOutput((f, g),
                           errors=state.errors[:, 0],

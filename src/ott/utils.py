@@ -14,6 +14,7 @@
 import dataclasses
 import functools
 import io
+import math
 import warnings
 from collections.abc import Sequence
 from typing import (
@@ -105,7 +106,9 @@ def default_progress_fn(
   :mod:`linear problems <ott.problems.linear>`.
 
   It prints the progress only when the error is computed, that is every
-  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
+  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`. For
+  :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`, the
+  error is the relative change of its costs, i.e., its convergence criterion.
 
   Args:
     fmt: Format used to print. It can format ``iter``, ``max_iter`` and
@@ -118,8 +121,9 @@ def default_progress_fn(
     - the current iteration number,
     - the number of inner iterations after which the error is computed,
     - the total number of iterations, and
-    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState` or
-      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`.
+    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState`,
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState` or
+      :class:`~ott.solvers.quadratic.gromov_wasserstein.GWState`.
 
   Examples:
     .. code-block:: python
@@ -163,7 +167,9 @@ def tqdm_progress_fn(
   :mod:`linear problems <ott.problems.linear>`.
 
   It updates the progress bar only when the error is computed, that is every
-  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`.
+  :attr:`~ott.solvers.linear.sinkhorn.Sinkhorn.inner_iterations`. For
+  :class:`~ott.solvers.quadratic.gromov_wasserstein.GromovWasserstein`, the
+  error is the relative change of its costs, i.e., its convergence criterion.
 
   Args:
     pbar: `tqdm <https://tqdm.github.io/docs/tqdm/>`_ progress bar.
@@ -176,8 +182,9 @@ def tqdm_progress_fn(
     - the current iteration number,
     - the number of inner iterations after which the error is computed,
     - the total number of iterations, and
-    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState` or
-      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState`.
+    - the current :class:`~ott.solvers.linear.sinkhorn.SinkhornState`,
+      :class:`~ott.solvers.linear.sinkhorn_lr.LRSinkhornState` or
+      :class:`~ott.solvers.quadratic.gromov_wasserstein.GWState`.
 
   Examples:
     .. code-block:: python
@@ -210,7 +217,7 @@ def tqdm_progress_fn(
 
       postfix = fmt.format(iter=iteration, max_iter=total_iter, error=error)
       pbar.set_postfix_str(postfix)
-      pbar.total = total_iter // inner_iterations
+      pbar.total = math.ceil(total_iter / inner_iterations)
       pbar.update()
 
   return progress_callback
@@ -221,7 +228,12 @@ def _prepare_info(status: IOStatus) -> Tuple[int, int, int, np.ndarray]:
   iteration = int(iteration) + 1
   inner_iterations = int(inner_iterations)
   total_iter = int(total_iter)
-  errors = np.array(state.errors).ravel()
+  if hasattr(state, "linear_state"):
+    # Gromov-Wasserstein, use its convergence criterion
+    costs = np.asarray(state.costs)
+    errors = np.abs(np.diff(costs, prepend=np.inf) / costs)
+  else:
+    errors = np.array(state.errors).ravel()
 
   return iteration, inner_iterations, total_iter, errors
 
@@ -315,10 +327,10 @@ def _apply_scan(
                                                          Any]]
 ) -> Callable[P, R]:
 
-  def num_steps(axes: List[Any], args: Tuple[Any, ...]) -> int:
-    ix = next(ix for ix, axis in enumerate(axes) if axis is not None)
-    leaf, *_ = jax.tree.leaves(args[ix])
-    axis, *_ = jax.tree.leaves(axes[ix])
+  def num_steps(leaves: List[Any], axes: List[Any]) -> int:
+    leaf, axis = next(
+        (leaf, axis) for leaf, axis in zip(leaves, axes) if axis is not None
+    )
     return leaf.shape[axis]
 
   def select_batch(arg: Any, index: int, *, axis: int) -> Any:
@@ -346,7 +358,7 @@ def _apply_scan(
         return_flat=True,
         has_extra_dim=True,
     )
-    n = num_steps(axes, args)
+    n = num_steps(leaves, axes)
 
     _, result = jax.lax.scan(body_fn, init=None, xs=jnp.arange(n))
     return result

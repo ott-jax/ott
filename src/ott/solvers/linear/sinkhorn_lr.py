@@ -58,7 +58,7 @@ class LRSinkhornState(NamedTuple):
       epsilon: float,
       use_danskin: bool = True
   ) -> float:
-    """For LR Sinkhorn, this defaults to the primal cost of LR solution."""
+    """Compute the regularized OT cost of the LR solution."""
     return compute_reg_ot_cost(
         self.q,
         self.r,
@@ -86,7 +86,7 @@ def compute_reg_ot_cost(
     epsilon: float,
     use_danskin: bool = True
 ) -> float:
-  """Compute the regularized OT cost, here the primal cost of the LR solution.
+  """Compute the regularized OT cost of the LR solution.
 
   Args:
     q: first factor of solution
@@ -99,7 +99,9 @@ def compute_reg_ot_cost(
       w.r.t. relevant quantities.
 
   Returns:
-    regularized OT cost, the (primal) transport cost of the low-rank solution.
+    regularized OT cost, the (primal) transport cost of the low-rank solution,
+    minus the ``epsilon``-scaled entropies of the factors, plus the marginal
+    penalties in the unbalanced case.
   """
   tau_a, tau_b = ot_prob.tau_a, ot_prob.tau_b
 
@@ -123,7 +125,7 @@ def solution_error(
 ) -> jnp.ndarray:
   """Compute solution error.
 
-  Since only balanced case is available for LR, this is marginal deviation.
+  This is the marginal deviation, used in the balanced case.
 
   Args:
     q: first factor of solution.
@@ -218,12 +220,12 @@ class LRSinkhornOutput(NamedTuple):
   def apply(self, inputs: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
     """Apply the transport to a array; axis=1 for its transpose."""
     q, r = (self.q, self.r) if axis == 1 else (self.r, self.q)
-    # for `axis=0`: (batch, m), (m, r), (r,), (r, n)
+    # for `axis=0`: (batch, n), (n, r), (r,), (r, m)
     return ((inputs @ r) * self._inv_g) @ q.T
 
   def marginal(self, axis: int) -> jnp.ndarray:  # noqa: D102
     length = self.q.shape[0] if axis == 0 else self.r.shape[0]
-    return self.apply(jnp.ones(length,), axis=axis)
+    return self.apply(jnp.ones(length, dtype=self.q.dtype), axis=axis)
 
   def cost_at_geom(self, other_geom: geometry.Geometry) -> float:
     """Return OT cost for current solution, evaluated at any cost matrix."""
@@ -258,15 +260,15 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
 
   That problem is non-convex, and therefore any algorithm that tries to
   solve it requires special attention to initialization and control of
-  convergence. Convergence is evaluated on successive evaluations of the
-  objective whereas initializers are instance of the
-  :class:`~ott.ott.initializers.linear.initializers_lr.LRInitializer` class.
+  convergence. Convergence is evaluated on the change between successive
+  iterates of the factors, whereas initializers are instances of the
+  :class:`~ott.initializers.linear.initializers_lr.LRInitializer` class.
 
   The algorithm is described in :cite:`scetbon:21` and the implementation
   contained here is adapted from `LOT <https://github.com/meyerscetbon/LOT>`_.
 
   Args:
-    rank: Rank constraint on the coupling to minimize the linear OT problem
+    rank: Rank constraint on the coupling to minimize the linear OT problem.
     gamma: The (inverse of) gradient step size used by mirror descent.
     gamma_rescale: Whether to rescale :math:`\gamma` every iteration as
       described in :cite:`scetbon:22b`.
@@ -277,15 +279,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     inner_iterations: Number of inner iterations used by the algorithm before
       re-evaluating progress.
     use_danskin: Use Danskin theorem to evaluate gradient of objective w.r.t.
-      input parameters. Only `True` handled at this moment.
+      input parameters. In the balanced case, the gradient w.r.t. ``a`` and
+      ``b`` is then zero; use ``use_danskin = False`` to obtain it.
     progress_fn: callback function which gets called during the Sinkhorn
       iterations, so the user can display the error at each iteration,
       e.g., using a progress bar. See :func:`~ott.utils.default_progress_fn`
       for a basic implementation.
     kwargs_dys: Keyword arguments passed to :meth:`dykstra_update_lse`,
-      :meth:`dykstra_update_kernel` or one of the functions defined in
-      :mod:`ott.solvers.linear`, depending on whether the problem
-      is balanced and on the ``lse_mode``.
+      :meth:`dykstra_update_kernel`,
+      :func:`~ott.solvers.linear.lr_utils.unbalanced_dykstra_lse` or
+      :func:`~ott.solvers.linear.lr_utils.unbalanced_dykstra_kernel`, depending
+      on whether the problem is balanced and on the ``lse_mode``.
     kwargs: Keyword arguments for
       :class:`~ott.solvers.linear.sinkhorn.Sinkhorn`.
   """
@@ -368,8 +372,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     grad_g += self.epsilon * log_g
 
     if self.gamma_rescale:
-      norm_q = jnp.max(jnp.abs(grad_q)) ** 2
-      norm_r = jnp.max(jnp.abs(grad_r)) ** 2
+      supp_a, supp_b = ot_prob.a[:, None] > 0.0, ot_prob.b[:, None] > 0.0
+      norm_q = jnp.max(jnp.abs(grad_q), where=supp_a, initial=0.0) ** 2
+      norm_r = jnp.max(jnp.abs(grad_r), where=supp_b, initial=0.0) ** 2
       norm_g = jnp.max(jnp.abs(grad_g)) ** 2
       gamma = self.gamma / jnp.max(jnp.array([norm_q, norm_r, norm_g]))
     else:
@@ -378,9 +383,9 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     eps_factor = 1.0 / (self.epsilon * gamma + 1.0)
     gamma *= eps_factor
 
-    c_q = -gamma * grad_q + eps_factor * log_q
-    c_r = -gamma * grad_r + eps_factor * log_r
-    c_g = -gamma * grad_g + eps_factor * log_g
+    c_q = -gamma * grad_q + log_q
+    c_r = -gamma * grad_r + log_r
+    c_g = -gamma * grad_g + log_g
 
     return c_q, c_r, c_g, gamma
 
@@ -401,18 +406,17 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     r = self.rank
-    n, m = ot_prob.geom.shape
-    loga, logb = jnp.log(ot_prob.a), jnp.log(ot_prob.b)
+    n, m = c_q.shape[0], c_r.shape[0]
+    loga, logb = mu.safe_log(ot_prob.a), mu.safe_log(ot_prob.b)
 
     h_old = h
-    g1_old, g2_old = jnp.zeros(r), jnp.zeros(r)
-    f1, f2 = jnp.zeros(n), jnp.zeros(m)
+    g1_old = g2_old = jnp.zeros(r, dtype=c_q.dtype)
+    f1, f2 = jnp.zeros(n, dtype=c_q.dtype), jnp.zeros(m, dtype=c_q.dtype)
 
-    w_gi, w_gp = jnp.zeros(r), jnp.zeros(r)
-    w_q, w_r = jnp.zeros(r), jnp.zeros(r)
-    err = jnp.inf
+    w_gi = w_gp = w_q = w_r = jnp.zeros(r, dtype=c_q.dtype)
+    err = jnp.array(jnp.inf, dtype=c_q.dtype)
     state_inner = f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err
-    constants = c_q, c_r, loga, logb
+    constants = c_q, c_r, loga, logb, gamma, ot_prob
 
     def cond_fn(
         iteration: int, constants: Tuple[jnp.ndarray, ...],
@@ -423,7 +427,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       return err > tolerance
 
     def _softm(
-        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, axis: int
+        f: jnp.ndarray, g: jnp.ndarray, c: jnp.ndarray, gamma: float, axis: int
     ) -> jnp.ndarray:
       return jsp.special.logsumexp(
           gamma * (f[:, None] + g[None, :] - c), axis=axis
@@ -435,17 +439,11 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     ) -> Tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       f1, f2, g1_old, g2_old, h_old, w_gi, w_gp, w_q, w_r, err = state_inner
-      c_q, c_r, loga, logb = constants
+      c_q, c_r, loga, logb, gamma, ot_prob = constants
 
       # First Projection
-      f1 = jnp.where(
-          jnp.isfinite(loga),
-          (loga - _softm(f1, g1_old, c_q, axis=1)) / gamma + f1, loga
-      )
-      f2 = jnp.where(
-          jnp.isfinite(logb),
-          (logb - _softm(f2, g2_old, c_r, axis=1)) / gamma + f2, logb
-      )
+      f1 = (loga - _softm(f1, g1_old, c_q, gamma, axis=1)) / gamma + f1
+      f2 = (logb - _softm(f2, g2_old, c_r, gamma, axis=1)) / gamma + f2
 
       h = h_old + w_gi
       h = jnp.maximum(jnp.log(min_entry_value) / gamma, h)
@@ -453,8 +451,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       h_old = h
 
       # Update couplings
-      g_q = _softm(f1, g1_old, c_q, axis=0)
-      g_r = _softm(f2, g2_old, c_r, axis=0)
+      g_q = _softm(f1, g1_old, c_q, gamma, axis=0)
+      g_r = _softm(f2, g2_old, c_r, gamma, axis=0)
 
       # Second Projection
       h = (1.0 / 3.0) * (h_old + w_gp + w_q + w_r)
@@ -474,7 +472,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       h_old = h
 
       err = jax.lax.cond(
-          jnp.logical_and(compute_error, iteration >= min_iter),
+          jnp.logical_and(compute_error, iteration + 1 >= min_iter),
           lambda: solution_error(q, r, ot_prob, self.norm_error)[0], lambda: err
       )
 
@@ -518,19 +516,16 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     """Run Dykstra's algorithm."""
     # shortcuts for problem's definition.
     rank = self.rank
-    n, m = ot_prob.geom.shape
-    a, b = ot_prob.a, ot_prob.b
-    supp_a, supp_b = a > 0, b > 0
+    n, m = k_q.shape[0], k_r.shape[0]
 
     g_old = k_g
-    v1_old, v2_old = jnp.ones(rank), jnp.ones(rank)
-    u1, u2 = jnp.ones(n), jnp.ones(m)
+    v1_old = v2_old = jnp.ones(rank, dtype=k_q.dtype)
+    u1, u2 = jnp.ones(n, dtype=k_q.dtype), jnp.ones(m, dtype=k_q.dtype)
 
-    q_gi, q_gp = jnp.ones(rank), jnp.ones(rank)
-    q_q, q_r = jnp.ones(rank), jnp.ones(rank)
-    err = jnp.inf
+    q_gi = q_gp = q_q = q_r = jnp.ones(rank, dtype=k_q.dtype)
+    err = jnp.array(jnp.inf, dtype=k_q.dtype)
     state_inner = u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err
-    constants = k_q, k_r, k_g, a, b
+    constants = k_q, k_r, k_g, ot_prob
 
     def cond_fn(
         iteration: int, constants: Tuple[jnp.ndarray, ...],
@@ -546,11 +541,12 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
     ) -> Tuple[jnp.ndarray, ...]:
       # TODO(michalk8): in the future, use `NamedTuple`
       u1, u2, v1_old, v2_old, g_old, q_gi, q_gp, q_q, q_r, err = state_inner
-      k_q, k_r, k_g, a, b = constants
+      k_q, k_r, k_g, ot_prob = constants
+      a, b = ot_prob.a, ot_prob.b
 
       # First Projection
-      u1 = jnp.where(supp_a, a / jnp.dot(k_q, v1_old), 0.0)
-      u2 = jnp.where(supp_b, b / jnp.dot(k_r, v2_old), 0.0)
+      u1 = a / jnp.where(a > 0, jnp.dot(k_q, v1_old), 1.0)
+      u2 = b / jnp.where(b > 0, jnp.dot(k_r, v2_old), 1.0)
       g = jnp.maximum(min_entry_value, g_old * q_gi)
       q_gi = (g_old * q_gi) / g
       g_old = g
@@ -573,7 +569,7 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       q, r, _ = recompute_couplings(u1, v1, k_q, u2, v2, k_r, g)
 
       err = jax.lax.cond(
-          jnp.logical_and(compute_error, iteration >= min_iter),
+          jnp.logical_and(compute_error, iteration + 1 >= min_iter),
           lambda: solution_error(q, r, ot_prob, self.norm_error)[0], lambda: err
       )
 
@@ -663,14 +659,16 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
       state = self.kernel_step(ot_prob, state, iteration)
 
     # re-computes error if compute_error is True, else set it to inf.
+    record_error = jnp.logical_and(
+        compute_error, iteration + 1 >= self.min_iterations
+    )
     cost = jax.lax.cond(
-        jnp.logical_and(compute_error, iteration >= self.min_iterations),
-        lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
-        lambda: jnp.inf
+        record_error, lambda: state.reg_ot_cost(ot_prob, epsilon=self.epsilon),
+        lambda: jnp.array(jnp.inf, dtype=state.costs.dtype)
     )
     error = jax.lax.cond(
-        iteration >= self.min_iterations,
-        lambda: state.compute_error(previous_state), lambda: jnp.inf
+        record_error, lambda: state.compute_error(previous_state),
+        lambda: jnp.array(jnp.inf, dtype=state.errors.dtype)
     )
     crossed_threshold = jnp.logical_or(
         state.crossed_threshold,
@@ -708,8 +706,8 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         r=r,
         g=g,
         gamma=self.gamma,
-        costs=-jnp.ones(self.outer_iterations),
-        errors=-jnp.ones(self.outer_iterations),
+        costs=-jnp.ones(self.outer_iterations, dtype=q.dtype),
+        errors=-jnp.ones(self.outer_iterations, dtype=q.dtype),
         crossed_threshold=False,
     )
 
@@ -772,8 +770,18 @@ class LRSinkhorn(sinkhorn.Sinkhorn):
         jnp.logical_not(jnp.isfinite(state.errors[it])),
         jnp.logical_not(jnp.isfinite(state.costs[it]))
     )
-    # `jnp.inf` is used if `it < self.min_iterations`
-    return jnp.logical_and(it >= self.min_iterations, is_not_finite)
+    # `jnp.inf` is used if `iteration < self.min_iterations`
+    return jnp.logical_and(iteration >= self.min_iterations, is_not_finite)
+
+  def tree_flatten(self):  # noqa: D102
+    children, aux_data = super().tree_flatten()
+    gamma, epsilon = aux_data.pop("gamma"), aux_data.pop("epsilon")
+    return children + [gamma, epsilon], aux_data
+
+  @classmethod
+  def tree_unflatten(cls, aux_data, children):  # noqa: D102
+    threshold, gamma, epsilon = children
+    return cls(threshold=threshold, gamma=gamma, epsilon=epsilon, **aux_data)
 
 
 def run(

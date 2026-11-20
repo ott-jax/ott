@@ -11,7 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Tuple, Union
+import io
+from typing import Any, Tuple, Union
 
 import pytest
 
@@ -22,10 +23,13 @@ import numpy as np
 
 from ott import utils
 from ott.geometry import geometry, low_rank, pointcloud
+from ott.math import utils as mu
+from ott.problems.quadratic import gw_barycenter as gwb
 from ott.problems.quadratic import quadratic_problem
 from ott.solvers.linear import implicit_differentiation as implicit_lib
-from ott.solvers.linear import sinkhorn
+from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
+from ott.solvers.quadratic import gw_barycenter as gwb_solver
 from tests import _utils
 
 
@@ -114,6 +118,28 @@ class TestQuadraticProblem:
     assert prob._is_low_rank_convertible
     assert lr_prob.is_low_rank
     assert prob.geom_yy is lr_prob.geom_yy
+
+  def test_to_low_rank_scale_cost(self, rng: jax.Array):
+    rng_x, rng_y, rng_z = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    z = jr.normal(rng_z, (12, 2))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x),
+        pointcloud.PointCloud(y),
+        geom_xy=pointcloud.PointCloud(x, z),
+        scale_cost="mean",
+    )
+
+    lr_prob = prob.to_low_rank()
+
+    assert lr_prob.is_low_rank
+    for geom, lr_geom in zip(
+        (prob.geom_xx, prob.geom_yy, prob.geom_xy),
+        (lr_prob.geom_xx, lr_prob.geom_yy, lr_prob.geom_xy)
+    ):
+      np.testing.assert_allclose(
+          lr_geom.cost_matrix, geom.cost_matrix, rtol=1e-5, atol=1e-5
+      )
 
 
 TAU_A, TAU_B = 0.8, 0.9
@@ -231,7 +257,6 @@ class TestGromovWasserstein:
       )
 
     out = solver(prob)
-    # TODO(cuturi): test primal cost for un-balanced case as well.
     if balanced:
       geom_x, geom_y = prob.geom_xx, prob.geom_yy
       u = geom_x.apply_square_cost(out.matrix.sum(axis=-1)).squeeze()
@@ -240,7 +265,7 @@ class TestGromovWasserstein:
       c = (u[:, None] + v[None, :] - 2 * c)
 
       np.testing.assert_allclose(
-          out.primal_cost, jnp.sum(c * out.matrix), rtol=1e-3
+          out.primal_cost, 0.5 * jnp.sum(c * out.matrix), rtol=1e-3
       )
 
     assert not jnp.isnan(out.reg_gw_cost)
@@ -306,24 +331,256 @@ class TestGromovWasserstein:
         grad_matrices[0][1], grad_matrices[1][1], rtol=1e-2, atol=1e-2
     )
 
-  def test_gw_adaptive_threshold(self, clouds: _utils.QuadClouds):
-    """Checking solution is improved with smaller threshold for convergence."""
-    geom_x = pointcloud.PointCloud(clouds.x, clouds.x)
-    geom_y = pointcloud.PointCloud(clouds.y, clouds.y)
+  def test_reg_gw_cost(self, rng: jax.Array):
 
-    def loss_thre(threshold: float) -> float:
+    def solve(a: jnp.ndarray) -> gromov_wasserstein.GWOutput:
       prob = quadratic_problem.QuadraticProblem(
-          geom_x, geom_y, a=clouds.a, b=clouds.b
+          geometry.Geometry(cost_matrix=cx),
+          geometry.Geometry(cost_matrix=cy),
+          geom_xy,
+          a=a,
       )
-      linear_solver = sinkhorn.Sinkhorn()
-      solver = gromov_wasserstein.GromovWasserstein(
-          linear_solver, threshold=threshold, epsilon=1e-1
-      )
+      return solver(prob)
 
+    rngs = jr.split(rng, 4)
+    x, y = jr.normal(rngs[0], (7, 2)), jr.normal(rngs[1], (8, 3))
+    cx = pointcloud.PointCloud(x).cost_matrix
+    cy = pointcloud.PointCloud(y).cost_matrix
+    geom_xy = pointcloud.PointCloud(
+        jr.normal(rngs[2], (7, 2)), jr.normal(rngs[3], (8, 2))
+    )
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(threshold=1e-6, max_iterations=5000),
+        epsilon=5.0,
+        threshold=1e-6,
+        min_iterations=20,
+        max_iterations=200,
+    )
+    a, h = jnp.full(7, 1.0 / 7), 1e-2
+    d = jnp.zeros(7).at[0].set(1.0).at[1].set(-1.0)
+
+    out = solve(a)
+    p, ab = out.matrix, jnp.outer(a, jnp.full(8, 1.0 / 8))
+    loss = (cx[:, None, :, None] - cy[None, :, None, :]) ** 2
+    quad = jnp.einsum("ijkl,ij,kl->", loss, p, p)
+    lin = jnp.vdot(geom_xy.cost_matrix, p)
+    grad = jnp.vdot(jax.grad(lambda a: solve(a).reg_gw_cost)(a), d)
+    grad_fd = (solve(a + h * d).reg_gw_cost -
+               solve(a - h * d).reg_gw_cost) / (2.0 * h)
+
+    np.testing.assert_allclose(
+        out.reg_gw_cost, 0.5 * quad + lin + 5.0 * mu.gen_kl(p, ab), rtol=1e-5
+    )
+    np.testing.assert_allclose(grad, grad_fd, rtol=1e-2)
+
+  def test_kl_loss_finite(self, rng: jax.Array):
+
+    def reg_gw_cost(x: jnp.ndarray) -> float:
+      prob = quadratic_problem.QuadraticProblem(
+          pointcloud.PointCloud(x), pointcloud.PointCloud(y), loss="kl"
+      )
       return solver(prob).reg_gw_cost
 
-    assert loss_thre(1e-1) >= loss_thre(1e-4)
-    assert loss_thre(1e-3) >= loss_thre(1e-5)
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.uniform(rng_x, (10, 2)), jr.uniform(rng_y, (12, 3))
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), epsilon=1e-1
+    )
+
+    cost, grad = jax.value_and_grad(reg_gw_cost)(x)
+
+    assert jnp.isfinite(cost)
+    np.testing.assert_array_equal(jnp.isfinite(grad), True)
+
+  def test_gw_adaptive_threshold(self, clouds: _utils.QuadClouds):
+    """Checking solution is improved with smaller threshold for convergence."""
+    prob = clouds.quad_problem()
+
+    def solve(**kwargs: Any) -> gromov_wasserstein.GWOutput:
+      solver = gromov_wasserstein.GromovWasserstein(
+          sinkhorn.Sinkhorn(), epsilon=1e-1, **kwargs
+      )
+      return solver(prob)
+
+    expected = solve(min_iterations=200, max_iterations=200).matrix
+    out_loose, out_tight = solve(threshold=1e-1), solve(threshold=1e-5)
+    err_loose = jnp.abs(out_loose.matrix - expected).max()
+    err_tight = jnp.abs(out_tight.matrix - expected).max()
+
+    assert out_loose.n_iters < out_tight.n_iters
+    assert err_tight < 1e-1 * err_loose
+
+  def test_converged_at_max_iterations(self, clouds: _utils.QuadClouds):
+    prob = clouds.quad_problem()
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), epsilon=1e-1, min_iterations=1
+    )
+    n_iters = int(solver(prob).n_iters)
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(),
+        epsilon=1e-1,
+        min_iterations=1,
+        max_iterations=n_iters,
+    )
+
+    out = solver(prob)
+
+    assert out.n_iters == n_iters
+    assert out.converged
+
+  def test_output_from_state(self, clouds: _utils.QuadClouds):
+    prob = clouds.quad_problem()
+    solver = gromov_wasserstein.GromovWasserstein(sinkhorn.Sinkhorn())
+    init = solver.initializer(prob, epsilon=solver.epsilon)
+    state = solver.init_state(prob, init)
+
+    out = solver.output_from_state(prob, state)
+
+    np.testing.assert_allclose(out.matrix, state.linear_state.matrix, rtol=1e-6)
+
+  def test_ugw_cost(self, rng: jax.Array):
+
+    def kl_kl(p: jnp.ndarray, q: jnp.ndarray) -> float:
+      kl = jnp.sum(jax.scipy.special.xlogy(p, p / q)) - p.sum() + q.sum()
+      return 2.0 * p.sum() * kl + (p.sum() - q.sum()) ** 2
+
+    def ugw_cost(scale: float) -> float:
+      p = scale * out.matrix
+      cost = jnp.einsum("ijkl,ij,kl->", loss, p, p)
+      cost += eps * kl_kl(p, jnp.outer(a, b))
+      cost += eps * tau_a / (1.0 - tau_a) * kl_kl(p.sum(1), a)
+      cost += eps * tau_b / (1.0 - tau_b) * kl_kl(p.sum(0), b)
+      return 0.5 * cost
+
+    eps, tau_a, tau_b = 0.1, 0.95, 0.97
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (6, 2)), jr.normal(rng_y, (7, 3))
+    a, b = jnp.full(6, 1.0 / 6), jnp.full(7, 1.0 / 7)
+    geom_xx, geom_yy = pointcloud.PointCloud(x), pointcloud.PointCloud(y)
+    loss = (
+        geom_xx.cost_matrix[:, None, :, None] -
+        geom_yy.cost_matrix[None, :, None, :]
+    ) ** 2
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx, geom_yy, tau_a=tau_a, tau_b=tau_b
+    )
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(threshold=1e-5), epsilon=eps
+    )
+
+    out = solver(prob)
+
+    assert out.converged
+    np.testing.assert_allclose(out.reg_gw_cost, ugw_cost(1.0), rtol=1e-5)
+    assert ugw_cost(1.0) < ugw_cost(0.99)
+    assert ugw_cost(1.0) < ugw_cost(1.01)
+
+  def test_unbalanced_no_correction_matrix(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    cx = pointcloud.PointCloud(jr.normal(rng_x, (10, 2))).cost_matrix
+    cy = pointcloud.PointCloud(jr.normal(rng_y, (12, 3))).cost_matrix
+    loss = (cx[:, None, :, None] - cy[None, :, None, :]) ** 2
+    prob = quadratic_problem.QuadraticProblem(
+        geometry.Geometry(cost_matrix=cx),
+        geometry.Geometry(cost_matrix=cy),
+        tau_a=0.9,
+        tau_b=0.9,
+        gw_unbalanced_correction=False,
+    )
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), epsilon=0.5, min_iterations=3, max_iterations=3
+    )
+
+    out = solver(prob)
+
+    np.testing.assert_allclose(
+        out.primal_cost,
+        0.5 * jnp.einsum("ijkl,ij,kl->", loss, out.matrix, out.matrix),
+        rtol=1e-5,
+    )
+
+  def test_ugw_primal_cost_grad(self, rng: jax.Array):
+
+    def primal_cost(a: jnp.ndarray, explicit: bool) -> float:
+      prob = quadratic_problem.QuadraticProblem(
+          geometry.Geometry(cost_matrix=cx),
+          geometry.Geometry(cost_matrix=cy),
+          geometry.Geometry(cost_matrix=cxy),
+          a=a,
+          tau_a=0.8,
+          tau_b=0.9,
+      )
+      out = solver(prob)
+      if explicit:
+        p = out.matrix
+        quad = jnp.einsum("ijkl,ij,kl->", loss, p, p)
+        return 0.5 * quad + jnp.vdot(cxy, p)
+      return out.primal_cost
+
+    rngs = jr.split(rng, 3)
+    cx = pointcloud.PointCloud(jr.normal(rngs[0], (6, 2))).cost_matrix
+    cy = pointcloud.PointCloud(jr.normal(rngs[1], (7, 3))).cost_matrix
+    cxy = jr.uniform(rngs[2], (6, 7))
+    loss = (cx[:, None, :, None] - cy[None, :, None, :]) ** 2
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), epsilon=1.0, min_iterations=2, max_iterations=2
+    )
+    a = jnp.full(6, 1.0 / 6)
+
+    np.testing.assert_allclose(
+        jax.grad(primal_cost)(a, False),
+        jax.grad(primal_cost)(a, True),
+        rtol=1e-4,
+        atol=1e-4,
+    )
+
+  def test_ugw_zero_weights_grad(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (6, 2)), jr.normal(rng_y, (7, 3))
+    a, b = jnp.full(6, 1.0 / 6), jnp.full(7, 1.0 / 7)
+    x_pad = jnp.concatenate([x, jnp.full((2, 2), 3.0)])
+    a_pad = jnp.concatenate([a, jnp.zeros(2)])
+
+    def reg_gw_cost(x: jnp.ndarray, a: jnp.ndarray) -> float:
+      prob = quadratic_problem.QuadraticProblem(
+          pointcloud.PointCloud(x),
+          pointcloud.PointCloud(y),
+          a=a,
+          b=b,
+          tau_a=0.8,
+          tau_b=0.9
+      )
+      solver = gromov_wasserstein.GromovWasserstein(
+          sinkhorn.Sinkhorn(threshold=1e-6), epsilon=1.0
+      )
+      return solver(prob).reg_gw_cost
+
+    grad_a = jax.grad(reg_gw_cost, argnums=1)(x, a)
+    grad_a_pad = jax.grad(reg_gw_cost, argnums=1)(x_pad, a_pad)
+
+    assert jnp.all(jnp.isfinite(grad_a_pad))
+    np.testing.assert_allclose(grad_a_pad[:6], grad_a, rtol=1e-5, atol=1e-5)
+
+  @pytest.mark.usefixtures("enable_x64")
+  def test_float32_with_x64(self, rng: jax.Array):
+    y = jr.normal(rng, (2, 7, 2), dtype=jnp.float32)
+    b = jnp.full((2, 7), 1.0 / 7, dtype=jnp.float32)
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(y[0]), pointcloud.PointCloud(y[1])
+    )
+    bar_prob = gwb.GWBarycenterProblem(y=y, b=b, epsilon=1.0, scale_cost="mean")
+    solver = gromov_wasserstein.GromovWasserstein(sinkhorn.Sinkhorn())
+    bar_solver = gwb_solver.GromovWassersteinBarycenter(
+        solver, max_iterations=5
+    )
+
+    out = solver(prob)
+    bar_out = bar_solver(bar_prob, bar_size=5)
+
+    for arr in (
+        out.matrix, out.costs, out.reg_gw_cost, bar_out.cost, bar_out.costs
+    ):
+      assert arr.dtype == jnp.float32
 
   @pytest.mark.fast()
   def test_gw_lr(self, rng: jax.Array):
@@ -343,7 +600,7 @@ class TestGromovWasserstein:
 
     solver = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=5,
-        epsilon=0.2,
+        epsilon=0.1,
         min_iterations=0,
         inner_iterations=10,
         max_iterations=2000
@@ -417,6 +674,180 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(res_apply, res_matrix, rtol=1e-5, atol=1e-5)
 
+  def test_warm_start_lr_linear_solver(self):
+    with pytest.raises(ValueError, match=r"Warm start"):
+      gromov_wasserstein.GromovWasserstein(
+          sinkhorn_lr.LRSinkhorn(rank=2), warm_start=True
+      )
+
+  def test_gw_lr_kl_loss(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.uniform(rng_x, (10, 2)), jr.uniform(rng_y, (12, 3))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x), pointcloud.PointCloud(y), loss="kl"
+    )
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(rank=2)
+
+    with pytest.raises(AssertionError, match=r"squared Euclidean"):
+      _ = solver(prob)
+
+  def test_gw_lr_unbalanced_correction(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    geom_xx, geom_yy = pointcloud.PointCloud(x), pointcloud.PointCloud(y)
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx, geom_yy, tau_a=0.9, tau_b=0.9
+    )
+    prob_no_corr = quadratic_problem.QuadraticProblem(
+        geom_xx, geom_yy, tau_a=0.9, tau_b=0.9, gw_unbalanced_correction=False
+    )
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2, min_iterations=0, inner_iterations=10, max_iterations=100
+    )
+
+    out = solver(prob)
+    out_no_corr = solver(prob_no_corr)
+
+    np.testing.assert_allclose(
+        out_no_corr.reg_gw_cost, out.reg_gw_cost, rtol=1e-6
+    )
+
+  def test_gw_lr_fused_costs(self, rng: jax.Array):
+
+    def gw_cost(q: jnp.ndarray, r: jnp.ndarray, g: jnp.ndarray) -> float:
+      p = (q / g) @ r.T
+      quad = (cx ** 2 @ a) @ a + (cy ** 2 @ b) @ b
+      quad -= 2.0 * jnp.vdot(cx @ p @ cy, p)
+      return 0.5 * quad + 3.0 * g.sum() * jnp.vdot(cxy, p)
+
+    rng_x, rng_y, rng_z = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    z = jr.normal(rng_z, (12, 2))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x),
+        pointcloud.PointCloud(y),
+        geom_xy=pointcloud.PointCloud(x, z),
+        fused_penalty=3.0,
+    )
+    cx, cy = prob.geom_xx.cost_matrix, prob.geom_yy.cost_matrix
+    cxy, a, b = prob.geom_xy.cost_matrix, prob.a, prob.b
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2, gamma=1.0, gamma_rescale=False
+    )
+    q, r, g = solver.initializer(prob)
+    state = solver.init_state(prob, (q, r, g))
+
+    out = solver.output_from_state(prob, state)
+    costs = solver._get_costs(prob, state)[:3]
+    grads = jax.grad(gw_cost, argnums=(0, 1, 2))(q, r, g)
+
+    np.testing.assert_allclose(out.primal_cost, gw_cost(q, r, g), rtol=1e-4)
+    for arr, cost, grad in zip((q, r, g), costs, grads):
+      np.testing.assert_allclose(
+          jnp.log(arr) - cost, grad, rtol=1e-4, atol=1e-4
+      )
+
+  def test_gw_lr_loss_costs(self, rng: jax.Array):
+
+    def gw_cost(q: jnp.ndarray, r: jnp.ndarray, g: jnp.ndarray) -> float:
+      p = (q / g) @ r.T
+      p1, p2 = q.sum(1), r.sum(1)
+      quad = jnp.einsum("ik,jl,ij,kl->", h1.func(cx), h2.func(cy), p, p)
+      cost = p1 @ f1.func(cx) @ p1 + p2 @ f2.func(cy) @ p2 - quad
+      return 0.5 * cost
+
+    rng_x, rng_y = jr.split(rng, 2)
+    cx, cy = jr.uniform(rng_x, (10, 10)), jr.uniform(rng_y, (12, 12))
+    cx, cy = cx + cx.T, cy + cy.T
+    prob = quadratic_problem.QuadraticProblem(
+        geometry.Geometry(cost_matrix=cx),
+        geometry.Geometry(cost_matrix=cy),
+        tau_a=0.9,
+        tau_b=0.9,
+    )
+    (f1, f2), (h1, h2) = prob.linear_loss, prob.quad_loss
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2, gamma=1.0, gamma_rescale=False
+    )
+    q, r, g = solver.initializer(prob)
+    state = solver.init_state(prob, (q, r, g))
+
+    out = solver.output_from_state(prob, state)
+    costs = solver._get_costs(prob, state)[:3]
+    grads = jax.grad(gw_cost, argnums=(0, 1, 2))(q, r, g)
+
+    np.testing.assert_allclose(out.primal_cost, gw_cost(q, r, g), rtol=1e-5)
+    for x, cost, grad in zip((q, r, g), costs, grads):
+      np.testing.assert_allclose(jnp.log(x) - cost, grad, rtol=1e-4, atol=1e-4)
+
+  @pytest.mark.parametrize("lse_mode", [False, True])
+  def test_gw_lr_zero_weights_unrolled_grad(
+      self, rng: jax.Array, lse_mode: bool
+  ):
+
+    def loss(x: jnp.ndarray, n_pad: int) -> float:
+      x = jnp.concatenate([x, jnp.full((n_pad, 2), 5.0)])
+      a = jnp.concatenate([jnp.full(10, 0.1), jnp.zeros(n_pad)])
+      q_pad = jnp.concatenate([q, jnp.zeros((n_pad, 2))])
+      prob = quadratic_problem.QuadraticProblem(
+          pointcloud.PointCloud(x), pointcloud.PointCloud(y), a=a
+      )
+      return solver(prob, init=(q_pad, r, g)).reg_gw_cost
+
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    solver = gromov_wasserstein_lr.LRGromovWasserstein(
+        rank=2,
+        epsilon=1e-1,
+        lse_mode=lse_mode,
+        use_danskin=False,
+        min_iterations=0,
+        inner_iterations=10,
+        max_iterations=200,
+    )
+    q, r, g = solver.initializer(
+        quadratic_problem.QuadraticProblem(
+            pointcloud.PointCloud(x), pointcloud.PointCloud(y)
+        )
+    )
+
+    grad = jax.grad(loss)(x, 0)
+    grad_pad = jax.grad(loss)(x, 3)
+
+    np.testing.assert_allclose(grad_pad, grad, rtol=1e-5, atol=1e-5)
+
+  @pytest.mark.parametrize("param", ["fused_penalty", "epsilon"])
+  def test_gw_lr_hyperparameter_grad(self, rng: jax.Array, param: str):
+
+    def reg_gw_cost(val: float) -> float:
+      fused_penalty = val if param == "fused_penalty" else 1.0
+      epsilon = val if param == "epsilon" else 1e-1
+      prob = quadratic_problem.QuadraticProblem(
+          geom_xx, geom_yy, geom_xy, fused_penalty=fused_penalty
+      )
+      solver = gromov_wasserstein_lr.LRGromovWasserstein(
+          rank=2,
+          epsilon=epsilon,
+          use_danskin=False,
+          min_iterations=100,
+          max_iterations=100,
+          inner_iterations=10,
+      )
+      # same initialization for the gradient and the finite differences
+      return solver(prob, rng=jr.clone(rng_init)).reg_gw_cost
+
+    rng_x, rng_y, rng_z, rng_init = jr.split(rng, 4)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    z = jr.normal(rng_z, (12, 2))
+    geom_xx, geom_yy = pointcloud.PointCloud(x), pointcloud.PointCloud(y)
+    geom_xy = pointcloud.PointCloud(x, z)
+    val, h = 0.5, 1e-2
+
+    grad = jax.grad(reg_gw_cost)(val)
+    fd = (reg_gw_cost(val + h) - reg_gw_cost(val - h)) / (2.0 * h)
+
+    np.testing.assert_allclose(grad, fd, rtol=1e-3)
+
   @pytest.mark.parametrize("scale_cost", [1.0, "mean"])
   def test_relative_epsilon(
       self,
@@ -443,11 +874,11 @@ class TestGromovWasserstein:
     out = solver(prob)
 
     if scale_cost == 1.0:
-      assert out.reg_gw_cost < 34
-      assert out.primal_cost < 32
+      assert out.reg_gw_cost < 18.5
+      assert out.primal_cost < 16
     else:
-      assert out.reg_gw_cost < 0.23
-      assert out.primal_cost < 0.22
+      assert out.reg_gw_cost < 0.125
+      assert out.primal_cost < 0.11
 
   @pytest.mark.parametrize(("tau_a", "tau_b", "eps", "ti"),
                            [(0.99, 0.95, 0.0, True), (0.9, 0.8, 1e-3, False),
@@ -544,8 +975,6 @@ class TestGromovWasserstein:
           progress_fn=utils.default_progress_fn(),
           min_iterations=5,
           max_iterations=5,
-          # needs to be explicitly set
-          store_inner_errors=True,
       )
 
       return quad_solver(prob).reg_gw_cost
@@ -555,3 +984,43 @@ class TestGromovWasserstein:
     res = fn(clouds.x, clouds.y)
 
     np.testing.assert_array_equal(jnp.isfinite(res), True)
+
+  def test_gw_progress_fn_state(self, clouds: _utils.QuadClouds):
+    costs = []
+
+    def progress_fn(status: Tuple[Any, ...]) -> None:
+      iteration, _, _, state = status
+      costs.append(float(state.costs[int(iteration)]))
+
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), progress_fn=progress_fn
+    )
+
+    out = solver(clouds.quad_problem())
+
+    np.testing.assert_allclose(costs, out.costs[:out.n_iters], rtol=1e-6)
+
+  def test_gw_default_progress_fn(self, clouds: _utils.QuadClouds):
+    stream = io.StringIO()
+    progress_fn = utils.default_progress_fn(fmt="{iter} {error}", stream=stream)
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(), progress_fn=progress_fn
+    )
+
+    out = solver(clouds.quad_problem())
+    jax.effects_barrier()
+
+    errors = {}
+    for line in stream.getvalue().splitlines():
+      iteration, error = line.split()
+      errors[int(iteration)] = float(error)
+    n_iters = int(out.n_iters)
+    costs = out.costs[:n_iters]
+    # the relative change of the costs, used as the convergence criterion
+    expected = jnp.abs(jnp.diff(costs) / costs[1:])
+
+    assert sorted(errors) == list(range(1, n_iters + 1))
+    assert errors[1] == float("inf")
+    np.testing.assert_allclose([errors[i] for i in range(2, n_iters + 1)],
+                               expected,
+                               rtol=1e-5)

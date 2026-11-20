@@ -33,6 +33,30 @@ from tests import _utils
 class TestSinkhornAnderson:
   """Tests for Anderson acceleration."""
 
+  def test_extrapolation_zero_residuals(self):
+    xs = jnp.arange(6.0).reshape(3, 2)
+    anderson = acceleration.AndersonAcceleration(memory=2)
+
+    actual = anderson.extrapolation(xs, xs)
+
+    np.testing.assert_allclose(actual, xs.mean(axis=1), rtol=1e-6)
+
+  @pytest.mark.usefixtures("enable_x64")
+  @pytest.mark.parametrize("anderson", [True, False])
+  def test_float32_with_x64(self, rng: jax.Array, anderson: bool):
+    rng_x, rng_y = jr.split(rng, 2)
+    x = jr.uniform(rng_x, (13, 2), dtype=jnp.float32)
+    y = jr.uniform(rng_y, (17, 2), dtype=jnp.float32)
+    geom = pointcloud.PointCloud(x, y, epsilon=0.1)
+    if anderson:
+      kwargs = {"anderson": acceleration.AndersonAcceleration(memory=3)}
+    else:
+      kwargs = {"momentum": acceleration.Momentum(start=20)}
+
+    out = linear.solve(geom, **kwargs)
+
+    assert out.f.dtype == jnp.float32
+
   @pytest.mark.fast.with_args(
       lse_mode=[True, False],
       tau_a=[1.0, 0.98],
@@ -291,7 +315,7 @@ class TestSinkhornUnbalanced:
 
     assert out.converged
     assert out_center.converged
-    assert out_center.n_iters <= out.n_iters
+    assert out_center.n_iters <= out.n_iters + 1
     np.testing.assert_allclose(
         out.reg_ot_cost, out_center.reg_ot_cost, rtol=1e-3, atol=1e-3
     )

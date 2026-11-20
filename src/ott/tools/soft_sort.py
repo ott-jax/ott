@@ -454,7 +454,8 @@ def quantile(
         np.ones((num_quantiles + 1, 1), dtype=bool)
     ],
                           axis=1).ravel()[:-1]
-    return out[odds][idx]
+    # undo the sorting of `q`
+    return out[odds][jnp.argsort(idx)]
 
   return apply_on_axis(_quantile, inputs, axis, q, weight, **kwargs)
 

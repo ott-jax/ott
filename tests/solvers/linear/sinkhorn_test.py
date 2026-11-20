@@ -133,12 +133,36 @@ class TestSinkhorn:
         lse_out.primal_cost, ker_out.primal_cost, rtol=1e-5, atol=1e-5
     )
 
+  def test_errors_all_norms(self, clouds: _utils.PointClouds):
+    prob = linear_problem.LinearProblem(clouds.geom(epsilon=0.1))
+    solver = sinkhorn.Sinkhorn(
+        norm_error=2, momentum=acceleration.Momentum(start=20)
+    )
+    n, m = prob.geom.shape
+    state = solver.init_state(prob, (jnp.zeros(n), jnp.zeros(m)))
+
+    state = solver.one_iteration(prob, state, iteration=0, compute_error=True)
+
+    expected = state.solution_error(
+        prob, (2, 1),
+        lse_mode=True,
+        parallel_dual_updates=False,
+        recenter=False
+    )
+    np.testing.assert_allclose(state.errors[0], expected, rtol=1e-6)
+
+  def test_momentum_start_too_early(self):
+    with pytest.raises(ValueError, match=r"Momentum start must be 0"):
+      sinkhorn.Sinkhorn(
+          inner_iterations=10, momentum=acceleration.Momentum(start=5)
+      )
+
   @pytest.mark.fast.with_args(
       "lse_mode,mom_value,mom_start,inner_iterations,norm_error,cost_fn",
       [(True, 1.0, 29, 10, 1, costs.SqEuclidean()),
        (False, 1.0, 30, 10, 1, costs.SqPNorm(p=2.2)),
        (True, 1.0, 60, 1, 2, costs.Euclidean()),
-       (True, 1.0, 12, 24, 4, costs.SqPNorm(p=1.0))],
+       (True, 1.0, 48, 24, 4, costs.SqPNorm(p=1.0))],
       ids=["lse-Leh-mom", "scal-Leh-mom", "lse-Leh-1", "lse-Leh-24"],
       only_fast=[0, -1],
   )
@@ -266,7 +290,10 @@ class TestSinkhorn:
     np.testing.assert_allclose(f_1, f_2, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.fast()
-  def test_euclidean_point_cloud_min_iter(self, clouds: _utils.PointClouds):
+  @pytest.mark.parametrize("min_iterations", [30, 34])
+  def test_euclidean_point_cloud_min_iter(
+      self, clouds: _utils.PointClouds, min_iterations: int
+  ):
     """Testing the min_iterations parameter."""
     threshold = 1e-3
     geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=0.1)
@@ -275,14 +302,33 @@ class TestSinkhorn:
         a=clouds.a,
         b=clouds.b,
         threshold=threshold,
-        min_iterations=34,
+        min_iterations=min_iterations,
     ).errors
     err = errors[jnp.logical_and(errors > -1, jnp.isfinite(errors))][-1]
     assert threshold > err
-    assert errors[0] == jnp.inf
-    assert errors[1] == jnp.inf
-    assert errors[2] == jnp.inf
-    assert errors[3] > 0
+    first = (min_iterations - 1) // 10
+    np.testing.assert_array_equal(errors[:first], jnp.inf)
+    assert 0 < errors[first] < jnp.inf
+
+  @pytest.mark.parametrize(("errors", "converged"), [
+      ([0.5, 1e-4, -1.0, -1.0], True),
+      ([0.5, jnp.inf, -1.0, -1.0], False),
+      ([-1.0, -1.0, -1.0, -1.0], False),
+      ([0.5, 0.4, 0.3, 0.2], False),
+  ])
+  def test_converged(
+      self, clouds: _utils.PointClouds, errors: list, converged: bool
+  ):
+    prob = linear_problem.LinearProblem(clouds.geom())
+    n, m = prob.geom.shape
+    state = sinkhorn.SinkhornState(
+        potentials=(jnp.zeros(n), jnp.zeros(m)),
+        errors=jnp.asarray(errors)[:, None],
+    )
+
+    out = sinkhorn.Sinkhorn(threshold=1e-3).output_from_state(prob, state)
+
+    assert out.converged == converged
 
   @pytest.mark.fast()
   def test_euclidean_point_cloud_scan_loop(self, clouds: _utils.PointClouds):
@@ -581,6 +627,29 @@ class TestSinkhorn:
     cost = jnp.sum(out.matrix * out.geom.cost_matrix)
     np.testing.assert_allclose(cost, out.primal_cost, rtol=1e-5, atol=1e-5)
 
+  @pytest.mark.parametrize(("tau_a", "tau_b"), [(0.9, 0.87), (1.0, 0.7)])
+  def test_ent_reg_cost(self, rng: jax.Array, tau_a: float, tau_b: float):
+    epsilon = 1e-1
+    clouds = _utils.random_clouds(rng)
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=epsilon)
+    prob = linear_problem.LinearProblem(
+        geom, clouds.a, clouds.b, tau_a=tau_a, tau_b=tau_b
+    )
+
+    out = sinkhorn.Sinkhorn(threshold=1e-6)(prob)
+
+    p = out.matrix
+    expected = jnp.sum(p * geom.cost_matrix)
+    expected -= epsilon * jnp.sum(jsp.special.entr(p))
+
+    for tau, marginal, target in ((tau_a, p.sum(1), clouds.a),
+                                  (tau_b, p.sum(0), clouds.b)):
+      if tau < 1.0:
+        kl = jnp.sum(marginal * jnp.log(marginal / target) - marginal + target)
+        expected += epsilon * tau / (1.0 - tau) * kl
+
+    np.testing.assert_allclose(out.ent_reg_cost, expected, rtol=1e-4)
+
   @pytest.mark.fast.with_args(
       cost_fn=[costs.SqEuclidean(), costs.NegDotProduct()], only_fast=0
   )
@@ -663,6 +732,24 @@ class TestSinkhorn:
       captured = capsys.readouterr()
       assert captured.out.startswith("foo 7/14"), captured
 
+  def test_tqdm_progress_fn_total(self, clouds: _utils.PointClouds):
+    tqdm = pytest.importorskip("tqdm")
+    geom = pointcloud.PointCloud(clouds.x, clouds.y, epsilon=1e-1)
+
+    with tqdm.tqdm() as pbar:
+      progress_fn = utils.tqdm_progress_fn(pbar)
+      _ = linear.solve(
+          geom,
+          progress_fn=progress_fn,
+          min_iterations=15,
+          max_iterations=15,
+          inner_iterations=7,
+      )
+      jax.effects_barrier()
+
+    # the last block of 7 iterations is run in full
+    assert pbar.n == pbar.total == 3
+
   @pytest.mark.fast()
   def test_custom_progress_fn(self, clouds: _utils.PointClouds):
     """Check that the callback function is actually called."""
@@ -715,3 +802,40 @@ class TestSinkhorn:
     assert out.primal_cost.dtype == dtype
     assert out.dual_cost.dtype == dtype
     assert out.transport_mass.dtype == dtype
+
+  def test_sinkhorn_mixed_precision(self, clouds: _utils.PointClouds):
+    x, y = clouds.x.astype(jnp.float16), clouds.y.astype(jnp.float16)
+    a, b = clouds.a, clouds.b.astype(jnp.float16)
+    geom = pointcloud.PointCloud(x, y, epsilon=1e-1)
+    geom_32 = pointcloud.PointCloud(
+        x.astype(jnp.float32), y.astype(jnp.float32), epsilon=1e-1
+    )
+
+    out = linear.solve(geom, a=a, b=b, threshold=1e-3)
+    expected = linear.solve(
+        geom_32, a=a, b=b.astype(jnp.float32), threshold=1e-3
+    )
+
+    # promoted to the dtype of the marginals
+    assert out.f.dtype == jnp.float32
+    assert out.g.dtype == jnp.float32
+    assert out.errors.dtype == jnp.float32
+    np.testing.assert_allclose(out.reg_ot_cost, expected.reg_ot_cost, rtol=1e-3)
+
+  def test_sinkhorn_mixed_precision_point_cloud(
+      self, clouds: _utils.PointClouds
+  ):
+    x = clouds.x.astype(jnp.float16)
+    geom = pointcloud.PointCloud(x, clouds.y, epsilon=1e-1)
+    geom_32 = pointcloud.PointCloud(
+        x.astype(jnp.float32), clouds.y, epsilon=1e-1
+    )
+
+    out = linear.solve(geom, threshold=1e-3)
+    expected = linear.solve(geom_32, threshold=1e-3)
+
+    # promoted to the dtype of `y`
+    assert geom.dtype == jnp.float32
+    assert out.f.dtype == jnp.float32
+    assert out.g.dtype == jnp.float32
+    np.testing.assert_allclose(out.reg_ot_cost, expected.reg_ot_cost, rtol=1e-3)

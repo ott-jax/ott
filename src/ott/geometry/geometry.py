@@ -119,7 +119,7 @@ class Geometry:
   def mean_cost_matrix(self) -> float:
     """Mean of the :attr:`cost_matrix`."""
     n, m = self.shape
-    tmp = self.apply_cost(jnp.full((n,), fill_value=1.0 / n))
+    tmp = self.apply_cost(jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype))
     return jnp.sum((1.0 / m) * tmp)
 
   @property
@@ -136,7 +136,9 @@ class Geometry:
     to output :math:`\sigma`.
     """
     n, m = self.shape
-    tmp = self.apply_square_cost(jnp.full((n,), fill_value=1.0 / n))
+    tmp = self.apply_square_cost(
+        jnp.full((n,), fill_value=1.0 / n, dtype=self.dtype)
+    )
     tmp = jnp.sum((1.0 / m) * tmp) - (self.mean_cost_matrix ** 2)
     return jnp.sqrt(jax.nn.relu(tmp))
 
@@ -540,7 +542,11 @@ class Geometry:
     Returns:
       a vector of the same size.
     """
-    return self.epsilon * jnp.log(scaling)
+    positive = scaling > 0.0
+    return jnp.where(
+        positive, self.epsilon * jnp.log(jnp.where(positive, scaling, 1.0)),
+        -jnp.inf
+    )
 
   def scaling_from_potential(self, potential: jnp.ndarray) -> jnp.ndarray:
     """Compute scaling vector from dual potential.
@@ -553,7 +559,7 @@ class Geometry:
     """
     finite = jnp.isfinite(potential)
     return jnp.where(
-        finite, jnp.exp(jnp.where(finite, potential / self.epsilon, 0.0)), 0.0
+        finite, jnp.exp(jnp.where(finite, potential, 0.0) / self.epsilon), 0.0
     )
 
   def apply_square_cost(self, arr: jnp.ndarray, axis: int = 0) -> jnp.ndarray:
@@ -640,13 +646,16 @@ class Geometry:
   ) -> Tuple["Geometry", ...]:
     """Instantiate 2 (or 3) geometries to compute a Sinkhorn divergence."""
     size = 2 if static_b else 3
-    nones = [None, None, None]
-    cost_matrices = kwargs.pop("cost_matrix", args or None)
-    kernel_matrices = kwargs.pop("kernel_matrix", nones)
-    cost_matrices = cost_matrices if cost_matrices is not None else nones
+    nones = (None,) * size
+    cost_matrices = kwargs.pop("cost_matrix", args)
+    kernel_matrices = kwargs.pop("kernel_matrix", None)
+    if cost_matrices is None or len(cost_matrices) == 0:
+      cost_matrices = nones
+    if kernel_matrices is None:
+      kernel_matrices = nones
     return tuple(
-        cls(cost_matrix=arg1, kernel_matrix=arg2, **kwargs)
-        for arg1, arg2, _ in zip(cost_matrices, kernel_matrices, range(size))
+        cls(cost_matrix=cost, kernel_matrix=kernel, **kwargs)
+        for cost, kernel in zip(cost_matrices[:size], kernel_matrices[:size])
     )
 
   def to_LRCGeometry(

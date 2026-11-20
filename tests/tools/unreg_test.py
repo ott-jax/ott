@@ -41,6 +41,14 @@ class TestHungarian:
         out_sink.matrix, out_hung.matrix.todense(), rtol=1e-3, atol=1e-3
     )
 
+  def test_primal_cost(self, rng: jax.Array):
+    x, y = gen_data(rng, 12, 12, 5)
+    geom = pointcloud.PointCloud(x, y, scale_cost=2.0)
+
+    cost, out = unreg.hungarian(geom)
+
+    np.testing.assert_allclose(out.primal_cost, cost, rtol=1e-4, atol=1e-4)
+
   @pytest.mark.parametrize("p", [1.3, 2.3])
   def test_wass(self, rng: jax.Array, p: float):
     n, m, dim = 12, 12, 5

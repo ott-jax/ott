@@ -195,6 +195,46 @@ class TestSinkhornDivergence:
     assert len(out.potentials) == 3
     assert len(out.geoms) == 3
 
+  @pytest.mark.usefixtures("enable_x64")
+  def test_float32_with_x64(self, clouds: _utils.PointClouds):
+    x, y = clouds.x.astype(jnp.float32), clouds.y.astype(jnp.float32)
+
+    div, out = sinkhorn_divergence.sinkdiv(x, y, epsilon=0.1)
+
+    assert div.dtype == jnp.float32
+    assert out.a.dtype == jnp.float32
+    assert out.b.dtype == jnp.float32
+
+  def test_low_rank_dual_potentials(self, clouds: _utils.PointClouds):
+    _, out = sinkhorn_divergence.sinkdiv(
+        clouds.x, clouds.y, epsilon=0.1, solve_kwargs={"rank": 2}
+    )
+
+    assert out.is_low_rank
+    with pytest.raises(ValueError, match="low-rank"):
+      out.to_dual_potentials()
+
+  def test_kernel_matrices(self, clouds: _utils.PointClouds):
+    geoms = pointcloud.PointCloud.prepare_divergences(
+        clouds.x, clouds.y, epsilon=0.1
+    )
+    solve_kwargs = {"lse_mode": False}
+
+    div_cost, _ = sinkhorn_divergence.sinkhorn_divergence(
+        geometry.Geometry,
+        cost_matrix=tuple(geom.cost_matrix for geom in geoms),
+        epsilon=0.1,
+        solve_kwargs=solve_kwargs,
+    )
+    div_kernel, _ = sinkhorn_divergence.sinkhorn_divergence(
+        geometry.Geometry,
+        kernel_matrix=tuple(geom.kernel_matrix for geom in geoms),
+        epsilon=0.1,
+        solve_kwargs=solve_kwargs,
+    )
+
+    np.testing.assert_allclose(div_kernel, div_cost, rtol=1e-5)
+
   def test_generic_point_cloud_wrapper(self, clouds: _utils.PointClouds):
     x, y = clouds.x, clouds.y
 

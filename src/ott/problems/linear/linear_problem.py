@@ -105,8 +105,9 @@ class LinearProblem:
 
   @property
   def dtype(self) -> jnp.dtype:
-    """The data type of the geometry."""
-    return self.geom.dtype
+    """The data type of the geometry and of the marginals."""
+    marginals = [m for m in (self._a, self._b) if m is not None]
+    return jnp.result_type(self.geom.dtype, *marginals)
 
   def potential_fn_from_dual_vec(
       self,
@@ -120,6 +121,10 @@ class LinearProblem:
     Args:
       fg: Potential vector :math:`\mathbb{f}` if ``axis = 0``
         else :math:`\mathbb{g}` of shape ``[n,]`` or ``[m,]``, respectively.
+        The marginal weights are assumed to be absorbed into the potentials,
+        as in :class:`~ott.solvers.linear.sinkhorn.SinkhornOutput`, i.e., the
+        coupling is :math:`\exp((\mathbb{f} \oplus \mathbb{g} - C) /
+        \varepsilon)`.
       epsilon: Epsilon regularization. If :obj:`None`, use in the :attr:`geom`.
       axis: If ``axis = 0``, return the :math:`g`-potential function, otherwise
         return the :math:`f`-potential function.
@@ -127,23 +132,28 @@ class LinearProblem:
     Returns:
       The dual potential function.
     """
+    assert axis in (0, 1), axis
+    epsilon = self.geom.epsilon if epsilon is None else epsilon
+    # the potential functions below use the unscaled `cost_fn`
+    scale = 1.0 / self.geom.inv_scale_cost
+    fg, epsilon = scale * fg, scale * epsilon
 
     def f_potential(x: jax.Array) -> jax.Array:
       x, y = jnp.atleast_2d(x), self.geom.y
       geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
-      prob = LinearProblem(geom, b=self.b)
+      support = (self.b > 0.0).astype(self.b.dtype)
+      prob = LinearProblem(geom, b=support)
       f, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
       return f.squeeze(0)
 
     def g_potential(y: jax.Array) -> jax.Array:
       x, y = self.geom.x, jnp.atleast_2d(y)
       geom = pointcloud.PointCloud(x, y, cost_fn=self.geom.cost_fn)
-      prob = LinearProblem(geom, a=self.a)
+      support = (self.a > 0.0).astype(self.a.dtype)
+      prob = LinearProblem(geom, a=support)
       g, _ = prob._c_transform(fg, epsilon=epsilon, axis=axis)
       return g.squeeze(0)
 
-    assert axis in (0, 1), axis
-    epsilon = self.geom.epsilon if epsilon is None else epsilon
     return g_potential if axis == 0 else f_potential
 
   def _c_transform(
@@ -157,15 +167,16 @@ class LinearProblem:
     def _soft_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
       cost = self.geom.cost_matrix
       z = (fg - cost) / epsilon
-      return -epsilon * math_utils.logsumexp(z, b=self.b, axis=axis), z
+      return -epsilon * math_utils.logsumexp(z, b=weights, axis=axis), z
 
     def _hard_c_transform(fg: jax.Array) -> Tuple[jax.Array, jax.Array]:
       cost = self.geom.cost_matrix
       z = fg - cost
-      pos_weights = self.b[None, :] > 0.0
+      pos_weights = weights > 0.0
       return -jnp.max(z, initial=-jnp.inf, where=pos_weights, axis=axis), z
 
     assert axis in (0, 1), axis
+    weights = self.a[:, None] if axis == 0 else self.b[None, :]
     fg = jnp.expand_dims(fg, 1 - axis)
     epsilon = self.geom.epsilon if epsilon is None else epsilon
     return jax.lax.cond(epsilon > 0.0, _soft_c_transform, _hard_c_transform, fg)

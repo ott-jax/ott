@@ -75,6 +75,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     min_iterations: Minimum number of iterations.
     max_iterations: Maximum number of outermost iterations.
     store_inner_errors: Whether to store the errors of the quadratic OT solver.
+      Requires the ``quadratic_solver`` to also store them.
   """
 
   def __init__(
@@ -93,6 +94,12 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
         store_inner_errors=store_inner_errors,
     )
     self.quadratic_solver = quadratic_solver
+
+    if store_inner_errors and not quadratic_solver.store_inner_errors:
+      raise ValueError(
+          "Storing inner errors requires the quadratic solver "
+          "to have `store_inner_errors=True`."
+      )
 
   def __call__(
       self, problem: gw_barycenter.GWBarycenterProblem, bar_size: int,
@@ -144,7 +151,7 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
       The initial barycenter state.
     """
     if a is None:
-      a = jnp.ones((bar_size,)) / bar_size
+      a = jnp.full((bar_size,), fill_value=1.0 / bar_size, dtype=problem.dtype)
     else:
       assert a.shape == (bar_size,)
 
@@ -168,16 +175,18 @@ class GromovWassersteinBarycenter(was_solver.WassersteinSolver):
     num_iter = self.max_iterations
     if self.store_inner_errors:
       # TODO(michalk8): in the future, think about how to do this in general
-      errors = -jnp.ones((
+      shape = (
           num_iter, problem.num_measures, self.quadratic_solver.max_iterations,
           self.linear_solver.outer_iterations
-      ))
+      )
+      errors = -jnp.ones(shape, dtype=problem.dtype)
     else:
       errors = None
 
-    costs = -jnp.ones((num_iter,))
-    costs_bary = -jnp.ones((num_iter, problem.num_measures))
-    gw_convergence = -jnp.ones((num_iter,))
+    costs = -jnp.ones((num_iter,), dtype=problem.dtype)
+    costs_bary = -jnp.ones((num_iter, problem.num_measures),
+                           dtype=problem.dtype)
+    gw_convergence = -jnp.ones((num_iter,), dtype=problem.dtype)
     return GWBarycenterState(
         cost=cost,
         x=x,
@@ -273,8 +282,8 @@ def init_transports(
     Transport map of shape ``[bar_size, max_measure_size]``.
   """
   rng1, rng2 = jax.random.split(rng, 2)
-  x = jax.random.normal(rng1, shape=(len(a), 2))
-  y = jax.random.normal(rng2, shape=(len(b), 2))
+  x = jax.random.normal(rng1, shape=(len(a), 2), dtype=a.dtype)
+  y = jax.random.normal(rng2, shape=(len(b), 2), dtype=b.dtype)
   geom = pointcloud.PointCloud(x, y, epsilon=epsilon)
   problem = linear_problem.LinearProblem(geom, a=a, b=b)
   return solver(problem).matrix

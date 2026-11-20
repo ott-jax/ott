@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import math
 from typing import Any, Callable
 
 import jax
@@ -86,7 +87,7 @@ def fixpoint_iter(
     (_, state), _ = jax.lax.scan(
         lambda carry, x: unrolled_body_fn(carry), (0, state),
         None,
-        length=max_iterations // inner_iterations
+        length=math.ceil(max_iterations / inner_iterations)
     )
   else:
     _, state = jax.lax.while_loop(max_cond_fn, unrolled_body_fn, (0, state))
@@ -159,7 +160,7 @@ def fixpoint_iter_fwd(
     (iteration, states, state), _ = jax.lax.scan(
         lambda carry, x: unrolled_body_fn(carry), (0, states, state),
         None,
-        length=max_iterations // inner_iterations
+        length=math.ceil(max_iterations / inner_iterations)
     )
   else:
     iteration, states, state = jax.lax.while_loop(
@@ -181,6 +182,9 @@ def fixpoint_iter_bwd(
       lambda x: jnp.zeros_like(x, dtype=x.dtype)
       if isinstance(x, (np.ndarray, jnp.ndarray)) else 0, constants
   )
+
+  def add_cotangents(x, y):
+    return x if y.dtype == jax.dtypes.float0 else x + y
 
   def bwd_cond_fn(iteration_g_gconst):
     iteration, _, _ = iteration_g_gconst
@@ -211,16 +215,17 @@ def fixpoint_iter_bwd(
     )
     _, gi_constants, g_state = pullback(g)
     g_constants = jax.tree_util.tree_map(
-        lambda x, y: x + y, g_constants, gi_constants
+        add_cotangents, g_constants, gi_constants
     )
     out = (iteration - inner_iterations, g_state, g_constants)
     return (out, None) if force_scan else out
 
   if force_scan:
     (_, g_state, g_constants), _ = jax.lax.scan(
-        lambda carry, x: unrolled_body_fn(carry), (0, g, g_constants),
+        lambda carry, x: unrolled_body_fn(carry),
+        (iteration - inner_iterations, g, g_constants),
         None,
-        length=max_iterations // inner_iterations
+        length=math.ceil(max_iterations / inner_iterations)
     )
   else:
     _, g_state, g_constants = jax.lax.while_loop(

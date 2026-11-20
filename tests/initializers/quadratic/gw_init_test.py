@@ -14,13 +14,16 @@
 import pytest
 
 import jax
+import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
 from ott.geometry import pointcloud
 from ott.initializers.linear import initializers_lr
+from ott.initializers.quadratic import initializers as quad_initializers
 from ott.problems.quadratic import quadratic_problem
-from ott.solvers.quadratic import gromov_wasserstein_lr
+from ott.solvers.linear import sinkhorn
+from ott.solvers.quadratic import gromov_wasserstein, gromov_wasserstein_lr
 
 
 class TestQuadraticInitializers:
@@ -38,6 +41,90 @@ class TestQuadraticInitializers:
 
     assert solver.initializer is q_init
     assert solver.initializer.rank == rank
+
+  @pytest.mark.parametrize("gw_unbalanced_correction", [False, True])
+  def test_init_coupling_unbalanced(
+      self, rng: jax.Array, gw_unbalanced_correction: bool
+  ):
+    rng_x, rng_y = jr.split(rng, 2)
+    geom_xx = pointcloud.PointCloud(jr.normal(rng_x, (6, 2)))
+    geom_yy = pointcloud.PointCloud(jr.normal(rng_y, (7, 3)))
+    prob = quadratic_problem.QuadraticProblem(
+        geom_xx,
+        geom_yy,
+        scale_cost="max_cost",
+        tau_a=0.8,
+        tau_b=0.9,
+        gw_unbalanced_correction=gw_unbalanced_correction,
+    )
+    init = quad_initializers.QuadraticInitializer()(prob, epsilon=1.0)
+    out = sinkhorn.Sinkhorn()(init)
+
+    initializer = quad_initializers.QuadraticInitializer(out.matrix)
+    lin_prob = initializer(prob, epsilon=1.0)
+    expected = prob.update_linearization(
+        out, 1.0, old_transport_mass=out.transport_mass
+    )
+
+    np.testing.assert_allclose(
+        lin_prob.geom.cost_matrix,
+        expected.geom.cost_matrix,
+        rtol=1e-5,
+        atol=1e-5
+    )
+    np.testing.assert_allclose(
+        lin_prob.geom.epsilon, expected.geom.epsilon, rtol=1e-5
+    )
+
+  def test_init_coupling_transport_mass(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(jr.normal(rng_x, (6, 2))),
+        pointcloud.PointCloud(jr.normal(rng_y, (7, 3))),
+        tau_a=0.8,
+        tau_b=0.9,
+    )
+    init_coupling = 0.5 * jnp.outer(prob.a, prob.b)
+    solver = gromov_wasserstein.GromovWasserstein(
+        sinkhorn.Sinkhorn(),
+        initializer=quad_initializers.QuadraticInitializer(init_coupling),
+    )
+
+    init = solver.initializer(prob, epsilon=solver.epsilon)
+    state = solver.init_state(prob, init)
+
+    np.testing.assert_allclose(state.old_transport_mass, 0.5, rtol=1e-5)
+
+  def test_ugw_relative_epsilon(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(jr.normal(rng_x, (6, 2))),
+        pointcloud.PointCloud(jr.normal(rng_y, (7, 3))),
+        tau_a=0.5,
+    )
+    initializer = quad_initializers.QuadraticInitializer()
+    out = sinkhorn.Sinkhorn()(initializer(prob, epsilon=1.0))
+
+    with pytest.raises(AssertionError, match=r"Relative epsilon"):
+      _ = initializer(prob, epsilon=1.0, relative_epsilon="mean")
+    with pytest.raises(AssertionError, match=r"Relative epsilon"):
+      _ = prob.update_linearization(out, epsilon=1.0, relative_epsilon="mean")
+
+  def test_k_means_fused_jit(self, rng: jax.Array):
+    rng_x, rng_y, rng_z = jr.split(rng, 3)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(x),
+        pointcloud.PointCloud(y),
+        geom_xy=pointcloud.PointCloud(x, jr.normal(rng_z, (12, 2))),
+    )
+    initializer = initializers_lr.KMeansInitializer(rank=3)
+
+    actual = jax.jit(initializer)(prob)
+    expected = initializer(prob)
+
+    for act, exp in zip(actual, expected):
+      np.testing.assert_allclose(act, exp, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.parametrize("eps", [0.0, 1e-1])
   def test_gw_better_initialization_helps(self, rng: jax.Array, eps: float):

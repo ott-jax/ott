@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import dataclasses
-from typing import Literal, Tuple, Union
+from typing import Any, Literal, Tuple, Union
 
 import pytest
 
@@ -168,20 +168,23 @@ class TestFusedGromovWasserstein:
     geom_x = pointcloud.PointCloud(clouds.x, clouds.x)
     geom_y = pointcloud.PointCloud(clouds.y, clouds.y)
     geom_xy = pointcloud.PointCloud(clouds.x_2, clouds.y_2)
+    prob = quadratic_problem.QuadraticProblem(
+        geom_x, geom_y, geom_xy, a=clouds.a, b=clouds.b, fused_penalty=0.05
+    )
 
-    # without warm start for calls to sinkhorn
-    def loss_thre(threshold: float) -> float:
-      prob = quadratic_problem.QuadraticProblem(
-          geom_x, geom_y, geom_xy, a=clouds.a, b=clouds.b, fused_penalty=0.05
-      )
-      linear_solver = sinkhorn.Sinkhorn()
+    def solve(**kwargs: Any) -> gromov_wasserstein.GWOutput:
       solver = gromov_wasserstein.GromovWasserstein(
-          linear_solver, threshold=threshold, epsilon=1e-1
+          sinkhorn.Sinkhorn(), epsilon=1e-1, **kwargs
       )
+      return solver(prob)
 
-      return solver(prob).reg_gw_cost
+    expected = solve(min_iterations=200, max_iterations=200).matrix
+    out_loose, out_tight = solve(threshold=1e-1), solve(threshold=1e-5)
+    err_loose = jnp.abs(out_loose.matrix - expected).max()
+    err_tight = jnp.abs(out_tight.matrix - expected).max()
 
-    assert loss_thre(1e-3) > loss_thre(1e-5)
+    assert out_loose.n_iters < out_tight.n_iters
+    assert err_tight < 1e-1 * err_loose
 
   def test_gradient_fgw_solver_penalty(self, clouds: FusedClouds):
     """Test gradient w.r.t. penalty."""

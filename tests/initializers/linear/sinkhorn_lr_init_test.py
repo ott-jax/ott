@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Type
+
 import pytest
 
 import jax
@@ -41,6 +43,50 @@ class TestLRInitializers:
 
     assert jnp.linalg.matrix_rank(q) == rank
     assert jnp.linalg.matrix_rank(r) == rank
+
+  def test_generalized_k_means_jit(self):
+    initializer = initializers_lr.GeneralizedKMeansInitializer(3, gamma=5.0)
+    actual = jax.jit(lambda init: init)(initializer)
+    assert actual.rank == 3
+    assert actual._kwargs["gamma"] == 5.0
+
+  @pytest.mark.usefixtures("enable_x64")
+  @pytest.mark.parametrize(
+      "initializer_cls", [
+          initializers_lr.RandomInitializer,
+          initializers_lr.Rank2Initializer,
+          initializers_lr.KMeansInitializer,
+          initializers_lr.GeneralizedKMeansInitializer,
+      ]
+  )
+  def test_float32_with_x64(
+      self, rng: jax.Array, initializer_cls: Type[initializers_lr.LRInitializer]
+  ):
+    rng_x, rng_init = jr.split(rng, 2)
+    x = jr.normal(rng_x, (10, 2), dtype=jnp.float32)
+    prob = linear_problem.LinearProblem(pointcloud.PointCloud(x))
+
+    q, r, g = initializer_cls(rank=2)(prob, rng=rng_init)
+
+    assert q.dtype == r.dtype == g.dtype == jnp.float32
+
+  def test_k_means_zero_weights(self, rng: jax.Array):
+    rng_x, rng_y = jr.split(rng, 2)
+    x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 2))
+    x_pad = jnp.concatenate([x, jnp.full((3, 2), 5.0)])
+    a_pad = jnp.concatenate([jnp.full(10, 0.1), jnp.zeros(3)])
+    prob = linear_problem.LinearProblem(pointcloud.PointCloud(x, y))
+    prob_pad = linear_problem.LinearProblem(
+        pointcloud.PointCloud(x_pad, y), a=a_pad
+    )
+    initializer = initializers_lr.KMeansInitializer(rank=2)
+
+    q, _, _ = initializer(prob)
+    q_pad, _, _ = initializer(prob_pad)
+    q_pad = q_pad[:10]
+
+    # the centroids can be permuted
+    np.testing.assert_allclose(q_pad @ q_pad.T, q @ q.T, rtol=1e-5, atol=1e-5)
 
   @pytest.mark.fast()
   def test_rank2_with_zero_weights(self, rng: jax.Array):

@@ -126,7 +126,8 @@ def _k_means_plus_plus(
   def init_fn(geom: pointcloud.PointCloud, rng: jax.Array) -> KPPState:
     rng, next_rng = jax.random.split(rng, 2)
     ix = jax.random.choice(rng, jnp.arange(geom.shape[0]), shape=())
-    centroids = jnp.full((k, geom.cost_rank), jnp.inf).at[0].set(geom.x[ix])
+    centroids = jnp.full((k, geom.cost_rank), jnp.inf, dtype=geom.dtype)
+    centroids = centroids.at[0].set(geom.x[ix])
     dists = geom.subset(ix).cost_matrix.squeeze(0)  # (m,)
     return KPPState(rng=next_rng, centroids=centroids, centroid_dists=dists)
 
@@ -268,7 +269,7 @@ def _k_means(
     # E   The preceding is the original exception that occurred, unmodified.
     prev_assignment = jnp.full((n,), -2.0)
     assignment = jnp.full((n,), -1.0)
-    errors = jnp.full((max_iterations,), -1.0)
+    errors = jnp.full((max_iterations,), -1.0, dtype=geom.dtype)
 
     return KMeansState(
         centroids=centroids,
@@ -400,7 +401,7 @@ def k_means(
     geom = type(geom).tree_unflatten(aux_data, children)
 
   if weights is None:
-    weights = jnp.ones(geom.shape[0])
+    weights = jnp.ones(geom.shape[0], dtype=geom.dtype)
   assert weights.shape == (geom.shape[0],)
 
   rngs = jax.random.split(rng, n_init)

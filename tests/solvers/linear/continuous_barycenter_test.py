@@ -21,8 +21,8 @@ import jax.numpy as jnp
 import jax.random as jr
 import numpy as np
 
-from ott.geometry import costs, segment
-from ott.problems.linear import barycenter_problem
+from ott.geometry import costs, pointcloud, segment
+from ott.problems.linear import barycenter_problem, linear_problem
 from ott.solvers.linear import continuous_barycenter as cb
 from ott.solvers.linear import sinkhorn, sinkhorn_lr
 from ott.tools.gaussian_mixture import gaussian_mixture
@@ -197,6 +197,49 @@ class TestBarycenter:
     assert jnp.all(jnp.diff(out.costs_along_iterations) <= 0.0)
 
   @pytest.mark.fast()
+  def test_linear_outputs_match_barycenter(self, rng: jax.Array):
+    num_per_segment = (20, 17)
+    rng_y, rng_init = jr.split(rng)
+    y = jr.normal(rng_y, (sum(num_per_segment), 2))
+    bar_prob = barycenter_problem.FreeBarycenterProblem(
+        y, epsilon=1e-1, num_per_segment=num_per_segment
+    )
+    solver = cb.FreeWassersteinBarycenter(
+        sinkhorn.Sinkhorn(), min_iterations=1, max_iterations=1
+    )
+
+    out = solver(bar_prob, bar_size=8, rng=rng_init)
+
+    for i, y_i in enumerate(jnp.split(y, [num_per_segment[0]])):
+      geom = pointcloud.PointCloud(out.x, y_i, epsilon=bar_prob.epsilon)
+      prob = linear_problem.LinearProblem(geom, a=out.a)
+      expected = sinkhorn.Sinkhorn()(prob).matrix
+      np.testing.assert_allclose(
+          out.matrix_at_index(i), expected, rtol=1e-3, atol=1e-6
+      )
+
+  def test_barycenter_grad(self, rng: jax.Array):
+    num_per_segment = (4, 4)
+    rng_y, rng_init, rng_d = jr.split(rng, 3)
+    y = jr.normal(rng_y, (sum(num_per_segment), 2))
+    d = jr.normal(rng_d, y.shape)
+    solver = cb.FreeWassersteinBarycenter(
+        sinkhorn.Sinkhorn(threshold=1e-5), min_iterations=3, max_iterations=3
+    )
+
+    def loss(y: jnp.ndarray) -> float:
+      bar_prob = barycenter_problem.FreeBarycenterProblem(
+          y, epsilon=1e-1, num_per_segment=num_per_segment
+      )
+      # same initialization for the gradient and the finite differences
+      return jnp.sum(solver(bar_prob, bar_size=3, rng=jr.clone(rng_init)).x)
+
+    grad = jnp.vdot(jax.grad(loss)(y), d)
+    fd = (loss(y + 1e-2 * d) - loss(y - 1e-2 * d)) / 2e-2
+
+    np.testing.assert_allclose(grad, fd, rtol=1e-2)
+
+  @pytest.mark.fast()
   def test_bures_barycenter(
       self,
       rng: jax.Array,
@@ -288,6 +331,30 @@ class TestBarycenter:
         rtol=1e-5,
         atol=1e-5
     )
+
+  def test_bures_barycenter_single_point(self, rng: jax.Array):
+    dim = 2
+    bures_cost = costs.Bures(dimension=dim)
+    gmms = [
+        gaussian_mixture.GaussianMixture.from_random(
+            key, n_components=2, n_dimensions=dim, stdev_cov=1.0
+        ) for key in jr.split(rng, 2)
+    ]
+    y = jnp.stack([
+        means_and_covs_to_x(gmm.loc, gmm.covariance, dim) for gmm in gmms
+    ])
+    b = jnp.array([[0.3, 0.7], [0.6, 0.4]])
+    weights = jnp.array([0.4, 0.6])
+    bar_prob = barycenter_problem.FreeBarycenterProblem(
+        y, b, weights=weights, cost_fn=bures_cost, epsilon=1e-1
+    )
+    solver = cb.FreeWassersteinBarycenter(sinkhorn.Sinkhorn())
+
+    out = solver(bar_prob, bar_size=1, x_init=y[0, :1])
+
+    expected, _ = bures_cost.barycenter((weights[:, None] * b).ravel(),
+                                        y.reshape(-1, y.shape[-1]))
+    np.testing.assert_allclose(out.x[0], expected, rtol=1e-4, atol=1e-4)
 
   @pytest.mark.fast()
   def test_bures_barycenter_different_number_of_components(

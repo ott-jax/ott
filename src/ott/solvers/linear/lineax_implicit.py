@@ -23,16 +23,17 @@ def _cg(
     matvec: Callable[[jnp.ndarray], jnp.ndarray],
     b: jnp.ndarray,
     *,
-    rtol: float = 1e-6,
-    atol: float = 1e-6,
+    rtol: float = 1e-5,
     maxiter: Optional[int] = None,
 ) -> jnp.ndarray:
   """Conjugate gradient solver using jax.lax.while_loop."""
   if maxiter is None:
     maxiter = 10 * b.shape[0]
 
-  b_norm = jnp.linalg.norm(b)
-  tol = jnp.maximum(atol, rtol * b_norm)
+  # normalize `b` to avoid underflow when it is tiny
+  scale = jnp.linalg.norm(b)
+  scale = jnp.where(scale > 0.0, scale, 1.0)
+  b = b / scale
 
   x0 = jnp.zeros_like(b)
   r0 = b
@@ -41,7 +42,7 @@ def _cg(
 
   def cond_fun(state):
     _, _, _, rtr, k = state
-    return (jnp.sqrt(rtr) > tol) & (k < maxiter)
+    return (jnp.sqrt(rtr) > rtol) & (k < maxiter)
 
   def body_fun(state):
     x, r, p, rtr, k = state
@@ -55,7 +56,7 @@ def _cg(
     return x_new, r_new, p_new, rtr_new, k + 1
 
   x, _, _, _, _ = jax.lax.while_loop(cond_fun, body_fun, (x0, r0, p0, rtr0, 0))
-  return x
+  return scale * x
 
 
 def solve_lineax(
@@ -84,11 +85,8 @@ def solve_lineax(
     ridge_identity: handles rank deficient transport matrices (this happens
       typically when rows/cols in cost/kernel matrices are collinear, or,
       equivalently when two points from either measure are close).
-    kwargs: arguments passed to the CG solver (rtol, atol, maxiter).
+    kwargs: arguments passed to the CG solver (rtol, maxiter).
   """
-  kwargs.setdefault("rtol", 1e-6)
-  kwargs.setdefault("atol", 1e-6)
-
   if ridge_kernel > 0.0 or ridge_identity > 0.0:
     lin_reg = lambda x: lin(x) + ridge_kernel * jnp.sum(x) + ridge_identity * x
     lin_t_reg = lambda x: lin_t(x) + ridge_kernel * jnp.sum(

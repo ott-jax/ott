@@ -112,3 +112,37 @@ class TestLowerBound:
       np.testing.assert_allclose(
           out_quant.matrix, out_unif.matrix, rtol=1e-6, atol=1e-6
       )
+
+  def test_lb_marginals(self, clouds: _utils.QuadClouds):
+    n, m = clouds.n, clouds.m
+    a = jnp.arange(n, dtype=float) / (n * (n - 1) / 2)
+    b = jnp.arange(1, m + 1, dtype=float) / (m * (m + 1) / 2)
+    prob = quadratic_problem.QuadraticProblem(
+        pointcloud.PointCloud(clouds.x),
+        pointcloud.PointCloud(clouds.y),
+        a=a,
+        b=b,
+        tau_b=0.9,
+    )
+    distrib_cost = distrib_costs.UnivariateWasserstein(
+        univariate.quantile_solver
+    )
+
+    out = lower_bound.third_lower_bound(prob, distrib_cost, epsilon=1e-2)
+
+    np.testing.assert_allclose(out.matrix.sum(1), a, rtol=1e-4, atol=1e-6)
+    np.testing.assert_array_equal(out.ot_prob.b, b)
+    assert out.ot_prob.tau_b == 0.9
+
+  def test_lb_marginals_kwargs(self, clouds: _utils.QuadClouds):
+    prob = clouds.quad_problem()
+    distrib_cost = distrib_costs.UnivariateWasserstein(
+        univariate.quantile_solver
+    )
+
+    out = lower_bound.third_lower_bound(prob, distrib_cost, epsilon=1e-2)
+    out_kwargs = lower_bound.third_lower_bound(
+        prob, distrib_cost, epsilon=1e-2, a=prob.a, b=prob.b
+    )
+
+    np.testing.assert_allclose(out_kwargs.matrix, out.matrix, rtol=1e-6)
