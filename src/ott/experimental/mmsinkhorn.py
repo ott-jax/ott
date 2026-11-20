@@ -265,7 +265,8 @@ class MMSinkhorn:
 
     The solver also uses ``epsilon`` as an input, with the default rule set to
     one twentieth of the standard deviation of the all values stored in the cost
-    tensor resulting from these inputs.
+    tensor resulting from these inputs. That default is treated as a constant
+    when differentiating, as in :class:`~ott.geometry.geometry.Geometry`.
 
     Args:
       x_s: Tuple of :math:`k` point clouds, ``x_s[i]`` is a matrix of size
@@ -304,7 +305,8 @@ class MMSinkhorn:
 
     cost_t = cost_tensor(x_s, cost_fns)
     if epsilon is None:
-      epsilon = epsilon_scheduler.DEFAULT_EPSILON_SCALE * jnp.std(cost_t)
+      scale = jax.lax.stop_gradient(jnp.std(cost_t))
+      epsilon = epsilon_scheduler.DEFAULT_EPSILON_SCALE * scale
     state = self.init_state(n_s, jnp.result_type(cost_t, epsilon, *a_s))
     const = cost_t, a_s, epsilon
     out = run(const, self, state)

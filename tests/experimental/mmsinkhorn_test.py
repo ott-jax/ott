@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import List
+from typing import List, Optional
 
 import pytest
 
@@ -121,9 +121,14 @@ class TestMMSinkhorn:
     x_s_m = [x - eps * delta for x, delta in zip(x_s, deltas)]
 
     solver = mmsinkhorn.MMSinkhorn(threshold=1e-5)
+    # the default epsilon is a constant when differentiating
+    epsilon = solver(x_s).epsilon
     ent_reg = jax.jit(lambda x_s: solver(x_s).ent_reg_cost)
-    out_p = ent_reg(x_s_p)
-    out_m = ent_reg(x_s_m)
+    ent_reg_fixed = jax.jit(
+        lambda x_s: solver(x_s, epsilon=epsilon).ent_reg_cost
+    )
+    out_p = ent_reg_fixed(x_s_p)
+    out_m = ent_reg_fixed(x_s_m)
     ent_g = jax.grad(ent_reg)
     g_s = ent_g(x_s)
     first_order = 0
@@ -168,14 +173,15 @@ class TestMMSinkhorn:
     w = jr.normal(rng_w, n_s)
     solver = mmsinkhorn.MMSinkhorn(threshold=1e-6)
 
-    def loss(x_s: List[jnp.ndarray]) -> float:
-      # the default epsilon depends on `x_s`
-      return jnp.vdot(w, solver(x_s, a_s).tensor)
+    def loss(x_s: List[jnp.ndarray], epsilon: Optional[float] = None) -> float:
+      return jnp.vdot(w, solver(x_s, a_s, epsilon=epsilon).tensor)
 
+    # the default epsilon is a constant when differentiating
+    epsilon = solver(x_s, a_s).epsilon
     grad = jax.grad(loss)(x_s)
     h = 1e-3
-    loss_p = loss([x + h * v for x, v in zip(x_s, v_s)])
-    loss_m = loss([x - h * v for x, v in zip(x_s, v_s)])
+    loss_p = loss([x + h * v for x, v in zip(x_s, v_s)], epsilon)
+    loss_m = loss([x - h * v for x, v in zip(x_s, v_s)], epsilon)
 
     actual = sum(jnp.vdot(g, v) for g, v in zip(grad, v_s))
     np.testing.assert_allclose(actual, (loss_p - loss_m) / (2 * h), rtol=1e-3)
