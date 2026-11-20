@@ -101,8 +101,7 @@ class QuadraticInitializer(BaseQuadraticInitializer):
   r"""Initialize a linear problem locally around a selected coupling.
 
   If the problem is balanced (``tau_a = 1`` and ``tau_b = 1``), the cost is
-  the gradient of the GW objective, i.e., twice eq. 6, p. 1 of
-  :cite:`peyre:16`.
+  the gradient of the GW objective, i.e., eq. 6, p. 1 of :cite:`peyre:16`.
 
   If the problem is unbalanced (``tau_a < 1`` or ``tau_b < 1``), there are two
   possible cases. A first possibility is to introduce a quadratic KL
@@ -117,19 +116,17 @@ class QuadraticInitializer(BaseQuadraticInitializer):
 
   Let :math:`P` [num_a, num_b] be the transport matrix, `cost_xx`, `cost_yy`
   and `cost_xy` be the cost matrices of `geom_xx`, `geom_yy` and `geom_xy`.
-  `left_x` and `right_y` depend on the loss chosen for GW. Without the
-  unbalanced correction, the local cost is the gradient of
-  ``quadratic + fused_penalty * linear``, i.e.,
+  `left_x` and `right_y` depend on the loss chosen for GW. The local cost is
+  the gradient of ``0.5 * quadratic + fused_penalty * linear``, i.e.,
 
   .. math::
 
-    2 (\text{marginal_dep_term} - \text{left}_x(\text{cost_xx}) P
-    \text{right}_y(\text{cost_yy})^T)
+    \text{marginal_dep_term} - \text{left}_x(\text{cost_xx}) P
+    \text{right}_y(\text{cost_yy})^T
     + \text{fused_penalty} \cdot \text{cost_xy}.
 
-  With the unbalanced correction, half of this gradient is used and the
-  scalar `unbalanced_correction` is added, see :cite:`sejourne:21`, alg. 1,
-  and :cite:`thual:22`, alg. S1.
+  With the unbalanced correction, the scalar `unbalanced_correction` is added,
+  see :cite:`sejourne:21`, alg. 1, and :cite:`thual:22`, alg. S1.
 
   Args:
     init_coupling: The coupling to use for initialization. If :obj:`None`,
@@ -187,10 +184,8 @@ class QuadraticInitializer(BaseQuadraticInitializer):
       tmp = tmp1 @ init_transport @ tmp2.T
 
     cost_matrix = marginal_cost.cost_matrix - tmp
-    cost_matrix += 0.5 * quad_prob.fused_penalty * quad_prob._fused_cost_matrix
-    if not quad_prob._is_ugw:
-      cost_matrix *= 2.0
-    else:
+    cost_matrix += quad_prob.fused_penalty * quad_prob._fused_cost_matrix
+    if quad_prob._is_ugw:
       # initialize epsilon for Unbalanced GW according to Sejourne et. al (2021)
       marginal_1, marginal_2 = init_transport.sum(1), init_transport.sum(0)
 

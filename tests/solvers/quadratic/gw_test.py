@@ -265,7 +265,7 @@ class TestGromovWasserstein:
       c = (u[:, None] + v[None, :] - 2 * c)
 
       np.testing.assert_allclose(
-          out.primal_cost, jnp.sum(c * out.matrix), rtol=1e-3
+          out.primal_cost, 0.5 * jnp.sum(c * out.matrix), rtol=1e-3
       )
 
     assert not jnp.isnan(out.reg_gw_cost)
@@ -369,7 +369,7 @@ class TestGromovWasserstein:
                solve(a - h * d).reg_gw_cost) / (2.0 * h)
 
     np.testing.assert_allclose(
-        out.reg_gw_cost, quad + lin + 5.0 * mu.gen_kl(p, ab), rtol=1e-5
+        out.reg_gw_cost, 0.5 * quad + lin + 5.0 * mu.gen_kl(p, ab), rtol=1e-5
     )
     np.testing.assert_allclose(grad, grad_fd, rtol=1e-2)
 
@@ -450,7 +450,7 @@ class TestGromovWasserstein:
       cost += eps * kl_kl(p, jnp.outer(a, b))
       cost += eps * tau_a / (1.0 - tau_a) * kl_kl(p.sum(1), a)
       cost += eps * tau_b / (1.0 - tau_b) * kl_kl(p.sum(0), b)
-      return cost
+      return 0.5 * cost
 
     eps, tau_a, tau_b = 0.1, 0.95, 0.97
     rng_x, rng_y = jr.split(rng, 2)
@@ -495,7 +495,7 @@ class TestGromovWasserstein:
 
     np.testing.assert_allclose(
         out.primal_cost,
-        jnp.einsum("ijkl,ij,kl->", loss, out.matrix, out.matrix),
+        0.5 * jnp.einsum("ijkl,ij,kl->", loss, out.matrix, out.matrix),
         rtol=1e-5,
     )
 
@@ -513,7 +513,8 @@ class TestGromovWasserstein:
       out = solver(prob)
       if explicit:
         p = out.matrix
-        return jnp.einsum("ijkl,ij,kl->", loss, p, p) + jnp.vdot(cxy, p)
+        quad = jnp.einsum("ijkl,ij,kl->", loss, p, p)
+        return 0.5 * quad + jnp.vdot(cxy, p)
       return out.primal_cost
 
     rngs = jr.split(rng, 3)
@@ -599,14 +600,14 @@ class TestGromovWasserstein:
 
     solver = gromov_wasserstein_lr.LRGromovWasserstein(
         rank=5,
-        epsilon=0.2,
+        epsilon=0.1,
         min_iterations=0,
         inner_iterations=10,
         max_iterations=2000
     )
     ot_gwlr = solver(prob)
     linear_solver = sinkhorn.Sinkhorn()
-    solver = gromov_wasserstein.GromovWasserstein(linear_solver, epsilon=0.4)
+    solver = gromov_wasserstein.GromovWasserstein(linear_solver, epsilon=0.2)
     ot_gw = solver(prob)
 
     np.testing.assert_allclose(
@@ -717,7 +718,7 @@ class TestGromovWasserstein:
       p = (q / g) @ r.T
       quad = (cx ** 2 @ a) @ a + (cy ** 2 @ b) @ b
       quad -= 2.0 * jnp.vdot(cx @ p @ cy, p)
-      return quad + 3.0 * g.sum() * jnp.vdot(cxy, p)
+      return 0.5 * quad + 3.0 * g.sum() * jnp.vdot(cxy, p)
 
     rng_x, rng_y, rng_z = jr.split(rng, 3)
     x, y = jr.normal(rng_x, (10, 2)), jr.normal(rng_y, (12, 3))
@@ -752,7 +753,8 @@ class TestGromovWasserstein:
       p = (q / g) @ r.T
       p1, p2 = q.sum(1), r.sum(1)
       quad = jnp.einsum("ik,jl,ij,kl->", h1.func(cx), h2.func(cy), p, p)
-      return p1 @ f1.func(cx) @ p1 + p2 @ f2.func(cy) @ p2 - quad
+      cost = p1 @ f1.func(cx) @ p1 + p2 @ f2.func(cy) @ p2 - quad
+      return 0.5 * cost
 
     rng_x, rng_y = jr.split(rng, 2)
     cx, cy = jr.uniform(rng_x, (10, 10)), jr.uniform(rng_y, (12, 12))
@@ -872,11 +874,11 @@ class TestGromovWasserstein:
     out = solver(prob)
 
     if scale_cost == 1.0:
-      assert out.reg_gw_cost < 37
-      assert out.primal_cost < 32
+      assert out.reg_gw_cost < 18.5
+      assert out.primal_cost < 16
     else:
-      assert out.reg_gw_cost < 0.25
-      assert out.primal_cost < 0.22
+      assert out.reg_gw_cost < 0.125
+      assert out.primal_cost < 0.11
 
   @pytest.mark.parametrize(("tau_a", "tau_b", "eps", "ti"),
                            [(0.99, 0.95, 0.0, True), (0.9, 0.8, 1e-3, False),

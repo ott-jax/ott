@@ -91,10 +91,12 @@ class GWOutput(NamedTuple):
   def reg_gw_cost(self) -> float:
     """Regularized GW cost.
 
-    That is, ``quadratic + fused_penalty * linear + epsilon * KL(P | ab^T)``,
+    That is,
+    ``0.5 * quadratic + fused_penalty * linear + epsilon * KL(P | ab^T)``,
     plus the marginal penalties in the unbalanced case, where ``epsilon`` is
     the one of the linearization ``geom``. With the unbalanced correction, this
-    is the UGW cost of :cite:`sejourne:21`.
+    is half of the UGW cost of :cite:`sejourne:21`, plus
+    ``fused_penalty * linear``.
     """
     if self.ot_prob._is_ugw:
       transport = jax.lax.stop_gradient(self.matrix)
@@ -106,7 +108,7 @@ class GWOutput(NamedTuple):
 
   @property
   def primal_cost(self) -> float:
-    """GW cost, i.e., ``quadratic + fused_penalty * linear``."""
+    """GW cost, i.e., ``0.5 * quadratic + fused_penalty * linear``."""
     if self.ot_prob._is_ugw:
       return self.ot_prob._ugw_primal_cost(
           self.matrix, self.geom.cost_matrix, self.epsilon
@@ -117,11 +119,12 @@ class GWOutput(NamedTuple):
   @property
   def _quad_cost(self) -> float:
     prob = self.ot_prob
-    # `self.geom` is the gradient `2 * quadratic + fused_penalty * linear`
+    # `self.geom` is the gradient of `0.5 * quadratic + fused_penalty * linear`
     quad_grad = self.geom.cost_matrix
     if prob.is_fused:
       quad_grad -= prob.fused_penalty * prob._fused_cost_matrix
     transport = jax.lax.stop_gradient(self.linear_state.matrix)
+    # `<quad_grad, P>` is the quadratic loss
     return 0.5 * jnp.vdot(quad_grad, transport)
 
   @property

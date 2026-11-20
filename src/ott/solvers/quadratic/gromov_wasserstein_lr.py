@@ -212,9 +212,11 @@ class LRGWOutput(NamedTuple):
     marginal_b = self.ot_prob.b if self.ot_prob.tau_b == 1.0 else self.r.sum(1)
     lin_a, lin_b = self.ot_prob._apply_linear_loss(marginal_a, marginal_b)
 
-    quad_cost = 0.5 * self.transport_cost_at_geom(other_geom=self.geom)
+    quad_cost = self.transport_cost_at_geom(other_geom=self.geom)
     quad_cost += jnp.vdot(lin_a, marginal_a)
     quad_cost += jnp.vdot(lin_b, marginal_b)
+    # half of the quadratic term
+    quad_cost *= 0.5
 
     if not self.ot_prob.is_fused:
       return quad_cost
@@ -365,11 +367,11 @@ class LRGromovWasserstein(sinkhorn.Sinkhorn):
     tmp = lin_geom.apply_cost(r, axis=1)
     grad_q = tmp * inv_g
     if ot_prob.tau_a != 1.0:  # unbalanced grad
-      grad_q += 2.0 * lin_q[:, None]
+      grad_q += lin_q[:, None]
 
     grad_r = lin_geom.apply_cost(q, axis=0) * inv_g
     if ot_prob.tau_b != 1.0:  # unbalanced grad
-      grad_r += 2.0 * lin_r[:, None]
+      grad_r += lin_r[:, None]
 
     omega_quad = jnp.sum(q * tmp, axis=0)
     grad_g = -omega_quad / (g ** 2)
@@ -628,4 +630,5 @@ def _linearized_geometry(
 
   tmp1 = quadratic_problem.apply_cost(prob.geom_xx, q, axis=1, fn=h1)
   tmp2 = quadratic_problem.apply_cost(prob.geom_yy, r, axis=1, fn=h2)
-  return low_rank.LRCGeometry(-2.0 * tmp1 * inv_sqrt_g, tmp2 * inv_sqrt_g)
+  # gradient of half the quadratic term, without the marginal terms
+  return low_rank.LRCGeometry(-tmp1 * inv_sqrt_g, tmp2 * inv_sqrt_g)

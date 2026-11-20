@@ -41,6 +41,9 @@ class QuadraticProblem:
   .. math::
     L(x, y) = f_1(x) + f_2(y) - h_1(x) h_2(y)
 
+  The objective is half of that quadratic loss, plus the linear term in the
+  fused case, i.e., ``0.5 * quadratic + fused_penalty * linear``.
+
   Args:
     geom_xx: Ground geometry of the first space.
     geom_yy: Ground geometry of the second space.
@@ -48,7 +51,7 @@ class QuadraticProblem:
       fused Gromov-Wasserstein :cite:`vayer:19`. If :obj:`None`, the problem
       reduces to a plain Gromov-Wasserstein problem :cite:`peyre:16`.
     fused_penalty: Multiplier of the linear term in fused Gromov-Wasserstein,
-      i.e. ``problem = purely quadratic + fused_penalty * linear problem``.
+      i.e. ``problem = 0.5 * quadratic + fused_penalty * linear problem``.
     scale_cost: How to rescale the cost matrices. If a :class:`str`,
       use specific options available in :class:`~ott.geometry.geometry.Geometry`
       or :class:`~ott.geometry.pointcloud.PointCloud`. If :obj:`None`, keep
@@ -249,24 +252,24 @@ class QuadraticProblem:
       epsilon: Entropic regularization.
 
     Returns:
-      The ``quadratic + fused_penalty * linear`` cost.
+      The ``0.5 * quadratic + fused_penalty * linear`` cost.
     """
     transport = jax.lax.stop_gradient(transport_matrix)
     correction = self.cost_unbalanced_correction(
         transport, transport.sum(1), transport.sum(0), epsilon=epsilon
     )
     fused_cost = self.fused_penalty * self._fused_cost_matrix
-    # half of the gradient of the quadratic term
-    quad_grad = cost_matrix - correction - 0.5 * fused_cost
+    # gradient of half the quadratic term
+    quad_grad = cost_matrix - correction - fused_cost
 
-    cost = 2.0 * jnp.vdot(quad_grad, transport_matrix)
-    cost -= jnp.vdot(quad_grad, transport)
+    cost = jnp.vdot(quad_grad, transport_matrix)
+    cost -= 0.5 * jnp.vdot(quad_grad, transport)
     return cost + jnp.sum(fused_cost * transport_matrix)
 
   def _ugw_regularizer(
       self, transport_matrix: jnp.ndarray, epsilon: float
   ) -> float:
-    """Quadratic KL divergences of the UGW cost :cite:`sejourne:21`.
+    """Half the quadratic KL divergences of the UGW cost :cite:`sejourne:21`.
 
     Args:
       transport_matrix: Coupling.
@@ -287,7 +290,7 @@ class QuadraticProblem:
       cost += regularizer(self.tau_a) * _quad_kl(marginal_1, self.a)
     if self.tau_b != 1.0:
       cost += regularizer(self.tau_b) * _quad_kl(marginal_2, self.b)
-    return cost
+    return 0.5 * cost
 
   def init_transport_mass(self) -> float:
     """Initialize the transport mass.
@@ -309,8 +312,7 @@ class QuadraticProblem:
     """Update linearization of GW problem by updating cost matrix.
 
     If the problem is balanced (``tau_a = 1.0 and tau_b = 1.0``), the cost is
-    the gradient of the GW objective, i.e., twice eq. 6, p. 1 of
-    :cite:`peyre:16`.
+    the gradient of the GW objective, i.e., eq. 6, p. 1 of :cite:`peyre:16`.
 
     If the problem is unbalanced (``tau_a < 1.0 or tau_b < 1.0``), two cases are
     possible, as explained in
@@ -357,12 +359,8 @@ class QuadraticProblem:
     tmp = apply_cost(geom_xx, transport_matrix, axis=1, fn=h1)
     tmp = apply_cost(geom_yy, tmp.T, axis=1, fn=h2).T
 
-    cost_matrix = marginal_cost.cost_matrix - tmp
-    cost_matrix += 0.5 * self.fused_penalty * self._fused_cost_matrix
-    if self._is_ugw:
-      cost_matrix += unbalanced_correction
-    else:
-      cost_matrix *= 2.0
+    cost_matrix = marginal_cost.cost_matrix - tmp + unbalanced_correction
+    cost_matrix += self.fused_penalty * self._fused_cost_matrix
 
     geom = geometry.Geometry(
         cost_matrix=cost_matrix,

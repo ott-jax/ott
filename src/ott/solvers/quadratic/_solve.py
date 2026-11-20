@@ -48,7 +48,7 @@ def solve(
       fused Gromov-Wasserstein :cite:`vayer:19`. If :obj:`None`, the problem
       reduces to a plain Gromov-Wasserstein problem :cite:`peyre:16`.
     fused_penalty: Multiplier of the linear term in fused Gromov-Wasserstein,
-      i.e. ``problem = purely quadratic + fused_penalty * linear problem``.
+      i.e. ``problem = 0.5 * quadratic + fused_penalty * linear problem``.
     a: The first marginal. If :obj:`None`, it will be uniform.
     b: The second marginal. If :obj:`None`, it will be uniform.
     tau_a: If :math:`< 1`, defines how much unbalanced the problem is
